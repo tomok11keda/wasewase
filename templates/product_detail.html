@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>わせわせ — {{ product.name }}</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --accent: #bf0000;
+      --radius: 12px;
+      --nav-h: 56px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: calc(var(--nav-h) + 24px);
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--card);
+      border-bottom: 1px solid #eee;
+      padding: 12px 16px;
+    }
+
+    .back-link {
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .back-link:hover { color: var(--accent); }
+
+    .main-inner {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 0 12px 16px;
+    }
+
+    .messages {
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .messages li {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .messages .success { background: #e8f5e9; color: #2e7d32; }
+    .messages .warning { background: #fff8e1; color: #f57f17; }
+    .messages .error { background: #ffebee; color: #c62828; }
+
+    .product-hero {
+      margin-top: 12px;
+      background: var(--card);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .product-hero-image {
+      aspect-ratio: 1;
+      background: linear-gradient(160deg, #e8e8e8 0%, #d0d0d0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      position: relative;
+    }
+
+    .product-hero-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .product-hero.is-sold .product-hero-image img {
+      opacity: 0.55;
+    }
+
+    .sold-out-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 2;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      padding: 6px 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(191, 0, 0, 0.45);
+    }
+
+    .product-info { padding: 16px; }
+
+    .product-name {
+      margin: 0 0 8px;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .product-seller {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .product-seller strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .product-price {
+      margin: 0 0 16px;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .product-price .yen { font-size: 16px; }
+
+    .product-description {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #444;
+      white-space: pre-wrap;
+    }
+
+    .product-description-empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .action-bar {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-like {
+      flex: 1;
+      background: #fff;
+      border: 1px solid #ddd;
+      color: var(--text);
+    }
+
+    .btn-like.is-liked {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #fff5f5;
+    }
+
+    .btn-like:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-purchase {
+      flex: 1;
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-purchase:disabled,
+    .btn-sold {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .btn-login-hint {
+      width: 100%;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .btn-login-hint a {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .comments-section {
+      margin-top: 20px;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .comments-title {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .comment-form textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+    }
+
+    .comment-form textarea:focus { border-color: var(--accent); }
+
+    .field-error {
+      margin: 6px 0 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    .btn-submit {
+      margin-top: 10px;
+      width: 100%;
+      height: 44px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .comment-list { margin: 20px 0 0; padding: 0; list-style: none; }
+    .comment-item { padding: 12px 0; border-top: 1px solid #eee; }
+    .comment-item:first-child { border-top: none; padding-top: 0; }
+    .comment-body { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+    .comment-time { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+    .comments-empty { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
+
+    .product-seller a { color: var(--accent); text-decoration: none; }
+
+    .review-section {
+      margin-top: 20px;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .review-section h2 { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+    .review-partner { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+    .review-partner a { color: var(--accent); }
+
+    .review-form ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .review-form textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .review-done, .review-waiting {
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .review-done .stars { color: var(--accent); font-weight: 700; }
+
+    .faculty-badge {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #fff0f0;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .product-tags { margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .product-tags .tag {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #f0f0f0;
+      color: #444;
+    }
+
+    .trade-chat-section {
+      margin-top: 20px;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .trade-chat-section h2 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+    .trade-chat-hint { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+
+    .preset-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .preset-btn {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      background: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .preset-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #fff5f5;
+    }
+
+    .trade-messages {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .trade-msg {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      max-width: 85%;
+    }
+
+    .trade-msg.is-mine {
+      margin-left: auto;
+      background: #fff0f0;
+      border: 1px solid #f5c6c6;
+    }
+
+    .trade-msg.is-theirs {
+      background: #f5f5f5;
+    }
+
+    .trade-msg-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 200;
+      background: var(--card);
+      border-top: 1px solid #e5e5e5;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      display: flex;
+      justify-content: space-around;
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      padding-top: 4px;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 0;
+      font-size: 10px;
+      color: #666;
+      text-decoration: none;
+    }
+
+    .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
+    .nav-item--notify { position: relative; }
+
+    .nav-badge {
+      position: absolute;
+      top: 0;
+      right: calc(50% - 22px);
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="back-link" href="{% url 'home' %}">← 一覧に戻る</a>
+  </header>
+
+  <main class="main-inner">
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <article class="product-hero{% if product.is_sold %} is-sold{% endif %}">
+      <div class="product-hero-image">
+        {% if product.is_sold %}
+        <span class="sold-out-badge">SOLD OUT</span>
+        {% endif %}
+        {% if product.image %}
+        <img src="{{ product.image.url }}" alt="{{ product.name }}" width="800" height="800">
+        {% elif product.image_url %}
+        <img src="{{ product.image_url }}" alt="{{ product.name }}" width="800" height="800">
+        {% else %}
+        <span>画像なし</span>
+        {% endif %}
+      </div>
+      <div class="product-info">
+        <h1 class="product-name">{{ product.name }}</h1>
+        <p class="product-seller">
+          出品者:
+          {% if product.seller %}
+          <a href="{% url 'user_profile' product.seller.username %}"><strong>{{ product.seller.username }}</strong></a>
+          {% if product.seller.profile and product.seller.profile.faculty %}
+          <span class="faculty-badge">{{ product.seller.profile.faculty }}</span>
+          {% endif %}
+          {% else %}
+          <strong>不明</strong>
+          {% endif %}
+        </p>
+        {% if product.course_name or product.professor_name %}
+        <p class="product-tags">
+          {% if product.course_name %}<span class="tag">📘 {{ product.course_name }}</span>{% endif %}
+          {% if product.professor_name %}<span class="tag">👨‍🏫 {{ product.professor_name }}</span>{% endif %}
+        </p>
+        {% endif %}
+        <p class="product-price"><span class="yen">¥</span>{{ product.price|floatformat:0 }}</p>
+        {% if product.description %}
+        <p class="product-description">{{ product.description }}</p>
+        {% else %}
+        <p class="product-description product-description-empty">説明はありません。</p>
+        {% endif %}
+
+        <div class="action-bar">
+          <div class="action-row">
+            {% if user.is_authenticated %}
+            <button
+              type="button"
+              id="like-btn"
+              class="btn btn-like{% if user_liked %} is-liked{% endif %}"
+              data-url="{% url 'toggle_like' product.pk %}"
+              data-csrf="{{ csrf_token }}"
+              {% if product.is_sold %}disabled{% endif %}
+            >
+              <span id="like-label">{% if user_liked %}♥ いいね済み{% else %}♡ いいね{% endif %}</span> (<span id="like-count">{{ like_count }}</span>)
+            </button>
+            {% else %}
+            <p class="btn-login-hint"><a href="{% url 'login' %}?next={{ request.path }}">ログイン</a>していいね</p>
+            {% endif %}
+
+            {% if product.is_sold %}
+            <button type="button" class="btn btn-sold" disabled>SOLD OUT</button>
+            {% elif can_purchase %}
+            <form method="post" action="{% url 'purchase_product' product.pk %}" style="flex:1;margin:0">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-purchase" style="width:100%">購入する</button>
+            </form>
+            {% elif user.is_authenticated and product.seller_id == user.id %}
+            <button type="button" class="btn btn-sold" disabled>自分の出品</button>
+            {% elif not user.is_authenticated %}
+            <a class="btn btn-purchase" href="{% url 'login' %}?next={{ request.path }}" style="flex:1">購入する</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </article>
+
+    {% if show_trade_chat %}
+    <section class="trade-chat-section" aria-label="手渡しチャット">
+      <h2>📍 手渡しチャット（位置の目安）</h2>
+      <p class="trade-chat-hint">定型文ボタンで今どこにいるか伝えましょう</p>
+      <div class="preset-buttons">
+        {% for preset in location_presets %}
+        <form method="post" action="{% url 'send_trade_message' product.pk %}" style="margin:0">
+          {% csrf_token %}
+          <input type="hidden" name="body" value="{{ preset }}">
+          <input type="hidden" name="is_preset" value="1">
+          <button type="submit" class="preset-btn">{{ preset }}</button>
+        </form>
+        {% endfor %}
+      </div>
+      {% if trade_messages %}
+      <ul class="trade-messages">
+        {% for msg in trade_messages %}
+        <li class="trade-msg{% if msg.sender_id == user.id %} is-mine{% else %} is-theirs{% endif %}">
+          <div class="trade-msg-meta">{{ msg.sender.username }} · {{ msg.created_at|date:"H:i" }}{% if msg.is_preset %} · 定型文{% endif %}</div>
+          {{ msg.body }}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="trade-chat-hint">まだメッセージはありません。ボタンを押して連絡しましょう。</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if product.is_sold and product.buyer_id and review_partner %}
+    <section class="review-section" aria-label="取引評価">
+      <h2>取引相手を評価する</h2>
+      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.username %}">{{ review_partner.username }}</a> さん</p>
+
+      {% if user_review %}
+      <div class="review-done">
+        <p>あなたの評価: <span class="stars">{{ user_review.rating_stars }}</span>
+          {% if user_review.rating == 3 %}（良い）{% elif user_review.rating == 2 %}（普通）{% else %}（悪い）{% endif %}
+        </p>
+        {% if user_review.comment %}<p>{{ user_review.comment }}</p>{% endif %}
+      </div>
+      {% elif review_form %}
+      <form class="review-form" method="post" action="{% url 'submit_review' product.pk %}">
+        {% csrf_token %}
+        {{ review_form.rating }}
+        {{ review_form.comment }}
+        <button type="submit" class="btn-submit">評価を投稿</button>
+      </form>
+      {% endif %}
+
+      {% if partner_review %}
+      <div class="review-done">
+        <p>相手からの評価: <span class="stars">{{ partner_review.rating_stars }}</span>
+          {% if partner_review.rating == 3 %}（良い）{% elif partner_review.rating == 2 %}（普通）{% else %}（悪い）{% endif %}
+        </p>
+        {% if partner_review.comment %}<p>{{ partner_review.comment }}</p>{% endif %}
+      </div>
+      {% elif user_review %}
+      <p class="review-waiting">相手の評価を待っています…</p>
+      {% endif %}
+
+      {% if user_review and partner_review %}
+      <p class="review-waiting" style="background:#e8f5e9;color:#2e7d32">双方の評価が完了しました。プロフィールに反映されています。</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="comments-section" aria-label="コメント">
+      <h2 class="comments-title">コメント（{{ comments|length }}件）</h2>
+
+      <form class="comment-form" method="post" action="">
+        {% csrf_token %}
+        {{ form.body }}
+        {% if form.body.errors %}
+        <ul class="field-error">
+          {% for error in form.body.errors %}
+          <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <button type="submit" class="btn-submit">コメントを投稿</button>
+      </form>
+
+      {% if comments %}
+      <ul class="comment-list">
+        {% for comment in comments %}
+        <li class="comment-item">
+          <p class="comment-body">{{ comment.body }}</p>
+          <time class="comment-time" datetime="{{ comment.created_at|date:'c' }}">
+            {{ comment.created_at|date:"Y/m/d H:i" }}
+          </time>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="comments-empty">まだコメントはありません。最初のコメントを書いてみましょう。</p>
+      {% endif %}
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="メイン">
+    <a class="nav-item" href="{% url 'home' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+      <span>ホーム</span>
+    </a>
+    <a class="nav-item nav-item--notify" href="{% url 'notifications' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      <span>通知</span>
+      {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+    </a>
+    <a class="nav-item" href="{% url 'exhibit' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      <span>出品</span>
+    </a>
+    <a class="nav-item" href="{% url 'mypage' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      <span>マイページ</span>
+    </a>
+  </nav>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("like-btn");
+      if (!btn) return;
+
+      btn.addEventListener("click", async function () {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(btn.dataset.url, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": btn.dataset.csrf,
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+          if (!res.ok) throw new Error("failed");
+          const data = await res.json();
+          document.getElementById("like-count").textContent = data.like_count;
+          document.getElementById("like-label").textContent =
+            data.liked ? "♥ いいね済み" : "♡ いいね";
+          btn.classList.toggle("is-liked", data.liked);
+        } catch (e) {
+          alert("いいねの処理に失敗しました。ログインしているか確認してください。");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

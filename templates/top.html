@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>わせわせ — トップ</title>
+  <title>わせわせ — {% if tab == 'board' %}授業情報{% else %}フリマ{% endif %}</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -202,6 +202,45 @@
       position: relative;
     }
 
+    .sold-out-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 2;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      padding: 4px 8px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(191, 0, 0, 0.4);
+    }
+
+    .product-card.is-sold .product-thumb img {
+      opacity: 0.55;
+    }
+
+    .nav-badge {
+      position: absolute;
+      top: 0;
+      right: calc(50% - 22px);
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+    }
+
+    .nav-item--notify {
+      position: relative;
+    }
+
     .product-thumb img {
       width: 100%;
       height: 100%;
@@ -303,23 +342,351 @@
     .nav-item--fab span:last-child {
       margin-top: 2px;
     }
+
+    .search-form {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .empty-message {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .faculty-hint {
+      margin: 0 4px 10px;
+      padding: 8px 12px;
+      background: #fff5f5;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .product-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #f0f0f0;
+      color: #555;
+    }
+
+    .tag-faculty {
+      background: #fff0f0;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+  /* --- ダブル・トップ切替 --- */
+    .mode-switch {
+      display: flex;
+      margin: 8px 0 0;
+      padding: 3px;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid #e5e5e5;
+    }
+
+    .mode-switch a {
+      flex: 1;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--muted);
+      border-radius: 8px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .mode-switch a.is-active {
+      background: var(--card);
+      color: var(--accent);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    body.mode-board {
+      --accent: #1a5fb4;
+      --board-bg: #f7f9fc;
+    }
+
+    body.mode-board .site-header {
+      border-bottom-color: #dce4ef;
+    }
+
+    .board-panel {
+      background: var(--board-bg, #f7f9fc);
+      min-height: 40vh;
+    }
+
+    .board-intro {
+      margin: 0 4px 12px;
+      padding: 12px 14px;
+      background: #fff;
+      border-radius: var(--radius);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #444;
+      border-left: 4px solid var(--accent);
+    }
+
+    .board-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 0 4px 12px;
+    }
+
+    .board-actions .god-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .btn-board-new {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .tag-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      padding: 10px 12px;
+      background: #e8f0fa;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .tag-filter-bar a { color: var(--accent); font-weight: 600; }
+
+    .popular-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0 4px 12px;
+    }
+
+    .tag-link {
+      padding: 6px 12px;
+      background: #fff;
+      border: 1px solid #d0dae8;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .tag-link.is-active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .compose-box {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 0 4px 12px;
+      border: 1px solid #e8edf2;
+    }
+
+    .compose-box textarea,
+    .compose-box input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      margin-bottom: 8px;
+    }
+
+    .compose-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .compose-row input { flex: 1; margin-bottom: 0; }
+
+    .btn-compose {
+      width: 100%;
+      height: 40px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    .trending-section {
+      margin: 0 4px 16px;
+      padding: 14px;
+      background: linear-gradient(135deg, #fffef5 0%, #fff 100%);
+      border: 1px solid #f0e0a0;
+      border-radius: var(--radius);
+    }
+
+    .trending-section h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: #8a7000;
+    }
+
+    .trending-item {
+      padding: 10px 0;
+      border-top: 1px solid #f5ecd0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .trending-item:first-of-type { border-top: none; padding-top: 0; }
+
+    .timeline-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .tweet-card {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      border: 1px solid #e8edf2;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .tweet-card.is-hot {
+      border-color: #f0e0a0;
+      background: linear-gradient(135deg, #fffef8 0%, #fff 100%);
+    }
+
+    .tweet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .tweet-author { font-size: 13px; font-weight: 600; color: #333; }
+    .tweet-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+    .course-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #e8f0fa;
+      color: var(--accent);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      margin-bottom: 8px;
+    }
+
+    .tweet-body {
+      margin: 0 0 12px;
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .tweet-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tweet-actions form { margin: 0; flex: 1; min-width: 100px; }
+
+    .btn-tweet {
+      width: 100%;
+      height: 36px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+    }
+
+    .btn-tweet-tip {
+      background: #fff;
+      border: 2px solid var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-tweet-god {
+      background: linear-gradient(135deg, #ffe566, #f0c040);
+      color: #5a4200;
+    }
+
+    .btn-tweet-god:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .tweet-stats {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .flea-panel { display: block; }
+    .board-panel-wrap { display: none; }
+    body.mode-board .flea-panel { display: none; }
+    body.mode-board .board-panel-wrap { display: block; }
+    body.mode-board .category-section { display: none; }
+
+    body.mode-board .nav-item--fab { color: #1a5fb4; }
+    body.mode-board .nav-item--fab .fab-circle {
+      background: #1a5fb4;
+      box-shadow: 0 4px 12px rgba(26, 95, 180, 0.35);
+    }
   </style>
 </head>
-<body>
+<body class="{% if tab == 'board' %}mode-board{% endif %}">
   <header class="site-header">
     <div class="header-row">
-      <div class="search-wrap">
-        <label class="visually-hidden" for="q">商品をさがす</label>
-        <input class="search-bar" id="q" type="search" name="q" placeholder="なにをお探しですか？" autocomplete="off">
-      </div>
+      <form class="search-form" method="get" action="{% url 'home' %}" role="search">
+        <label class="visually-hidden" for="q">{% if tab == 'board' %}授業を検索{% else %}商品を検索{% endif %}</label>
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <input class="search-bar" id="q" type="search" name="q" value="{{ query }}"
+          placeholder="{% if tab == 'board' %}授業名・教授名で検索{% else %}商品名・授業名・教授名で検索{% endif %}"
+          autocomplete="off">
+      </form>
       <div class="header-actions">
-        <a class="btn btn-ghost" href="#">ログイン</a>
-        <a class="btn btn-primary" href="#">新規登録</a>
+        {% if user.is_authenticated %}
+        <span class="btn btn-ghost" style="cursor:default">{{ user.username }}</span>
+        <a class="btn btn-primary" href="{% url 'logout' %}">ログアウト</a>
+        {% else %}
+        <a class="btn btn-ghost" href="{% url 'login' %}">ログイン</a>
+        <a class="btn btn-primary" href="{% url 'signup' %}">新規登録</a>
+        {% endif %}
       </div>
     </div>
+    <nav class="mode-switch" aria-label="モード切替">
+      <a href="{% url 'home' %}?tab=flea{% if query %}&amp;q={{ query|urlencode }}{% endif %}"
+        class="{% if tab == 'flea' %}is-active{% endif %}">フリマ</a>
+      <a href="{% url 'home' %}?tab=board{% if query %}&amp;q={{ query|urlencode }}{% endif %}"
+        class="{% if tab == 'board' %}is-active{% endif %}">授業情報</a>
+    </nav>
   </header>
 
-  <section class="category-section" aria-label="カテゴリー">
+  <section class="category-section flea-panel" aria-label="カテゴリー">
     <div class="category-scroll">
       {% for c in categories %}
       <a class="category-item" href="#">
@@ -330,14 +697,22 @@
     </div>
   </section>
 
-  <main class="main-inner">
-    <h2 class="section-title">おすすめ商品</h2>
+  <main class="main-inner flea-panel">
+    {% if user_faculty and not query and tab == 'flea' %}
+    <p class="faculty-hint">📍 {{ user_faculty }}の出品を優先表示しています</p>
+    {% endif %}
+    <h2 class="section-title">{% if query %}「{{ query }}」の検索結果{% else %}おすすめ商品{% endif %}</h2>
     <div class="product-grid">
       {% for product in products %}
-      <a class="product-card" href="#">
+      <a class="product-card{% if product.is_sold %} is-sold{% endif %}" href="{% url 'product_detail' product.pk %}">
         <div class="product-thumb">
-          {% if product.image_url %}
-          <img src="{{ product.image_url }}" alt="" width="400" height="400" loading="lazy">
+          {% if product.is_sold %}
+          <span class="sold-out-badge">SOLD OUT</span>
+          {% endif %}
+          {% if product.image %}
+          <img src="{{ product.image.url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
+          {% elif product.image_url %}
+          <img src="{{ product.image_url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
           {% else %}
           <span>ダミー画像</span>
           {% endif %}
@@ -345,30 +720,89 @@
         <div class="product-body">
           <div class="product-price"><span class="yen">¥</span>{{ product.price|floatformat:0 }}</div>
           <div class="product-name">{{ product.name }}</div>
+          {% if product.course_name or product.professor_name %}
+          <div class="product-tags">
+            {% if product.course_name %}<span class="tag">{{ product.course_name }}</span>{% endif %}
+            {% if product.professor_name %}<span class="tag">{{ product.professor_name }}</span>{% endif %}
+          </div>
+          {% endif %}
         </div>
       </a>
+      {% empty %}
+      <p class="empty-message">該当する商品がありません。</p>
+      {% endfor %}
+    </div>
+  </main>
+
+  <main class="main-inner board-panel-wrap board-panel">
+    <p class="board-intro">
+      授業タグ付きの<strong>タイムライン</strong>です。タグで授業別に絞り込み、<strong>1円投げ銭</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
+    </p>
+    {% if user.is_authenticated %}
+    <p style="margin:0 4px 10px;font-size:12px;color:var(--muted)">神！残り {{ god_remaining }} / {{ god_limit }} 回</p>
+    {% endif %}
+    {% if timeline_form %}
+    <div class="compose-box">
+      <form method="post" action="{% url 'board_compose' %}">
+        {% csrf_token %}
+        {{ timeline_form.body }}
+        <div class="compose-row">{{ timeline_form.course_name }}{{ timeline_form.professor_name }}</div>
+        <button type="submit" class="btn-compose">つぶやく</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>してつぶやく</p>
+    {% endif %}
+    {% if active_tag %}
+    <div class="tag-filter-bar"><span>📘 {{ active_tag }}</span><a href="{% url 'home' %}?tab=board">すべて</a></div>
+    {% elif popular_tags %}
+    <div class="popular-tags">{% for t in popular_tags %}<a class="tag-link" href="{% url 'home' %}?tab=board&amp;tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
+    {% endif %}
+    {% if trending_posts and not active_tag %}
+    <section class="trending-section"><h3>⚡ 話題の投稿</h3>
+    {% for p in trending_posts %}<article class="trending-item"><a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>{% endfor %}
+    </section>
+    {% endif %}
+    <h2 class="section-title">{% if active_tag %}{{ active_tag }}{% elif query %}「{{ query }}」{% else %}タイムライン{% endif %}</h2>
+    <div class="timeline-list">
+      {% for post in timeline_posts %}
+      <article class="tweet-card{% if post.god_count %} is-hot{% endif %}">
+        <div class="tweet-header"><span class="tweet-author">{{ post.author.username }}</span><time class="tweet-time">{{ post.created_at|date:"m/d H:i" }}</time></div>
+        <a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
+        <p class="tweet-body">{{ post.body }}</p>
+        {% if user.is_authenticated %}
+        <div class="tweet-actions">
+          <form method="post" action="{% url 'board_timeline_tip' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-tip">🪙 1円</button></form>
+          <form method="post" action="{% url 'board_timeline_god' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-god" {% if not can_god %}disabled{% endif %}>⚡ 神！</button></form>
+        </div>
+        {% endif %}
+        <p class="tweet-stats">🪙 ¥{{ post.tip_total }} · ⚡ {{ post.god_count }}</p>
+      </article>
+      {% empty %}
+      <p class="empty-message">まだ投稿がありません。</p>
       {% endfor %}
     </div>
   </main>
 
   <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="#" aria-current="page">
+    <a class="nav-item" href="{% url 'home' %}?tab={{ tab }}" aria-current="page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
       <span>ホーム</span>
     </a>
-    <a class="nav-item" href="#">
+    <a class="nav-item nav-item--notify" href="{% url 'notifications' %}">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
       <span>通知</span>
+      {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
     </a>
-    <a class="nav-item nav-item--fab" href="#">
+    <a class="nav-item nav-item--fab" href="{% url 'exhibit' %}">
       <span class="fab-circle" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       </span>
       <span>出品</span>
     </a>
-    <a class="nav-item" href="#">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-      <span>おさいふ</span>
+    <a class="nav-item" href="{% url 'mypage' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      <span>マイページ</span>
     </a>
   </nav>
 </body>
