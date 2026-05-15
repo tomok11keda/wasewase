@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>わせわせ — マイページ</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --accent: #bf0000;
+      --radius: 12px;
+      --nav-h: 56px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: calc(var(--nav-h) + 16px);
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--card);
+      border-bottom: 1px solid #eee;
+      padding: 12px 16px;
+    }
+
+    .site-header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .main-inner {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .profile-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      margin-bottom: 16px;
+    }
+
+    .profile-name {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .profile-rating {
+      margin: 0 0 12px;
+      font-size: 15px;
+      color: #444;
+    }
+
+    .faculty-badge {
+      display: inline-block;
+      margin-bottom: 16px;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .profile-edit {
+      margin-bottom: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+
+    .profile-edit select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .btn-small {
+      height: 36px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .profile-rating strong {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .sales-box {
+      background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+      border: 1px solid #f5c6c6;
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .sales-label {
+      margin: 0 0 4px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .sales-amount {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .sales-sub {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 10px;
+      padding: 0 4px;
+    }
+
+    .product-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .product-item {
+      display: flex;
+      gap: 12px;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 10px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .product-item-thumb {
+      width: 72px;
+      height: 72px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: #e8e8e8;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--muted);
+      position: relative;
+    }
+
+    .product-item-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-item-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .product-item-name {
+      margin: 0 0 4px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .product-item-price {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .status-available {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .status-sold {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .sold-out-mini {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      background: var(--accent);
+      color: #fff;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    .empty-message {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 14px;
+      background: var(--card);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 200;
+      background: var(--card);
+      border-top: 1px solid #e5e5e5;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      display: flex;
+      justify-content: space-around;
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      padding-top: 4px;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 0;
+      font-size: 10px;
+      color: #666;
+      text-decoration: none;
+    }
+
+    .nav-item[aria-current="page"] { color: var(--accent); }
+    .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
+    .nav-item--fab { color: var(--accent); }
+
+    .nav-item--fab .fab-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: -8px;
+      box-shadow: 0 4px 12px rgba(191, 0, 0, 0.35);
+    }
+
+    .nav-item--fab .fab-circle svg { fill: #fff; }
+    .nav-item--notify { position: relative; }
+
+    .nav-badge {
+      position: absolute;
+      top: 0;
+      right: calc(50% - 22px);
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <h1>マイページ</h1>
+  </header>
+
+  <main class="main-inner">
+    <section class="profile-card">
+      <h2 class="profile-name">{{ user.username }}</h2>
+      <p class="profile-rating">
+        {% if rating_stats.count %}
+        評価：★{{ rating_stats.avg_display }}（{{ rating_stats.count }}件）
+        {% else %}
+        評価：まだありません
+        {% endif %}
+      </p>
+      {% if profile.faculty %}
+      <span class="faculty-badge">🎓 {{ profile.faculty }} 認証</span>
+      {% endif %}
+      <form class="profile-edit" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="profile">
+        <label for="id_faculty">{{ profile_form.faculty.label }}</label>
+        {{ profile_form.faculty }}
+        <button type="submit" class="btn-small">学部を更新</button>
+      </form>
+      <div class="sales-box">
+        <p class="sales-label">現在の売上金</p>
+        <p class="sales-amount">¥{{ total_sales|floatformat:0 }}</p>
+        <p class="sales-sub">総売上（売却済み {{ sold_products|length }} 件の合計）</p>
+      </div>
+    </section>
+
+    <h3 class="section-title">販売中（{{ available_products|length }}）</h3>
+    {% if available_products %}
+    <div class="product-list">
+      {% for product in available_products %}
+      <a class="product-item" href="{% url 'product_detail' product.pk %}">
+        <div class="product-item-thumb">
+          {% if product.image %}
+          <img src="{{ product.image.url }}" alt="">
+          {% elif product.image_url %}
+          <img src="{{ product.image_url }}" alt="">
+          {% else %}
+          画像なし
+          {% endif %}
+        </div>
+        <div class="product-item-body">
+          <p class="product-item-name">{{ product.name }}</p>
+          <p class="product-item-price">¥{{ product.price|floatformat:0 }}</p>
+          <span class="status-badge status-available">出品中</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-message">販売中の商品はありません。</p>
+    {% endif %}
+
+    <h3 class="section-title">売却済み（{{ sold_products|length }}）</h3>
+    {% if sold_products %}
+    <div class="product-list">
+      {% for product in sold_products %}
+      <a class="product-item" href="{% url 'product_detail' product.pk %}">
+        <div class="product-item-thumb">
+          <span class="sold-out-mini">SOLD</span>
+          {% if product.image %}
+          <img src="{{ product.image.url }}" alt="">
+          {% elif product.image_url %}
+          <img src="{{ product.image_url }}" alt="">
+          {% else %}
+          画像なし
+          {% endif %}
+        </div>
+        <div class="product-item-body">
+          <p class="product-item-name">{{ product.name }}</p>
+          <p class="product-item-price">¥{{ product.price|floatformat:0 }}</p>
+          <span class="status-badge status-sold">SOLD OUT</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-message">売却済みの商品はまだありません。</p>
+    {% endif %}
+  </main>
+
+  <nav class="bottom-nav" aria-label="メイン">
+    <a class="nav-item" href="{% url 'home' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+      <span>ホーム</span>
+    </a>
+    <a class="nav-item nav-item--notify" href="{% url 'notifications' %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      <span>通知</span>
+      {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+    </a>
+    <a class="nav-item nav-item--fab" href="{% url 'exhibit' %}">
+      <span class="fab-circle" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      </span>
+      <span>出品</span>
+    </a>
+    <a class="nav-item" href="{% url 'mypage' %}" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      <span>マイページ</span>
+    </a>
+  </nav>
+</body>
+</html>
