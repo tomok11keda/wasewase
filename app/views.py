@@ -12,11 +12,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .constants import TRADE_LOCATION_PRESETS
+from .constants import FACULTY_CHOICES, TRADE_LOCATION_PRESETS
 from .board_services import (
     GOD_USES_PER_MONTH,
     can_use_god_button,
     god_uses_remaining,
+    notify_timeline_post_author,
 )
 from .forms import (
     CommentForm,
@@ -24,6 +25,7 @@ from .forms import (
     ProfileForm,
     ReviewForm,
     SignUpForm,
+    TimelineCommentForm,
     TimelinePostForm,
 )
 from .models import (
@@ -51,21 +53,19 @@ User = get_user_model()
 
 
 def index(request):
-    categories = [
-        {"label": "政治経済学部", "icon": "📚"},
-        {"label": "法学部", "icon": "👓"},
-        {"label": "商学部", "icon": "💴"},
-        {"label": "教育学部", "icon": "🏫"},
-        {"label": "文学部", "icon": "📖"},
-        {"label": "文化構想学部", "icon": "⌛"},
-    ]
-
     tab = request.GET.get("tab", "flea")
     if tab not in ("flea", "board"):
         tab = "flea"
 
     query = request.GET.get("q", "").strip()
     user_faculty = get_user_faculty(request.user) if request.user.is_authenticated else ""
+    faculty_values = {value for value, _ in FACULTY_CHOICES}
+    active_faculty = request.GET.get("faculty", "").strip()
+    if active_faculty not in faculty_values:
+        active_faculty = ""
+    faculty_tabs = [{"value": "", "label": "すべて"}] + [
+        {"value": value, "label": label} for value, label in FACULTY_CHOICES
+    ]
 
     products = Product.objects.none()
     timeline_posts = TimelinePost.objects.none()
@@ -75,7 +75,12 @@ def index(request):
     timeline_form = None
 
     if tab == "board":
-        timeline_posts = TimelinePost.objects.select_related("author", "author__profile")
+        timeline_posts = (
+            TimelinePost.objects.select_related("author", "author__profile")
+            .prefetch_related("comments__author")
+        )
+        if active_faculty:
+            timeline_posts = timeline_posts.filter(faculty=active_faculty)
         if active_tag:
             timeline_posts = timeline_posts.filter(course_name=active_tag)
         if query:
@@ -99,16 +104,18 @@ def index(request):
         )
 
         if request.user.is_authenticated:
-            timeline_form = TimelinePostForm()
+            timeline_form = TimelinePostForm(initial={"faculty": user_faculty})
     else:
         products = Product.objects.select_related("seller", "seller__profile").all()
+        if active_faculty:
+            products = products.filter(faculty=active_faculty)
         if query:
             products = products.filter(
                 Q(name__icontains=query)
                 | Q(course_name__icontains=query)
                 | Q(professor_name__icontains=query)
             )
-        if request.user.is_authenticated:
+        if request.user.is_authenticated and not active_faculty:
             products = prioritize_same_faculty(products, request.user)
         else:
             products = products.order_by("-created_at")
@@ -121,7 +128,6 @@ def index(request):
         request,
         "top.html",
         {
-            "categories": categories,
             "products": products,
             "timeline_posts": timeline_posts,
             "trending_posts": trending_posts,
@@ -131,6 +137,8 @@ def index(request):
             "query": query,
             "user_faculty": user_faculty,
             "tab": tab,
+            "faculty_tabs": faculty_tabs,
+            "active_faculty": active_faculty,
             "god_remaining": god_remaining,
             "god_limit": GOD_USES_PER_MONTH,
             "can_god": can_use_god_button(request.user),
@@ -145,7 +153,7 @@ def product_detail(request, pk):
         ).prefetch_related("likes"),
         pk=pk,
     )
-    comments = product.comments.all()
+    comments = product.comments.select_related("author")
     like_count = product.likes.count()
     user_liked = False
     if request.user.is_authenticated:
@@ -156,6 +164,8 @@ def product_detail(request, pk):
         if form.is_valid():
             comment = form.save(commit=False)
             comment.product = product
+            if request.user.is_authenticated:
+                comment.author = request.user
             comment.save()
             actor_id = request.user.id if request.user.is_authenticated else None
             notify_seller(
@@ -168,7 +178,7 @@ def product_detail(request, pk):
         form = CommentForm()
 
     can_purchase = (
-        not product.is_sold
+        product.status == Product.Status.AVAILABLE
         and request.user.is_authenticated
         and product.seller_id != request.user.id
     )
@@ -192,10 +202,7 @@ def product_detail(request, pk):
             if can_review:
                 review_form = ReviewForm()
 
-    show_trade_chat = is_trade_participant(product, request.user)
-    trade_messages = []
-    if show_trade_chat:
-        trade_messages = product.trade_messages.select_related("sender")
+    show_trade_link = is_trade_participant(product, request.user)
 
     return render(
         request,
@@ -212,9 +219,7 @@ def product_detail(request, pk):
             "user_review": user_review,
             "partner_review": partner_review,
             "review_partner": review_partner,
-            "show_trade_chat": show_trade_chat,
-            "trade_messages": trade_messages,
-            "location_presets": TRADE_LOCATION_PRESETS,
+            "show_trade_link": show_trade_link,
         },
     )
 
@@ -291,23 +296,65 @@ def purchase_product(request, pk):
 
     if product.is_sold:
         messages.warning(request, "この商品はすでに売却済みです。")
+    elif product.is_trading:
+        messages.warning(request, "この商品はすでに取引中です。")
     elif product.seller_id == request.user.id:
         messages.error(request, "自分の商品は購入できません。")
     else:
-        product.status = Product.Status.SOLD
+        product.status = Product.Status.TRADING
         product.buyer = request.user
-        product.save(update_fields=["status", "buyer"])
+        product.seller_trade_completed = False
+        product.buyer_trade_completed = False
+        product.save(
+            update_fields=[
+                "status",
+                "buyer",
+                "seller_trade_completed",
+                "buyer_trade_completed",
+            ]
+        )
         notify_seller(
             product,
-            f"「{product.name}」が購入されました。（¥{product.price:,}）",
+            f"「{product.name}」の取引が開始されました。（¥{product.price:,}）",
             actor_id=request.user.id,
         )
         messages.success(
             request,
-            "購入が完了しました。取引相手を評価できます。",
+            "取引を開始しました。出品者とチャットで受け渡しを調整しましょう。",
         )
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
     return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+
+@login_required
+def product_trade(request, pk):
+    product = get_object_or_404(
+        Product.objects.select_related("seller", "buyer"), pk=pk
+    )
+    if not is_trade_participant(product, request.user):
+        messages.error(request, "この取引ページにはアクセスできません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    partner = product.buyer if request.user.id == product.seller_id else product.seller
+    trade_messages = product.trade_messages.select_related("sender")
+    user_completed = (
+        product.seller_trade_completed
+        if request.user.id == product.seller_id
+        else product.buyer_trade_completed
+    )
+
+    return render(
+        request,
+        "product_trade.html",
+        {
+            "product": product,
+            "partner": partner,
+            "trade_messages": trade_messages,
+            "location_presets": TRADE_LOCATION_PRESETS,
+            "user_completed": user_completed,
+        },
+    )
 
 
 @login_required
@@ -321,20 +368,24 @@ def send_trade_message(request, pk):
         messages.error(request, "この取引のチャットに参加できません。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
+    if product.is_sold:
+        messages.info(request, "完了済みの取引にはメッセージを送信できません。")
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
+
     body = request.POST.get("body", "").strip()
     is_preset = request.POST.get("is_preset") == "1"
 
     if is_preset and body not in TRADE_LOCATION_PRESETS:
         messages.error(request, "無効な定型文です。")
-        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
     if not body:
         messages.error(request, "メッセージを入力してください。")
-        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
     if len(body) > 200:
         messages.error(request, "メッセージが長すぎます。")
-        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
     TradeMessage.objects.create(
         product=product,
@@ -348,10 +399,54 @@ def send_trade_message(request, pk):
         Notification.objects.create(
             recipient=partner,
             message=f"「{product.name}」の手渡しチャット: {body}",
-            link=reverse("product_detail", kwargs={"pk": pk}),
+            link=reverse("product_trade", kwargs={"pk": pk}),
         )
 
-    return redirect(reverse("product_detail", kwargs={"pk": pk}))
+    return redirect(reverse("product_trade", kwargs={"pk": pk}))
+
+
+@login_required
+@require_POST
+def complete_trade(request, pk):
+    product = get_object_or_404(
+        Product.objects.select_related("seller", "buyer"), pk=pk
+    )
+    if not is_trade_participant(product, request.user):
+        messages.error(request, "この取引を完了する権限がありません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    if product.is_sold:
+        messages.info(request, "この取引はすでに完了しています。")
+        return redirect(reverse("product_trade", kwargs={"pk": pk}))
+
+    if request.user.id == product.seller_id:
+        product.seller_trade_completed = True
+    else:
+        product.buyer_trade_completed = True
+
+    partner = product.buyer if request.user.id == product.seller_id else product.seller
+    update_fields = ["seller_trade_completed", "buyer_trade_completed"]
+    if product.seller_trade_completed and product.buyer_trade_completed:
+        product.status = Product.Status.SOLD_OUT
+        update_fields.append("status")
+        messages.success(request, "双方の確認がそろいました。取引を完了しました。")
+        if partner:
+            Notification.objects.create(
+                recipient=partner,
+                message=f"「{product.name}」の取引が完了しました。",
+                link=reverse("product_trade", kwargs={"pk": pk}),
+            )
+    else:
+        messages.success(request, "取引完了の確認を送信しました。相手の確認を待っています。")
+        if partner:
+            Notification.objects.create(
+                recipient=partner,
+                message=f"{request.user.username}さんが「{product.name}」の取引完了を確認しました。",
+                link=reverse("product_trade", kwargs={"pk": pk}),
+            )
+
+    product.save(update_fields=update_fields)
+    return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
 
 @login_required
@@ -379,7 +474,7 @@ def mypage(request):
         seller=request.user, status=Product.Status.AVAILABLE
     )
     sold_products = Product.objects.filter(
-        seller=request.user, status=Product.Status.SOLD
+        seller=request.user, status=Product.Status.SOLD_OUT
     )
     total_sales = calc_sales_total(request.user)
     rating_stats = get_user_rating_stats(request.user)
@@ -432,7 +527,7 @@ def exhibit(request):
             product.save()
             return redirect(reverse("home"))
     else:
-        form = ProductExhibitForm()
+        form = ProductExhibitForm(initial={"faculty": get_user_faculty(request.user)})
 
     return render(request, "exhibit.html", {"form": form})
 
@@ -462,13 +557,15 @@ def signup(request):
     return render(request, "signup.html", {"form": form})
 
 
-def _board_redirect(request, *, tag=""):
+def _board_redirect(request, *, tag="", post_id=None):
     url = reverse("home") + "?tab=board"
     if tag:
         url += f"&tag={quote(tag)}"
     q = request.GET.get("q", "").strip()
     if q:
         url += f"&q={q}"
+    if post_id:
+        url += f"#post-{post_id}"
     return redirect(url)
 
 
@@ -480,7 +577,7 @@ def board_compose(request):
         post = form.save(commit=False)
         post.author = request.user
         faculty = get_user_faculty(request.user)
-        if faculty:
+        if not post.faculty and faculty:
             post.faculty = faculty
         post.save()
         messages.success(request, "つぶやきを投稿しました。")
@@ -496,6 +593,11 @@ def board_timeline_tip(request, pk):
     TimelineTip.objects.create(timeline_post=post, user=request.user, amount=1)
     post.tip_total += 1
     post.save(update_fields=["tip_total"])
+    notify_timeline_post_author(
+        post,
+        request.user,
+        f"{request.user.username}さんがあなたの投稿に1円投げ銭しました",
+    )
     messages.success(request, "1円の投げ銭を送りました。ありがとうございます！")
     return _board_redirect(request, tag=post.course_name)
 
@@ -515,8 +617,34 @@ def board_timeline_god(request, pk):
     GodButtonUse.objects.create(user=request.user, timeline_post=post)
     post.god_count += 1
     post.save(update_fields=["god_count"])
+    notify_timeline_post_author(
+        post,
+        request.user,
+        f"{request.user.username}さんがあなたの投稿を『神！』と言っています",
+    )
     messages.success(request, "神！を押しました。")
     return _board_redirect(request, tag=post.course_name)
+
+
+@login_required
+@require_POST
+def board_timeline_comment(request, pk):
+    post = get_object_or_404(TimelinePost, pk=pk)
+    form = TimelineCommentForm(request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.timeline_post = post
+        comment.author = request.user
+        comment.save()
+        notify_timeline_post_author(
+            post,
+            request.user,
+            f"{request.user.username}さんがあなたの投稿にコメントしました",
+        )
+        messages.success(request, "コメントを投稿しました。")
+    else:
+        messages.error(request, "コメントを投稿できませんでした。")
+    return _board_redirect(request, tag=post.course_name, post_id=post.pk)
 
 
 def logout_view(request):

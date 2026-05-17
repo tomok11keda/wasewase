@@ -10,7 +10,8 @@
       --card: #fff;
       --text: #222;
       --muted: #888;
-      --accent: #bf0000;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
       --radius: 12px;
     }
 
@@ -29,8 +30,9 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: var(--card);
-      border-bottom: 1px solid #eee;
+      background: var(--accent);
+      color: #fff;
+      border-bottom: 1px solid var(--accent-dark);
       padding: 12px 16px;
     }
 
@@ -42,12 +44,12 @@
 
     .back-link {
       font-size: 13px;
-      color: var(--muted);
+      color: #fff;
       text-decoration: none;
     }
 
     .back-link:hover {
-      color: var(--accent);
+      color: #f6edf0;
     }
 
     .site-header h1 {
@@ -86,6 +88,7 @@
     }
 
     .field input,
+    .field select,
     .field textarea {
       width: 100%;
       padding: 10px 12px;
@@ -112,7 +115,7 @@
     .non-field-errors {
       margin: 0 0 16px;
       padding: 10px 12px;
-      background: #fff5f5;
+      background: #f7edf0;
       border-radius: 8px;
       font-size: 13px;
       color: var(--accent);
@@ -150,6 +153,10 @@
     .btn-primary {
       background: var(--accent);
       color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
     }
 
     .btn-ghost {
@@ -199,6 +206,19 @@
           {% if form.price.errors %}
           <ul class="field-error">
             {% for error in form.price.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="{{ form.faculty.id_for_label }}">{{ form.faculty.label }}</label>
+          {{ form.faculty }}
+          <p class="price-hint">一覧の学部タブで絞り込めるようになります</p>
+          {% if form.faculty.errors %}
+          <ul class="field-error">
+            {% for error in form.faculty.errors %}
             <li>{{ error }}</li>
             {% endfor %}
           </ul>

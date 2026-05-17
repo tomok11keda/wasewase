@@ -12,6 +12,8 @@ urlpatterns = [
     path("product/<int:pk>/", app_views.product_detail, name="product_detail"),
     path("product/<int:pk>/like/", app_views.toggle_like, name="toggle_like"),
     path("product/<int:pk>/purchase/", app_views.purchase_product, name="purchase_product"),
+    path("product/<int:pk>/trade/", app_views.product_trade, name="product_trade"),
+    path("product/<int:pk>/trade/complete/", app_views.complete_trade, name="complete_trade"),
     path("product/<int:pk>/review/", app_views.submit_review, name="submit_review"),
     path(
         "product/<int:pk>/trade-message/",
@@ -24,6 +26,7 @@ urlpatterns = [
     path("board/compose/", app_views.board_compose, name="board_compose"),
     path("board/post/<int:pk>/tip/", app_views.board_timeline_tip, name="board_timeline_tip"),
     path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),
+    path("board/post/<int:pk>/comment/", app_views.board_timeline_comment, name="board_timeline_comment"),
     path("login/", app_views.AppLoginView.as_view(), name="login"),
     path("logout/", app_views.logout_view, name="logout"),
     path("signup/", app_views.signup, name="signup"),

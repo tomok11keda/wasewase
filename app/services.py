@@ -25,7 +25,11 @@ def prioritize_same_faculty(products, user: AbstractBaseUser):
 
 
 def is_trade_participant(product: Product, user: AbstractBaseUser) -> bool:
-    if not user.is_authenticated or not product.is_sold or not product.buyer_id:
+    if (
+        not user.is_authenticated
+        or product.status == Product.Status.AVAILABLE
+        or not product.buyer_id
+    ):
         return False
     return user.id in (product.seller_id, product.buyer_id)
 
@@ -58,7 +62,7 @@ def get_reviewee(product: Product, reviewer: AbstractBaseUser):
 
 def calc_sales_total(user: AbstractBaseUser) -> int:
     total = (
-        Product.objects.filter(seller=user, status=Product.Status.SOLD).aggregate(
+        Product.objects.filter(seller=user, status=Product.Status.SOLD_OUT).aggregate(
             total=Sum("price")
         )["total"]
     )
