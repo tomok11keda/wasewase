@@ -21,7 +21,8 @@ class UserProfile(models.Model):
 class Product(models.Model):
     class Status(models.TextChoices):
         AVAILABLE = "available", "出品中"
-        SOLD = "sold", "売却済み"
+        TRADING = "trading", "取引中"
+        SOLD_OUT = "sold_out", "売り切れ"
 
     seller = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -34,6 +35,7 @@ class Product(models.Model):
     price = models.PositiveIntegerField()
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100)
+    faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
     course_name = models.CharField(max_length=120, blank=True, verbose_name="授業名")
     professor_name = models.CharField(max_length=120, blank=True, verbose_name="教授名")
     buyer = models.ForeignKey(
@@ -50,6 +52,8 @@ class Product(models.Model):
     )
     image = models.ImageField(upload_to="products/", blank=True)
     image_url = models.URLField(blank=True, default="")
+    seller_trade_completed = models.BooleanField(default=False)
+    buyer_trade_completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -60,12 +64,34 @@ class Product(models.Model):
 
     @property
     def is_sold(self) -> bool:
-        return self.status == self.Status.SOLD
+        return self.status == self.Status.SOLD_OUT
+
+    @property
+    def is_trading(self) -> bool:
+        return self.status == self.Status.TRADING
 
 
 class Comment(models.Model):
     product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="comments"
+        Product,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        null=True,
+        blank=True,
+    )
+    timeline_post = models.ForeignKey(
+        "TimelinePost",
+        on_delete=models.CASCADE,
+        related_name="comments",
+        null=True,
+        blank=True,
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="comments",
+        null=True,
+        blank=True,
     )
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -74,7 +100,11 @@ class Comment(models.Model):
         ordering = ["created_at"]
 
     def __str__(self) -> str:
-        return f"{self.product.name} へのコメント"
+        if self.product_id:
+            return f"{self.product.name} へのコメント"
+        if self.timeline_post_id:
+            return f"{self.timeline_post.course_name} への返信"
+        return self.body[:30]
 
 
 class Like(models.Model):

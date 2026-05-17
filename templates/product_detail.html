@@ -10,7 +10,8 @@
       --card: #fff;
       --text: #222;
       --muted: #888;
-      --accent: #bf0000;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
       --radius: 12px;
       --nav-h: 56px;
     }
@@ -29,18 +30,19 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: var(--card);
-      border-bottom: 1px solid #eee;
+      background: var(--accent);
+      color: #fff;
+      border-bottom: 1px solid var(--accent-dark);
       padding: 12px 16px;
     }
 
     .back-link {
       font-size: 14px;
-      color: var(--muted);
+      color: #fff;
       text-decoration: none;
     }
 
-    .back-link:hover { color: var(--accent); }
+    .back-link:hover { color: #f6edf0; }
 
     .main-inner {
       max-width: 560px;
@@ -107,7 +109,12 @@
       letter-spacing: 0.06em;
       padding: 6px 12px;
       border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(191, 0, 0, 0.45);
+      box-shadow: 0 2px 8px rgba(137, 30, 43, 0.45);
+    }
+
+    .trading-badge {
+      background: #5f6670;
+      box-shadow: 0 2px 8px rgba(95, 102, 112, 0.35);
     }
 
     .product-info { padding: 16px; }
@@ -128,6 +135,13 @@
     .product-seller strong {
       color: var(--text);
       font-weight: 600;
+    }
+
+    .product-posted-at {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
     }
 
     .product-price {
@@ -189,7 +203,7 @@
     .btn-like.is-liked {
       border-color: var(--accent);
       color: var(--accent);
-      background: #fff5f5;
+      background: #f7edf0;
     }
 
     .btn-like:disabled {
@@ -203,10 +217,22 @@
       color: #fff;
     }
 
+    .btn-purchase:hover,
+    .btn-submit:hover {
+      background: var(--accent-dark);
+    }
+
     .btn-purchase:disabled,
-    .btn-sold {
+    .btn-sold,
+    .btn-trading {
       background: #999;
       cursor: not-allowed;
+    }
+
+    .btn-trade {
+      flex: 1;
+      background: var(--accent);
+      color: #fff;
     }
 
     .btn-login-hint {
@@ -273,8 +299,9 @@
     .comment-list { margin: 20px 0 0; padding: 0; list-style: none; }
     .comment-item { padding: 12px 0; border-top: 1px solid #eee; }
     .comment-item:first-child { border-top: none; padding-top: 0; }
+    .comment-meta { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+    .comment-meta strong { color: var(--text); font-weight: 600; }
     .comment-body { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
-    .comment-time { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
     .comments-empty { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
 
     .product-seller a { color: var(--accent); text-decoration: none; }
@@ -326,7 +353,7 @@
       font-size: 11px;
       padding: 2px 8px;
       border-radius: 4px;
-      background: #fff0f0;
+      background: #f7edf0;
       color: var(--accent);
       font-weight: 600;
     }
@@ -371,7 +398,7 @@
     .preset-btn:hover {
       border-color: var(--accent);
       color: var(--accent);
-      background: #fff5f5;
+      background: #f7edf0;
     }
 
     .trade-messages {
@@ -392,8 +419,8 @@
 
     .trade-msg.is-mine {
       margin-left: auto;
-      background: #fff0f0;
-      border: 1px solid #f5c6c6;
+      background: #f7edf0;
+      border: 1px solid #e8c4ca;
     }
 
     .trade-msg.is-theirs {
@@ -465,10 +492,12 @@
     </ul>
     {% endif %}
 
-    <article class="product-hero{% if product.is_sold %} is-sold{% endif %}">
+    <article class="product-hero{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}">
       <div class="product-hero-image">
         {% if product.is_sold %}
         <span class="sold-out-badge">SOLD OUT</span>
+        {% elif product.is_trading %}
+        <span class="sold-out-badge trading-badge">取引中</span>
         {% endif %}
         {% if product.image %}
         <img src="{{ product.image.url }}" alt="{{ product.name }}" width="800" height="800">
@@ -490,9 +519,16 @@
           {% else %}
           <strong>不明</strong>
           {% endif %}
+          <span class="product-posted-at">
+            出品日時:
+            <time datetime="{{ product.created_at|date:'c' }}" title="{{ product.created_at|date:'Y/m/d H:i' }}">
+              {{ product.created_at|timesince }}前
+            </time>
+          </span>
         </p>
-        {% if product.course_name or product.professor_name %}
+        {% if product.faculty or product.course_name or product.professor_name %}
         <p class="product-tags">
+          {% if product.faculty %}<span class="tag">🏷 {{ product.faculty }}</span>{% endif %}
           {% if product.course_name %}<span class="tag">📘 {{ product.course_name }}</span>{% endif %}
           {% if product.professor_name %}<span class="tag">👨‍🏫 {{ product.professor_name }}</span>{% endif %}
         </p>
@@ -523,6 +559,10 @@
 
             {% if product.is_sold %}
             <button type="button" class="btn btn-sold" disabled>SOLD OUT</button>
+            {% elif show_trade_link %}
+            <a class="btn btn-trade" href="{% url 'product_trade' product.pk %}">取引ページへ</a>
+            {% elif product.is_trading %}
+            <button type="button" class="btn btn-trading" disabled>取引中</button>
             {% elif can_purchase %}
             <form method="post" action="{% url 'purchase_product' product.pk %}" style="flex:1;margin:0">
               {% csrf_token %}
@@ -537,35 +577,6 @@
         </div>
       </div>
     </article>
-
-    {% if show_trade_chat %}
-    <section class="trade-chat-section" aria-label="手渡しチャット">
-      <h2>📍 手渡しチャット（位置の目安）</h2>
-      <p class="trade-chat-hint">定型文ボタンで今どこにいるか伝えましょう</p>
-      <div class="preset-buttons">
-        {% for preset in location_presets %}
-        <form method="post" action="{% url 'send_trade_message' product.pk %}" style="margin:0">
-          {% csrf_token %}
-          <input type="hidden" name="body" value="{{ preset }}">
-          <input type="hidden" name="is_preset" value="1">
-          <button type="submit" class="preset-btn">{{ preset }}</button>
-        </form>
-        {% endfor %}
-      </div>
-      {% if trade_messages %}
-      <ul class="trade-messages">
-        {% for msg in trade_messages %}
-        <li class="trade-msg{% if msg.sender_id == user.id %} is-mine{% else %} is-theirs{% endif %}">
-          <div class="trade-msg-meta">{{ msg.sender.username }} · {{ msg.created_at|date:"H:i" }}{% if msg.is_preset %} · 定型文{% endif %}</div>
-          {{ msg.body }}
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="trade-chat-hint">まだメッセージはありません。ボタンを押して連絡しましょう。</p>
-      {% endif %}
-    </section>
-    {% endif %}
 
     {% if product.is_sold and product.buyer_id and review_partner %}
     <section class="review-section" aria-label="取引評価">
@@ -625,10 +636,11 @@
       <ul class="comment-list">
         {% for comment in comments %}
         <li class="comment-item">
+          <p class="comment-meta">
+            <strong>{% if comment.author %}{{ comment.author.username }}{% else %}匿名{% endif %}</strong>
+            · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
+          </p>
           <p class="comment-body">{{ comment.body }}</p>
-          <time class="comment-time" datetime="{{ comment.created_at|date:'c' }}">
-            {{ comment.created_at|date:"Y/m/d H:i" }}
-          </time>
         </li>
         {% endfor %}
       </ul>

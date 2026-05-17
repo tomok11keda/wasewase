@@ -40,6 +40,7 @@ class ProductExhibitForm(forms.ModelForm):
             "name",
             "price",
             "description",
+            "faculty",
             "course_name",
             "professor_name",
             "image",
@@ -48,6 +49,7 @@ class ProductExhibitForm(forms.ModelForm):
             "name": "商品名",
             "price": "値段",
             "description": "説明",
+            "faculty": "対象の学部",
             "course_name": "授業名",
             "professor_name": "教授名",
             "image": "写真",
@@ -66,6 +68,11 @@ class ProductExhibitForm(forms.ModelForm):
             ),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["faculty"].choices = [("", "学部を選択")] + list(FACULTY_CHOICES)
+        self.fields["faculty"].required = True
 
     def save(self, commit=True):
         product = super().save(commit=False)
@@ -102,11 +109,12 @@ class ReviewForm(forms.ModelForm):
 class TimelinePostForm(forms.ModelForm):
     class Meta:
         model = TimelinePost
-        fields = ("body", "course_name", "professor_name")
+        fields = ("body", "course_name", "professor_name", "faculty")
         labels = {
             "body": "つぶやき",
             "course_name": "授業名タグ",
             "professor_name": "教授名（任意）",
+            "faculty": "対象の学部",
         }
         widgets = {
             "body": forms.Textarea(
@@ -117,8 +125,17 @@ class TimelinePostForm(forms.ModelForm):
                 }
             ),
             "course_name": forms.TextInput(attrs={"placeholder": "例：線形代数Ⅰ"}),
-            "professor_name": forms.TextInput(attrs={"placeholder": "例：山田太郎"}),
+            "professor_name": forms.TextInput(
+                attrs={"placeholder": "教授の名前（任意） 例：山田太郎"}
+            ),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["faculty"].choices = [("", "自分の登録学部を使う")] + list(
+            FACULTY_CHOICES
+        )
+        self.fields["faculty"].required = False
 
 
 class CourseThreadForm(forms.ModelForm):
@@ -161,4 +178,14 @@ class CommentForm(forms.ModelForm):
             "body": forms.Textarea(
                 attrs={"placeholder": "コメントを入力...", "rows": 3}
             ),
+        }
+
+
+class TimelineCommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ("body",)
+        labels = {"body": "コメント"}
+        widgets = {
+            "body": forms.TextInput(attrs={"placeholder": "コメントを入力..."})
         }
