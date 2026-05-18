@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 from .constants import FACULTY_CHOICES
 from .models import (
@@ -13,6 +13,8 @@ from .models import (
     UserProfile,
 )
 
+User = get_user_model()
+
 
 class SignUpForm(UserCreationForm):
     faculty = forms.ChoiceField(
@@ -23,7 +25,13 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("username",)
+        # emailフィールドを追加します
+        fields = UserCreationForm.Meta.fields + ("email",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # メールアドレスを必須にする場合
+        self.fields["email"].required = True
 
 
 class ProfileForm(forms.ModelForm):
