@@ -55,6 +55,11 @@
         <label for="id_username">ユーザー名</label>
         {{ form.username }}
         {% for error in form.username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+        <label for="id_email">メールアドレス</label>
+        {{ form.email }}
+        {% for error in form.email.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
         <label for="id_faculty">学部（わせわせ認証バッジ）</label>
         <select name="faculty" id="id_faculty" required style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px">
           {% for value, label in form.faculty.field.choices %}
