@@ -20,7 +20,7 @@ urlpatterns = [
         app_views.send_trade_message,
         name="send_trade_message",
     ),
-    path("user/<str:username>/", app_views.user_profile, name="user_profile"),
+    path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
     path("notifications/", app_views.notifications, name="notifications"),
     path("mypage/", app_views.mypage, name="mypage"),
     path("board/compose/", app_views.board_compose, name="board_compose"),
