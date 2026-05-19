@@ -21,6 +21,7 @@ from .board_services import (
 )
 from .forms import (
     CommentForm,
+    EmailAuthenticationForm,
     ProductExhibitForm,
     ProfileForm,
     ReviewForm,
@@ -534,6 +535,7 @@ def exhibit(request):
 
 class AppLoginView(LoginView):
     template_name = "login.html"
+    authentication_form = EmailAuthenticationForm
     redirect_authenticated_user = True
 
 

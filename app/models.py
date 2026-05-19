@@ -1,7 +1,62 @@
 from django.conf import settings
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
 from .constants import FACULTY_CHOICES
+
+
+class UserManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("メールアドレスは必須です。")
+        email = self.normalize_email(email).lower()
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("スーパーユーザーは is_staff=True である必要があります。")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError(
+                "スーパーユーザーは is_superuser=True である必要があります。"
+            )
+        return self.create_user(email, password, **extra_fields)
+
+
+class User(AbstractUser):
+    email = models.EmailField("メールアドレス", unique=True)
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = []
+
+    objects = UserManager()
+
+    def save(self, *args, **kwargs):
+        if not self.username:
+            self.username = self._generate_username()
+        super().save(*args, **kwargs)
+
+    def _generate_username(self) -> str:
+        if self.email:
+            local = self.email.split("@")[0]
+            base = "".join(c if c.isalnum() or c == "_" else "_" for c in local)[:20]
+            base = base or "user"
+        else:
+            base = "user"
+        candidate = base
+        suffix = 1
+        while (
+            User.objects.filter(username=candidate)
+            .exclude(pk=self.pk)
+            .exists()
+        ):
+            candidate = f"{base}{suffix}"
+            suffix += 1
+        return candidate
 
 
 class UserProfile(models.Model):

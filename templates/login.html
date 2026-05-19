@@ -42,6 +42,7 @@
     }
     .btn:hover { background: var(--accent-dark); }
     .errors { color: var(--accent); font-size: 13px; margin-bottom: 12px; }
+    .field-error { color: var(--accent); font-size: 13px; margin: -8px 0 12px; }
     .footer-link { display: block; margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
     .footer-link a { color: var(--accent); }
   </style>
@@ -50,15 +51,21 @@
   <main class="main-inner">
     <div class="form-card">
       <h1>ログイン</h1>
-      {% if form.errors %}
-      <p class="errors">ユーザー名またはパスワードが正しくありません。</p>
+      {% if form.non_field_errors %}
+      {% for error in form.non_field_errors %}
+      <p class="errors">{{ error }}</p>
+      {% endfor %}
+      {% elif form.errors %}
+      <p class="errors">メールアドレスまたはパスワードが正しくありません。</p>
       {% endif %}
       <form method="post">
         {% csrf_token %}
-        <label for="id_username">ユーザー名</label>
-        <input type="text" name="username" id="id_username" required autofocus>
-        <label for="id_password">パスワード</label>
-        <input type="password" name="password" id="id_password" required>
+        <label for="{{ form.username.id_for_label }}">メールアドレス</label>
+        {{ form.username }}
+        {% for error in form.username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        <label for="{{ form.password.id_for_label }}">パスワード</label>
+        {{ form.password }}
+        {% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
         <button type="submit" class="btn">ログイン</button>
       </form>
       <p class="footer-link">アカウントをお持ちでない方は <a href="{% url 'signup' %}">新規登録</a></p>
