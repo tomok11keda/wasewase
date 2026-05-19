@@ -67,12 +67,12 @@
           {% endfor %}
         </select>
         {% for error in form.faculty.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-        <label for="id_password1">パスワード</label>
-        {{ form.password1 }}
-        {% for error in form.password1.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-        <label for="id_password2">パスワード（確認）</label>
-        {{ form.password2 }}
-        {% for error in form.password2.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        <label for="id_password">パスワード</label>
+        {{ form.password }}
+        {% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        <label for="id_password_confirm">パスワード（確認）</label>
+        {{ form.password_confirm }}
+        {% for error in form.password_confirm.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
         <button type="submit" class="btn">登録する</button>
       </form>
       <p class="footer-link">すでにアカウントをお持ちの方は <a href="{% url 'login' %}">ログイン</a></p>

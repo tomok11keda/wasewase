@@ -1,6 +1,8 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 
 from .models import (
+    CustomUser,
     Comment,
     CourseThread,
     GodButtonUse,
@@ -16,6 +18,22 @@ from .models import (
     UserProfile,
 )
 
+@admin.register(CustomUser)
+class CustomUserAdmin(UserAdmin):
+    model = CustomUser
+    list_display = ("email", "username", "is_staff", "is_active")
+    list_filter = ("is_staff", "is_active")
+    ordering = ("email",)
+    # 管理画面での編集項目をメールベースに変更
+    fieldsets = (
+        (None, {"fields": ("email", "password")}),
+        ("個人情報", {"fields": ("username",)}),
+        ("権限", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        ("重要日程", {"fields": ("last_login", "date_joined")}),
+    )
+    add_fieldsets = (
+        (None, {"classes": ("wide",), "fields": ("email", "username", "password")}),
+    )
 
 @admin.register(TimelinePost)
 class TimelinePostAdmin(admin.ModelAdmin):
