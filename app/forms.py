@@ -1,6 +1,7 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 from .constants import FACULTY_CHOICES
 from .models import (
@@ -16,6 +17,27 @@ from .models import (
 User = get_user_model()
 
 
+class EmailAuthenticationForm(AuthenticationForm):
+    username = forms.EmailField(
+        label="メールアドレス",
+        widget=forms.EmailInput(
+            attrs={
+                "placeholder": "example@waseda.jp",
+                "autofocus": True,
+                "autocomplete": "email",
+            }
+        ),
+    )
+
+    error_messages = {
+        "invalid_login": "メールアドレスまたはパスワードが正しくありません。",
+        "inactive": "このアカウントは無効です。",
+    }
+
+    def clean_username(self):
+        return (self.cleaned_data.get("username") or "").strip().lower()
+
+
 class SignUpForm(UserCreationForm):
     faculty = forms.ChoiceField(
         label="学部",
@@ -25,13 +47,29 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        # emailフィールドを追加します
-        fields = UserCreationForm.Meta.fields + ("email",)
+        fields = ("email",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # メールアドレスを必須にする場合
-        self.fields["email"].required = True
+        self.fields["email"].widget = forms.EmailInput(
+            attrs={
+                "placeholder": "example@waseda.jp",
+                "autocomplete": "email",
+            }
+        )
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("このメールアドレスはすでに登録されています。")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"].strip().lower()
+        if commit:
+            user.save()
+        return user
 
 
 class ProfileForm(forms.ModelForm):

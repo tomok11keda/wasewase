@@ -4,13 +4,61 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Comment, Notification, Product, TimelinePost, TradeMessage
+from .models import Comment, Notification, Product, TimelinePost, TradeMessage, UserProfile
+
+
+class EmailAuthTests(TestCase):
+    def test_signup_rejects_duplicate_email(self):
+        get_user_model().objects.create_user(
+            email="dup@example.com",
+            password="password",
+        )
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "dup@example.com",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "すでに登録されています")
+
+    def test_login_with_email_and_password(self):
+        get_user_model().objects.create_user(
+            email="login@example.com",
+            password="secret123",
+        )
+        response = self.client.post(
+            reverse("login"),
+            {"username": "login@example.com", "password": "secret123"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            get_user_model().objects.filter(email="login@example.com").exists()
+        )
+
+    def test_signup_creates_profile_and_logs_in(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "new@example.com",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "法学部",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        user = get_user_model().objects.get(email="new@example.com")
+        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(profile.faculty, "法学部")
 
 
 class BoardTimelineSearchTests(TestCase):
     def test_board_search_matches_professor_name(self):
         user = get_user_model().objects.create_user(
-            username="poster",
+            email="poster@example.com",
             password="password",
         )
         TimelinePost.objects.create(
@@ -33,7 +81,7 @@ class BoardTimelineSearchTests(TestCase):
 
     def test_board_filter_matches_faculty(self):
         user = get_user_model().objects.create_user(
-            username="faculty-poster",
+            email="faculty-poster@example.com",
             password="password",
         )
         TimelinePost.objects.create(
@@ -61,11 +109,11 @@ class BoardTimelineSearchTests(TestCase):
 class BoardTimelineNotificationTests(TestCase):
     def setUp(self):
         self.author = get_user_model().objects.create_user(
-            username="author",
+            email="author@example.com",
             password="password",
         )
         self.actor = get_user_model().objects.create_user(
-            username="actor",
+            email="actor@example.com",
             password="password",
         )
         self.post = TimelinePost.objects.create(
@@ -161,11 +209,11 @@ class BoardTimelineNotificationTests(TestCase):
 class ProductTimestampDisplayTests(TestCase):
     def setUp(self):
         self.seller = get_user_model().objects.create_user(
-            username="seller",
+            email="seller@example.com",
             password="password",
         )
         self.buyer = get_user_model().objects.create_user(
-            username="buyer",
+            email="buyer@example.com",
             password="password",
         )
         self.product = Product.objects.create(
@@ -250,15 +298,15 @@ class ProductTimestampDisplayTests(TestCase):
 class ProductTradeFlowTests(TestCase):
     def setUp(self):
         self.seller = get_user_model().objects.create_user(
-            username="trade-seller",
+            email="trade-seller@example.com",
             password="password",
         )
         self.buyer = get_user_model().objects.create_user(
-            username="trade-buyer",
+            email="trade-buyer@example.com",
             password="password",
         )
         self.other = get_user_model().objects.create_user(
-            username="other",
+            email="other@example.com",
             password="password",
         )
         self.product = Product.objects.create(
