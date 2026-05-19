@@ -1,7 +1,31 @@
 from django.conf import settings
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 from .constants import FACULTY_CHOICES
+
+
+class CustomUser(AbstractUser):
+    # AbstractUserのusernameフィールドのunique制約を上書きし、任意にする
+    username = models.CharField(
+        max_length=150,
+        unique=False, # ユニーク制約を解除
+        blank=True,
+        null=True,
+        verbose_name='ユーザー名'
+    )
+    email = models.EmailField(
+        unique=True, # メールアドレスをユニークにする
+        blank=False,
+        null=False,
+        verbose_name='メールアドレス'
+    )
+
+    USERNAME_FIELD = 'email' # ログイン時にメールアドレスを使用
+    REQUIRED_FIELDS = [] # usernameは必須ではないので空にする
+
+    def __str__(self):
+        return self.username or self.email
 
 
 class UserProfile(models.Model):
@@ -15,7 +39,8 @@ class UserProfile(models.Model):
     )
 
     def __str__(self) -> str:
-        return f"{self.user.username} ({self.faculty or '未設定'})"
+        name = self.user.username or self.user.email
+        return f"{name} ({self.faculty or '未設定'})"
 
 
 class Product(models.Model):

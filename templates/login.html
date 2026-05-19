@@ -51,12 +51,14 @@
     <div class="form-card">
       <h1>ログイン</h1>
       {% if form.errors %}
-      <p class="errors">ユーザー名またはパスワードが正しくありません。</p>
+      <p class="errors">メールアドレスまたはパスワードが正しくありません。</p>
       {% endif %}
       <form method="post">
         {% csrf_token %}
-        <label for="id_username">ユーザー名</label>
-        <input type="text" name="username" id="id_username" required autofocus>
+        <label for="id_email">メールアドレス</label>
+        <input type="text" name="email" id="id_email" required autofocus>
+        {{ form.email }}
+        {% for error in form.email.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
         <label for="id_password">パスワード</label>
         <input type="password" name="password" id="id_password" required>
         <button type="submit" class="btn">ログイン</button>
