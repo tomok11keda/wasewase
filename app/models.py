@@ -73,6 +73,21 @@ class UserProfile(models.Model):
         return f"{self.user.username} ({self.faculty or '未設定'})"
 
 
+class SignupOTP(models.Model):
+    """新規登録メール認証用のワンタイムコード（平文は保存しない）。"""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="signup_otp",
+    )
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return f"OTP for {self.user.email} (expires {self.expires_at})"
+
+
 class Product(models.Model):
     class Status(models.TextChoices):
         AVAILABLE = "available", "出品中"
@@ -332,6 +347,12 @@ class TimelinePost(models.Model):
     course_name = models.CharField(max_length=120)
     professor_name = models.CharField(max_length=120, blank=True)
     faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
+    image = models.ImageField(
+        upload_to="post_images/",
+        blank=True,
+        null=True,
+        verbose_name="画像",
+    )
     god_count = models.PositiveIntegerField(default=0)
     tip_total = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

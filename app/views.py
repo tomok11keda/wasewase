@@ -1,3 +1,6 @@
+import logging
+import sys
+import traceback
 from urllib.parse import quote
 
 from django.conf import settings
@@ -5,8 +8,10 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
+from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -26,6 +31,7 @@ from .forms import (
     ProfileForm,
     ReviewForm,
     SignUpForm,
+    SignupOTPVerifyForm,
     TimelineCommentForm,
     TimelinePostForm,
 )
@@ -40,6 +46,15 @@ from .models import (
     TradeMessage,
     UserProfile,
 )
+from .otp_services import (
+    EmailConfigurationError,
+    SIGNUP_PENDING_SESSION_KEY,
+    create_and_send_signup_otp,
+    get_email_config_errors,
+    verify_signup_otp,
+)
+
+logger = logging.getLogger(__name__)
 from .services import (
     calc_sales_total,
     get_reviewee,
@@ -539,24 +554,203 @@ class AppLoginView(LoginView):
     redirect_authenticated_user = True
 
 
+def _log_auth_debug(label: str, detail: str, *, exc: BaseException | None = None) -> None:
+    logger.warning("%s: %s", label, detail, exc_info=exc)
+    if settings.DEBUG:
+        print(f"[WASE {label}] {detail}", file=sys.stderr, flush=True)
+        if exc:
+            traceback.print_exc()
+
+
+def _signup_form_errors_message(form) -> str:
+    parts = []
+    for field, errors in form.errors.items():
+        for error in errors:
+            label = field if field != "__all__" else "フォーム"
+            parts.append(f"{label}: {error}")
+    return " ".join(parts) if parts else "入力内容を確認してください。"
+
+
+def _persist_signup_user(form):
+    """新規または認証待ちユーザーを保存し、プロフィールを更新する。"""
+    email = form.cleaned_data["email"]
+    faculty = form.cleaned_data["faculty"]
+    password = form.cleaned_data["password1"]
+    nickname = form.cleaned_data["nickname"]
+
+    pending = User.objects.filter(email__iexact=email, is_active=False).first()
+    if pending:
+        pending.set_password(password)
+        pending.username = nickname
+        pending.save(update_fields=["password", "username"])
+        user = pending
+    else:
+        user = form.save()
+
+    UserProfile.objects.update_or_create(
+        user=user,
+        defaults={"faculty": faculty},
+    )
+    return user
+
+
+def _email_env_warnings_for_request():
+    return list(getattr(settings, "EMAIL_ENV_WARNINGS", []))
+
+
+def _flash_email_env_warnings(request) -> None:
+    for warning in _email_env_warnings_for_request():
+        messages.warning(request, warning)
+
+
+def _start_otp_verification(request, user):
+    """OTP送信後、セッションを設定して認証画面へリダイレクトする。"""
+    request.session[SIGNUP_PENDING_SESSION_KEY] = user.pk
+    request.session.modified = True
+    if getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False):
+        messages.info(
+            request,
+            "開発モード: 認証コードは runserver のターミナルに出力されています。"
+            " 10分以内に下の画面で入力してください。",
+        )
+    else:
+        messages.info(
+            request,
+            f"{user.email} に6桁の認証コードを送信しました。10分以内に入力してください。",
+        )
+    return redirect(reverse("verify_otp"))
+
+
 def signup(request):
-    if request.user.is_authenticated:
+    if request.user.is_authenticated and request.user.is_active:
         return redirect(reverse("home"))
+
+    if request.method == "GET":
+        _flash_email_env_warnings(request)
+        if not getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False):
+            for err in get_email_config_errors():
+                messages.warning(request, err)
 
     if request.method == "POST":
         form = SignUpForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            UserProfile.objects.create(
-                user=user, faculty=form.cleaned_data["faculty"]
-            )
-            login(request, user)
-            messages.success(request, "アカウントを作成しました。")
-            return redirect(reverse("home"))
-    else:
-        form = SignUpForm()
+        if not form.is_valid():
+            error_summary = _signup_form_errors_message(form)
+            _log_auth_debug("SIGNUP VALIDATION", f"errors={form.errors.as_json()}")
+            messages.error(request, error_summary)
+            return render(request, "signup.html", {"form": form}, status=200)
 
+        try:
+            with transaction.atomic():
+                user = _persist_signup_user(form)
+                create_and_send_signup_otp(user)
+        except EmailConfigurationError as exc:
+            _log_auth_debug("SIGNUP EMAIL CONFIG", str(exc), exc=exc)
+            messages.error(request, str(exc))
+            _flash_email_env_warnings(request)
+            return render(request, "signup.html", {"form": form}, status=200)
+        except UnicodeEncodeError as exc:
+            _log_auth_debug("SIGNUP UNICODE", str(exc), exc=exc)
+            messages.error(
+                request,
+                "メール設定に使用できない文字（全角・日本語のプレースホルダーなど）が含まれています。"
+                " サーバー起動時の [WASE EMAIL ENV] ログを確認してください。",
+            )
+            return render(request, "signup.html", {"form": form}, status=200)
+        except Exception as exc:
+            _log_auth_debug("SIGNUP FAILED", str(exc), exc=exc)
+            messages.error(
+                request,
+                "認証メールの送信に失敗しました。ターミナルのエラーログを確認してください。",
+            )
+            if settings.DEBUG:
+                messages.error(request, f"詳細（DEBUG）: {exc}")
+            return render(request, "signup.html", {"form": form}, status=200)
+
+        return _start_otp_verification(request, user)
+
+    form = SignUpForm()
     return render(request, "signup.html", {"form": form})
+
+
+def _get_pending_signup_user(request):
+    user_id = request.session.get(SIGNUP_PENDING_SESSION_KEY)
+    if not user_id:
+        return None
+    return User.objects.filter(pk=user_id, is_active=False).first()
+
+
+def verify_otp(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    user = _get_pending_signup_user(request)
+    if not user:
+        messages.warning(request, "新規登録からやり直してください。")
+        return redirect(reverse("signup"))
+
+    if request.method == "POST" and "resend" not in request.POST:
+        form = SignupOTPVerifyForm(request.POST)
+        if form.is_valid():
+            error = verify_signup_otp(user, form.cleaned_data["code"])
+            if error:
+                form.add_error("code", error)
+                _log_auth_debug("VERIFY OTP", error)
+            else:
+                user.is_active = True
+                user.save(update_fields=["is_active"])
+                del request.session[SIGNUP_PENDING_SESSION_KEY]
+                login(request, user)
+                messages.success(
+                    request, "メール認証が完了しました。ようこそ、わせわせへ！"
+                )
+                return redirect(reverse("home"))
+        else:
+            _log_auth_debug(
+                "VERIFY OTP VALIDATION", f"errors={form.errors.as_json()}"
+            )
+    else:
+        form = SignupOTPVerifyForm()
+
+    return render(
+        request,
+        "verify_otp.html",
+        {"form": form, "masked_email": user.email},
+    )
+
+
+@require_POST
+def verify_otp_resend(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    user = _get_pending_signup_user(request)
+    if not user:
+        messages.warning(request, "新規登録からやり直してください。")
+        return redirect(reverse("signup"))
+
+    try:
+        create_and_send_signup_otp(user)
+        messages.success(request, "認証コードを再送信しました。")
+    except EmailConfigurationError as exc:
+        _log_auth_debug("RESEND EMAIL CONFIG", str(exc), exc=exc)
+        messages.error(request, str(exc))
+        _flash_email_env_warnings(request)
+    except UnicodeEncodeError as exc:
+        _log_auth_debug("RESEND UNICODE", str(exc), exc=exc)
+        messages.error(
+            request,
+            "メール設定に使用できない文字が含まれています。サーバーログを確認してください。",
+        )
+    except Exception as exc:
+        _log_auth_debug("RESEND FAILED", str(exc), exc=exc)
+        messages.error(
+            request,
+            "認証メールの送信に失敗しました。ターミナルのエラーログを確認してください。",
+        )
+        if settings.DEBUG:
+            messages.error(request, f"詳細（DEBUG）: {exc}")
+
+    return redirect(reverse("verify_otp"))
 
 
 def _board_redirect(request, *, tag="", post_id=None):
@@ -574,7 +768,7 @@ def _board_redirect(request, *, tag="", post_id=None):
 @login_required
 @require_POST
 def board_compose(request):
-    form = TimelinePostForm(request.POST)
+    form = TimelinePostForm(request.POST, request.FILES)
     if form.is_valid():
         post = form.save(commit=False)
         post.author = request.user

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>わせわせ — 新規登録</title>
+  <title>わせわせ — メール認証</title>
   <style>
     :root { --bg: #f5f5f5; --card: #fff; --text: #222; --accent: #891E2B; --accent-dark: #6f1722; --radius: 12px; }
     body {
@@ -19,14 +19,18 @@
       padding: 24px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
-    h1 { margin: 0 0 20px; font-size: 20px; }
+    h1 { margin: 0 0 12px; font-size: 20px; }
+    .hint { font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 20px; }
+    .hint strong { color: var(--text); word-break: break-all; }
     label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
-    input, select {
+    input {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #ddd;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 22px;
+      letter-spacing: 0.3em;
+      text-align: center;
       margin-bottom: 14px;
       box-sizing: border-box;
     }
@@ -42,6 +46,13 @@
       cursor: pointer;
     }
     .btn:hover { background: var(--accent-dark); }
+    .btn-secondary {
+      margin-top: 10px;
+      background: #fff;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    .btn-secondary:hover { background: #fdf5f6; }
     .field-error { color: var(--accent); font-size: 13px; margin: -8px 0 12px; }
     .footer-link { display: block; margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
     .footer-link a { color: var(--accent); }
@@ -56,8 +67,7 @@
 <body>
   <main class="main-inner">
     <div class="form-card">
-      <h1>新規登録</h1>
-
+      <h1>メール認証</h1>
       {% if messages %}
       <ul class="messages">
         {% for message in messages %}
@@ -65,40 +75,23 @@
         {% endfor %}
       </ul>
       {% endif %}
-
-      <form method="post" action="{% url 'signup' %}">
+      <p class="hint">
+        <strong>{{ masked_email }}</strong> に6桁の認証コードを送信しました。<br>
+        有効期限は10分です。
+      </p>
+      <form method="post">
         {% csrf_token %}
-        {% if form.non_field_errors %}
-        {% for error in form.non_field_errors %}
-        <p class="field-error">{{ error }}</p>
-        {% endfor %}
-        {% endif %}
-
-        <label for="{{ form.email.id_for_label }}">メールアドレス</label>
-        {{ form.email }}
-        {% for error in form.email.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-
-        <label for="{{ form.nickname.id_for_label }}">ユーザー名（ニックネーム）</label>
-        {{ form.nickname }}
-        {% for error in form.nickname.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-        <p style="font-size:12px;color:#666;margin:-8px 0 14px;">プロフィールや出品者名に表示されます。英数字・ひらがな・漢字などが使えます。</p>
-
-        <label for="{{ form.faculty.id_for_label }}">学部（わせわせ認証バッジ）</label>
-        {{ form.faculty }}
-        {% for error in form.faculty.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-
-        <label for="{{ form.password1.id_for_label }}">パスワード</label>
-        {{ form.password1 }}
-        {% for error in form.password1.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-
-        <label for="{{ form.password2.id_for_label }}">パスワード（確認）</label>
-        {{ form.password2 }}
-        {% for error in form.password2.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-
-        <button type="submit" class="btn">登録して認証メールを送信</button>
+        <label for="{{ form.code.id_for_label }}">認証コード（6桁）</label>
+        {{ form.code }}
+        {% for error in form.code.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        {% for error in form.non_field_errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        <button type="submit" class="btn">認証して登録を完了する</button>
       </form>
-      <p class="footer-link">すでにアカウントをお持ちの方は <a href="{% url 'login' %}">ログイン</a></p>
-      <p class="footer-link"><a href="{% url 'home' %}">トップへ戻る</a></p>
+      <form method="post" action="{% url 'verify_otp_resend' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">認証コードを再送信</button>
+      </form>
+      <p class="footer-link"><a href="{% url 'signup' %}">新規登録に戻る</a></p>
     </div>
   </main>
 </body>

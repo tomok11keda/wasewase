@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import get_user_model
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 
 from .constants import FACULTY_CHOICES
@@ -39,10 +40,23 @@ class EmailAuthenticationForm(AuthenticationForm):
 
 
 class SignUpForm(UserCreationForm):
+    nickname = forms.CharField(
+        label="ユーザー名（ニックネーム）",
+        max_length=150,
+        required=True,
+        validators=[UnicodeUsernameValidator()],
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "例：わせ太郎",
+                "autocomplete": "username",
+            }
+        ),
+    )
     faculty = forms.ChoiceField(
         label="学部",
-        choices=[("", "学部を選択")] + list(FACULTY_CHOICES),
+        choices=[("", "学部を選択してください")] + list(FACULTY_CHOICES),
         required=True,
+        widget=forms.Select(attrs={"id": "id_faculty"}),
     )
 
     class Meta(UserCreationForm.Meta):
@@ -57,19 +71,73 @@ class SignUpForm(UserCreationForm):
                 "autocomplete": "email",
             }
         )
+        if "username" in self.fields:
+            del self.fields["username"]
+
+    def clean_nickname(self):
+        nickname = (self.cleaned_data.get("nickname") or "").strip()
+        if not nickname:
+            raise ValidationError("ユーザー名を入力してください。")
+
+        email = (self.data.get("email") or "").strip().lower()
+        qs = User.objects.filter(username__iexact=nickname)
+        pending = User.objects.filter(email__iexact=email, is_active=False).first()
+        if pending:
+            qs = qs.exclude(pk=pending.pk)
+        if qs.exists():
+            raise ValidationError("このユーザー名はすでに使われています。")
+        return nickname
+
+    def clean_faculty(self):
+        faculty = self.cleaned_data.get("faculty")
+        if not faculty:
+            raise ValidationError("学部を選択してください。")
+        return faculty
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
+        existing = User.objects.filter(email__iexact=email).first()
+        if existing and existing.is_active:
             raise ValidationError("このメールアドレスはすでに登録されています。")
         return email
+
+    def validate_unique(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if User.objects.filter(email__iexact=email, is_active=False).exists():
+            return
+        super().validate_unique()
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data["email"].strip().lower()
+        user.username = self.cleaned_data["nickname"]
+        user.is_active = False
         if commit:
             user.save()
         return user
+
+
+class SignupOTPVerifyForm(forms.Form):
+    code = forms.CharField(
+        label="認証コード",
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "123456",
+                "autocomplete": "one-time-code",
+                "inputmode": "numeric",
+                "pattern": "[0-9]{6}",
+                "maxlength": "6",
+            }
+        ),
+    )
+
+    def clean_code(self):
+        code = (self.cleaned_data.get("code") or "").strip()
+        if not code.isdigit() or len(code) != 6:
+            raise ValidationError("6桁の数字を入力してください。")
+        return code
 
 
 class ProfileForm(forms.ModelForm):
@@ -155,12 +223,13 @@ class ReviewForm(forms.ModelForm):
 class TimelinePostForm(forms.ModelForm):
     class Meta:
         model = TimelinePost
-        fields = ("body", "course_name", "professor_name", "faculty")
+        fields = ("body", "course_name", "professor_name", "faculty", "image")
         labels = {
             "body": "つぶやき",
             "course_name": "授業名タグ",
             "professor_name": "教授名（任意）",
             "faculty": "対象の学部",
+            "image": "写真（任意）",
         }
         widgets = {
             "body": forms.Textarea(
@@ -174,6 +243,7 @@ class TimelinePostForm(forms.ModelForm):
             "professor_name": forms.TextInput(
                 attrs={"placeholder": "教授の名前（任意） 例：山田太郎"}
             ),
+            "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
