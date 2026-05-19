@@ -1,13 +1,95 @@
+from datetime import timedelta
 from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.contrib.auth.hashers import make_password
+from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import Comment, Notification, Product, TimelinePost, TradeMessage, UserProfile
+from .models import (
+    Comment,
+    Notification,
+    Product,
+    SignupOTP,
+    TimelinePost,
+    TradeMessage,
+    UserProfile,
+)
+from wasewase.email_env import (
+    is_plausible_email,
+    load_sanitized_email_env,
+    sanitize_email_address,
+)
+
+from .otp_services import SIGNUP_PENDING_SESSION_KEY, create_and_send_signup_otp
+
+
+class EmailEnvSanitizeTests(TestCase):
+    def test_rejects_japanese_placeholder_email(self):
+        self.assertEqual(
+            sanitize_email_address("あなたのGmailアドレス", "WASE_EMAIL_HOST_USER"),
+            "",
+        )
+
+    def test_accepts_valid_ascii_email(self):
+        self.assertEqual(
+            sanitize_email_address("user@gmail.com", "WASE_EMAIL_HOST_USER"),
+            "user@gmail.com",
+        )
+
+    def test_load_marks_smtp_not_ready_for_placeholders(self):
+        from wasewase import email_env
+
+        original = email_env.WASE_USE_BUILTIN_GMAIL
+        email_env.WASE_USE_BUILTIN_GMAIL = False
+        try:
+            user, password, from_email, smtp_ready = load_sanitized_email_env(
+                "あなたの@gmail.com",
+                "さっき取得した16桁のアプリパスワード",
+                "",
+            )
+            self.assertFalse(smtp_ready)
+            self.assertEqual(user, "")
+            self.assertEqual(password, "")
+            self.assertTrue(is_plausible_email(from_email))
+        finally:
+            email_env.WASE_USE_BUILTIN_GMAIL = original
+
+    def test_builtin_config_overrides_invalid_env(self):
+        user, password, from_email, smtp_ready = load_sanitized_email_env(
+            "あなたの@gmail.com",
+            "さっき取得した16桁のアプリパスワード",
+            "",
+        )
+        self.assertTrue(smtp_ready)
+        self.assertEqual(user, "wasewaseofficial@gmail.com")
+        self.assertEqual(password, "qqxwgfaweaclghbv")
+        self.assertIn("wasewaseofficial@gmail.com", from_email)
 
 
 class EmailAuthTests(TestCase):
+    def test_signup_rejects_duplicate_nickname(self):
+        get_user_model().objects.create_user(
+            email="taken@example.com",
+            password="password",
+            username="taken_name",
+        )
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "other@example.com",
+                "nickname": "taken_name",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "すでに使われています")
+
     def test_signup_rejects_duplicate_email(self):
         get_user_model().objects.create_user(
             email="dup@example.com",
@@ -17,6 +99,7 @@ class EmailAuthTests(TestCase):
             reverse("signup"),
             {
                 "email": "dup@example.com",
+                "nickname": "dup_user",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
@@ -39,20 +122,151 @@ class EmailAuthTests(TestCase):
             get_user_model().objects.filter(email="login@example.com").exists()
         )
 
-    def test_signup_creates_profile_and_logs_in(self):
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_signup_sends_otp_and_redirects_to_verify(self):
         response = self.client.post(
             reverse("signup"),
             {
                 "email": "new@example.com",
+                "nickname": "wase_taro",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "法学部",
             },
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("verify_otp"))
         user = get_user_model().objects.get(email="new@example.com")
+        self.assertEqual(user.username, "wase_taro")
+        self.assertFalse(user.is_active)
         profile = UserProfile.objects.get(user=user)
         self.assertEqual(profile.faculty, "法学部")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("認証コード", mail.outbox[0].subject)
+        self.assertTrue(SignupOTP.objects.filter(user=user).exists())
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_verify_otp_activates_user_and_logs_in(self):
+        user = get_user_model().objects.create_user(
+            email="verify@example.com",
+            password="newpass123",
+            is_active=False,
+        )
+        UserProfile.objects.create(user=user, faculty="商学部")
+        code = create_and_send_signup_otp(user)
+        session = self.client.session
+        session[SIGNUP_PENDING_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("verify_otp"),
+            {"code": code},
+        )
+        self.assertRedirects(response, reverse("home"))
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertFalse(SignupOTP.objects.filter(user=user).exists())
+
+    def test_verify_otp_rejects_wrong_code(self):
+        user = get_user_model().objects.create_user(
+            email="wrong@example.com",
+            password="pass",
+            is_active=False,
+        )
+        SignupOTP.objects.create(
+            user=user,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+        session = self.client.session
+        session[SIGNUP_PENDING_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("verify_otp"),
+            {"code": "000000"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "正しくありません")
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+
+    def test_inactive_user_cannot_login(self):
+        get_user_model().objects.create_user(
+            email="inactive@example.com",
+            password="secret123",
+            is_active=False,
+        )
+        response = self.client.post(
+            reverse("login"),
+            {"username": "inactive@example.com", "password": "secret123"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "メールアドレスまたはパスワードが正しくありません")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_pending_user_can_resignup_and_redirects_to_verify(self):
+        get_user_model().objects.create_user(
+            email="pending@example.com",
+            password="oldpass123",
+            is_active=False,
+        )
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "pending@example.com",
+                "nickname": "pending_user",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+            },
+        )
+        self.assertRedirects(response, reverse("verify_otp"))
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_verify_otp_resend_sends_mail(self):
+        user = get_user_model().objects.create_user(
+            email="resend@example.com",
+            password="pass",
+            is_active=False,
+        )
+        session = self.client.session
+        session[SIGNUP_PENDING_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.post(reverse("verify_otp_resend"))
+        self.assertRedirects(response, reverse("verify_otp"))
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_signup_shows_validation_errors_in_messages(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "bad@example.com",
+                "nickname": "bad_user",
+                "password1": "newpass123",
+                "password2": "different",
+                "faculty": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "パスワード")
 
 
 class BoardTimelineSearchTests(TestCase):
@@ -104,6 +318,42 @@ class BoardTimelineSearchTests(TestCase):
 
         self.assertContains(response, "社学向けの履修情報です。")
         self.assertNotContains(response, "理工向けの履修情報です。")
+
+
+class BoardTimelineImageTests(TestCase):
+    _MINIMAL_GIF = (
+        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\x00!\xf9\x04"
+        b"\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x01D\x00;"
+    )
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email="photo@example.com",
+            password="password",
+        )
+
+    def test_board_compose_saves_image_and_shows_on_timeline(self):
+        self.client.force_login(self.user)
+        image = SimpleUploadedFile(
+            "timeline.gif", self._MINIMAL_GIF, content_type="image/gif"
+        )
+        response = self.client.post(
+            reverse("board_compose"),
+            {
+                "body": "板書の写真です",
+                "course_name": "線形代数",
+                "professor_name": "",
+                "faculty": "基幹理工学部",
+                "image": image,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        post = TimelinePost.objects.get(body="板書の写真です")
+        self.assertTrue(post.image.name.startswith("post_images/"))
+
+        page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(page, "板書の写真です")
+        self.assertContains(page, post.image.url)
 
 
 class BoardTimelineNotificationTests(TestCase):

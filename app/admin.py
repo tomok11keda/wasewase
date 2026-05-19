@@ -59,8 +59,13 @@ class TimelinePostAdmin(admin.ModelAdmin):
         "author",
         "god_count",
         "tip_total",
+        "has_image",
         "created_at",
     )
+
+    @admin.display(boolean=True, description="画像")
+    def has_image(self, obj):
+        return bool(obj.image)
     list_filter = ("faculty", "created_at")
     search_fields = ("body", "course_name", "professor_name")
 

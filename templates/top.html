@@ -651,6 +651,35 @@
       white-space: pre-wrap;
     }
 
+    .tweet-image {
+      display: block;
+      width: 100%;
+      max-height: 420px;
+      margin: 0 0 12px;
+      border-radius: 12px;
+      border: 1px solid #e8e8e8;
+      object-fit: cover;
+      background: #f0f0f0;
+    }
+
+    .compose-image-field {
+      margin: 8px 0 12px;
+    }
+
+    .compose-image-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted, #666);
+      margin-bottom: 6px;
+    }
+
+    .compose-image-field input[type="file"] {
+      width: 100%;
+      font-size: 14px;
+      margin-bottom: 0;
+    }
+
     .tweet-actions {
       display: flex;
       gap: 8px;
@@ -913,9 +942,13 @@
     {% endif %}
     {% if timeline_form %}
     <div class="compose-box">
-      <form method="post" action="{% url 'board_compose' %}">
+      <form method="post" action="{% url 'board_compose' %}" enctype="multipart/form-data">
         {% csrf_token %}
         {{ timeline_form.body }}
+        <div class="compose-image-field">
+          <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
+          {{ timeline_form.image }}
+        </div>
         <div class="compose-row">
           <div class="compose-field">
             <label for="{{ timeline_form.faculty.id_for_label }}">対象の学部</label>
@@ -963,6 +996,9 @@
         <p class="tweet-professor">教授: {{ post.professor_name }}先生</p>
         {% endif %}
         <p class="tweet-body">{{ post.body }}</p>
+        {% if post.image %}
+        <img class="tweet-image" src="{{ post.image.url }}" alt="{{ post.course_name }}の投稿画像" loading="lazy">
+        {% endif %}
         {% if user.is_authenticated %}
         <div class="tweet-actions">
           <form method="post" action="{% url 'board_timeline_tip' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-tip">🪙 1円</button></form>

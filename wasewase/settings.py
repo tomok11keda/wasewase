@@ -10,10 +10,28 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
+import ssl
+import sys
 from pathlib import Path
+
+from .email_env import (
+    EMAIL_ENV_WARNINGS,
+    WASE_USE_BUILTIN_GMAIL,
+    is_ascii_only,
+    load_sanitized_email_env,
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _env(name: str, default: str = "") -> str:
+    """環境変数を読み込み、前後の空白を除去する。"""
+    value = os.environ.get(name, default)
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 # Quick-start development settings - unsuitable for production
@@ -127,3 +145,102 @@ MEDIA_ROOT = BASE_DIR / 'media'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
+
+# ---------------------------------------------------------------------------
+# メール（Gmail SMTP）
+# wasewase/email_env.py の組み込み設定（wasewaseofficial@gmail.com）が最優先。
+# 環境変数 WASE_* は組み込み無効時のみ使用。
+# ---------------------------------------------------------------------------
+from django.core.mail.backends.smtp import EmailBackend as DjangoSMTPBackend
+
+
+class UnverifiedTTLEmailBackend(DjangoSMTPBackend):
+    """
+    開発用 SMTP バックエンド。
+    Django 6 の標準 SMTP バックエンドは settings.EMAIL_SSL_CONTEXT を参照しないため、
+    starttls() に渡す ssl_context をここで上書きする。
+    """
+
+    @property
+    def ssl_context(self):
+        if DEBUG:
+            return ssl._create_unverified_context()
+        if self.ssl_certfile or self.ssl_keyfile:
+            ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+            ctx.load_cert_chain(self.ssl_certfile, self.ssl_keyfile)
+            return ctx
+        return ssl.create_default_context()
+
+    def open(self):
+        if self.connection:
+            return False
+        # SMTP ログイン情報は ASCII のみ（UnicodeEncodeError 防止）
+        if self.username and not is_ascii_only(str(self.username)):
+            raise ValueError("EMAIL_HOST_USER に非ASCII文字が含まれています。")
+        if self.password and not is_ascii_only(str(self.password)):
+            raise ValueError("EMAIL_HOST_PASSWORD に非ASCII文字が含まれています。")
+        return super().open()
+
+
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_USE_BUILTIN_GMAIL = WASE_USE_BUILTIN_GMAIL
+
+(
+    EMAIL_HOST_USER,
+    EMAIL_HOST_PASSWORD,
+    DEFAULT_FROM_EMAIL,
+    EMAIL_SMTP_READY,
+) = load_sanitized_email_env(
+    _env("WASE_EMAIL_HOST_USER"),
+    _env("WASE_EMAIL_HOST_PASSWORD"),
+    _env("WASE_DEFAULT_FROM_EMAIL"),
+)
+
+# DEBUG かつ SMTP 未設定時のみ console へフォールバック（組み込み設定時は常に SMTP）
+EMAIL_USE_CONSOLE_FALLBACK = DEBUG and not EMAIL_SMTP_READY
+
+if EMAIL_USE_CONSOLE_FALLBACK:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+elif DEBUG:
+    EMAIL_BACKEND = "wasewase.settings.UnverifiedTTLEmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+
+def _warn_email_startup() -> None:
+    for warning in EMAIL_ENV_WARNINGS:
+        print(f"[WASE WARNING] {warning}", file=sys.stderr, flush=True)
+
+    if EMAIL_USE_BUILTIN_GMAIL and EMAIL_SMTP_READY:
+        print(
+            "[WASE] SMTP 有効: wasewaseofficial@gmail.com / "
+            f"backend={EMAIL_BACKEND}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    if EMAIL_USE_CONSOLE_FALLBACK:
+        print(
+            "[WASE DEV] Gmail 設定が無効または未設定のため、"
+            "認証メールはターミナル（console backend）に出力します。",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif DEBUG and "UnverifiedTTLEmailBackend" in EMAIL_BACKEND:
+        print(
+            "[WASE DEV] UnverifiedTTLEmailBackend: STARTTLS の SSL 証明書検証をスキップします。",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif not DEBUG and not EMAIL_SMTP_READY:
+        print(
+            "[WASE WARNING] 本番モードで Gmail SMTP 設定が不足しています。",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+_warn_email_startup()

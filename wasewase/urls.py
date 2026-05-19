@@ -30,6 +30,8 @@ urlpatterns = [
     path("login/", app_views.AppLoginView.as_view(), name="login"),
     path("logout/", app_views.logout_view, name="logout"),
     path("signup/", app_views.signup, name="signup"),
+    path("verify-otp/", app_views.verify_otp, name="verify_otp"),
+    path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),
 ]
 
 if settings.DEBUG:
