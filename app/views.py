@@ -509,8 +509,8 @@ def mypage(request):
     )
 
 
-def user_profile(request, username):
-    profile_user = get_object_or_404(User, username=username)
+def user_profile(request, pk):
+    profile_user = get_object_or_404(User, pk=pk)
 
     if request.user.is_authenticated and request.user == profile_user:
         return redirect(reverse("mypage"))
