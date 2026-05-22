@@ -147,6 +147,32 @@ LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
 # ---------------------------------------------------------------------------
+# Stripe Connect（テスト環境）
+# 本番では環境変数で上書きすることを推奨します。
+# Connect 受取先: Stripe ダッシュボードで作成した acct_... を設定してください。
+# ---------------------------------------------------------------------------
+STRIPE_PUBLISHABLE_KEY = os.environ.get(
+    "STRIPE_PUBLISHABLE_KEY",
+    "***REMOVED***",
+)
+STRIPE_SECRET_KEY = os.environ.get(
+    "STRIPE_SECRET_KEY",
+    "***REMOVED***",
+)
+# 出品者未登録時の開発用 Connect アカウント（acct_...）
+STRIPE_CONNECT_DESTINATION_ACCOUNT = os.environ.get(
+    "STRIPE_CONNECT_DESTINATION_ACCOUNT",
+    "",
+)
+STRIPE_PLATFORM_FEE_PERCENT = 10
+# True = 運営手数料 0% キャンペーン（application_fee_amount = 0）
+CAMPAIGN_FEE_FREE = True
+# Stripe API の SSL 証明書検証（開発時 False で CERTIFICATE_VERIFY_FAILED を回避）
+STRIPE_SSL_VERIFY = not DEBUG
+# True = Connect 送金なし・プラットフォーム口座へ全額入金（transfers 有効化不要のテスト用）
+STRIPE_USE_STANDARD_CHARGES = DEBUG
+
+# ---------------------------------------------------------------------------
 # メール（Gmail SMTP）
 # wasewase/email_env.py の組み込み設定（wasewaseofficial@gmail.com）が最優先。
 # 環境変数 WASE_* は組み込み無効時のみ使用。

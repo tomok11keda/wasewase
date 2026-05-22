@@ -680,6 +680,18 @@
       margin-bottom: 0;
     }
 
+    .compose-image-hint {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted, #888);
+    }
+
+    .field-error {
+      color: var(--accent, #891E2B);
+      font-size: 13px;
+      margin: 4px 0 8px;
+    }
+
     .tweet-actions {
       display: flex;
       gap: 8px;
@@ -948,6 +960,8 @@
         <div class="compose-image-field">
           <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
           {{ timeline_form.image }}
+          {% for error in timeline_form.image.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+          <p class="compose-image-hint">JPEG / PNG / GIF（5MBまで）</p>
         </div>
         <div class="compose-row">
           <div class="compose-field">

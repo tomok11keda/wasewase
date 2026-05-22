@@ -26,7 +26,10 @@ class UserAdmin(DjangoUserAdmin):
     ordering = ("email",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("プロフィール", {"fields": ("username", "first_name", "last_name")}),
+        (
+            "プロフィール",
+            {"fields": ("username", "first_name", "last_name", "stripe_connect_account_id")},
+        ),
         (
             "権限",
             {
