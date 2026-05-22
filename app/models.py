@@ -29,6 +29,12 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
     email = models.EmailField("メールアドレス", unique=True)
+    stripe_connect_account_id = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Stripe Connect アカウントID",
+        help_text="acct_ で始まる Connect アカウントID（出品者の受取先）",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -124,6 +130,11 @@ class Product(models.Model):
     image_url = models.URLField(blank=True, default="")
     seller_trade_completed = models.BooleanField(default=False)
     buyer_trade_completed = models.BooleanField(default=False)
+    stripe_checkout_session_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="進行中の Stripe Checkout Session ID",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

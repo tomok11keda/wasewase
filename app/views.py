@@ -64,6 +64,13 @@ from .services import (
     notify_seller,
     prioritize_same_faculty,
 )
+from .stripe_services import (
+    StripeCheckoutError,
+    StripeConfigurationError,
+    calc_application_fee_yen,
+    create_product_checkout_session,
+    fulfill_checkout_session,
+)
 
 User = get_user_model()
 
@@ -219,6 +226,7 @@ def product_detail(request, pk):
                 review_form = ReviewForm()
 
     show_trade_link = is_trade_participant(product, request.user)
+    platform_fee_yen = calc_application_fee_yen(product.price) if can_purchase else 0
 
     return render(
         request,
@@ -236,6 +244,10 @@ def product_detail(request, pk):
             "partner_review": partner_review,
             "review_partner": review_partner,
             "show_trade_link": show_trade_link,
+            "stripe_publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+            "campaign_fee_free": settings.CAMPAIGN_FEE_FREE,
+            "platform_fee_percent": settings.STRIPE_PLATFORM_FEE_PERCENT,
+            "platform_fee_yen": platform_fee_yen,
         },
     )
 
@@ -340,6 +352,54 @@ def purchase_product(request, pk):
         )
         return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
+    return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+
+@login_required
+def stripe_checkout(request, pk):
+    """Stripe Checkout へリダイレクト（Connect Destination Charges）。"""
+    product = get_object_or_404(
+        Product.objects.select_related("seller"), pk=pk
+    )
+    try:
+        checkout_url = create_product_checkout_session(
+            product=product,
+            buyer=request.user,
+            request=request,
+        )
+        return redirect(checkout_url)
+    except StripeConfigurationError as exc:
+        messages.error(request, str(exc))
+    except StripeCheckoutError as exc:
+        messages.error(request, str(exc))
+    return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+
+@login_required
+def stripe_payment_success(request, pk):
+    session_id = request.GET.get("session_id", "").strip()
+    if not session_id:
+        messages.error(request, "決済セッションが見つかりません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    try:
+        product = fulfill_checkout_session(
+            session_id=session_id,
+            expected_buyer_id=request.user.pk,
+        )
+        messages.success(
+            request,
+            "お支払いが完了しました。取引ページで受け渡しを進めましょう。",
+        )
+        return redirect(reverse("product_trade", kwargs={"pk": product.pk}))
+    except StripeCheckoutError as exc:
+        messages.error(request, f"決済の確認に失敗しました: {exc}")
+    return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+
+@login_required
+def stripe_payment_cancel(request, pk):
+    messages.info(request, "決済をキャンセルしました。")
     return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
 
@@ -776,9 +836,16 @@ def board_compose(request):
         if not post.faculty and faculty:
             post.faculty = faculty
         post.save()
-        messages.success(request, "つぶやきを投稿しました。")
+        if post.image:
+            messages.success(request, "写真付きのつぶやきを投稿しました。")
+        else:
+            messages.success(request, "つぶやきを投稿しました。")
     else:
+        _log_auth_debug("BOARD COMPOSE", f"errors={form.errors.as_json()}")
         messages.error(request, "投稿に失敗しました。内容を確認してください。")
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
     return _board_redirect(request, tag=form.data.get("course_name", ""))
 
 

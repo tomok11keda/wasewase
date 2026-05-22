@@ -166,6 +166,17 @@
       font-style: italic;
     }
 
+    .stripe-fee-note {
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #444;
+      background: #fdf8f9;
+      border: 1px solid #f0d4d8;
+      border-radius: 8px;
+    }
+
     .action-bar {
       margin-top: 16px;
       display: flex;
@@ -512,7 +523,7 @@
         <p class="product-seller">
           出品者:
           {% if product.seller %}
-          <a href="{% url 'user_profile' product.seller.username %}"><strong>{{ product.seller.username }}</strong></a>
+          <a href="{% url 'user_profile' product.seller.pk %}"><strong>{{ product.seller.username }}</strong></a>
           {% if product.seller.profile and product.seller.profile.faculty %}
           <span class="faculty-badge">{{ product.seller.profile.faculty }}</span>
           {% endif %}
@@ -540,6 +551,17 @@
         <p class="product-description product-description-empty">説明はありません。</p>
         {% endif %}
 
+        {% if can_purchase %}
+        <p class="stripe-fee-note">
+          {% if campaign_fee_free %}
+          🎉 キャンペーン中：プラットフォーム手数料 <strong>0%</strong>（出品者へ ¥{{ product.price|floatformat:0 }} が入金されます）
+          {% else %}
+          決済時のプラットフォーム手数料: <strong>{{ platform_fee_percent }}%</strong>（¥{{ platform_fee_yen|floatformat:0 }}）
+          {% endif %}
+          · クレジットカード（Stripe テスト環境）
+        </p>
+        {% endif %}
+
         <div class="action-bar">
           <div class="action-row">
             {% if user.is_authenticated %}
@@ -564,10 +586,7 @@
             {% elif product.is_trading %}
             <button type="button" class="btn btn-trading" disabled>取引中</button>
             {% elif can_purchase %}
-            <form method="post" action="{% url 'purchase_product' product.pk %}" style="flex:1;margin:0">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-purchase" style="width:100%">購入する</button>
-            </form>
+            <a class="btn btn-purchase" href="{% url 'stripe_checkout' product.pk %}" style="flex:1;text-align:center">購入手続きへ進む</a>
             {% elif user.is_authenticated and product.seller_id == user.id %}
             <button type="button" class="btn btn-sold" disabled>自分の出品</button>
             {% elif not user.is_authenticated %}
@@ -581,7 +600,7 @@
     {% if product.is_sold and product.buyer_id and review_partner %}
     <section class="review-section" aria-label="取引評価">
       <h2>取引相手を評価する</h2>
-      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.username %}">{{ review_partner.username }}</a> さん</p>
+      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.pk %}">{{ review_partner.username }}</a> さん</p>
 
       {% if user_review %}
       <div class="review-done">

@@ -252,6 +252,18 @@ class TimelinePostForm(forms.ModelForm):
             FACULTY_CHOICES
         )
         self.fields["faculty"].required = False
+        self.fields["image"].required = False
+
+    def clean_image(self):
+        image = self.cleaned_data.get("image")
+        if not image:
+            return image
+        content_type = getattr(image, "content_type", "") or ""
+        if not content_type.startswith("image/"):
+            raise ValidationError("画像ファイル（JPEG・PNG・GIFなど）を選択してください。")
+        if image.size > 5 * 1024 * 1024:
+            raise ValidationError("画像は5MB以下にしてください。")
+        return image
 
 
 class CourseThreadForm(forms.ModelForm):
