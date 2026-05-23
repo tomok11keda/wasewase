@@ -228,6 +228,28 @@
       color: #fff;
     }
 
+    .btn-share-timeline {
+      width: 100%;
+      background: #f8f4f5;
+      color: var(--accent);
+      border: 1px solid #e8d4d8;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-share-timeline:hover {
+      background: #f0e6e8;
+      border-color: var(--accent);
+    }
+
+    .share-timeline-row {
+      margin-top: 10px;
+    }
+
     .btn-purchase:hover,
     .btn-submit:hover {
       background: var(--accent-dark);
@@ -523,9 +545,9 @@
         <p class="product-seller">
           出品者:
           {% if product.seller %}
-          <a href="{% url 'user_profile' product.seller.pk %}"><strong>{{ product.seller.username }}</strong></a>
-          {% if product.seller.profile and product.seller.profile.faculty %}
-          <span class="faculty-badge">{{ product.seller.profile.faculty }}</span>
+          <a href="{% url 'user_profile' product.seller.pk %}?from=market"><strong>{{ product.seller.username }}</strong></a>
+          {% if product.seller.profile and product.seller.profile.department %}
+          <span class="faculty-badge">{{ product.seller.profile.department }}</span>
           {% endif %}
           {% else %}
           <strong>不明</strong>
@@ -593,6 +615,14 @@
             <a class="btn btn-purchase" href="{% url 'login' %}?next={{ request.path }}" style="flex:1">購入する</a>
             {% endif %}
           </div>
+          {% if can_share_to_timeline %}
+          <div class="share-timeline-row">
+            <form method="post" action="{% url 'share_product_to_timeline' product.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-share-timeline">📄 スレッド（タイムライン）にシェア</button>
+            </form>
+          </div>
+          {% endif %}
         </div>
       </div>
     </article>
@@ -600,7 +630,7 @@
     {% if product.is_sold and product.buyer_id and review_partner %}
     <section class="review-section" aria-label="取引評価">
       <h2>取引相手を評価する</h2>
-      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.pk %}">{{ review_partner.username }}</a> さん</p>
+      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.pk %}?from=market">{{ review_partner.username }}</a> さん</p>
 
       {% if user_review %}
       <div class="review-done">

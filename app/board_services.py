@@ -27,7 +27,10 @@ def can_use_god_button(user: AbstractBaseUser) -> bool:
 
 
 def timeline_post_link(post: TimelinePost) -> str:
-    return f"{reverse('home')}?tab=board&tag={quote(post.course_name)}"
+    base = f"{reverse('home')}?tab=board"
+    if post.course_name:
+        return f"{base}&tag={quote(post.course_name)}#post-{post.pk}"
+    return f"{base}#post-{post.pk}"
 
 
 def notify_timeline_post_author(

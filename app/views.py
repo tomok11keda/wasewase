@@ -36,6 +36,7 @@ from .forms import (
     TimelinePostForm,
 )
 from .models import (
+    Follow,
     GodButtonUse,
     Like,
     Notification,
@@ -58,7 +59,12 @@ logger = logging.getLogger(__name__)
 from .services import (
     calc_sales_total,
     get_reviewee,
+    build_home_url,
+    build_product_share_timeline_body,
+    get_following_user_ids,
+    get_profile_stats,
     get_user_faculty,
+    is_following,
     get_user_rating_stats,
     is_trade_participant,
     notify_seller,
@@ -79,6 +85,13 @@ def index(request):
     tab = request.GET.get("tab", "flea")
     if tab not in ("flea", "board"):
         tab = "flea"
+
+    feed_scope = request.GET.get("feed", "all").strip().lower()
+    if feed_scope not in ("all", "following"):
+        feed_scope = "all"
+    feed_following_unauthenticated = (
+        feed_scope == "following" and not request.user.is_authenticated
+    )
 
     query = request.GET.get("q", "").strip()
     user_faculty = get_user_faculty(request.user) if request.user.is_authenticated else ""
@@ -112,6 +125,12 @@ def index(request):
                 | Q(course_name__icontains=query)
                 | Q(professor_name__icontains=query)
             )
+        if feed_scope == "following":
+            if request.user.is_authenticated:
+                following_ids = get_following_user_ids(request.user)
+                timeline_posts = timeline_posts.filter(author_id__in=following_ids)
+            else:
+                timeline_posts = timeline_posts.none()
         timeline_posts = timeline_posts.order_by("-created_at")
 
         trending_posts = (
@@ -121,7 +140,8 @@ def index(request):
         )
 
         popular_tags = list(
-            TimelinePost.objects.exclude(course_name="")
+            TimelinePost.objects.exclude(course_name__isnull=True)
+            .exclude(course_name="")
             .values_list("course_name", flat=True)
             .distinct()[:12]
         )
@@ -138,7 +158,17 @@ def index(request):
                 | Q(course_name__icontains=query)
                 | Q(professor_name__icontains=query)
             )
-        if request.user.is_authenticated and not active_faculty:
+        if feed_scope == "following":
+            if request.user.is_authenticated:
+                following_ids = get_following_user_ids(request.user)
+                products = products.filter(seller_id__in=following_ids)
+            else:
+                products = products.none()
+        if (
+            feed_scope != "following"
+            and request.user.is_authenticated
+            and not active_faculty
+        ):
             products = prioritize_same_faculty(products, request.user)
         else:
             products = products.order_by("-created_at")
@@ -165,6 +195,36 @@ def index(request):
             "god_remaining": god_remaining,
             "god_limit": GOD_USES_PER_MONTH,
             "can_god": can_use_god_button(request.user),
+            "feed_scope": feed_scope,
+            "feed_following_unauthenticated": feed_following_unauthenticated,
+            "feed_url_all_flea": build_home_url(
+                tab="flea",
+                feed_scope="all",
+                query=query,
+                active_faculty=active_faculty,
+                active_tag=active_tag,
+            ),
+            "feed_url_following_flea": build_home_url(
+                tab="flea",
+                feed_scope="following",
+                query=query,
+                active_faculty=active_faculty,
+                active_tag=active_tag,
+            ),
+            "feed_url_all_board": build_home_url(
+                tab="board",
+                feed_scope="all",
+                query=query,
+                active_faculty=active_faculty,
+                active_tag=active_tag,
+            ),
+            "feed_url_following_board": build_home_url(
+                tab="board",
+                feed_scope="following",
+                query=query,
+                active_faculty=active_faculty,
+                active_tag=active_tag,
+            ),
         },
     )
 
@@ -227,6 +287,11 @@ def product_detail(request, pk):
 
     show_trade_link = is_trade_participant(product, request.user)
     platform_fee_yen = calc_application_fee_yen(product.price) if can_purchase else 0
+    can_share_to_timeline = (
+        request.user.is_authenticated
+        and product.seller_id == request.user.id
+        and product.status == Product.Status.AVAILABLE
+    )
 
     return render(
         request,
@@ -248,8 +313,38 @@ def product_detail(request, pk):
             "campaign_fee_free": settings.CAMPAIGN_FEE_FREE,
             "platform_fee_percent": settings.STRIPE_PLATFORM_FEE_PERCENT,
             "platform_fee_yen": platform_fee_yen,
+            "can_share_to_timeline": can_share_to_timeline,
         },
     )
+
+
+@login_required
+@require_POST
+def share_product_to_timeline(request, pk):
+    product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
+    if product.seller_id != request.user.id:
+        messages.error(request, "自分の出品のみスレッドにシェアできます。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    if product.status != Product.Status.AVAILABLE:
+        messages.error(request, "出品中の商品のみシェアできます。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    detail_url = request.build_absolute_uri(
+        reverse("product_detail", kwargs={"pk": product.pk})
+    )
+    body = build_product_share_timeline_body(product, detail_url)
+    course_name = (product.course_name or "").strip()[:120] or None
+
+    TimelinePost.objects.create(
+        author=request.user,
+        body=body,
+        course_name=course_name,
+        professor_name=product.professor_name or "",
+        faculty=product.faculty or get_user_faculty(request.user),
+    )
+    messages.success(request, "スレッドにシェアしました！")
+    return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
 
 @login_required
@@ -534,17 +629,53 @@ def notifications(request):
 
 
 @login_required
-def mypage(request):
+def mypage_edit(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-    if request.method == "POST" and request.POST.get("form_type") == "profile":
-        profile_form = ProfileForm(request.POST, instance=profile)
-        if profile_form.is_valid():
-            profile_form.save()
-            messages.success(request, "学部情報を更新しました。")
-            return redirect(reverse("mypage"))
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "プロフィールを更新しました。")
+            return redirect(
+                reverse("user_profile", kwargs={"pk": request.user.pk})
+                + "?from=market"
+            )
     else:
-        profile_form = ProfileForm(instance=profile)
+        form = ProfileForm(instance=profile)
+
+    return render(
+        request,
+        "mypage_edit.html",
+        {"form": form, "profile": profile},
+    )
+
+
+@login_required
+@require_POST
+def toggle_follow(request, pk):
+    profile_user = get_object_or_404(User, pk=pk)
+    if profile_user == request.user:
+        messages.error(request, "自分自身をフォローすることはできません。")
+        return redirect(reverse("user_profile", kwargs={"pk": pk}))
+
+    follow = Follow.objects.filter(
+        follower=request.user, following=profile_user
+    ).first()
+    if follow:
+        follow.delete()
+        messages.info(request, f"{profile_user.username} さんのフォローを解除しました。")
+    else:
+        Follow.objects.create(follower=request.user, following=profile_user)
+        messages.success(request, f"{profile_user.username} さんをフォローしました。")
+
+    next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
+    return redirect(next_url)
+
+
+@login_required
+def mypage(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     available_products = Product.objects.filter(
         seller=request.user, status=Product.Status.AVAILABLE
@@ -564,22 +695,29 @@ def mypage(request):
             "sold_products": sold_products,
             "rating_stats": rating_stats,
             "profile": profile,
-            "profile_form": profile_form,
         },
     )
 
 
 def user_profile(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
+    profile, _ = UserProfile.objects.get_or_create(user=profile_user)
 
-    if request.user.is_authenticated and request.user == profile_user:
-        return redirect(reverse("mypage"))
+    from_source = request.GET.get("from", "market").strip().lower()
+    if from_source not in ("market", "thread"):
+        from_source = "market"
 
     available_products = Product.objects.filter(
         seller=profile_user, status=Product.Status.AVAILABLE
     )
     rating_stats = get_user_rating_stats(profile_user)
-    profile = UserProfile.objects.filter(user=profile_user).first()
+    stats = get_profile_stats(profile_user, from_source)
+    is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
+    user_is_following = (
+        is_following(request.user, profile_user)
+        if request.user.is_authenticated and not is_own_profile
+        else False
+    )
 
     return render(
         request,
@@ -589,6 +727,10 @@ def user_profile(request, pk):
             "available_products": available_products,
             "rating_stats": rating_stats,
             "profile": profile,
+            "stats": stats,
+            "from_source": from_source,
+            "is_own_profile": is_own_profile,
+            "user_is_following": user_is_following,
         },
     )
 
@@ -649,7 +791,7 @@ def _persist_signup_user(form):
 
     UserProfile.objects.update_or_create(
         user=user,
-        defaults={"faculty": faculty},
+        defaults={"department": faculty},
     )
     return user
 
