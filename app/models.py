@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
-from .constants import FACULTY_CHOICES
+from .constants import FACULTY_CHOICES, GRADE_CHOICES
 
 
 class UserManager(BaseUserManager):
@@ -71,12 +71,60 @@ class UserProfile(models.Model):
         on_delete=models.CASCADE,
         related_name="profile",
     )
-    faculty = models.CharField(
-        max_length=50, choices=FACULTY_CHOICES, blank=True
+    name = models.CharField("名前", max_length=80, blank=True)
+    bio = models.TextField("概要", blank=True)
+    department = models.CharField(
+        "学部",
+        max_length=50,
+        choices=FACULTY_CHOICES,
+        blank=True,
+    )
+    grade = models.CharField(
+        "学年",
+        max_length=20,
+        choices=GRADE_CHOICES,
+        blank=True,
     )
 
     def __str__(self) -> str:
-        return f"{self.user.username} ({self.faculty or '未設定'})"
+        label = self.name or self.user.username
+        dept = self.department or "未設定"
+        return f"{label} ({dept})"
+
+    @property
+    def display_name(self) -> str:
+        return self.name.strip() if self.name else self.user.username
+
+    @property
+    def department_grade_display(self) -> str:
+        parts = [p for p in (self.department, self.grade) if p]
+        return " ".join(parts)
+
+
+class Follow(models.Model):
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="following",
+    )
+    following = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="followers",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["follower", "following"],
+                name="unique_follow_relationship",
+            )
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.follower_id} → {self.following_id}"
 
 
 class SignupOTP(models.Model):
@@ -184,7 +232,8 @@ class Comment(models.Model):
         if self.product_id:
             return f"{self.product.name} へのコメント"
         if self.timeline_post_id:
-            return f"{self.timeline_post.course_name} への返信"
+            label = self.timeline_post.course_name or "タイムライン"
+            return f"{label} への返信"
         return self.body[:30]
 
 
@@ -289,8 +338,12 @@ class TradeMessage(models.Model):
 
 
 class CourseThread(models.Model):
-    course_name = models.CharField(max_length=120)
-    professor_name = models.CharField(max_length=120, blank=True)
+    course_name = models.CharField(
+        max_length=120, blank=True, null=True, verbose_name="授業名"
+    )
+    professor_name = models.CharField(
+        max_length=120, blank=True, null=True, verbose_name="教授名"
+    )
     faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
     description = models.CharField(max_length=300, blank=True)
     created_by = models.ForeignKey(
@@ -309,7 +362,7 @@ class CourseThread(models.Model):
         ordering = ["-god_boost_count", "-last_activity"]
 
     def __str__(self) -> str:
-        return self.course_name
+        return self.course_name or f"スレッド #{self.pk}"
 
 
 class ThreadPost(models.Model):
@@ -329,7 +382,8 @@ class ThreadPost(models.Model):
         ordering = ["-is_god_pick", "-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.thread.course_name}: {self.body[:40]}"
+        label = self.thread.course_name or "授業タグなし"
+        return f"{label}: {self.body[:40]}"
 
 
 class ThreadTip(models.Model):
@@ -355,8 +409,12 @@ class TimelinePost(models.Model):
         related_name="timeline_posts",
     )
     body = models.CharField(max_length=280)
-    course_name = models.CharField(max_length=120)
-    professor_name = models.CharField(max_length=120, blank=True)
+    course_name = models.CharField(
+        max_length=120, blank=True, null=True, verbose_name="授業名"
+    )
+    professor_name = models.CharField(
+        max_length=120, blank=True, null=True, verbose_name="教授名"
+    )
     faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
     image = models.ImageField(
         upload_to="post_images/",
@@ -372,7 +430,13 @@ class TimelinePost(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.course_name}: {self.body[:40]}"
+        if self.course_name:
+            return f"{self.course_name}: {self.body[:40]}"
+        return self.body[:40]
+
+    @property
+    def has_course_info(self) -> bool:
+        return bool(self.course_name or self.professor_name or self.faculty)
 
 
 class TimelineTip(models.Model):

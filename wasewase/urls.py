@@ -11,6 +11,11 @@ urlpatterns = [
     path("exhibit/", app_views.exhibit, name="exhibit"),
     path("product/<int:pk>/", app_views.product_detail, name="product_detail"),
     path("product/<int:pk>/like/", app_views.toggle_like, name="toggle_like"),
+    path(
+        "product/<int:pk>/share-to-timeline/",
+        app_views.share_product_to_timeline,
+        name="share_product_to_timeline",
+    ),
     path("product/<int:pk>/purchase/", app_views.purchase_product, name="purchase_product"),
     path("product/<int:pk>/checkout/", app_views.stripe_checkout, name="stripe_checkout"),
     path(
@@ -34,6 +39,8 @@ urlpatterns = [
     path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
     path("notifications/", app_views.notifications, name="notifications"),
     path("mypage/", app_views.mypage, name="mypage"),
+    path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),
+    path("user/<int:pk>/follow/", app_views.toggle_follow, name="toggle_follow"),
     path("board/compose/", app_views.board_compose, name="board_compose"),
     path("board/post/<int:pk>/tip/", app_views.board_timeline_tip, name="board_timeline_tip"),
     path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),

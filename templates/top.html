@@ -187,53 +187,114 @@
 
     .product-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 8px;
     }
 
     .product-card {
-      background: var(--card);
-      border-radius: var(--radius);
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
       text-decoration: none;
       color: inherit;
       display: block;
     }
 
-    .product-thumb {
+    .product-card-media {
+      position: relative;
       aspect-ratio: 1;
-      background: linear-gradient(160deg, #e8e8e8 0%, #d0d0d0 100%);
+      border-radius: 10px;
+      overflow: hidden;
+      background: linear-gradient(145deg, #ececec 0%, #d8d8d8 100%);
+    }
+
+    .product-card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .product-card-placeholder {
+      width: 100%;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 11px;
       color: var(--muted);
-      font-size: 12px;
-      position: relative;
     }
 
-    .sold-out-badge {
+    .product-price-badge {
       position: absolute;
+      left: 0;
+      bottom: 0;
+      z-index: 3;
+      padding: 5px 8px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.72);
+      border-top-right-radius: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .product-card:not(.is-sold):not(.is-trading) .product-price-badge {
+      background: rgba(137, 30, 43, 0.88);
+    }
+
+    .product-card-mask {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: rgba(0, 0, 0, 0.48);
+      pointer-events: none;
+    }
+
+    .product-card.is-trading .product-card-mask {
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .product-status-label {
+      position: absolute;
+      z-index: 2;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
+      padding: 8px 14px;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      line-height: 1;
+      color: #fff;
+      background: #d32f2f;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+
+    .product-status-label--trading {
       top: 8px;
       left: 8px;
-      z-index: 2;
-      background: var(--accent);
-      color: #fff;
+      transform: none;
       font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      padding: 4px 8px;
-      border-radius: 4px;
-      box-shadow: 0 2px 6px rgba(137, 30, 43, 0.4);
+      letter-spacing: 0.06em;
+      padding: 5px 10px;
+      background: rgba(95, 102, 112, 0.95);
+      border: none;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
-    .trading-badge {
-      background: #5f6670;
-      box-shadow: 0 2px 6px rgba(95, 102, 112, 0.35);
-    }
-
-    .product-card.is-sold .product-thumb img {
-      opacity: 0.55;
+    .product-card-title {
+      margin: 6px 2px 0;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.35;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .nav-badge {
@@ -254,46 +315,6 @@
 
     .nav-item--notify {
       position: relative;
-    }
-
-    .product-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .product-body {
-      padding: 8px 10px 10px;
-    }
-
-    .product-price {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-
-    .product-price .yen {
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .product-name {
-      font-size: 12px;
-      line-height: 1.35;
-      color: #444;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .product-meta {
-      margin-top: 6px;
-      font-size: 11px;
-      line-height: 1.4;
-      color: var(--muted);
     }
 
     /* --- 下部固定ナビ（メルカリ風） --- */
@@ -435,6 +456,49 @@
       background: var(--card);
       color: var(--accent);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .feed-scope-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 12px;
+      padding: 0 4px;
+    }
+
+    .feed-scope-tab {
+      flex: 1;
+      text-align: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid #e5e5e5;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .feed-scope-tab.is-active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .feed-scope-hint {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #555;
+      background: #fff8e6;
+      border: 1px solid #f0e0a8;
+      border-radius: 8px;
+    }
+
+    .feed-scope-hint a {
+      color: var(--accent);
+      font-weight: 700;
     }
 
     body.mode-board {
@@ -825,6 +889,13 @@
       box-shadow: 0 4px 12px rgba(137, 30, 43, 0.35);
     }
 
+    @media (min-width: 480px) and (max-width: 767px) {
+      .product-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px 10px;
+      }
+    }
+
     @media (min-width: 768px) {
       .main-inner {
         padding-left: 16px;
@@ -832,23 +903,36 @@
       }
 
       .product-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px 12px;
       }
 
-      .product-body {
-        padding: 10px 12px 12px;
-      }
-
-      .product-name {
+      .product-card-title {
         font-size: 13px;
+        margin-top: 8px;
+      }
+
+      .product-price-badge {
+        font-size: 15px;
+        padding: 6px 10px;
+      }
+
+      .product-status-label {
+        font-size: 17px;
+        padding: 10px 18px;
       }
     }
 
     @media (min-width: 1024px) {
       .product-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px 14px;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .product-grid {
         grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 16px;
       }
     }
 
@@ -881,9 +965,9 @@
       </div>
     </div>
     <nav class="mode-switch" aria-label="モード切替">
-      <a href="{% url 'home' %}?tab=flea{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}"
+      <a href="{% url 'home' %}?tab=flea{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
         class="{% if tab == 'flea' %}is-active{% endif %}">フリマ</a>
-      <a href="{% url 'home' %}?tab=board{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}"
+      <a href="{% url 'home' %}?tab=board{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
         class="{% if tab == 'board' %}is-active{% endif %}">授業情報</a>
     </nav>
   </header>
@@ -892,7 +976,7 @@
     <div class="faculty-tabs">
       {% for faculty_tab in faculty_tabs %}
       <a class="faculty-tab{% if active_faculty == faculty_tab.value %} is-active{% endif %}"
-        href="{% url 'home' %}?tab={{ tab }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if faculty_tab.value %}&amp;faculty={{ faculty_tab.value|urlencode }}{% endif %}">
+        href="{% url 'home' %}?tab={{ tab }}{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if faculty_tab.value %}&amp;faculty={{ faculty_tab.value|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}">
         {{ faculty_tab.label }}
       </a>
       {% endfor %}
@@ -900,52 +984,62 @@
   </section>
 
   <main class="main-inner flea-panel">
+    <nav class="feed-scope-tabs" aria-label="フリマ表示範囲">
+      <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all_flea }}">全体</a>
+      <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following_flea }}">フォロー中</a>
+    </nav>
+    {% if feed_following_unauthenticated %}
+    <p class="feed-scope-hint">フォロー中の出品を見るには<a href="{% url 'login' %}?next={{ feed_url_following_flea|urlencode }}">ログイン</a>してください。</p>
+    {% elif feed_scope == 'following' and user.is_authenticated %}
+    <p class="feed-scope-hint">フォローしているユーザーの出品だけを表示しています。</p>
+    {% endif %}
     {% if active_faculty %}
     <p class="faculty-hint">🏷 {{ active_faculty }}で絞り込み中</p>
-    {% elif user_faculty and not query and tab == 'flea' %}
+    {% elif user_faculty and not query and tab == 'flea' and feed_scope != 'following' %}
     <p class="faculty-hint">📍 {{ user_faculty }}の出品を優先表示しています</p>
     {% endif %}
     <h2 class="section-title">{% if query %}「{{ query }}」の検索結果{% else %}おすすめ商品{% endif %}</h2>
     <div class="product-grid">
       {% for product in products %}
       <a class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}" href="{% url 'product_detail' product.pk %}">
-        <div class="product-thumb">
-          {% if product.is_sold %}
-          <span class="sold-out-badge">SOLD OUT</span>
-          {% elif product.is_trading %}
-          <span class="sold-out-badge trading-badge">取引中</span>
-          {% endif %}
+        <div class="product-card-media">
           {% if product.image %}
           <img src="{{ product.image.url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
           {% elif product.image_url %}
           <img src="{{ product.image_url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
           {% else %}
-          <span>ダミー画像</span>
+          <span class="product-card-placeholder">No Image</span>
           {% endif %}
-        </div>
-        <div class="product-body">
-          <div class="product-price"><span class="yen">¥</span>{{ product.price|floatformat:0 }}</div>
-          <div class="product-name">{{ product.name }}</div>
-          <div class="product-meta">
-            {% if product.seller %}{{ product.seller.username }}{% else %}出品者不明{% endif %}
-            · {{ product.created_at|timesince }}前
-          </div>
-          {% if product.faculty or product.course_name or product.professor_name %}
-          <div class="product-tags">
-            {% if product.faculty %}<span class="tag tag-faculty">{{ product.faculty }}</span>{% endif %}
-            {% if product.course_name %}<span class="tag">{{ product.course_name }}</span>{% endif %}
-            {% if product.professor_name %}<span class="tag">{{ product.professor_name }}</span>{% endif %}
-          </div>
+          {% if product.is_sold or product.is_trading %}
+          <span class="product-card-mask" aria-hidden="true"></span>
           {% endif %}
+          {% if product.is_sold %}
+          <p class="product-status-label">SOLD OUT</p>
+          {% elif product.is_trading %}
+          <p class="product-status-label product-status-label--trading">取引中</p>
+          {% endif %}
+          <span class="product-price-badge">¥{{ product.price|floatformat:0 }}</span>
         </div>
+        <p class="product-card-title">{{ product.name }}</p>
       </a>
       {% empty %}
-      <p class="empty-message">該当する商品がありません。</p>
+      <p class="empty-message">
+        {% if feed_following_unauthenticated %}ログインするとフォロー中の出品が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの出品はまだありません。{% else %}該当する商品がありません。{% endif %}
+      </p>
       {% endfor %}
     </div>
   </main>
 
   <main class="main-inner board-panel-wrap board-panel">
+    <nav class="feed-scope-tabs" aria-label="タイムライン表示範囲">
+      <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all_board }}">全体</a>
+      <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following_board }}">フォロー中</a>
+    </nav>
+    {% if feed_following_unauthenticated %}
+    <p class="feed-scope-hint">フォロー中の投稿を見るには<a href="{% url 'login' %}?next={{ feed_url_following_board|urlencode }}">ログイン</a>してください。</p>
+    {% elif feed_scope == 'following' and user.is_authenticated %}
+    <p class="feed-scope-hint">フォローしているユーザーの投稿だけを表示しています。</p>
+    {% endif %}
     <p class="board-intro">
       授業タグ付きの<strong>タイムライン</strong>です。タグで授業別に絞り込み、<strong>1円投げ銭</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
     </p>
@@ -965,11 +1059,11 @@
         </div>
         <div class="compose-row">
           <div class="compose-field">
-            <label for="{{ timeline_form.faculty.id_for_label }}">対象の学部</label>
+            <label for="{{ timeline_form.faculty.id_for_label }}">{{ timeline_form.faculty.label }}</label>
             {{ timeline_form.faculty }}
           </div>
           <div class="compose-field">
-            <label for="{{ timeline_form.course_name.id_for_label }}">授業名タグ</label>
+            <label for="{{ timeline_form.course_name.id_for_label }}">{{ timeline_form.course_name.label }}</label>
             {{ timeline_form.course_name }}
           </div>
           <div class="compose-field">
@@ -990,7 +1084,7 @@
     {% endif %}
     {% if trending_posts and not active_tag %}
     <section class="trending-section"><h3>⚡ 話題の投稿</h3>
-    {% for p in trending_posts %}<article class="trending-item"><a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>{% endfor %}
+    {% for p in trending_posts %}<article class="trending-item">{% if p.course_name %}<a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>{% endfor %}
     </section>
     {% endif %}
     {% if active_faculty %}
@@ -1001,17 +1095,19 @@
       {% for post in timeline_posts %}
       <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
         <div class="tweet-header">
-          <span class="tweet-author">{{ post.author.username }}</span>
+          <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author.username }}</a>
           <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
         </div>
+        {% if post.course_name %}
         <a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
+        {% endif %}
         {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
         {% if post.professor_name %}
         <p class="tweet-professor">教授: {{ post.professor_name }}先生</p>
         {% endif %}
         <p class="tweet-body">{{ post.body }}</p>
         {% if post.image %}
-        <img class="tweet-image" src="{{ post.image.url }}" alt="{{ post.course_name }}の投稿画像" loading="lazy">
+        <img class="tweet-image" src="{{ post.image.url }}" alt="{% if post.course_name %}{{ post.course_name }}の{% endif %}投稿画像" loading="lazy">
         {% endif %}
         {% if user.is_authenticated %}
         <div class="tweet-actions">
@@ -1047,13 +1143,15 @@
         </details>
       </article>
       {% empty %}
-      <p class="empty-message">まだ投稿がありません。</p>
+      <p class="empty-message">
+        {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。{% endif %}
+      </p>
       {% endfor %}
     </div>
   </main>
 
   <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="{% url 'home' %}?tab={{ tab }}" aria-current="page">
+    <a class="nav-item" href="{% url 'home' %}?tab={{ tab }}{% if feed_scope == 'following' %}&amp;feed=following{% endif %}" aria-current="page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
       <span>ホーム</span>
     </a>

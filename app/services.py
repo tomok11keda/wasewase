@@ -1,14 +1,59 @@
+from urllib.parse import urlencode
+
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Avg, Case, Count, IntegerField, Sum, Value, When
 from django.urls import reverse
 
-from .models import Notification, Product, Review, UserProfile
+from .models import Comment, Follow, Notification, Product, Review, ThreadPost, TimelinePost, UserProfile
+
+
+def get_following_user_ids(user: AbstractBaseUser) -> list[int]:
+    if not user.is_authenticated:
+        return []
+    return list(
+        Follow.objects.filter(follower=user).values_list("following_id", flat=True)
+    )
+
+
+def build_home_url(
+    *,
+    tab: str,
+    feed_scope: str = "all",
+    query: str = "",
+    active_faculty: str = "",
+    active_tag: str = "",
+) -> str:
+    params: dict[str, str] = {"tab": tab}
+    if feed_scope == "following":
+        params["feed"] = "following"
+    if query:
+        params["q"] = query
+    if active_faculty:
+        params["faculty"] = active_faculty
+    if active_tag:
+        params["tag"] = active_tag
+    return f"{reverse('home')}?{urlencode(params)}"
+
+
+def build_product_share_timeline_body(product: Product, detail_url: str) -> str:
+    prefix = "【出品シェア】"
+    suffix = f" が出品されました！価格: {product.price}円。詳細はこちら：{detail_url}"
+    name = product.name
+    body = f"{prefix}{name}{suffix}"
+    if len(body) <= 280:
+        return body
+    max_name_len = 280 - len(prefix) - len(suffix)
+    if max_name_len < 1:
+        return body[:280]
+    return f"{prefix}{name[:max_name_len]}{suffix}"
+
 
 def get_user_faculty(user: AbstractBaseUser) -> str:
+    """出品時の学部初期値など（UserProfile.department）。"""
     if not user.is_authenticated:
         return ""
     profile = UserProfile.objects.filter(user=user).first()
-    return profile.faculty if profile else ""
+    return profile.department if profile else ""
 
 
 def prioritize_same_faculty(products, user: AbstractBaseUser):
@@ -17,11 +62,58 @@ def prioritize_same_faculty(products, user: AbstractBaseUser):
         return products.order_by("-created_at")
     return products.annotate(
         faculty_priority=Case(
-            When(seller__profile__faculty=faculty, then=Value(0)),
+            When(seller__profile__department=faculty, then=Value(0)),
             default=Value(1),
             output_field=IntegerField(),
         )
     ).order_by("faculty_priority", "-created_at")
+
+
+def count_user_products(user: AbstractBaseUser) -> int:
+    return Product.objects.filter(seller=user).count()
+
+
+def count_user_posts(user: AbstractBaseUser) -> int:
+    return (
+        TimelinePost.objects.filter(author=user).count()
+        + ThreadPost.objects.filter(author=user).count()
+        + Comment.objects.filter(author=user).count()
+    )
+
+
+def count_followers(user: AbstractBaseUser) -> int:
+    return Follow.objects.filter(following=user).count()
+
+
+def count_following(user: AbstractBaseUser) -> int:
+    return Follow.objects.filter(follower=user).count()
+
+
+def is_following(follower: AbstractBaseUser, target: AbstractBaseUser) -> bool:
+    if not follower.is_authenticated:
+        return False
+    return Follow.objects.filter(follower=follower, following=target).exists()
+
+
+def get_profile_stats(user: AbstractBaseUser, from_source: str) -> dict:
+    """プロフィール画面上部の3つの数字（左は from により出品数/投稿数）。"""
+    product_count = count_user_products(user)
+    post_count = count_user_posts(user)
+    if from_source == "thread":
+        left_label = "投稿数"
+        left_count = post_count
+    else:
+        left_label = "出品数"
+        left_count = product_count
+    return {
+        "left_label": left_label,
+        "left_count": left_count,
+        "product_count": product_count,
+        "post_count": post_count,
+        "follower_count": count_followers(user),
+        "following_count": count_following(user),
+        "from_source": from_source if from_source in ("market", "thread") else "market",
+    }
 
 
 def is_trade_participant(product: Product, user: AbstractBaseUser) -> bool:

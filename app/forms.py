@@ -143,8 +143,19 @@ class SignupOTPVerifyForm(forms.Form):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ("faculty",)
-        labels = {"faculty": "学部（認証バッジ）"}
+        fields = ("name", "bio", "department", "grade")
+        labels = {
+            "name": "名前",
+            "bio": "概要",
+            "department": "学部",
+            "grade": "学年",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "表示名（任意）"}),
+            "bio": forms.Textarea(
+                attrs={"rows": 4, "placeholder": "自己紹介や取引の希望など（任意）"}
+            ),
+        }
 
 
 class ProductExhibitForm(forms.ModelForm):
@@ -226,33 +237,47 @@ class TimelinePostForm(forms.ModelForm):
         fields = ("body", "course_name", "professor_name", "faculty", "image")
         labels = {
             "body": "つぶやき",
-            "course_name": "授業名タグ",
+            "course_name": "授業名タグ（任意）",
             "professor_name": "教授名（任意）",
-            "faculty": "対象の学部",
+            "faculty": "対象の学部（任意）",
             "image": "写真（任意）",
         }
         widgets = {
             "body": forms.Textarea(
                 attrs={
-                    "placeholder": "試験の範囲、質問、情報共有など（280字まで）",
+                    "placeholder": "いま思ったこと、質問、情報共有など（280字まで）",
                     "rows": 3,
                     "maxlength": 280,
                 }
             ),
-            "course_name": forms.TextInput(attrs={"placeholder": "例：線形代数Ⅰ"}),
+            "course_name": forms.TextInput(
+                attrs={"placeholder": "授業名タグ（任意） 例：線形代数Ⅰ"}
+            ),
             "professor_name": forms.TextInput(
-                attrs={"placeholder": "教授の名前（任意） 例：山田太郎"}
+                attrs={"placeholder": "教授名（任意） 例：山田太郎"}
             ),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["faculty"].choices = [("", "自分の登録学部を使う")] + list(
-            FACULTY_CHOICES
-        )
+        self.fields["faculty"].choices = [("", "指定しない")] + list(FACULTY_CHOICES)
+        self.fields["course_name"].required = False
+        self.fields["professor_name"].required = False
         self.fields["faculty"].required = False
         self.fields["image"].required = False
+
+    def clean_course_name(self):
+        value = (self.cleaned_data.get("course_name") or "").strip()
+        return value or None
+
+    def clean_professor_name(self):
+        value = (self.cleaned_data.get("professor_name") or "").strip()
+        return value or None
+
+    def clean_faculty(self):
+        value = (self.cleaned_data.get("faculty") or "").strip()
+        return value or ""
 
     def clean_image(self):
         image = self.cleaned_data.get("image")
@@ -271,18 +296,37 @@ class CourseThreadForm(forms.ModelForm):
         model = CourseThread
         fields = ("course_name", "professor_name", "faculty", "description")
         labels = {
-            "course_name": "授業名",
-            "professor_name": "教授名",
-            "faculty": "学部",
-            "description": "スレッドの説明",
+            "course_name": "授業名（任意）",
+            "professor_name": "教授名（任意）",
+            "faculty": "学部（任意）",
+            "description": "スレッドの説明（任意）",
         }
         widgets = {
-            "course_name": forms.TextInput(attrs={"placeholder": "例：マクロ経済学"}),
-            "professor_name": forms.TextInput(attrs={"placeholder": "例：佐藤教授"}),
+            "course_name": forms.TextInput(
+                attrs={"placeholder": "授業名（任意） 例：マクロ経済学"}
+            ),
+            "professor_name": forms.TextInput(
+                attrs={"placeholder": "教授名（任意） 例：佐藤教授"}
+            ),
             "description": forms.TextInput(
                 attrs={"placeholder": "試験範囲・持ち物など（任意）"}
             ),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["course_name"].required = False
+        self.fields["professor_name"].required = False
+        self.fields["faculty"].required = False
+        self.fields["description"].required = False
+
+    def clean_course_name(self):
+        value = (self.cleaned_data.get("course_name") or "").strip()
+        return value or None
+
+    def clean_professor_name(self):
+        value = (self.cleaned_data.get("professor_name") or "").strip()
+        return value or None
 
 
 class ThreadPostForm(forms.ModelForm):

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>わせわせ — {{ profile_user.username }}</title>
+  <title>わせわせ — {{ profile.display_name }}</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -58,26 +58,135 @@
       margin-bottom: 16px;
     }
 
+    .profile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
     .profile-name {
-      margin: 0 0 8px;
+      margin: 0 0 4px;
       font-size: 22px;
       font-weight: 700;
     }
 
+    .profile-username {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .profile-bio {
+      margin: 0 0 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #444;
+      white-space: pre-wrap;
+    }
+
+    .profile-meta {
+      margin: 0 0 16px;
+      font-size: 14px;
+      color: #555;
+    }
+
     .profile-rating {
       margin: 0 0 12px;
-      font-size: 15px;
+      font-size: 14px;
       color: #444;
     }
 
-    .faculty-badge {
+    .profile-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .btn {
       display: inline-block;
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-follow {
       background: var(--accent);
       color: #fff;
+    }
+
+    .btn-follow--following {
+      background: #eee;
+      color: #444;
+      border: 1px solid #ccc;
+    }
+
+    .btn-outline {
+      background: #fff;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .stats-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: stretch;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    .stat-item {
+      flex: 1;
+      text-align: center;
+      min-width: 0;
+    }
+
+    .stat-value {
+      margin: 0 0 4px;
+      font-size: 22px;
       font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .mode-switch {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    .btn-mode-switch {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #f8f4f5;
+      color: var(--accent);
+      border: 1px solid #e8d4d8;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      line-height: 1.4;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-mode-switch:hover {
+      background: #f0e6e8;
+      border-color: var(--accent);
     }
 
     .section-title {
@@ -141,6 +250,15 @@
       border-radius: var(--radius);
     }
 
+    .messages { list-style: none; padding: 0; margin: 0 0 12px; }
+    .messages li {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+      background: var(--card);
+    }
+
     .bottom-nav {
       position: fixed;
       left: 0; right: 0; bottom: 0;
@@ -185,12 +303,36 @@
 <body>
   <header class="site-header">
     <a class="back-link" href="{% url 'home' %}">← 一覧に戻る</a>
-    <h1 style="margin:0;font-size:18px">{{ profile_user.username }} さん</h1>
+    <h1 style="margin:0;font-size:18px">{{ profile.display_name }}</h1>
   </header>
 
   <main class="main-inner">
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     <section class="profile-card">
-      <h2 class="profile-name">{{ profile_user.username }}</h2>
+      <div class="profile-header">
+        <div>
+          <h2 class="profile-name">{{ profile.display_name }}</h2>
+          {% if profile.name %}
+          <p class="profile-username">@{{ profile_user.username }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if profile.bio %}
+      <p class="profile-bio">{{ profile.bio }}</p>
+      {% endif %}
+
+      {% if profile.department_grade_display %}
+      <p class="profile-meta">{{ profile.department_grade_display }}</p>
+      {% endif %}
+
       <p class="profile-rating">
         {% if rating_stats.count %}
         評価：★{{ rating_stats.avg_display }}（{{ rating_stats.count }}件）
@@ -198,9 +340,48 @@
         評価：まだありません
         {% endif %}
       </p>
-      {% if profile.faculty %}
-      <span class="faculty-badge">🎓 {{ profile.faculty }} 認証</span>
-      {% endif %}
+
+      <div class="profile-actions">
+        {% if is_own_profile %}
+        <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィールを編集</a>
+        <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ（売上・出品管理）</a>
+        {% elif user.is_authenticated %}
+        <form method="post" action="{% url 'toggle_follow' profile_user.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% if user_is_following %}
+          <button type="submit" class="btn btn-follow btn-follow--following">フォロー解除</button>
+          {% else %}
+          <button type="submit" class="btn btn-follow">フォロー</button>
+          {% endif %}
+        </form>
+        {% else %}
+        <a class="btn btn-outline" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログインしてフォロー</a>
+        {% endif %}
+      </div>
+
+      <div class="stats-row" aria-label="プロフィール統計">
+        <div class="stat-item">
+          <p class="stat-value">{{ stats.left_count }}</p>
+          <p class="stat-label">{{ stats.left_label }}</p>
+        </div>
+        <div class="stat-item">
+          <p class="stat-value">{{ stats.follower_count }}</p>
+          <p class="stat-label">フォロワー</p>
+        </div>
+        <div class="stat-item">
+          <p class="stat-value">{{ stats.following_count }}</p>
+          <p class="stat-label">フォロー中</p>
+        </div>
+      </div>
+
+      <div class="mode-switch">
+        {% if from_source == "thread" %}
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">🛍️ この人の出品（フリマ）を見る</a>
+        {% else %}
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">📄 この人の投稿（スレッド）を見る</a>
+        {% endif %}
+      </div>
     </section>
 
     <h3 class="section-title">出品中の商品（{{ available_products|length }}）</h3>

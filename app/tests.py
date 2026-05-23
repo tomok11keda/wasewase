@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from .models import (
     Comment,
+    Follow,
     Notification,
     Product,
     SignupOTP,
@@ -18,6 +19,7 @@ from .models import (
     TradeMessage,
     UserProfile,
 )
+from .services import build_product_share_timeline_body
 from wasewase.email_env import (
     is_plausible_email,
     load_sanitized_email_env,
@@ -142,7 +144,7 @@ class EmailAuthTests(TestCase):
         self.assertEqual(user.username, "wase_taro")
         self.assertFalse(user.is_active)
         profile = UserProfile.objects.get(user=user)
-        self.assertEqual(profile.faculty, "法学部")
+        self.assertEqual(profile.department, "法学部")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("認証コード", mail.outbox[0].subject)
         self.assertTrue(SignupOTP.objects.filter(user=user).exists())
@@ -157,7 +159,7 @@ class EmailAuthTests(TestCase):
             password="newpass123",
             is_active=False,
         )
-        UserProfile.objects.create(user=user, faculty="商学部")
+        UserProfile.objects.create(user=user, department="商学部")
         code = create_and_send_signup_otp(user)
         session = self.client.session
         session[SIGNUP_PENDING_SESSION_KEY] = user.pk
@@ -355,6 +357,26 @@ class BoardTimelineImageTests(TestCase):
         self.assertContains(page, "板書の写真です")
         self.assertContains(page, post.image.url)
 
+    def test_board_compose_allows_post_without_course_info(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("board_compose"),
+            {
+                "body": "テキストだけの投稿です",
+                "course_name": "",
+                "professor_name": "",
+                "faculty": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        post = TimelinePost.objects.get(body="テキストだけの投稿です")
+        self.assertIsNone(post.course_name)
+        self.assertIsNone(post.professor_name)
+        self.assertEqual(post.faculty, "")
+
+        page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(page, "テキストだけの投稿です")
+
 
 class BoardTimelineNotificationTests(TestCase):
     def setUp(self):
@@ -386,7 +408,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tab=board&tag={quote('民法')}",
+            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_god_notifies_timeline_post_author(self):
@@ -402,7 +424,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tab=board&tag={quote('民法')}",
+            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_self_tip_and_god_do_not_create_notifications(self):
@@ -638,3 +660,197 @@ class ProductTradeFlowTests(TestCase):
         self.assertEqual(self.product.status, Product.Status.SOLD_OUT)
         self.assertTrue(self.product.is_sold)
         self.assertTrue(self.product.seller_trade_completed)
+
+
+class ProfileAndFollowTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.viewer = User.objects.create_user(
+            email="viewer@example.com",
+            password="pass12345",
+            username="viewer",
+        )
+        self.target = User.objects.create_user(
+            email="target@example.com",
+            password="pass12345",
+            username="target",
+        )
+        UserProfile.objects.create(
+            user=self.target,
+            name="たろう",
+            bio="よろしく",
+            department="法学部",
+            grade="2年",
+        )
+
+    def test_mypage_edit_updates_profile(self):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "じろう",
+                "bio": "テスト概要",
+                "department": "商学部",
+                "grade": "3年",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        profile = UserProfile.objects.get(user=self.viewer)
+        self.assertEqual(profile.name, "じろう")
+        self.assertEqual(profile.bio, "テスト概要")
+        self.assertEqual(profile.department, "商学部")
+        self.assertEqual(profile.grade, "3年")
+
+    def test_user_profile_shows_product_count_from_market(self):
+        Product.objects.create(
+            seller=self.target,
+            name="本",
+            price=500,
+            category="本",
+        )
+        response = self.client.get(
+            reverse("user_profile", args=[self.target.pk]),
+            {"from": "market"},
+        )
+        self.assertContains(response, "たろう")
+        self.assertContains(response, "よろしく")
+        self.assertContains(response, "法学部 2年")
+        self.assertContains(response, "出品数")
+        self.assertContains(response, ">1<", html=False)
+        self.assertContains(response, "この人の投稿（スレッド）を見る")
+        self.assertContains(response, "?from=thread")
+
+    def test_user_profile_shows_post_count_from_thread(self):
+        TimelinePost.objects.create(
+            author=self.target,
+            body="板書メモ",
+            course_name="線形代数",
+        )
+        response = self.client.get(
+            reverse("user_profile", args=[self.target.pk]),
+            {"from": "thread"},
+        )
+        self.assertContains(response, "投稿数")
+        self.assertContains(response, "この人の出品（フリマ）を見る")
+        self.assertContains(response, "?from=market")
+
+    def test_toggle_follow(self):
+        self.client.force_login(self.viewer)
+        follow_url = reverse("toggle_follow", args=[self.target.pk])
+        profile_url = reverse("user_profile", args=[self.target.pk])
+
+        self.client.post(follow_url, {"next": profile_url})
+        from app.models import Follow
+
+        self.assertTrue(
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).exists()
+        )
+
+        response = self.client.get(profile_url)
+        self.assertContains(response, "フォロー解除")
+
+        self.client.post(follow_url, {"next": profile_url})
+        self.assertFalse(
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).exists()
+        )
+
+
+class FeedAndShareTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.viewer = User.objects.create_user(
+            email="viewer@example.com",
+            password="pass12345",
+            username="viewer",
+        )
+        self.seller = User.objects.create_user(
+            email="seller@example.com",
+            password="pass12345",
+            username="seller",
+        )
+        self.other = User.objects.create_user(
+            email="other@example.com",
+            password="pass12345",
+            username="other",
+        )
+        Follow.objects.create(follower=self.viewer, following=self.seller)
+        self.followed_product = Product.objects.create(
+            seller=self.seller,
+            name="フォロー出品",
+            price=1000,
+            category="本",
+        )
+        Product.objects.create(
+            seller=self.other,
+            name="その他出品",
+            price=500,
+            category="本",
+        )
+        TimelinePost.objects.create(
+            author=self.seller,
+            body="フォロー投稿",
+            course_name="線形代数",
+        )
+        TimelinePost.objects.create(
+            author=self.other,
+            body="その他投稿",
+            course_name="微分積分",
+        )
+
+    def test_flea_following_feed_shows_only_followed_seller_products(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("home"), {"tab": "flea", "feed": "following"})
+        self.assertContains(response, "フォロー出品")
+        self.assertNotContains(response, "その他出品")
+
+    def test_board_following_feed_shows_only_followed_posts(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("home"), {"tab": "board", "feed": "following"})
+        self.assertContains(response, "フォロー投稿")
+        self.assertNotContains(response, "その他投稿")
+
+    def test_following_feed_prompts_login_when_anonymous(self):
+        response = self.client.get(reverse("home"), {"tab": "flea", "feed": "following"})
+        self.assertContains(response, "ログイン")
+        self.assertNotContains(response, "フォロー出品")
+
+    def test_share_product_to_timeline(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            name="シェア本",
+            price=800,
+            category="本",
+            course_name="経済学",
+        )
+        self.client.force_login(self.seller)
+        detail_url = f"http://testserver{reverse('product_detail', args=[product.pk])}"
+        expected_body = build_product_share_timeline_body(product, detail_url)
+
+        response = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        post = TimelinePost.objects.latest("created_at")
+        self.assertEqual(post.author, self.seller)
+        self.assertEqual(post.body, expected_body)
+        self.assertEqual(post.course_name, "経済学")
+
+    def test_share_product_to_timeline_without_course_name(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            name="ノート",
+            price=300,
+            category="本",
+        )
+        self.client.force_login(self.seller)
+        self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+            follow=True,
+        )
+        post = TimelinePost.objects.latest("created_at")
+        self.assertIsNone(post.course_name)

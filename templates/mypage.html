@@ -319,16 +319,14 @@
         評価：まだありません
         {% endif %}
       </p>
-      {% if profile.faculty %}
-      <span class="faculty-badge">🎓 {{ profile.faculty }} 認証</span>
+      {% if profile.department %}
+      <span class="faculty-badge">🎓 {{ profile.department }}</span>
       {% endif %}
-      <form class="profile-edit" method="post">
-        {% csrf_token %}
-        <input type="hidden" name="form_type" value="profile">
-        <label for="id_faculty">{{ profile_form.faculty.label }}</label>
-        {{ profile_form.faculty }}
-        <button type="submit" class="btn-small">学部を更新</button>
-      </form>
+      <p style="margin:12px 0 0;font-size:14px">
+        <a href="{% url 'user_profile' user.pk %}?from=market" style="color:var(--accent);font-weight:700">公開プロフィールを見る</a>
+        ·
+        <a href="{% url 'mypage_edit' %}" style="color:var(--accent);font-weight:700">プロフィールを編集</a>
+      </p>
       <div class="sales-box">
         <p class="sales-label">現在の売上金</p>
         <p class="sales-amount">¥{{ total_sales|floatformat:0 }}</p>

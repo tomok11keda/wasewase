@@ -15,6 +15,7 @@ from .models import (
     TimelinePost,
     TimelineTip,
     TradeMessage,
+    Follow,
     UserProfile,
 )
 
@@ -109,8 +110,15 @@ class GodButtonUseAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "faculty")
-    list_filter = ("faculty",)
+    list_display = ("user", "name", "department", "grade")
+    list_filter = ("department", "grade")
+    search_fields = ("user__username", "user__email", "name")
+
+
+@admin.register(Follow)
+class FollowAdmin(admin.ModelAdmin):
+    list_display = ("follower", "following", "created_at")
+    raw_id_fields = ("follower", "following")
 
 
 @admin.register(Product)
