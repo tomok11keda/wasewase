@@ -23,6 +23,7 @@ from .board_services import (
     can_use_god_button,
     god_uses_remaining,
     notify_timeline_post_author,
+    timeline_post_link,
 )
 from .forms import (
     CommentForm,
@@ -61,6 +62,9 @@ from .services import (
     get_reviewee,
     build_home_url,
     build_product_share_timeline_body,
+    build_search_url,
+    search_products,
+    search_timeline_posts,
     get_following_user_ids,
     get_profile_stats,
     get_user_faculty,
@@ -70,14 +74,6 @@ from .services import (
     notify_seller,
     prioritize_same_faculty,
 )
-from .stripe_services import (
-    StripeCheckoutError,
-    StripeConfigurationError,
-    calc_application_fee_yen,
-    create_product_checkout_session,
-    fulfill_checkout_session,
-)
-
 User = get_user_model()
 
 
@@ -155,6 +151,7 @@ def index(request):
         if query:
             products = products.filter(
                 Q(name__icontains=query)
+                | Q(description__icontains=query)
                 | Q(course_name__icontains=query)
                 | Q(professor_name__icontains=query)
             )
@@ -229,6 +226,30 @@ def index(request):
     )
 
 
+def search(request):
+    """フリマ（Product）とタイムライン（TimelinePost）を横断検索。"""
+    query = request.GET.get("q", "").strip()
+    products = search_products(query) if query else Product.objects.none()
+    timeline_posts = (
+        search_timeline_posts(query).prefetch_related("comments__author")
+        if query
+        else TimelinePost.objects.none()
+    )
+
+    return render(
+        request,
+        "search.html",
+        {
+            "query": query,
+            "products": products,
+            "timeline_posts": timeline_posts,
+            "product_count": products.count(),
+            "timeline_count": timeline_posts.count(),
+            "search_url": build_search_url(query),
+        },
+    )
+
+
 def product_detail(request, pk):
     product = get_object_or_404(
         Product.objects.select_related(
@@ -286,7 +307,6 @@ def product_detail(request, pk):
                 review_form = ReviewForm()
 
     show_trade_link = is_trade_participant(product, request.user)
-    platform_fee_yen = calc_application_fee_yen(product.price) if can_purchase else 0
     can_share_to_timeline = (
         request.user.is_authenticated
         and product.seller_id == request.user.id
@@ -309,10 +329,6 @@ def product_detail(request, pk):
             "partner_review": partner_review,
             "review_partner": review_partner,
             "show_trade_link": show_trade_link,
-            "stripe_publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
-            "campaign_fee_free": settings.CAMPAIGN_FEE_FREE,
-            "platform_fee_percent": settings.STRIPE_PLATFORM_FEE_PERCENT,
-            "platform_fee_yen": platform_fee_yen,
             "can_share_to_timeline": can_share_to_timeline,
         },
     )
@@ -438,63 +454,15 @@ def purchase_product(request, pk):
         )
         notify_seller(
             product,
-            f"「{product.name}」の取引が開始されました。（¥{product.price:,}）",
+            f"「{product.name}」の購入希望がありました。受け渡しチャットを確認してください。",
             actor_id=request.user.id,
         )
         messages.success(
             request,
-            "取引を開始しました。出品者とチャットで受け渡しを調整しましょう。",
+            "現地手渡しのチャットを開始しました。出品者と受け渡し場所などを相談しましょう。",
         )
         return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
-    return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-
-@login_required
-def stripe_checkout(request, pk):
-    """Stripe Checkout へリダイレクト（Connect Destination Charges）。"""
-    product = get_object_or_404(
-        Product.objects.select_related("seller"), pk=pk
-    )
-    try:
-        checkout_url = create_product_checkout_session(
-            product=product,
-            buyer=request.user,
-            request=request,
-        )
-        return redirect(checkout_url)
-    except StripeConfigurationError as exc:
-        messages.error(request, str(exc))
-    except StripeCheckoutError as exc:
-        messages.error(request, str(exc))
-    return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-
-@login_required
-def stripe_payment_success(request, pk):
-    session_id = request.GET.get("session_id", "").strip()
-    if not session_id:
-        messages.error(request, "決済セッションが見つかりません。")
-        return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-    try:
-        product = fulfill_checkout_session(
-            session_id=session_id,
-            expected_buyer_id=request.user.pk,
-        )
-        messages.success(
-            request,
-            "お支払いが完了しました。取引ページで受け渡しを進めましょう。",
-        )
-        return redirect(reverse("product_trade", kwargs={"pk": product.pk}))
-    except StripeCheckoutError as exc:
-        messages.error(request, f"決済の確認に失敗しました: {exc}")
-    return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-
-@login_required
-def stripe_payment_cancel(request, pk):
-    messages.info(request, "決済をキャンセルしました。")
     return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
 
@@ -667,6 +635,11 @@ def toggle_follow(request, pk):
         messages.info(request, f"{profile_user.username} さんのフォローを解除しました。")
     else:
         Follow.objects.create(follower=request.user, following=profile_user)
+        Notification.objects.create(
+            recipient=profile_user,
+            message=f"「{request.user.username}さんにフォローされました！」",
+            link=reverse("user_profile", kwargs={"pk": request.user.pk}),
+        )
         messages.success(request, f"{profile_user.username} さんをフォローしました。")
 
     next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
@@ -1041,11 +1014,15 @@ def board_timeline_comment(request, pk):
         comment.timeline_post = post
         comment.author = request.user
         comment.save()
-        notify_timeline_post_author(
-            post,
-            request.user,
-            f"{request.user.username}さんがあなたの投稿にコメントしました",
-        )
+        if post.author_id and post.author_id != request.user.id:
+            Notification.objects.create(
+                recipient=post.author,
+                message=(
+                    f"「{request.user.username}さんが"
+                    "あなたの投稿にコメントしました」"
+                ),
+                link=timeline_post_link(post),
+            )
         messages.success(request, "コメントを投稿しました。")
     else:
         messages.error(request, "コメントを投稿できませんでした。")

@@ -297,6 +297,15 @@
       text-overflow: ellipsis;
     }
 
+    .product-card-meta {
+      margin: 2px 2px 0;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .nav-badge {
       position: absolute;
       top: 0;
@@ -946,12 +955,10 @@
 <body class="{% if tab == 'board' %}mode-board{% endif %}">
   <header class="site-header">
     <div class="header-row">
-      <form class="search-form" method="get" action="{% url 'home' %}" role="search">
-        <label class="visually-hidden" for="q">{% if tab == 'board' %}授業を検索{% else %}商品を検索{% endif %}</label>
-        <input type="hidden" name="tab" value="{{ tab }}">
-        {% if active_faculty %}<input type="hidden" name="faculty" value="{{ active_faculty }}">{% endif %}
+      <form class="search-form" method="get" action="{% url 'search' %}" role="search">
+        <label class="visually-hidden" for="q">フリマ・タイムラインを検索</label>
         <input class="search-bar" id="q" type="search" name="q" value="{{ query }}"
-          placeholder="{% if tab == 'board' %}授業名・教授名で検索{% else %}商品名・授業名・教授名で検索{% endif %}"
+          placeholder="フリマ・スレッドを横断検索"
           autocomplete="off">
       </form>
       <div class="header-actions">
@@ -1021,6 +1028,7 @@
           <span class="product-price-badge">¥{{ product.price|floatformat:0 }}</span>
         </div>
         <p class="product-card-title">{{ product.name }}</p>
+        <p class="product-card-meta">{{ product.seller.username }} · {{ product.created_at|timesince }}前</p>
       </a>
       {% empty %}
       <p class="empty-message">

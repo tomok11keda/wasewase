@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import Avg, Case, Count, IntegerField, Sum, Value, When
+from django.db.models import Avg, Case, Count, IntegerField, Q, Sum, Value, When
 from django.urls import reverse
 
 from .models import Comment, Follow, Notification, Product, Review, ThreadPost, TimelinePost, UserProfile
@@ -13,6 +13,30 @@ def get_following_user_ids(user: AbstractBaseUser) -> list[int]:
     return list(
         Follow.objects.filter(follower=user).values_list("following_id", flat=True)
     )
+
+
+def build_search_url(query: str = "") -> str:
+    if query:
+        return f"{reverse('search')}?{urlencode({'q': query})}"
+    return reverse("search")
+
+
+def search_products(query: str):
+    """フリマ商品を名前・説明で検索。"""
+    qs = Product.objects.select_related("seller", "seller__profile")
+    if not query:
+        return qs.none()
+    return qs.filter(
+        Q(name__icontains=query) | Q(description__icontains=query)
+    ).order_by("-created_at")
+
+
+def search_timeline_posts(query: str):
+    """タイムライン投稿を本文で検索。"""
+    qs = TimelinePost.objects.select_related("author", "author__profile")
+    if not query:
+        return qs.none()
+    return qs.filter(Q(body__icontains=query)).order_by("-created_at")
 
 
 def build_home_url(
