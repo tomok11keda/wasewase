@@ -166,15 +166,20 @@
       font-style: italic;
     }
 
-    .stripe-fee-note {
+    .purchase-hint {
       margin: 0 0 14px;
       padding: 10px 12px;
       font-size: 13px;
       line-height: 1.5;
       color: #444;
-      background: #fdf8f9;
-      border: 1px solid #f0d4d8;
+      background: #f7f9fc;
+      border: 1px solid #e0e6ef;
       border-radius: 8px;
+    }
+
+    .purchase-form {
+      flex: 1;
+      margin: 0;
     }
 
     .action-bar {
@@ -574,13 +579,8 @@
         {% endif %}
 
         {% if can_purchase %}
-        <p class="stripe-fee-note">
-          {% if campaign_fee_free %}
-          🎉 キャンペーン中：プラットフォーム手数料 <strong>0%</strong>（出品者へ ¥{{ product.price|floatformat:0 }} が入金されます）
-          {% else %}
-          決済時のプラットフォーム手数料: <strong>{{ platform_fee_percent }}%</strong>（¥{{ platform_fee_yen|floatformat:0 }}）
-          {% endif %}
-          · クレジットカード（Stripe テスト環境）
+        <p class="purchase-hint">
+          購入後は<strong>現地手渡し用のチャット</strong>が開きます。キャンパス内で受け渡し場所を相談してください（オンライン決済は利用しません）。
         </p>
         {% endif %}
 
@@ -608,7 +608,10 @@
             {% elif product.is_trading %}
             <button type="button" class="btn btn-trading" disabled>取引中</button>
             {% elif can_purchase %}
-            <a class="btn btn-purchase" href="{% url 'stripe_checkout' product.pk %}" style="flex:1;text-align:center">購入手続きへ進む</a>
+            <form class="purchase-form" method="post" action="{% url 'purchase_product' product.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-purchase" style="width:100%">購入して受け渡しチャットを始める</button>
+            </form>
             {% elif user.is_authenticated and product.seller_id == user.id %}
             <button type="button" class="btn btn-sold" disabled>自分の出品</button>
             {% elif not user.is_authenticated %}

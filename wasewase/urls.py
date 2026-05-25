@@ -8,6 +8,7 @@ from app import views as app_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
+    path("search/", app_views.search, name="search"),
     path("exhibit/", app_views.exhibit, name="exhibit"),
     path("product/<int:pk>/", app_views.product_detail, name="product_detail"),
     path("product/<int:pk>/like/", app_views.toggle_like, name="toggle_like"),
@@ -17,17 +18,6 @@ urlpatterns = [
         name="share_product_to_timeline",
     ),
     path("product/<int:pk>/purchase/", app_views.purchase_product, name="purchase_product"),
-    path("product/<int:pk>/checkout/", app_views.stripe_checkout, name="stripe_checkout"),
-    path(
-        "product/<int:pk>/payment/success/",
-        app_views.stripe_payment_success,
-        name="stripe_payment_success",
-    ),
-    path(
-        "product/<int:pk>/payment/cancel/",
-        app_views.stripe_payment_cancel,
-        name="stripe_payment_cancel",
-    ),
     path("product/<int:pk>/trade/", app_views.product_trade, name="product_trade"),
     path("product/<int:pk>/trade/complete/", app_views.complete_trade, name="complete_trade"),
     path("product/<int:pk>/review/", app_views.submit_review, name="submit_review"),
@@ -52,5 +42,5 @@ urlpatterns = [
     path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),
 ]
 
-if settings.DEBUG:
+if settings.DEBUG or getattr(settings, "SERVE_MEDIA", False):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

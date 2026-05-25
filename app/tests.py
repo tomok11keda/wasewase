@@ -271,6 +271,77 @@ class EmailAuthTests(TestCase):
         self.assertContains(response, "パスワード")
 
 
+class GlobalSearchTests(TestCase):
+    def setUp(self):
+        self.seller = get_user_model().objects.create_user(
+            email="seller@example.com",
+            password="password",
+            username="seller",
+        )
+        self.poster = get_user_model().objects.create_user(
+            email="poster@example.com",
+            password="password",
+            username="poster",
+        )
+
+    def test_search_finds_product_by_name_and_description(self):
+        Product.objects.create(
+            seller=self.seller,
+            name="古着デニム",
+            description="サイズMのジャケット",
+            price=3000,
+            category="服",
+        )
+        Product.objects.create(
+            seller=self.seller,
+            name="別商品",
+            description="関係なし",
+            price=100,
+            category="本",
+        )
+
+        response = self.client.get(reverse("search"), {"q": "デニム"})
+        self.assertContains(response, "古着デニム")
+        self.assertNotContains(response, "別商品")
+        self.assertContains(response, "フリマの検索結果")
+
+    def test_search_finds_timeline_by_body(self):
+        TimelinePost.objects.create(
+            author=self.poster,
+            body="明日のゼミの予習は第3章まで",
+        )
+        TimelinePost.objects.create(
+            author=self.poster,
+            body="今日は晴れ",
+        )
+
+        response = self.client.get(reverse("search"), {"q": "ゼミ"})
+        self.assertContains(response, "明日のゼミの予習は第3章まで")
+        self.assertNotContains(response, "今日は晴れ")
+        self.assertContains(response, "スレッドの検索結果")
+
+    def test_search_shows_both_sections(self):
+        Product.objects.create(
+            seller=self.seller,
+            name="教科書セット",
+            description="線形代数の参考書",
+            price=2000,
+            category="本",
+        )
+        TimelinePost.objects.create(
+            author=self.poster,
+            body="線形代数の過去問を共有します",
+        )
+
+        response = self.client.get(reverse("search"), {"q": "線形代数"})
+        self.assertContains(response, "教科書セット")
+        self.assertContains(response, "過去問を共有します")
+
+    def test_search_empty_query_shows_prompt(self):
+        response = self.client.get(reverse("search"))
+        self.assertContains(response, "キーワードを入力")
+
+
 class BoardTimelineSearchTests(TestCase):
     def test_board_search_matches_professor_name(self):
         user = get_user_model().objects.create_user(
@@ -451,7 +522,11 @@ class BoardTimelineNotificationTests(TestCase):
         notification = Notification.objects.get(recipient=self.author)
         self.assertEqual(
             notification.message,
-            "actorさんがあなたの投稿にコメントしました",
+            f"「{self.actor.username}さんがあなたの投稿にコメントしました」",
+        )
+        self.assertEqual(
+            notification.link,
+            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_self_comment_does_not_create_notification(self):
@@ -746,6 +821,15 @@ class ProfileAndFollowTests(TestCase):
             Follow.objects.filter(
                 follower=self.viewer, following=self.target
             ).exists()
+        )
+        notification = Notification.objects.get(recipient=self.target)
+        self.assertEqual(
+            notification.message,
+            f"「{self.viewer.username}さんにフォローされました！」",
+        )
+        self.assertEqual(
+            notification.link,
+            reverse("user_profile", args=[self.viewer.pk]),
         )
 
         response = self.client.get(profile_url)

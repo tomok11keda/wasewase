@@ -15,6 +15,8 @@ import ssl
 import sys
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .email_env import (
     EMAIL_ENV_WARNINGS,
     WASE_USE_BUILTIN_GMAIL,
@@ -34,16 +36,43 @@ def _env(name: str, default: str = "") -> str:
     return str(value).strip()
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = _env(name, "")
+    if not raw:
+        return default
+    return raw.lower() in ("1", "true", "yes", "on")
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-n6!_=099v4ai4w#a=h^lvsflew4u7ylh%_bb&7+(7g(cstkpk9'
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
-ALLOWED_HOSTS = []
+# SECURITY WARNING: keep the secret key used in production secret!
+_secret_key = _env("DJANGO_SECRET_KEY", "")
+if _secret_key:
+    SECRET_KEY = _secret_key
+elif DEBUG:
+    SECRET_KEY = "django-insecure-n6!_=099v4ai4w#a=h^lvsflew4u7ylh%_bb&7+(7g(cstkpk9"
+else:
+    raise ImproperlyConfigured(
+        "本番では環境変数 DJANGO_SECRET_KEY を設定してください。"
+    )
+
+_allowed_hosts = _env("DJANGO_ALLOWED_HOSTS", "")
+if _allowed_hosts:
+    ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(",") if h.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+else:
+    ALLOWED_HOSTS = []
+
+_csrf_origins = _env("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip() for o in _csrf_origins.split(",") if o.strip()
+    ]
 
 
 # Application definition
@@ -57,11 +86,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     'app',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -94,12 +125,24 @@ WSGI_APPLICATION = 'wasewase.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+_database_url = _env("DATABASE_URL", "")
+if _database_url:
+    import dj_database_url
+
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=_database_url,
+            conn_max_age=600,
+            ssl_require=_env_bool("DATABASE_SSL_REQUIRE", default=False),
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -124,9 +167,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ja'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Tokyo'
 
 USE_I18N = True
 
@@ -136,41 +179,36 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 # Media files (uploaded images)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = '/media/'
+_media_root = _env("MEDIA_ROOT", "")
+MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / 'media'
+
+# 本番でアップロード画像を Django から配信する（Render 等の単一サーバー向け）
+# 外部ストレージ利用時は環境変数 SERVE_MEDIA=false にしてください。
+SERVE_MEDIA = _env_bool("SERVE_MEDIA", default=True)
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
-# ---------------------------------------------------------------------------
-# Stripe Connect（テスト環境）
-# 本番では環境変数で上書きすることを推奨します。
-# Connect 受取先: Stripe ダッシュボードで作成した acct_... を設定してください。
-# ---------------------------------------------------------------------------
-STRIPE_PUBLISHABLE_KEY = os.environ.get(
-    "STRIPE_PUBLISHABLE_KEY",
-    "pk_test_51TZpyeKXrmEXHHG8kIpjQ8jNNDVUnxa8DcZEmuviE3PuIJLGCIvrvMBzgEVgFp7u23QVCZiNt00x1rptUYri2zYL00rIVAQJcQ",
-)
-STRIPE_SECRET_KEY = os.environ.get(
-    "STRIPE_SECRET_KEY",
-    "sk_test_51TZpyeKXrmEXHHG8IlMcyru9VnQsndm6MHvd9t1vtsgD0agTs02EgH2x9BwQmktwJe4ygBIo9YacUcsnd0lohMKG00mc8LtGQd",
-)
-# 出品者未登録時の開発用 Connect アカウント（acct_...）
-STRIPE_CONNECT_DESTINATION_ACCOUNT = os.environ.get(
-    "STRIPE_CONNECT_DESTINATION_ACCOUNT",
-    "",
-)
-STRIPE_PLATFORM_FEE_PERCENT = 10
-# True = 運営手数料 0% キャンペーン（application_fee_amount = 0）
-CAMPAIGN_FEE_FREE = True
-# Stripe API の SSL 証明書検証（開発時 False で CERTIFICATE_VERIFY_FAILED を回避）
-STRIPE_SSL_VERIFY = not DEBUG
-# True = Connect 送金なし・プラットフォーム口座へ全額入金（transfers 有効化不要のテスト用）
-STRIPE_USE_STANDARD_CHARGES = DEBUG
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", default=False)
 
 # ---------------------------------------------------------------------------
 # メール（Gmail SMTP）
