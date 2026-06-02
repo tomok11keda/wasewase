@@ -255,6 +255,33 @@
       margin-top: 10px;
     }
 
+    .owner-actions {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #eee;
+    }
+
+    .owner-actions form {
+      margin: 0;
+    }
+
+    .btn-delete-product {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #d4a0a8;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-delete-product:hover {
+      background: #fdf5f6;
+      border-color: var(--accent);
+    }
+
     .btn-purchase:hover,
     .btn-submit:hover {
       background: var(--accent-dark);
@@ -337,8 +364,37 @@
     .comment-list { margin: 20px 0 0; padding: 0; list-style: none; }
     .comment-item { padding: 12px 0; border-top: 1px solid #eee; }
     .comment-item:first-child { border-top: none; padding-top: 0; }
-    .comment-meta { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+    .comment-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
     .comment-meta strong { color: var(--text); font-weight: 600; }
+
+    .comment-delete-form {
+      margin: 0;
+    }
+
+    .btn-comment-delete {
+      padding: 0 4px;
+      border: none;
+      background: none;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .btn-comment-delete:hover {
+      color: var(--accent-dark);
+    }
     .comment-body { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
     .comments-empty { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
 
@@ -627,6 +683,15 @@
           </div>
           {% endif %}
         </div>
+
+        {% if user.is_authenticated and product.seller_id == user.id %}
+        <div class="owner-actions">
+          <form method="post" action="{% url 'delete_product' product.pk %}" onsubmit="return confirm('この商品を削除しますか？取引中のデータも消えます。');">
+            {% csrf_token %}
+            <button type="submit" class="btn-delete-product">この商品を削除する</button>
+          </form>
+        </div>
+        {% endif %}
       </div>
     </article>
 
@@ -691,6 +756,12 @@
           <p class="comment-meta">
             <strong>{% if comment.author %}{{ comment.author.username }}{% else %}匿名{% endif %}</strong>
             · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
+            {% if user.is_authenticated and comment.author_id == user.id %}
+            <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
+              {% csrf_token %}
+              <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
+            </form>
+            {% endif %}
           </p>
           <p class="comment-body">{{ comment.body }}</p>
         </li>

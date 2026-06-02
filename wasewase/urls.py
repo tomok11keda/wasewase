@@ -11,6 +11,7 @@ urlpatterns = [
     path("search/", app_views.search, name="search"),
     path("exhibit/", app_views.exhibit, name="exhibit"),
     path("product/<int:pk>/", app_views.product_detail, name="product_detail"),
+    path("product/<int:pk>/delete/", app_views.delete_product, name="delete_product"),
     path("product/<int:pk>/like/", app_views.toggle_like, name="toggle_like"),
     path(
         "product/<int:pk>/share-to-timeline/",
@@ -35,6 +36,12 @@ urlpatterns = [
     path("board/post/<int:pk>/tip/", app_views.board_timeline_tip, name="board_timeline_tip"),
     path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),
     path("board/post/<int:pk>/comment/", app_views.board_timeline_comment, name="board_timeline_comment"),
+    path(
+        "board/post/<int:pk>/delete/",
+        app_views.delete_timeline_post,
+        name="delete_timeline_post",
+    ),
+    path("comment/<int:pk>/delete/", app_views.delete_comment, name="delete_comment"),
     path("login/", app_views.AppLoginView.as_view(), name="login"),
     path("logout/", app_views.logout_view, name="logout"),
     path("signup/", app_views.signup, name="signup"),

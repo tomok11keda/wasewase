@@ -938,3 +938,183 @@ class FeedAndShareTests(TestCase):
         )
         post = TimelinePost.objects.latest("created_at")
         self.assertIsNone(post.course_name)
+
+
+class DeleteContentTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            email="owner@example.com",
+            password="password",
+            username="owner",
+        )
+        self.other = get_user_model().objects.create_user(
+            email="other@example.com",
+            password="password",
+            username="other",
+        )
+        self.post = TimelinePost.objects.create(
+            author=self.owner,
+            body="削除テスト投稿",
+            course_name="憲法",
+        )
+        self.product = Product.objects.create(
+            seller=self.owner,
+            name="削除テスト商品",
+            price=500,
+            category="本",
+        )
+
+    def test_owner_can_delete_timeline_post(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("delete_timeline_post", args=[self.post.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('home')}?tab=board&tag={quote('憲法')}")
+        self.assertFalse(TimelinePost.objects.filter(pk=self.post.pk).exists())
+
+    def test_other_user_cannot_delete_timeline_post(self):
+        self.client.force_login(self.other)
+        response = self.client.post(reverse("delete_timeline_post", args=[self.post.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(TimelinePost.objects.filter(pk=self.post.pk).exists())
+
+    def test_timeline_shows_delete_only_for_author(self):
+        self.client.force_login(self.owner)
+        owner_page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(owner_page, "btn-tweet-delete")
+        self.assertContains(owner_page, reverse("delete_timeline_post", args=[self.post.pk]))
+
+        self.client.force_login(self.other)
+        other_page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertNotContains(other_page, reverse("delete_timeline_post", args=[self.post.pk]))
+
+    def test_owner_can_delete_product(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("delete_product", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('home')}?tab=flea")
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_other_user_cannot_delete_product(self):
+        self.client.force_login(self.other)
+        response = self.client.post(reverse("delete_product", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_product_detail_shows_delete_only_for_seller(self):
+        self.client.force_login(self.owner)
+        owner_page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertContains(owner_page, "この商品を削除する")
+        self.assertContains(owner_page, reverse("delete_product", args=[self.product.pk]))
+
+        self.client.force_login(self.other)
+        other_page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertNotContains(other_page, "この商品を削除する")
+
+
+class DeleteCommentTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            email="owner@example.com",
+            password="password",
+        )
+        self.other = get_user_model().objects.create_user(
+            email="other@example.com",
+            password="password",
+        )
+        self.product = Product.objects.create(
+            seller=self.owner,
+            name="コメント削除商品",
+            price=300,
+            category="本",
+        )
+        self.timeline_post = TimelinePost.objects.create(
+            author=self.owner,
+            body="親投稿",
+            course_name="刑法",
+        )
+        self.product_comment = Comment.objects.create(
+            product=self.product,
+            author=self.owner,
+            body="商品へのコメント",
+        )
+        self.timeline_comment = Comment.objects.create(
+            timeline_post=self.timeline_post,
+            author=self.owner,
+            body="タイムラインへのコメント",
+        )
+
+    def test_owner_can_delete_product_comment(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("delete_comment", args=[self.product_comment.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            reverse("product_detail", args=[self.product.pk]),
+        )
+        self.assertFalse(
+            Comment.objects.filter(pk=self.product_comment.pk).exists()
+        )
+
+    def test_owner_can_delete_timeline_comment(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("delete_comment", args=[self.timeline_comment.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            f"{reverse('home')}?tab=board&tag={quote('刑法')}#post-{self.timeline_post.pk}",
+        )
+        self.assertFalse(
+            Comment.objects.filter(pk=self.timeline_comment.pk).exists()
+        )
+
+    def test_other_user_cannot_delete_comment(self):
+        self.client.force_login(self.other)
+        response = self.client.post(
+            reverse("delete_comment", args=[self.product_comment.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Comment.objects.filter(pk=self.product_comment.pk).exists()
+        )
+
+    def test_product_detail_shows_comment_delete_only_for_author(self):
+        Comment.objects.create(
+            product=self.product,
+            author=self.other,
+            body="他人のコメント",
+        )
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertContains(
+            page,
+            reverse("delete_comment", args=[self.product_comment.pk]),
+        )
+        other_comment = Comment.objects.get(product=self.product, author=self.other)
+        delete_urls = page.content.decode().count(
+            reverse("delete_comment", args=[other_comment.pk])
+        )
+        self.assertEqual(delete_urls, 0)
+
+    def test_timeline_shows_comment_delete_only_for_author(self):
+        Comment.objects.create(
+            timeline_post=self.timeline_post,
+            author=self.other,
+            body="他人の返信",
+        )
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(
+            page,
+            reverse("delete_comment", args=[self.timeline_comment.pk]),
+        )
+        other_comment = Comment.objects.get(
+            timeline_post=self.timeline_post, author=self.other
+        )
+        self.assertNotContains(
+            page,
+            reverse("delete_comment", args=[other_comment.pk]),
+        )
