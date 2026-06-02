@@ -37,6 +37,7 @@ from .forms import (
     TimelinePostForm,
 )
 from .models import (
+    Comment,
     Follow,
     GodButtonUse,
     Like,
@@ -1027,6 +1028,62 @@ def board_timeline_comment(request, pk):
     else:
         messages.error(request, "コメントを投稿できませんでした。")
     return _board_redirect(request, tag=post.course_name, post_id=post.pk)
+
+
+@login_required
+@require_POST
+def delete_timeline_post(request, pk):
+    post = get_object_or_404(TimelinePost, pk=pk)
+    if post.author_id != request.user.id:
+        messages.error(request, "この投稿を削除する権限がありません。")
+        return _board_redirect(request, tag=post.course_name or "")
+
+    tag = post.course_name or ""
+    post.delete()
+    messages.success(request, "投稿を削除しました。")
+    return redirect(build_home_url(tab="board", active_tag=tag))
+
+
+@login_required
+@require_POST
+def delete_product(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    if product.seller_id != request.user.id:
+        messages.error(request, "この商品を削除する権限がありません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    product.delete()
+    messages.success(request, "商品を削除しました。")
+    return redirect(build_home_url(tab="flea"))
+
+
+@login_required
+@require_POST
+def delete_comment(request, pk):
+    comment = get_object_or_404(
+        Comment.objects.select_related("product", "timeline_post"),
+        pk=pk,
+    )
+    product_id = comment.product_id
+    timeline_post = comment.timeline_post
+    tag = (timeline_post.course_name or "") if timeline_post else ""
+    post_id = timeline_post.pk if timeline_post else None
+
+    if comment.author_id != request.user.id:
+        messages.error(request, "このコメントを削除する権限がありません。")
+        if product_id:
+            return redirect(reverse("product_detail", kwargs={"pk": product_id}))
+        if post_id:
+            return _board_redirect(request, tag=tag, post_id=post_id)
+        return redirect(reverse("home"))
+
+    comment.delete()
+    messages.success(request, "コメントを削除しました。")
+    if product_id:
+        return redirect(reverse("product_detail", kwargs={"pk": product_id}))
+    if post_id:
+        return _board_redirect(request, tag=tag, post_id=post_id)
+    return redirect(reverse("home"))
 
 
 def logout_view(request):

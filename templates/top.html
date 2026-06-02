@@ -185,6 +185,29 @@
       margin: 12px 4px 10px;
     }
 
+    .flea-banner-ad-slot {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      margin: 4px 4px 16px;
+      padding: 18px 12px;
+      min-height: 72px;
+      border: 1px dashed #ccc;
+      border-radius: var(--radius);
+      background: #f7f7f7;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flea-banner-ad-slot__placeholder {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #999;
+    }
+
     .product-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -674,6 +697,24 @@
 
     .timeline-list { display: flex; flex-direction: column; gap: 10px; }
 
+    .timeline-ad-slot {
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 20px 16px;
+      border: 1px dashed #ccc;
+      border-radius: var(--radius);
+      background: #f7f7f7;
+      text-align: center;
+    }
+
+    .timeline-ad-slot__placeholder {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #999;
+    }
+
     .tweet-card {
       background: #fff;
       border-radius: var(--radius);
@@ -693,6 +734,37 @@
       align-items: flex-start;
       margin-bottom: 8px;
       gap: 8px;
+    }
+
+    .tweet-header-end {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .tweet-delete-form {
+      margin: 0;
+    }
+
+    .btn-tweet-delete {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 8px;
+      border: 1px solid #d4a0a8;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-tweet-delete:hover {
+      background: #fdf5f6;
+      border-color: var(--accent);
     }
 
     .tweet-author { font-size: 13px; font-weight: 600; color: #333; }
@@ -836,9 +908,33 @@
     }
 
     .comment-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
       margin: 0 0 4px;
       font-size: 11px;
       color: var(--muted);
+    }
+
+    .comment-delete-form {
+      margin: 0;
+    }
+
+    .btn-comment-delete {
+      padding: 0 4px;
+      border: none;
+      background: none;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .btn-comment-delete:hover {
+      color: var(--accent-dark);
     }
 
     .comment-body {
@@ -1006,6 +1102,7 @@
     <p class="faculty-hint">📍 {{ user_faculty }}の出品を優先表示しています</p>
     {% endif %}
     <h2 class="section-title">{% if query %}「{{ query }}」の検索結果{% else %}おすすめ商品{% endif %}</h2>
+    {% include "components/flea_banner_ad_slot.html" %}
     <div class="product-grid">
       {% for product in products %}
       <a class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}" href="{% url 'product_detail' product.pk %}">
@@ -1104,7 +1201,15 @@
       <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
         <div class="tweet-header">
           <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author.username }}</a>
-          <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
+          <div class="tweet-header-end">
+            <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
+            {% if user.is_authenticated and post.author_id == user.id %}
+            <form class="tweet-delete-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
+              {% csrf_token %}
+              <button type="submit" class="btn-tweet-delete" aria-label="投稿を削除">🗑 削除</button>
+            </form>
+            {% endif %}
+          </div>
         </div>
         {% if post.course_name %}
         <a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
@@ -1132,6 +1237,12 @@
               <p class="comment-meta">
                 {% if comment.author %}{{ comment.author.username }}{% else %}匿名{% endif %}
                 · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
+                {% if user.is_authenticated and comment.author_id == user.id %}
+                <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
+                </form>
+                {% endif %}
               </p>
               <p class="comment-body">{{ comment.body }}</p>
             </div>
@@ -1150,6 +1261,9 @@
           {% endif %}
         </details>
       </article>
+      {% if forloop.first %}
+      {% include "components/timeline_ad_slot.html" %}
+      {% endif %}
       {% empty %}
       <p class="empty-message">
         {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。{% endif %}
