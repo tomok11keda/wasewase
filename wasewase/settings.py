@@ -49,6 +49,70 @@ def _env(name: str, default: str = "") -> str:
     return str(value).strip()
 
 
+def _first_env(*names: str, default: str = "") -> str:
+    """複数の環境変数名を順に試し、最初に見つかった値を返す。"""
+    for name in names:
+        value = _env(name)
+        if value:
+            return value
+    return default
+
+
+def _load_cloudinary_credentials() -> tuple[str, str, str]:
+    """
+    Cloudinary 認証情報を読み込む。
+    正式名（CLOUDINARY_*）に加え、Render で誤設定されがちな短い名前にも対応する。
+    """
+    cloud_name = _first_env("CLOUDINARY_CLOUD_NAME", "CLOUD_NAME")
+    api_key = _first_env("CLOUDINARY_API_KEY", "API_KEY")
+    api_secret = _first_env("CLOUDINARY_API_SECRET", "API_SECRET")
+
+    cloudinary_url = _first_env("CLOUDINARY_URL")
+    if cloudinary_url.startswith("cloudinary://"):
+        without_scheme = cloudinary_url[len("cloudinary://") :]
+        if "@" in without_scheme:
+            creds, cloud_from_url = without_scheme.rsplit("@", 1)
+            if ":" in creds:
+                key_from_url, secret_from_url = creds.split(":", 1)
+                if not api_key:
+                    api_key = key_from_url
+                if not api_secret:
+                    api_secret = secret_from_url
+            if not cloud_name:
+                cloud_name = cloud_from_url
+
+    return cloud_name, api_key, api_secret
+
+
+def _log_media_storage_startup() -> None:
+    """起動時にメディア保存先を Render ログへ出力する（秘密情報は出さない）。"""
+    backend = STORAGES["default"]["BACKEND"]
+    if USE_CLOUDINARY:
+        print(
+            f"[WASE] Media storage: Cloudinary "
+            f"(cloud={CLOUDINARY_CLOUD_NAME}, backend={backend})",
+            file=sys.stderr,
+            flush=True,
+        )
+        return
+
+    print(
+        f"[WASE] Media storage: local filesystem "
+        f"(root={MEDIA_ROOT}, serve_media={SERVE_MEDIA}, backend={backend})",
+        file=sys.stderr,
+        flush=True,
+    )
+    if RENDER_EXTERNAL_HOSTNAME:
+        print(
+            "[WASE WARNING] Render 上でローカルメディア保存です。"
+            " 再起動で画像が消えます。USE_CLOUDINARY=True と "
+            "CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
+            "（または CLOUD_NAME / API_KEY / API_SECRET）を設定してください。",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -213,17 +277,29 @@ STORAGES = {
 # Media files (uploaded images)
 # ローカル: プロジェクト直下 media/ に保存（USE_CLOUDINARY=False が既定）
 # 本番（Render）: USE_CLOUDINARY=True で Cloudinary に永続保存
-USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
+CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET = (
+    _load_cloudinary_credentials()
+)
+_has_cloudinary_credentials = bool(
+    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
+)
 
-CLOUDINARY_CLOUD_NAME = env("CLOUDINARY_CLOUD_NAME", default="")
-CLOUDINARY_API_KEY = env("CLOUDINARY_API_KEY", default="")
-CLOUDINARY_API_SECRET = env("CLOUDINARY_API_SECRET", default="")
+_use_cloudinary_raw = os.environ.get("USE_CLOUDINARY")
+if _use_cloudinary_raw is not None and str(_use_cloudinary_raw).strip() != "":
+    USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
+elif _has_cloudinary_credentials and not DEBUG:
+    # 本番で認証情報が揃っていれば USE_CLOUDINARY 未設定でも自動有効化
+    USE_CLOUDINARY = True
+else:
+    USE_CLOUDINARY = False
 
 if USE_CLOUDINARY:
-    if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+    if not _has_cloudinary_credentials:
         raise ImproperlyConfigured(
-            "USE_CLOUDINARY=True のときは CLOUDINARY_CLOUD_NAME、"
-            "CLOUDINARY_API_KEY、CLOUDINARY_API_SECRET を設定してください。"
+            "USE_CLOUDINARY=True のときは Cloudinary 認証情報が必要です。"
+            " CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
+            "（または CLOUD_NAME / API_KEY / API_SECRET、または CLOUDINARY_URL）"
+            " を設定してください。"
         )
     CLOUDINARY_STORAGE = {
         "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
@@ -241,6 +317,8 @@ else:
     _media_root = env("MEDIA_ROOT", default="")
     MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
     SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
+
+_log_media_storage_startup()
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
