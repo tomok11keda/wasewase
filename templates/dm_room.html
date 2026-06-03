@@ -1,10 +1,11 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="refresh" content="15">
-  <title>わせわせ — DM{% if partner %} @{{ partner.username }}{% endif %}</title>
+  <title>わせわせ — DM{% if partner %} @{{ partner|display_name }}{% endif %}</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -213,7 +214,7 @@
   <header class="site-header">
     <a class="back-link" href="{{ back_url }}">← プロフィールへ</a>
     {% if partner %}
-    <p class="header-title">@{{ partner.username }} との DM</p>
+    <p class="header-title">@{{ partner|display_name }} との DM</p>
     {% endif %}
   </header>
 
@@ -228,7 +229,7 @@
 
     {% if partner %}
     <section class="dm-partner-card">
-      <h1 class="dm-partner-name">{{ partner.username }}</h1>
+      <h1 class="dm-partner-name">{{ partner|display_name }}</h1>
       <p class="dm-partner-meta">
         <a href="{% url 'user_profile' partner.pk %}?from=thread">プロフィールを見る</a>
       </p>
@@ -244,7 +245,7 @@
         {% for msg in dm_messages %}
         <li class="chat-msg{% if msg.sender_id == user.id %} is-mine{% endif %}">
           <div class="chat-msg-meta">
-            {{ msg.sender.username }} · {{ msg.created_at|date:"m/d H:i" }}
+            {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}
           </div>
           {{ msg.body }}
         </li>

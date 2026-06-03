@@ -803,23 +803,50 @@ class ProfileAndFollowTests(TestCase):
             grade="2年",
         )
 
-    def test_mypage_edit_updates_profile(self):
+    def test_mypage_edit_updates_nickname_and_profile(self):
         self.client.force_login(self.viewer)
         response = self.client.post(
             reverse("mypage_edit"),
             {
-                "name": "じろう",
+                "nickname": "じろう",
                 "bio": "テスト概要",
                 "department": "商学部",
                 "grade": "3年",
             },
         )
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("mypage"))
+        self.viewer.refresh_from_db()
+        self.assertEqual(self.viewer.username, "じろう")
         profile = UserProfile.objects.get(user=self.viewer)
-        self.assertEqual(profile.name, "じろう")
         self.assertEqual(profile.bio, "テスト概要")
         self.assertEqual(profile.department, "商学部")
         self.assertEqual(profile.grade, "3年")
+
+    def test_nickname_change_reflects_on_timeline_and_flea(self):
+        self.client.force_login(self.viewer)
+        self.client.post(
+            reverse("mypage_edit"),
+            {
+                "nickname": "新しい表示名",
+                "bio": "",
+                "department": "",
+                "grade": "",
+            },
+        )
+        Product.objects.create(
+            seller=self.viewer,
+            name="テスト商品",
+            price=500,
+            category="本",
+        )
+        TimelinePost.objects.create(author=self.viewer, body="表示名テスト投稿")
+
+        home = self.client.get(reverse("home"), {"tab": "flea"})
+        self.assertContains(home, "新しい表示名")
+        board = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(board, "新しい表示名")
+        self.assertContains(board, "表示名テスト投稿")
 
     def test_user_profile_shows_product_count_from_market(self):
         Product.objects.create(
@@ -832,7 +859,7 @@ class ProfileAndFollowTests(TestCase):
             reverse("user_profile", args=[self.target.pk]),
             {"from": "market"},
         )
-        self.assertContains(response, "たろう")
+        self.assertContains(response, "target")
         self.assertContains(response, "よろしく")
         self.assertContains(response, "法学部 2年")
         self.assertContains(response, "出品数")

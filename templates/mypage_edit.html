@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>わせわせ — プロフィール編集</title>
+  <title>わせわせ — ニックネーム・プロフィール編集</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -69,6 +69,18 @@
       font-size: 12px;
       margin: 4px 0 0;
     }
+    .field-hint {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .form-intro {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
     .btn-primary {
       width: 100%;
       padding: 12px;
@@ -94,8 +106,8 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="back-link" href="{% url 'user_profile' request.user.pk %}?from=market">← プロフィールに戻る</a>
-    <h1 style="margin:0;font-size:18px">プロフィール編集</h1>
+    <a class="back-link" href="{% url 'mypage' %}">← マイページに戻る</a>
+    <h1 style="margin:0;font-size:18px">ニックネーム・プロフィール編集</h1>
   </header>
 
   <main class="main-inner">
@@ -109,10 +121,16 @@
 
     <form class="form-card" method="post">
       {% csrf_token %}
+      <p class="form-intro">
+        ニックネームを変えると、タイムラインの投稿名・フリマの出品者名・チャットの表示名などがすべて新しい名前に更新されます。
+      </p>
       {% for field in form %}
       <div class="field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
+        {% if field.help_text %}
+        <p class="field-hint">{{ field.help_text }}</p>
+        {% endif %}
         {% for error in field.errors %}
         <p class="field-error">{{ error }}</p>
         {% endfor %}

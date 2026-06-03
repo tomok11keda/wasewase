@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -359,7 +360,7 @@
         {% for post in timeline_posts %}
         <a class="tweet-card" href="{% url 'home' %}?tab=board#post-{{ post.pk }}">
           <div class="tweet-header">
-            <span class="tweet-author">{{ post.author.username }}</span>
+            <span class="tweet-author">{{ post.author|display_name }}</span>
             <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|timesince }}前</time>
           </div>
           {% if post.course_name %}

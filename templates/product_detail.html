@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -691,7 +692,7 @@
         <p class="product-seller">
           出品者:
           {% if product.seller %}
-          <a href="{% url 'user_profile' product.seller.pk %}?from=market"><strong>{{ product.seller.username }}</strong></a>
+          <a href="{% url 'user_profile' product.seller.pk %}?from=market"><strong>{{ product.seller|display_name }}</strong></a>
           {% if product.seller.profile and product.seller.profile.department %}
           <span class="faculty-badge">{{ product.seller.profile.department }}</span>
           {% endif %}
@@ -790,7 +791,7 @@
           <h3>購入希望者とのチャット（{{ seller_chat_rooms|length }}件）</h3>
           {% for room in seller_chat_rooms %}
           <div class="seller-chat-item">
-            <p class="seller-chat-meta">{{ room.buyer.username }} さん</p>
+            <p class="seller-chat-meta">{{ room.buyer|display_name }} さん</p>
             <a href="{% url 'chat_room' room.pk %}">チャット</a>
           </div>
           {% endfor %}
@@ -811,7 +812,7 @@
     {% if product.is_sold and product.buyer_id and review_partner %}
     <section class="review-section" aria-label="取引評価">
       <h2>取引相手を評価する</h2>
-      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.pk %}?from=market">{{ review_partner.username }}</a> さん</p>
+      <p class="review-partner">相手: <a href="{% url 'user_profile' review_partner.pk %}?from=market">{{ review_partner|display_name }}</a> さん</p>
 
       {% if user_review %}
       <div class="review-done">
@@ -867,7 +868,7 @@
         {% for comment in comments %}
         <li class="comment-item">
           <p class="comment-meta">
-            <strong>{% if comment.author %}{{ comment.author.username }}{% else %}匿名{% endif %}</strong>
+            <strong>{% if comment.author %}{{ comment.author|display_name }}{% else %}匿名{% endif %}</strong>
             · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
             {% if user.is_authenticated and comment.author_id == user.id %}
             <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
