@@ -880,10 +880,16 @@
       border: none;
     }
 
-    .btn-tweet-tip {
+    .btn-tweet-like {
       background: #fff;
-      border: 2px solid var(--accent);
-      color: var(--accent);
+      border: 2px solid #e91e63;
+      color: #e91e63;
+    }
+
+    .btn-tweet-like.is-liked {
+      background: #fce4ec;
+      border-color: #c2185b;
+      color: #c2185b;
     }
 
     .btn-tweet-god {
@@ -999,8 +1005,8 @@
       background: var(--accent-dark);
     }
 
-    .btn-tweet-tip:hover {
-      background: #f7edf0;
+    .btn-tweet-like:hover {
+      background: #fce4ec;
     }
 
     .btn-tweet-god:hover:not(:disabled) {
@@ -1170,7 +1176,7 @@
     <p class="feed-scope-hint">フォローしているユーザーの投稿だけを表示しています。</p>
     {% endif %}
     <p class="board-intro">
-      授業タグ付きの<strong>タイムライン</strong>です。タグで授業別に絞り込み、<strong>1円投げ銭</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
+      授業タグ付きの<strong>タイムライン</strong>です。タグで授業別に絞り込み、<strong>いいね</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
     </p>
     {% if user.is_authenticated %}
     <p style="margin:0 4px 10px;font-size:12px;color:var(--muted)">神！残り {{ god_remaining }} / {{ god_limit }} 回</p>
@@ -1253,11 +1259,11 @@
         {% endif %}
         {% if user.is_authenticated %}
         <div class="tweet-actions">
-          <form method="post" action="{% url 'board_timeline_tip' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-tip">🪙 1円</button></form>
+          <form method="post" action="{% url 'board_timeline_like' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-like{% if post.user_has_liked %} is-liked{% endif %}" aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}">{% if post.user_has_liked %}❤️{% else %}🤍{% endif %} いいね</button></form>
           <form method="post" action="{% url 'board_timeline_god' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-god" {% if not can_god %}disabled{% endif %}>⚡ 神！</button></form>
         </div>
         {% endif %}
-        <p class="tweet-stats">🪙 ¥{{ post.tip_total }} · ⚡ {{ post.god_count }}</p>
+        <p class="tweet-stats">❤️ {{ post.like_count }} · ⚡ {{ post.god_count }}</p>
         <details class="timeline-comments">
           <summary>💬 {{ post.comments.count }}</summary>
           <div class="comment-list">

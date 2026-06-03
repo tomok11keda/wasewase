@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.db import transaction
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
@@ -53,7 +53,7 @@ from .models import (
     Product,
     Review,
     TimelinePost,
-    TimelineTip,
+    TimelineLike,
     TradeMessage,
     UserDirectMessage,
     UserDirectMessageRoom,
@@ -141,6 +141,15 @@ def index(request):
             else:
                 timeline_posts = timeline_posts.none()
         timeline_posts = timeline_posts.order_by("-created_at")
+        if request.user.is_authenticated:
+            timeline_posts = timeline_posts.annotate(
+                user_has_liked=Exists(
+                    TimelineLike.objects.filter(
+                        timeline_post_id=OuterRef("pk"),
+                        user_id=request.user.id,
+                    )
+                )
+            )
 
         trending_posts = (
             TimelinePost.objects.select_related("author")
@@ -1191,17 +1200,26 @@ def board_compose(request):
 
 @login_required
 @require_POST
-def board_timeline_tip(request, pk):
+def board_timeline_like(request, pk):
     post = get_object_or_404(TimelinePost, pk=pk)
-    TimelineTip.objects.create(timeline_post=post, user=request.user, amount=1)
-    post.tip_total += 1
-    post.save(update_fields=["tip_total"])
-    notify_timeline_post_author(
-        post,
-        request.user,
-        f"{request.user.username}さんがあなたの投稿に1円投げ銭しました",
+    like, created = TimelineLike.objects.get_or_create(
+        timeline_post=post,
+        user=request.user,
     )
-    messages.success(request, "1円の投げ銭を送りました。ありがとうございます！")
+    if created:
+        post.like_count += 1
+        post.save(update_fields=["like_count"])
+        notify_timeline_post_author(
+            post,
+            request.user,
+            f"{request.user.username}さんがあなたの投稿にいいねしました",
+        )
+        messages.success(request, "いいねしました。")
+    else:
+        like.delete()
+        post.like_count = max(0, post.like_count - 1)
+        post.save(update_fields=["like_count"])
+        messages.success(request, "いいねを取り消しました。")
     return _board_redirect(request, tag=post.course_name)
 
 
