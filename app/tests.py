@@ -10,8 +10,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
+    ChatRoom,
     Comment,
     Follow,
+    Message,
     Notification,
     Product,
     SignupOTP,
@@ -82,7 +84,7 @@ class EmailAuthTests(TestCase):
         response = self.client.post(
             reverse("signup"),
             {
-                "email": "other@example.com",
+                "email": "other@stu.waseda.jp",
                 "nickname": "taken_name",
                 "password1": "newpass123",
                 "password2": "newpass123",
@@ -94,13 +96,13 @@ class EmailAuthTests(TestCase):
 
     def test_signup_rejects_duplicate_email(self):
         get_user_model().objects.create_user(
-            email="dup@example.com",
+            email="dup@waseda.jp",
             password="password",
         )
         response = self.client.post(
             reverse("signup"),
             {
-                "email": "dup@example.com",
+                "email": "dup@waseda.jp",
                 "nickname": "dup_user",
                 "password1": "newpass123",
                 "password2": "newpass123",
@@ -124,6 +126,46 @@ class EmailAuthTests(TestCase):
             get_user_model().objects.filter(email="login@example.com").exists()
         )
 
+    def test_signup_rejects_non_waseda_email(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "user@gmail.com",
+                "nickname": "gmail_user",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "早稲田大学のメールアドレス（waseda.jp）のみ登録可能です",
+        )
+        self.assertFalse(
+            get_user_model().objects.filter(email="user@gmail.com").exists()
+        )
+
+    def test_signup_accepts_subdomain_waseda_email(self):
+        with self.settings(
+            EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+            DEFAULT_FROM_EMAIL="test@waseda.jp",
+        ):
+            response = self.client.post(
+                reverse("signup"),
+                {
+                    "email": "student@my.waseda.jp",
+                    "nickname": "wase_student",
+                    "password1": "newpass123",
+                    "password2": "newpass123",
+                    "faculty": "商学部",
+                },
+            )
+        self.assertRedirects(response, reverse("verify_otp"))
+        self.assertTrue(
+            get_user_model().objects.filter(email="student@my.waseda.jp").exists()
+        )
+
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
         DEFAULT_FROM_EMAIL="test@example.com",
@@ -132,7 +174,7 @@ class EmailAuthTests(TestCase):
         response = self.client.post(
             reverse("signup"),
             {
-                "email": "new@example.com",
+                "email": "new@waseda.jp",
                 "nickname": "wase_taro",
                 "password1": "newpass123",
                 "password2": "newpass123",
@@ -140,7 +182,7 @@ class EmailAuthTests(TestCase):
             },
         )
         self.assertRedirects(response, reverse("verify_otp"))
-        user = get_user_model().objects.get(email="new@example.com")
+        user = get_user_model().objects.get(email="new@waseda.jp")
         self.assertEqual(user.username, "wase_taro")
         self.assertFalse(user.is_active)
         profile = UserProfile.objects.get(user=user)
@@ -217,14 +259,14 @@ class EmailAuthTests(TestCase):
     )
     def test_pending_user_can_resignup_and_redirects_to_verify(self):
         get_user_model().objects.create_user(
-            email="pending@example.com",
+            email="pending@waseda.jp",
             password="oldpass123",
             is_active=False,
         )
         response = self.client.post(
             reverse("signup"),
             {
-                "email": "pending@example.com",
+                "email": "pending@waseda.jp",
                 "nickname": "pending_user",
                 "password1": "newpass123",
                 "password2": "newpass123",
@@ -260,7 +302,7 @@ class EmailAuthTests(TestCase):
         response = self.client.post(
             reverse("signup"),
             {
-                "email": "bad@example.com",
+                "email": "bad@gmail.com",
                 "nickname": "bad_user",
                 "password1": "newpass123",
                 "password2": "different",
@@ -1118,3 +1160,82 @@ class DeleteCommentTests(TestCase):
             page,
             reverse("delete_comment", args=[other_comment.pk]),
         )
+
+
+class ProductChatTests(TestCase):
+    def setUp(self):
+        self.seller = get_user_model().objects.create_user(
+            email="chat-seller@example.com",
+            password="password",
+        )
+        self.buyer = get_user_model().objects.create_user(
+            email="chat-buyer@example.com",
+            password="password",
+        )
+        self.other = get_user_model().objects.create_user(
+            email="chat-other@example.com",
+            password="password",
+        )
+        self.product = Product.objects.create(
+            seller=self.seller,
+            name="チャットテスト商品",
+            price=900,
+            category="本",
+        )
+
+    def test_buyer_starts_chat_and_reuses_room(self):
+        self.client.force_login(self.buyer)
+        response = self.client.post(reverse("start_product_chat", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        room = ChatRoom.objects.get(product=self.product, buyer=self.buyer)
+        self.assertEqual(response["Location"], reverse("chat_room", args=[room.pk]))
+
+        response2 = self.client.post(reverse("start_product_chat", args=[self.product.pk]))
+        self.assertEqual(ChatRoom.objects.filter(product=self.product).count(), 1)
+        self.assertEqual(response2["Location"], reverse("chat_room", args=[room.pk]))
+
+    def test_seller_cannot_start_chat(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse("start_product_chat", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ChatRoom.objects.filter(product=self.product).exists())
+
+    def test_other_user_cannot_access_chat_room(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("chat_room", args=[room.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            reverse("product_detail", args=[self.product.pk]),
+        )
+
+    def test_participants_can_send_and_receive_messages(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        self.client.force_login(self.buyer)
+        response = self.client.post(
+            reverse("send_chat_message", args=[room.pk]),
+            {"body": "こんにちは、購入希望です。"},
+        )
+        self.assertEqual(response.status_code, 302)
+        message = Message.objects.get(chat_room=room)
+        self.assertEqual(message.sender, self.buyer)
+        self.assertEqual(message.body, "こんにちは、購入希望です。")
+
+        self.client.force_login(self.seller)
+        page = self.client.get(reverse("chat_room", args=[room.pk]))
+        self.assertContains(page, "こんにちは、購入希望です。")
+
+    def test_product_detail_shows_chat_button_for_non_seller(self):
+        self.client.force_login(self.buyer)
+        page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertContains(page, "出品者にチャットで連絡する")
+        self.assertContains(page, reverse("start_product_chat", args=[self.product.pk]))
+
+    def test_product_detail_shows_seller_chat_list(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        self.client.force_login(self.seller)
+        page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertContains(page, "購入希望者とのチャット")
+        self.assertContains(page, reverse("chat_room", args=[room.pk]))
+        self.assertContains(page, self.buyer.username)

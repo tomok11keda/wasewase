@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 
-from .constants import FACULTY_CHOICES
+from .constants import FACULTY_CHOICES, WASEDA_EMAIL_ERROR, is_waseda_email
 from .models import (
     Comment,
     CourseThread,
@@ -96,6 +96,8 @@ class SignUpForm(UserCreationForm):
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
+        if email and not is_waseda_email(email):
+            raise ValidationError(WASEDA_EMAIL_ERROR)
         existing = User.objects.filter(email__iexact=email).first()
         if existing and existing.is_active:
             raise ValidationError("このメールアドレスはすでに登録されています。")

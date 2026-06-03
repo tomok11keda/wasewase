@@ -19,6 +19,17 @@ urlpatterns = [
         name="share_product_to_timeline",
     ),
     path("product/<int:pk>/purchase/", app_views.purchase_product, name="purchase_product"),
+    path(
+        "product/<int:pk>/chat/start/",
+        app_views.start_product_chat,
+        name="start_product_chat",
+    ),
+    path("chat/<int:room_pk>/", app_views.chat_room, name="chat_room"),
+    path(
+        "chat/<int:room_pk>/message/",
+        app_views.send_chat_message,
+        name="send_chat_message",
+    ),
     path("product/<int:pk>/trade/", app_views.product_trade, name="product_trade"),
     path("product/<int:pk>/trade/complete/", app_views.complete_trade, name="complete_trade"),
     path("product/<int:pk>/review/", app_views.submit_review, name="submit_review"),

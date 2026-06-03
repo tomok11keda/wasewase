@@ -3,10 +3,12 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from .models import (
     User,
+    ChatRoom,
     Comment,
     CourseThread,
     GodButtonUse,
     Like,
+    Message,
     Notification,
     Product,
     Review,
@@ -179,3 +181,17 @@ class NotificationAdmin(admin.ModelAdmin):
 class TradeMessageAdmin(admin.ModelAdmin):
     list_display = ("product", "sender", "body", "is_preset", "created_at")
     list_filter = ("is_preset", "created_at")
+
+
+@admin.register(ChatRoom)
+class ChatRoomAdmin(admin.ModelAdmin):
+    list_display = ("product", "buyer", "updated_at", "created_at")
+    list_filter = ("created_at", "updated_at")
+    search_fields = ("product__name", "buyer__username")
+
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ("chat_room", "sender", "body", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("body", "sender__username")
