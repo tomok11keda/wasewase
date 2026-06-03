@@ -318,6 +318,10 @@ else:
     MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
     SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
 
+# django-cloudinary-storage の collectstatic が STATICFILES_STORAGE を参照する（Django 6 互換）
+STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
+DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
+
 _log_media_storage_startup()
 
 LOGIN_URL = 'login'
