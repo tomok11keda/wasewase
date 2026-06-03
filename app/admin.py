@@ -5,6 +5,8 @@ from .models import (
     User,
     ChatRoom,
     Comment,
+    UserDirectMessage,
+    UserDirectMessageRoom,
     CourseThread,
     GodButtonUse,
     Like,
@@ -193,5 +195,19 @@ class ChatRoomAdmin(admin.ModelAdmin):
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ("chat_room", "sender", "body", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("body", "sender__username")
+
+
+@admin.register(UserDirectMessageRoom)
+class UserDirectMessageRoomAdmin(admin.ModelAdmin):
+    list_display = ("user_a", "user_b", "updated_at", "created_at")
+    list_filter = ("created_at", "updated_at")
+    search_fields = ("user_a__username", "user_b__username")
+
+
+@admin.register(UserDirectMessage)
+class UserDirectMessageAdmin(admin.ModelAdmin):
+    list_display = ("room", "sender", "body", "created_at")
     list_filter = ("created_at",)
     search_fields = ("body", "sender__username")

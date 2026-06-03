@@ -387,6 +387,70 @@ class Message(models.Model):
         return f"{self.sender}: {self.body[:30]}"
 
 
+class UserDirectMessageRoom(models.Model):
+    """ユーザー同士の1対1 DM ルーム（商品とは無関係）。"""
+
+    user_a = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dm_rooms_as_user_a",
+    )
+    user_b = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dm_rooms_as_user_b",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user_a", "user_b"],
+                name="unique_user_dm_room_pair",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(user_a_id__lt=models.F("user_b_id")),
+                name="dm_room_ordered_user_ids",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"DM: {self.user_a.username} ↔ {self.user_b.username}"
+
+    def involves_user(self, user) -> bool:
+        return user.id in (self.user_a_id, self.user_b_id)
+
+    def other_user(self, user):
+        if self.user_a_id == user.id:
+            return self.user_b
+        if self.user_b_id == user.id:
+            return self.user_a
+        return None
+
+
+class UserDirectMessage(models.Model):
+    room = models.ForeignKey(
+        UserDirectMessageRoom,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="direct_messages_sent",
+    )
+    body = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.sender}: {self.body[:30]}"
+
+
 class CourseThread(models.Model):
     course_name = models.CharField(
         max_length=120, blank=True, null=True, verbose_name="授業名"

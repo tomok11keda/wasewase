@@ -18,6 +18,12 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .constants import FACULTY_CHOICES, TRADE_LOCATION_PRESETS
+from .dm_services import (
+    can_access_dm_room,
+    dm_room_link,
+    find_dm_room,
+    get_or_create_dm_room,
+)
 from .board_services import (
     GOD_USES_PER_MONTH,
     can_use_god_button,
@@ -49,6 +55,8 @@ from .models import (
     TimelinePost,
     TimelineTip,
     TradeMessage,
+    UserDirectMessage,
+    UserDirectMessageRoom,
     UserProfile,
 )
 from .otp_services import (
@@ -815,6 +823,11 @@ def user_profile(request, pk):
         if request.user.is_authenticated and not is_own_profile
         else False
     )
+    user_dm_room = None
+    can_send_dm = False
+    if request.user.is_authenticated and not is_own_profile:
+        can_send_dm = True
+        user_dm_room = find_dm_room(request.user, profile_user)
 
     return render(
         request,
@@ -828,8 +841,94 @@ def user_profile(request, pk):
             "from_source": from_source,
             "is_own_profile": is_own_profile,
             "user_is_following": user_is_following,
+            "can_send_dm": can_send_dm,
+            "user_dm_room": user_dm_room,
         },
     )
+
+
+@login_required
+@require_POST
+def start_user_dm(request, pk):
+    partner = get_object_or_404(User, pk=pk)
+    if partner.pk == request.user.pk:
+        messages.error(request, "自分自身に DM は送れません。")
+        return redirect(reverse("mypage"))
+
+    room, created = get_or_create_dm_room(request.user, partner)
+    if created:
+        messages.success(request, f"{partner.username} さんとの DM を開始しました。")
+    return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+def user_dm_room(request, room_pk):
+    room = get_object_or_404(
+        UserDirectMessageRoom.objects.select_related("user_a", "user_b").prefetch_related(
+            "messages__sender"
+        ),
+        pk=room_pk,
+    )
+    if not can_access_dm_room(room, request.user):
+        messages.error(request, "この DM ルームにはアクセスできません。")
+        return redirect(reverse("home"))
+
+    partner = room.other_user(request.user)
+    dm_messages = room.messages.select_related("sender")
+    back_url = (
+        reverse("user_profile", kwargs={"pk": partner.pk}) + "?from=thread"
+        if partner
+        else reverse("home")
+    )
+
+    return render(
+        request,
+        "dm_room.html",
+        {
+            "room": room,
+            "partner": partner,
+            "dm_messages": dm_messages,
+            "back_url": back_url,
+        },
+    )
+
+
+@login_required
+@require_POST
+def send_user_dm_message(request, room_pk):
+    room = get_object_or_404(
+        UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
+        pk=room_pk,
+    )
+    if not can_access_dm_room(room, request.user):
+        messages.error(request, "この DM ルームにはアクセスできません。")
+        return redirect(reverse("home"))
+
+    body = request.POST.get("body", "").strip()
+    if not body:
+        messages.error(request, "メッセージを入力してください。")
+        return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
+
+    if len(body) > 500:
+        messages.error(request, "メッセージが長すぎます（500文字以内）。")
+        return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
+
+    UserDirectMessage.objects.create(
+        room=room,
+        sender=request.user,
+        body=body,
+    )
+    room.save(update_fields=["updated_at"])
+
+    recipient = room.other_user(request.user)
+    if recipient:
+        Notification.objects.create(
+            recipient=recipient,
+            message=f"{request.user.username} さんから DM: {body[:40]}",
+            link=dm_room_link(room),
+        )
+
+    return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 
 
 @login_required
