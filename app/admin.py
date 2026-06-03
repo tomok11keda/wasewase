@@ -17,7 +17,7 @@ from .models import (
     ThreadPost,
     ThreadTip,
     TimelinePost,
-    TimelineTip,
+    TimelineLike,
     TradeMessage,
     Follow,
     UserProfile,
@@ -66,7 +66,7 @@ class TimelinePostAdmin(admin.ModelAdmin):
         "course_name",
         "author",
         "god_count",
-        "tip_total",
+        "like_count",
         "has_image",
         "created_at",
     )
@@ -78,9 +78,9 @@ class TimelinePostAdmin(admin.ModelAdmin):
     search_fields = ("body", "course_name", "professor_name")
 
 
-@admin.register(TimelineTip)
-class TimelineTipAdmin(admin.ModelAdmin):
-    list_display = ("timeline_post", "user", "amount", "created_at")
+@admin.register(TimelineLike)
+class TimelineLikeAdmin(admin.ModelAdmin):
+    list_display = ("timeline_post", "user", "created_at")
 
 
 @admin.register(CourseThread)

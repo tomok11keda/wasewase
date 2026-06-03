@@ -511,16 +511,18 @@ class BoardTimelineNotificationTests(TestCase):
             professor_name="田中先生",
         )
 
-    def test_tip_notifies_timeline_post_author(self):
+    def test_like_notifies_timeline_post_author(self):
         self.client.force_login(self.actor)
 
-        response = self.client.post(reverse("board_timeline_tip", args=[self.post.pk]))
+        response = self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
 
         self.assertEqual(response.status_code, 302)
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.like_count, 1)
         notification = Notification.objects.get(recipient=self.author)
         self.assertEqual(
             notification.message,
-            "actorさんがあなたの投稿に1円投げ銭しました",
+            "actorさんがあなたの投稿にいいねしました",
         )
         self.assertEqual(
             notification.link,
@@ -543,10 +545,17 @@ class BoardTimelineNotificationTests(TestCase):
             f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
         )
 
-    def test_self_tip_and_god_do_not_create_notifications(self):
+    def test_like_toggle_decrements_count(self):
+        self.client.force_login(self.actor)
+        self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
+        self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.like_count, 0)
+
+    def test_self_like_and_god_do_not_create_notifications(self):
         self.client.force_login(self.author)
 
-        self.client.post(reverse("board_timeline_tip", args=[self.post.pk]))
+        self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
         self.client.post(reverse("board_timeline_god", args=[self.post.pk]))
 
         self.assertFalse(Notification.objects.filter(recipient=self.author).exists())

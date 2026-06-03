@@ -540,7 +540,7 @@ class TimelinePost(models.Model):
         verbose_name="画像",
     )
     god_count = models.PositiveIntegerField(default=0)
-    tip_total = models.PositiveIntegerField(default=0)
+    like_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -556,20 +556,25 @@ class TimelinePost(models.Model):
         return bool(self.course_name or self.professor_name or self.faculty)
 
 
-class TimelineTip(models.Model):
+class TimelineLike(models.Model):
     timeline_post = models.ForeignKey(
-        TimelinePost, on_delete=models.CASCADE, related_name="tips"
+        TimelinePost, on_delete=models.CASCADE, related_name="likes"
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="timeline_tips",
+        related_name="timeline_likes",
     )
-    amount = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["timeline_post", "user"],
+                name="unique_timeline_like_per_user",
+            ),
+        ]
 
 
 class GodButtonUse(models.Model):
