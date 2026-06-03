@@ -93,7 +93,9 @@ class UserProfile(models.Model):
 
     @property
     def display_name(self) -> str:
-        """アプリ内の表示名（ニックネーム = User.username）。"""
+        """アプリ内の表示名（ニックネーム）。未設定時はユーザーID。"""
+        if self.name and self.name.strip():
+            return self.name.strip()
         return self.user.username
 
     @property

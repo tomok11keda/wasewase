@@ -740,7 +740,7 @@ def mypage_edit(request):
             form.save()
             messages.success(
                 request,
-                "ニックネームとプロフィールを更新しました。",
+                "ニックネーム・ユーザーID・プロフィールを更新しました。",
             )
             return redirect(reverse("mypage"))
     else:

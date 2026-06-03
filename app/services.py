@@ -13,6 +13,14 @@ def user_display_name(user: AbstractBaseUser | None) -> str:
         return "匿名"
     if getattr(user, "is_authenticated", True) is False:
         return "匿名"
+    profile = None
+    if hasattr(user, "profile"):
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = None
+    if profile and profile.name and profile.name.strip():
+        return profile.name.strip()
     return (user.username or "").strip() or "ユーザー"
 
 

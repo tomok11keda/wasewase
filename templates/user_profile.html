@@ -335,9 +335,7 @@
       <div class="profile-header">
         <div>
           <h2 class="profile-name">{{ profile.display_name }}</h2>
-          {% if profile.name %}
           <p class="profile-username">@{{ profile_user.username }}</p>
-          {% endif %}
         </div>
       </div>
 
@@ -359,7 +357,7 @@
 
       <div class="profile-actions">
         {% if is_own_profile %}
-        <a class="btn btn-outline" href="{% url 'mypage_edit' %}">ニックネーム・プロフィールを編集</a>
+        <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィール・アカウント設定</a>
         <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ（売上・出品管理）</a>
         {% elif user.is_authenticated %}
         <form method="post" action="{% url 'toggle_follow' profile_user.pk %}">
