@@ -35,7 +35,7 @@ from .forms import (
     CommentForm,
     EmailAuthenticationForm,
     ProductExhibitForm,
-    ProfileForm,
+    AccountProfileForm,
     ReviewForm,
     SignUpForm,
     SignupOTPVerifyForm,
@@ -733,16 +733,18 @@ def mypage_edit(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
-        form = ProfileForm(request.POST, instance=profile)
+        form = AccountProfileForm(
+            request.POST, instance=profile, user=request.user
+        )
         if form.is_valid():
             form.save()
-            messages.success(request, "プロフィールを更新しました。")
-            return redirect(
-                reverse("user_profile", kwargs={"pk": request.user.pk})
-                + "?from=market"
+            messages.success(
+                request,
+                "ニックネームとプロフィールを更新しました。",
             )
+            return redirect(reverse("mypage"))
     else:
-        form = ProfileForm(instance=profile)
+        form = AccountProfileForm(instance=profile, user=request.user)
 
     return render(
         request,

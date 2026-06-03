@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1082,7 +1083,7 @@
       </form>
       <div class="header-actions">
         {% if user.is_authenticated %}
-        <span class="btn btn-ghost" style="cursor:default">{{ user.username }}</span>
+        <span class="btn btn-ghost" style="cursor:default">{{ user|display_name }}</span>
         <a class="btn btn-primary" href="{% url 'logout' %}">ログアウト</a>
         {% else %}
         <a class="btn btn-ghost" href="{% url 'login' %}">ログイン</a>
@@ -1148,7 +1149,7 @@
           <span class="product-price-badge">¥{{ product.price|floatformat:0 }}</span>
         </div>
         <p class="product-card-title">{{ product.name }}</p>
-        <p class="product-card-meta">{{ product.seller.username }} · {{ product.created_at|timesince }}前</p>
+        <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前</p>
       </a>
       {% empty %}
       <p class="empty-message">
@@ -1223,13 +1224,13 @@
       {% for post in timeline_posts %}
       <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
         <div class="tweet-header">
-          <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author.username }}</a>
+          <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author|display_name }}</a>
           <div class="tweet-header-end">
             <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
             {% if user.is_authenticated and post.author_id != user.id %}
             <form class="tweet-dm-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
               {% csrf_token %}
-              <button type="submit" class="btn-tweet-dm" aria-label="{{ post.author.username }}にDM">DM</button>
+              <button type="submit" class="btn-tweet-dm" aria-label="{{ post.author|display_name }}にDM">DM</button>
             </form>
             {% elif user.is_authenticated and post.author_id == user.id %}
             <form class="tweet-delete-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
@@ -1263,7 +1264,7 @@
             {% for comment in post.comments.all %}
             <div class="timeline-comment">
               <p class="comment-meta">
-                {% if comment.author %}{{ comment.author.username }}{% else %}匿名{% endif %}
+                {% if comment.author %}{{ comment.author|display_name }}{% else %}匿名{% endif %}
                 · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
                 {% if user.is_authenticated and comment.author_id == user.id %}
                 <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">

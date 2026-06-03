@@ -7,6 +7,15 @@ from django.urls import reverse
 from .models import Comment, Follow, Notification, Product, Review, ThreadPost, TimelinePost, UserProfile
 
 
+def user_display_name(user: AbstractBaseUser | None) -> str:
+    """タイムライン・フリマなどで使う表示名（ニックネーム）。"""
+    if user is None:
+        return "匿名"
+    if getattr(user, "is_authenticated", True) is False:
+        return "匿名"
+    return (user.username or "").strip() or "ユーザー"
+
+
 def get_following_user_ids(user: AbstractBaseUser) -> list[int]:
     if not user.is_authenticated:
         return []

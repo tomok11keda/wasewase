@@ -359,7 +359,7 @@
 
       <div class="profile-actions">
         {% if is_own_profile %}
-        <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィールを編集</a>
+        <a class="btn btn-outline" href="{% url 'mypage_edit' %}">ニックネーム・プロフィールを編集</a>
         <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ（売上・出品管理）</a>
         {% elif user.is_authenticated %}
         <form method="post" action="{% url 'toggle_follow' profile_user.pk %}">

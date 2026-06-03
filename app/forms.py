@@ -142,22 +142,64 @@ class SignupOTPVerifyForm(forms.Form):
         return code
 
 
-class ProfileForm(forms.ModelForm):
+class AccountProfileForm(forms.ModelForm):
+    """マイページからニックネーム（username）とプロフィールを編集する。"""
+
+    nickname = forms.CharField(
+        label="ニックネーム（表示名）",
+        max_length=150,
+        required=True,
+        validators=[UnicodeUsernameValidator()],
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "例：わせ太郎",
+                "autocomplete": "username",
+            }
+        ),
+        help_text="タイムライン・フリマの出品者名など、アプリ内で表示される名前です。",
+    )
+
     class Meta:
         model = UserProfile
-        fields = ("name", "bio", "department", "grade")
+        fields = ("bio", "department", "grade")
         labels = {
-            "name": "名前",
-            "bio": "概要",
+            "bio": "自己紹介",
             "department": "学部",
             "grade": "学年",
         }
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "表示名（任意）"}),
             "bio": forms.Textarea(
                 attrs={"rows": 4, "placeholder": "自己紹介や取引の希望など（任意）"}
             ),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.account_user = user
+        super().__init__(*args, **kwargs)
+        if user is not None:
+            self.fields["nickname"].initial = user.username
+
+    def clean_nickname(self):
+        nickname = (self.cleaned_data.get("nickname") or "").strip()
+        if not nickname:
+            raise ValidationError("ニックネームを入力してください。")
+        qs = User.objects.filter(username__iexact=nickname)
+        if self.account_user:
+            qs = qs.exclude(pk=self.account_user.pk)
+        if qs.exists():
+            raise ValidationError("このニックネームはすでに使われています。")
+        return nickname
+
+    def save(self, commit=True):
+        profile = super().save(commit=commit)
+        if self.account_user:
+            self.account_user.username = self.cleaned_data["nickname"]
+            self.account_user.save(update_fields=["username"])
+        return profile
+
+
+# 後方互換のエイリアス
+ProfileForm = AccountProfileForm
 
 
 class ProductExhibitForm(forms.ModelForm):

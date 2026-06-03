@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -235,8 +236,8 @@
       <h1 class="trade-title">{{ product.name }}</h1>
       <p class="trade-meta">
         価格: ¥{{ product.price|floatformat:0 }}<br>
-        出品者: {{ product.seller.username }} / 購入者: {{ product.buyer.username }}<br>
-        取引相手: {{ partner.username }}
+        出品者: {{ product.seller|display_name }} / 購入者: {{ product.buyer|display_name }}<br>
+        取引相手: {{ partner|display_name }}
       </p>
       <div class="completion-grid">
         <div class="completion-item{% if product.seller_trade_completed %} is-done{% endif %}">
@@ -274,7 +275,7 @@
         {% for msg in trade_messages %}
         <li class="trade-msg{% if msg.sender_id == user.id %} is-mine{% endif %}">
           <div class="trade-msg-meta">
-            {{ msg.sender.username }} · {{ msg.created_at|date:"m/d H:i" }}{% if msg.is_preset %} · 定型文{% endif %}
+            {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}{% if msg.is_preset %} · 定型文{% endif %}
           </div>
           {{ msg.body }}
         </li>

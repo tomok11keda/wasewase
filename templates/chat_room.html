@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -222,8 +223,8 @@
       <h1 class="chat-product-name">{{ product.name }}</h1>
       <p class="chat-product-meta">
         ¥{{ product.price|floatformat:0 }} ·
-        出品者: {% if product.seller %}<a href="{% url 'user_profile' product.seller.pk %}?from=market">{{ product.seller.username }}</a>{% else %}—{% endif %} ·
-        相手: {% if partner %}<a href="{% url 'user_profile' partner.pk %}?from=market">{{ partner.username }}</a>{% else %}—{% endif %}
+        出品者: {% if product.seller %}<a href="{% url 'user_profile' product.seller.pk %}?from=market">{{ product.seller|display_name }}</a>{% else %}—{% endif %} ·
+        相手: {% if partner %}<a href="{% url 'user_profile' partner.pk %}?from=market">{{ partner|display_name }}</a>{% else %}—{% endif %}
       </p>
     </section>
 
@@ -236,7 +237,7 @@
         {% for msg in chat_messages %}
         <li class="chat-msg{% if msg.sender_id == user.id %} is-mine{% endif %}">
           <div class="chat-msg-meta">
-            {{ msg.sender.username }} · {{ msg.created_at|date:"m/d H:i" }}
+            {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}
           </div>
           {{ msg.body }}
         </li>

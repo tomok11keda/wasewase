@@ -93,7 +93,8 @@ class UserProfile(models.Model):
 
     @property
     def display_name(self) -> str:
-        return self.name.strip() if self.name else self.user.username
+        """アプリ内の表示名（ニックネーム = User.username）。"""
+        return self.user.username
 
     @property
     def department_grade_display(self) -> str:

@@ -1,3 +1,4 @@
+{% load wase_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -311,7 +312,7 @@
 
   <main class="main-inner">
     <section class="profile-card">
-      <h2 class="profile-name">{{ user.username }}</h2>
+      <h2 class="profile-name">{{ user|display_name }}</h2>
       <p class="profile-rating">
         {% if rating_stats.count %}
         評価：★{{ rating_stats.avg_display }}（{{ rating_stats.count }}件）
@@ -325,7 +326,7 @@
       <p style="margin:12px 0 0;font-size:14px">
         <a href="{% url 'user_profile' user.pk %}?from=market" style="color:var(--accent);font-weight:700">公開プロフィールを見る</a>
         ·
-        <a href="{% url 'mypage_edit' %}" style="color:var(--accent);font-weight:700">プロフィールを編集</a>
+        <a href="{% url 'mypage_edit' %}" style="color:var(--accent);font-weight:700">ニックネーム・プロフィールを編集</a>
       </p>
       <div class="sales-box">
         <p class="sales-label">現在の売上金</p>
