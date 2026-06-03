@@ -255,6 +255,91 @@
       margin-top: 10px;
     }
 
+    .chat-contact-row {
+      margin-top: 10px;
+    }
+
+    .btn-chat-contact {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-chat-contact:hover {
+      background: #f7edf0;
+    }
+
+    .btn-chat-open {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .btn-chat-open:hover {
+      background: var(--accent-dark);
+    }
+
+    .seller-chat-list {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #eee;
+    }
+
+    .seller-chat-list h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .seller-chat-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 0;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .seller-chat-item:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .seller-chat-item a {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .seller-chat-item a:hover {
+      background: var(--accent-dark);
+    }
+
+    .seller-chat-meta {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text);
+    }
+
     .owner-actions {
       margin-top: 14px;
       padding-top: 14px;
@@ -682,7 +767,35 @@
             </form>
           </div>
           {% endif %}
+          {% if can_contact_seller %}
+          <div class="chat-contact-row">
+            {% if user_chat_room %}
+            <a class="btn-chat-open" href="{% url 'chat_room' user_chat_room.pk %}">💬 チャットを開く</a>
+            {% else %}
+            <form method="post" action="{% url 'start_product_chat' product.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-chat-contact">💬 出品者にチャットで連絡する</button>
+            </form>
+            {% endif %}
+          </div>
+          {% elif not user.is_authenticated and product.seller_id and not product.is_sold %}
+          <div class="chat-contact-row">
+            <a class="btn-chat-open" href="{% url 'login' %}?next={{ request.path }}">💬 ログインして出品者に連絡</a>
+          </div>
+          {% endif %}
         </div>
+
+        {% if seller_chat_rooms %}
+        <div class="seller-chat-list">
+          <h3>購入希望者とのチャット（{{ seller_chat_rooms|length }}件）</h3>
+          {% for room in seller_chat_rooms %}
+          <div class="seller-chat-item">
+            <p class="seller-chat-meta">{{ room.buyer.username }} さん</p>
+            <a href="{% url 'chat_room' room.pk %}">チャット</a>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
 
         {% if user.is_authenticated and product.seller_id == user.id %}
         <div class="owner-actions">

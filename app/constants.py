@@ -34,3 +34,15 @@ TRADE_LOCATION_PRESETS = [
     "キャンパスセンターで待っています",
     "図書館前で待っています",
 ]
+
+WASEDA_EMAIL_DOMAIN = "waseda.jp"
+WASEDA_EMAIL_ERROR = "早稲田大学のメールアドレス（waseda.jp）のみ登録可能です"
+
+
+def is_waseda_email(email: str) -> bool:
+    """@waseda.jp または @*.waseda.jp のメールアドレスか判定する。"""
+    normalized = (email or "").strip().lower()
+    if "@" not in normalized:
+        return False
+    domain = normalized.rsplit("@", 1)[-1]
+    return domain == WASEDA_EMAIL_DOMAIN or domain.endswith(f".{WASEDA_EMAIL_DOMAIN}")

@@ -37,10 +37,12 @@ from .forms import (
     TimelinePostForm,
 )
 from .models import (
+    ChatRoom,
     Comment,
     Follow,
     GodButtonUse,
     Like,
+    Message as ChatMessage,
     Notification,
     Product,
     Review,
@@ -64,6 +66,8 @@ from .services import (
     build_home_url,
     build_product_share_timeline_body,
     build_search_url,
+    can_access_chat_room,
+    chat_room_link,
     search_products,
     search_timeline_posts,
     get_following_user_ids,
@@ -314,6 +318,22 @@ def product_detail(request, pk):
         and product.status == Product.Status.AVAILABLE
     )
 
+    user_chat_room = None
+    seller_chat_rooms = []
+    can_contact_seller = False
+    if request.user.is_authenticated and product.seller_id:
+        if product.seller_id == request.user.id:
+            seller_chat_rooms = list(
+                ChatRoom.objects.filter(product=product)
+                .select_related("buyer")
+                .order_by("-updated_at")
+            )
+        elif product.seller_id != request.user.id:
+            user_chat_room = ChatRoom.objects.filter(
+                product=product, buyer=request.user
+            ).first()
+            can_contact_seller = not product.is_sold or user_chat_room is not None
+
     return render(
         request,
         "product_detail.html",
@@ -331,8 +351,111 @@ def product_detail(request, pk):
             "review_partner": review_partner,
             "show_trade_link": show_trade_link,
             "can_share_to_timeline": can_share_to_timeline,
+            "can_contact_seller": can_contact_seller,
+            "user_chat_room": user_chat_room,
+            "seller_chat_rooms": seller_chat_rooms,
         },
     )
+
+
+@login_required
+@require_POST
+def start_product_chat(request, pk):
+    product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
+
+    if not product.seller_id or product.seller_id == request.user.id:
+        messages.error(request, "出品者以外のユーザーのみチャットを開始できます。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    if product.is_sold:
+        messages.error(request, "売り切れの商品には新しいチャットを開始できません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    room, created = ChatRoom.objects.get_or_create(
+        product=product,
+        buyer=request.user,
+    )
+    if created:
+        notify_seller(
+            product,
+            f"「{product.name}」にチャットの問い合わせがありました。",
+            actor_id=request.user.id,
+        )
+        messages.success(request, "出品者とのチャットを開始しました。")
+    return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+def chat_room(request, room_pk):
+    room = get_object_or_404(
+        ChatRoom.objects.select_related(
+            "product", "product__seller", "buyer"
+        ).prefetch_related("messages__sender"),
+        pk=room_pk,
+    )
+    if not can_access_chat_room(room, request.user):
+        messages.error(request, "このチャットルームにはアクセスできません。")
+        return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+
+    partner = (
+        room.buyer
+        if request.user.id == room.product.seller_id
+        else room.product.seller
+    )
+    chat_messages = room.messages.select_related("sender")
+
+    return render(
+        request,
+        "chat_room.html",
+        {
+            "room": room,
+            "product": room.product,
+            "partner": partner,
+            "chat_messages": chat_messages,
+        },
+    )
+
+
+@login_required
+@require_POST
+def send_chat_message(request, room_pk):
+    room = get_object_or_404(
+        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
+        pk=room_pk,
+    )
+    if not can_access_chat_room(room, request.user):
+        messages.error(request, "このチャットルームにはアクセスできません。")
+        return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+
+    body = request.POST.get("body", "").strip()
+    if not body:
+        messages.error(request, "メッセージを入力してください。")
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+    if len(body) > 500:
+        messages.error(request, "メッセージが長すぎます（500文字以内）。")
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+    ChatMessage.objects.create(
+        chat_room=room,
+        sender=request.user,
+        body=body,
+    )
+    room.save(update_fields=["updated_at"])
+
+    if request.user.id == room.product.seller_id:
+        recipient = room.buyer
+    else:
+        recipient = room.product.seller
+
+    if recipient:
+        Notification.objects.create(
+            recipient=recipient,
+            message=f"「{room.product.name}」のチャット: {body[:40]}",
+            link=chat_room_link(room),
+        )
+
+    return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
 
 @login_required

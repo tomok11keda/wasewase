@@ -15,6 +15,7 @@ import ssl
 import sys
 from pathlib import Path
 
+import environ
 from django.core.exceptions import ImproperlyConfigured
 
 from .email_env import (
@@ -27,6 +28,17 @@ from .email_env import (
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env = environ.Env(
+    DJANGO_DEBUG=(bool, True),
+    DATABASE_SSL_REQUIRE=(bool, False),
+    SERVE_MEDIA=(bool, True),
+    SECURE_SSL_REDIRECT=(bool, False),
+)
+
+_env_file = BASE_DIR / ".env"
+if _env_file.is_file():
+    environ.Env.read_env(_env_file)
+
 
 def _env(name: str, default: str = "") -> str:
     """環境変数を読み込み、前後の空白を除去する。"""
@@ -36,43 +48,47 @@ def _env(name: str, default: str = "") -> str:
     return str(value).strip()
 
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    raw = _env(name, "")
-    if not raw:
-        return default
-    return raw.lower() in ("1", "true", "yes", "on")
-
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _env_bool("DJANGO_DEBUG", default=True)
+# 本番（Render）: DJANGO_DEBUG=False
+DEBUG = env.bool("DJANGO_DEBUG", default=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-_secret_key = _env("DJANGO_SECRET_KEY", "")
-if _secret_key:
-    SECRET_KEY = _secret_key
-elif DEBUG:
-    SECRET_KEY = "django-insecure-n6!_=099v4ai4w#a=h^lvsflew4u7ylh%_bb&7+(7g(cstkpk9"
-else:
-    raise ImproperlyConfigured(
-        "本番では環境変数 DJANGO_SECRET_KEY を設定してください。"
-    )
+SECRET_KEY = env("DJANGO_SECRET_KEY", default="")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-n6!_=099v4ai4w#a=h^lvsflew4u7ylh%_bb&7+(7g(cstkpk9"
+    else:
+        raise ImproperlyConfigured(
+            "本番では環境変数 DJANGO_SECRET_KEY を設定してください。"
+        )
 
-_allowed_hosts = _env("DJANGO_ALLOWED_HOSTS", "")
+RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
+_allowed_hosts = env("DJANGO_ALLOWED_HOSTS", default="")
 if _allowed_hosts:
-    ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(",") if h.strip()]
+    if _allowed_hosts.strip() == "*":
+        ALLOWED_HOSTS = ["*"]
+    else:
+        ALLOWED_HOSTS = [
+            host.strip() for host in _allowed_hosts.split(",") if host.strip()
+        ]
+elif RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS = [RENDER_EXTERNAL_HOSTNAME, ".onrender.com"]
 elif DEBUG:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 else:
-    ALLOWED_HOSTS = []
+    # Render 等で未設定の場合のフォールバック（後から DJANGO_ALLOWED_HOSTS で上書き可）
+    ALLOWED_HOSTS = ["*"]
 
-_csrf_origins = _env("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+_csrf_origins = env("DJANGO_CSRF_TRUSTED_ORIGINS", default="")
 if _csrf_origins:
     CSRF_TRUSTED_ORIGINS = [
-        o.strip() for o in _csrf_origins.split(",") if o.strip()
+        origin.strip() for origin in _csrf_origins.split(",") if origin.strip()
     ]
+elif RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
 
 
 # Application definition
@@ -125,15 +141,15 @@ WSGI_APPLICATION = 'wasewase.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-_database_url = _env("DATABASE_URL", "")
-if _database_url:
+DATABASE_URL = env("DATABASE_URL", default="")
+if DATABASE_URL:
     import dj_database_url
 
     DATABASES = {
         "default": dj_database_url.config(
-            default=_database_url,
+            default=DATABASE_URL,
             conn_max_age=600,
-            ssl_require=_env_bool("DATABASE_SSL_REQUIRE", default=False),
+            ssl_require=env.bool("DATABASE_SSL_REQUIRE", default=False),
         )
     }
 else:
@@ -193,12 +209,11 @@ STORAGES = {
 
 # Media files (uploaded images)
 MEDIA_URL = '/media/'
-_media_root = _env("MEDIA_ROOT", "")
+_media_root = env("MEDIA_ROOT", default="")
 MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / 'media'
 
 # 本番でアップロード画像を Django から配信する（Render 等の単一サーバー向け）
-# 外部ストレージ利用時は環境変数 SERVE_MEDIA=false にしてください。
-SERVE_MEDIA = _env_bool("SERVE_MEDIA", default=True)
+SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
@@ -208,7 +223,7 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", default=False)
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
 
 # ---------------------------------------------------------------------------
 # メール（Gmail SMTP）
@@ -238,7 +253,6 @@ class UnverifiedTTLEmailBackend(DjangoSMTPBackend):
     def open(self):
         if self.connection:
             return False
-        # SMTP ログイン情報は ASCII のみ（UnicodeEncodeError 防止）
         if self.username and not is_ascii_only(str(self.username)):
             raise ValueError("EMAIL_HOST_USER に非ASCII文字が含まれています。")
         if self.password and not is_ascii_only(str(self.password)):
@@ -263,7 +277,6 @@ EMAIL_USE_BUILTIN_GMAIL = WASE_USE_BUILTIN_GMAIL
     _env("WASE_DEFAULT_FROM_EMAIL"),
 )
 
-# DEBUG かつ SMTP 未設定時のみ console へフォールバック（組み込み設定時は常に SMTP）
 EMAIL_USE_CONSOLE_FALLBACK = DEBUG and not EMAIL_SMTP_READY
 
 if EMAIL_USE_CONSOLE_FALLBACK:

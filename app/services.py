@@ -150,6 +150,16 @@ def is_trade_participant(product: Product, user: AbstractBaseUser) -> bool:
     return user.id in (product.seller_id, product.buyer_id)
 
 
+def can_access_chat_room(chat_room, user: AbstractBaseUser) -> bool:
+    if not user.is_authenticated:
+        return False
+    return user.id in (chat_room.product.seller_id, chat_room.buyer_id)
+
+
+def chat_room_link(chat_room) -> str:
+    return reverse("chat_room", kwargs={"room_pk": chat_room.pk})
+
+
 def product_detail_path(product: Product) -> str:
     return reverse("product_detail", kwargs={"pk": product.pk})
 

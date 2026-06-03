@@ -337,6 +337,56 @@ class TradeMessage(models.Model):
         return f"{self.sender}: {self.body[:30]}"
 
 
+class ChatRoom(models.Model):
+    """商品 × 購入希望者ごとのチャットルーム（ジモティー型）。"""
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="chat_rooms",
+    )
+    buyer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="product_chat_rooms",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "buyer"],
+                name="unique_product_buyer_chat_room",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.product.name} × {self.buyer.username}"
+
+
+class Message(models.Model):
+    chat_room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_messages",
+    )
+    body = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.sender}: {self.body[:30]}"
+
+
 class CourseThread(models.Model):
     course_name = models.CharField(
         max_length=120, blank=True, null=True, verbose_name="授業名"
