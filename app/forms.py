@@ -143,31 +143,38 @@ class SignupOTPVerifyForm(forms.Form):
 
 
 class AccountProfileForm(forms.ModelForm):
-    """マイページからニックネーム（username）とプロフィールを編集する。"""
+    """マイページからニックネーム・ユーザーID・プロフィールを編集する。"""
 
-    nickname = forms.CharField(
-        label="ニックネーム（表示名）",
+    user_id = forms.CharField(
+        label="ユーザーID",
         max_length=150,
         required=True,
         validators=[UnicodeUsernameValidator()],
         widget=forms.TextInput(
             attrs={
-                "placeholder": "例：わせ太郎",
-                "autocomplete": "username",
+                "placeholder": "例：wase_taro",
+                "autocomplete": "off",
             }
         ),
-        help_text="タイムライン・フリマの出品者名など、アプリ内で表示される名前です。",
+        help_text="プロフィールなどに @ の後ろで表示されるIDです（英数字・ひらがな等）。",
     )
 
     class Meta:
         model = UserProfile
-        fields = ("bio", "department", "grade")
+        fields = ("name", "bio", "department", "grade")
         labels = {
+            "name": "ニックネーム（表示名）",
             "bio": "自己紹介",
             "department": "学部",
             "grade": "学年",
         }
         widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "placeholder": "例：わせ太郎",
+                    "autocomplete": "nickname",
+                }
+            ),
             "bio": forms.Textarea(
                 attrs={"rows": 4, "placeholder": "自己紹介や取引の希望など（任意）"}
             ),
@@ -176,24 +183,28 @@ class AccountProfileForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         self.account_user = user
         super().__init__(*args, **kwargs)
+        self.fields["name"].required = False
+        self.fields["name"].help_text = (
+            "タイムライン・フリマの出品者名などに表示されます。空欄の場合はユーザーIDが表示されます。"
+        )
         if user is not None:
-            self.fields["nickname"].initial = user.username
+            self.fields["user_id"].initial = user.username
 
-    def clean_nickname(self):
-        nickname = (self.cleaned_data.get("nickname") or "").strip()
-        if not nickname:
-            raise ValidationError("ニックネームを入力してください。")
-        qs = User.objects.filter(username__iexact=nickname)
+    def clean_user_id(self):
+        user_id = (self.cleaned_data.get("user_id") or "").strip()
+        if not user_id:
+            raise ValidationError("ユーザーIDを入力してください。")
+        qs = User.objects.filter(username__iexact=user_id)
         if self.account_user:
             qs = qs.exclude(pk=self.account_user.pk)
         if qs.exists():
-            raise ValidationError("このニックネームはすでに使われています。")
-        return nickname
+            raise ValidationError("このユーザーIDはすでに使われています。")
+        return user_id
 
     def save(self, commit=True):
         profile = super().save(commit=commit)
         if self.account_user:
-            self.account_user.username = self.cleaned_data["nickname"]
+            self.account_user.username = self.cleaned_data["user_id"]
             self.account_user.save(update_fields=["username"])
         return profile
 

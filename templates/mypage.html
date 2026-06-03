@@ -326,7 +326,8 @@
       <p style="margin:12px 0 0;font-size:14px">
         <a href="{% url 'user_profile' user.pk %}?from=market" style="color:var(--accent);font-weight:700">公開プロフィールを見る</a>
         ·
-        <a href="{% url 'mypage_edit' %}" style="color:var(--accent);font-weight:700">ニックネーム・プロフィールを編集</a>
+        <a href="{% url 'mypage_edit' %}" style="color:var(--accent);font-weight:700">プロフィール・アカウント設定</a>
+        <span style="color:var(--muted)">· @{{ user.username }}</span>
       </p>
       <div class="sales-box">
         <p class="sales-label">現在の売上金</p>

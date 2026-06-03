@@ -803,12 +803,13 @@ class ProfileAndFollowTests(TestCase):
             grade="2年",
         )
 
-    def test_mypage_edit_updates_nickname_and_profile(self):
+    def test_mypage_edit_updates_display_name_user_id_and_profile(self):
         self.client.force_login(self.viewer)
         response = self.client.post(
             reverse("mypage_edit"),
             {
-                "nickname": "じろう",
+                "name": "テストユーザー1",
+                "user_id": "jiro_new",
                 "bio": "テスト概要",
                 "department": "商学部",
                 "grade": "3年",
@@ -817,18 +818,20 @@ class ProfileAndFollowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("mypage"))
         self.viewer.refresh_from_db()
-        self.assertEqual(self.viewer.username, "じろう")
+        self.assertEqual(self.viewer.username, "jiro_new")
         profile = UserProfile.objects.get(user=self.viewer)
+        self.assertEqual(profile.name, "テストユーザー1")
         self.assertEqual(profile.bio, "テスト概要")
         self.assertEqual(profile.department, "商学部")
         self.assertEqual(profile.grade, "3年")
 
-    def test_nickname_change_reflects_on_timeline_and_flea(self):
+    def test_display_name_and_user_id_reflect_separately(self):
         self.client.force_login(self.viewer)
         self.client.post(
             reverse("mypage_edit"),
             {
-                "nickname": "新しい表示名",
+                "name": "新しい表示名",
+                "user_id": "new_user_id",
                 "bio": "",
                 "department": "",
                 "grade": "",
@@ -844,9 +847,16 @@ class ProfileAndFollowTests(TestCase):
 
         home = self.client.get(reverse("home"), {"tab": "flea"})
         self.assertContains(home, "新しい表示名")
+        self.assertNotContains(home, "new_user_id")
         board = self.client.get(reverse("home"), {"tab": "board"})
         self.assertContains(board, "新しい表示名")
-        self.assertContains(board, "表示名テスト投稿")
+
+        profile_page = self.client.get(
+            reverse("user_profile", args=[self.viewer.pk]),
+            {"from": "market"},
+        )
+        self.assertContains(profile_page, "新しい表示名")
+        self.assertContains(profile_page, "@new_user_id")
 
     def test_user_profile_shows_product_count_from_market(self):
         Product.objects.create(
@@ -859,7 +869,8 @@ class ProfileAndFollowTests(TestCase):
             reverse("user_profile", args=[self.target.pk]),
             {"from": "market"},
         )
-        self.assertContains(response, "target")
+        self.assertContains(response, "たろう")
+        self.assertContains(response, "@target")
         self.assertContains(response, "よろしく")
         self.assertContains(response, "法学部 2年")
         self.assertContains(response, "出品数")

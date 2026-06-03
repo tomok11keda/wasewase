@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>わせわせ — ニックネーム・プロフィール編集</title>
+  <title>わせわせ — プロフィール・アカウント設定</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -107,7 +107,7 @@
 <body>
   <header class="site-header">
     <a class="back-link" href="{% url 'mypage' %}">← マイページに戻る</a>
-    <h1 style="margin:0;font-size:18px">ニックネーム・プロフィール編集</h1>
+    <h1 style="margin:0;font-size:18px">プロフィール・アカウント設定</h1>
   </header>
 
   <main class="main-inner">
@@ -122,7 +122,8 @@
     <form class="form-card" method="post">
       {% csrf_token %}
       <p class="form-intro">
-        ニックネームを変えると、タイムラインの投稿名・フリマの出品者名・チャットの表示名などがすべて新しい名前に更新されます。
+        <strong>ニックネーム（表示名）</strong>は投稿名・出品者名などに、
+        <strong>ユーザーID</strong>はプロフィールの @ の後ろ（例：@いけ）に表示されます。どちらもここで変更できます。
       </p>
       {% for field in form %}
       <div class="field">
