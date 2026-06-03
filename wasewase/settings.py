@@ -156,6 +156,51 @@ elif RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
 
 
+# ---------------------------------------------------------------------------
+# Cloudinary / メディア（INSTALLED_APPS より前に確定させる）
+# cloudinary_storage は INSTALLED_APPS に入れない。
+# 入れると collectstatic が上書きされ WhiteNoise と衝突してビルドが落ちる。
+# メディア保存だけ STORAGES["default"] で MediaCloudinaryStorage を使う。
+# ---------------------------------------------------------------------------
+CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET = (
+    _load_cloudinary_credentials()
+)
+_has_cloudinary_credentials = bool(
+    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
+)
+
+_use_cloudinary_raw = os.environ.get("USE_CLOUDINARY")
+if _use_cloudinary_raw is not None and str(_use_cloudinary_raw).strip() != "":
+    USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
+elif _has_cloudinary_credentials and not DEBUG:
+    USE_CLOUDINARY = True
+else:
+    USE_CLOUDINARY = False
+
+if USE_CLOUDINARY:
+    if not _has_cloudinary_credentials:
+        raise ImproperlyConfigured(
+            "USE_CLOUDINARY=True のときは Cloudinary 認証情報が必要です。"
+            " CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
+            "（または CLOUD_NAME / API_KEY / API_SECRET、または CLOUDINARY_URL）"
+            " を設定してください。"
+        )
+    import cloudinary
+
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True,
+    )
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+        "API_KEY": CLOUDINARY_API_KEY,
+        "API_SECRET": CLOUDINARY_API_SECRET,
+        "SECURE": True,
+    }
+
+
 # Application definition
 
 AUTH_USER_MODEL = "app.User"
@@ -166,8 +211,6 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',
-    'cloudinary',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'app',
@@ -274,39 +317,7 @@ STORAGES = {
     },
 }
 
-# Media files (uploaded images)
-# ローカル: プロジェクト直下 media/ に保存（USE_CLOUDINARY=False が既定）
-# 本番（Render）: USE_CLOUDINARY=True で Cloudinary に永続保存
-CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET = (
-    _load_cloudinary_credentials()
-)
-_has_cloudinary_credentials = bool(
-    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
-)
-
-_use_cloudinary_raw = os.environ.get("USE_CLOUDINARY")
-if _use_cloudinary_raw is not None and str(_use_cloudinary_raw).strip() != "":
-    USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
-elif _has_cloudinary_credentials and not DEBUG:
-    # 本番で認証情報が揃っていれば USE_CLOUDINARY 未設定でも自動有効化
-    USE_CLOUDINARY = True
-else:
-    USE_CLOUDINARY = False
-
 if USE_CLOUDINARY:
-    if not _has_cloudinary_credentials:
-        raise ImproperlyConfigured(
-            "USE_CLOUDINARY=True のときは Cloudinary 認証情報が必要です。"
-            " CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
-            "（または CLOUD_NAME / API_KEY / API_SECRET、または CLOUDINARY_URL）"
-            " を設定してください。"
-        )
-    CLOUDINARY_STORAGE = {
-        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
-        "API_KEY": CLOUDINARY_API_KEY,
-        "API_SECRET": CLOUDINARY_API_SECRET,
-        "SECURE": True,
-    }
     STORAGES["default"] = {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     }
@@ -317,12 +328,6 @@ else:
     _media_root = env("MEDIA_ROOT", default="")
     MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
     SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
-
-# django-cloudinary-storage の collectstatic が STATICFILES_STORAGE を参照する（Django 6 互換）
-STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
-DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
-
-_log_media_storage_startup()
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
@@ -430,3 +435,9 @@ def _warn_email_startup() -> None:
 
 
 _warn_email_startup()
+
+# Django 6 + 旧ライブラリ互換（サードパーティが参照する場合に備える）
+STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
+DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
+
+_log_media_storage_startup()
