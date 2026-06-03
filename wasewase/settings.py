@@ -33,6 +33,7 @@ env = environ.Env(
     DATABASE_SSL_REQUIRE=(bool, False),
     SERVE_MEDIA=(bool, True),
     SECURE_SSL_REDIRECT=(bool, False),
+    USE_CLOUDINARY=(bool, False),
 )
 
 _env_file = BASE_DIR / ".env"
@@ -101,6 +102,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
+    'cloudinary',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'app',
@@ -208,12 +211,36 @@ STORAGES = {
 }
 
 # Media files (uploaded images)
-MEDIA_URL = '/media/'
-_media_root = env("MEDIA_ROOT", default="")
-MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / 'media'
+# ローカル: プロジェクト直下 media/ に保存（USE_CLOUDINARY=False が既定）
+# 本番（Render）: USE_CLOUDINARY=True で Cloudinary に永続保存
+USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
 
-# 本番でアップロード画像を Django から配信する（Render 等の単一サーバー向け）
-SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
+CLOUDINARY_CLOUD_NAME = env("CLOUDINARY_CLOUD_NAME", default="")
+CLOUDINARY_API_KEY = env("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = env("CLOUDINARY_API_SECRET", default="")
+
+if USE_CLOUDINARY:
+    if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+        raise ImproperlyConfigured(
+            "USE_CLOUDINARY=True のときは CLOUDINARY_CLOUD_NAME、"
+            "CLOUDINARY_API_KEY、CLOUDINARY_API_SECRET を設定してください。"
+        )
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+        "API_KEY": CLOUDINARY_API_KEY,
+        "API_SECRET": CLOUDINARY_API_SECRET,
+        "SECURE": True,
+    }
+    STORAGES["default"] = {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    }
+    MEDIA_URL = "/media/"
+    SERVE_MEDIA = False
+else:
+    MEDIA_URL = "/media/"
+    _media_root = env("MEDIA_ROOT", default="")
+    MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
+    SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
