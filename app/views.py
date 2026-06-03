@@ -949,7 +949,13 @@ def exhibit(request):
         if form.is_valid():
             product = form.save(commit=False)
             product.seller = request.user
-            product.save()
+            try:
+                product.save()
+            except Exception as exc:
+                _log_media_debug("EXHIBIT SAVE FAILED", str(exc), exc=exc)
+                messages.error(request, "出品の保存に失敗しました。時間をおいて再度お試しください。")
+                return render(request, "exhibit.html", {"form": form})
+            _log_saved_file_field(product, "image", "EXHIBIT IMAGE")
             return redirect(reverse("home"))
     else:
         form = ProductExhibitForm(initial={"faculty": get_user_faculty(request.user)})
@@ -969,6 +975,58 @@ def _log_auth_debug(label: str, detail: str, *, exc: BaseException | None = None
         print(f"[WASE {label}] {detail}", file=sys.stderr, flush=True)
         if exc:
             traceback.print_exc()
+
+
+def _log_media_debug(label: str, detail: str, *, exc: BaseException | None = None) -> None:
+    """画像保存の診断ログ（本番 Render でも stderr に出力）。"""
+    message = f"[WASE {label}] {detail}"
+    logger.warning(message, exc_info=exc)
+    print(message, file=sys.stderr, flush=True)
+    if exc:
+        traceback.print_exc(file=sys.stderr)
+
+
+def _has_uploaded_file(field_file) -> bool:
+    return bool(field_file and getattr(field_file, "name", None))
+
+
+def _log_saved_file_field(instance, field_name: str, label: str) -> None:
+    field_file = getattr(instance, field_name, None)
+    if not _has_uploaded_file(field_file):
+        _log_media_debug(label, "画像フィールドは空です")
+        return
+    try:
+        file_name = field_file.name
+        file_url = field_file.url
+    except Exception as exc:
+        _log_media_debug(f"{label} URL ERROR", str(exc), exc=exc)
+        return
+    _log_media_debug(
+        label,
+        (
+            f"storage={settings.STORAGES['default']['BACKEND']} "
+            f"use_cloudinary={getattr(settings, 'USE_CLOUDINARY', False)} "
+            f"name={file_name} url={file_url}"
+        ),
+    )
+
+
+def _save_timeline_post(post):
+    _log_media_debug(
+        "BOARD COMPOSE",
+        (
+            f"保存開始 post_id={post.pk} "
+            f"has_image_file={_has_uploaded_file(post.image)} "
+            f"storage={settings.STORAGES['default']['BACKEND']}"
+        ),
+    )
+    try:
+        post.save()
+    except Exception as exc:
+        _log_media_debug("BOARD COMPOSE SAVE FAILED", str(exc), exc=exc)
+        raise
+    _log_saved_file_field(post, "image", "BOARD COMPOSE IMAGE")
+    return post
 
 
 def _signup_form_errors_message(form) -> str:
@@ -1184,13 +1242,25 @@ def board_compose(request):
         faculty = get_user_faculty(request.user)
         if not post.faculty and faculty:
             post.faculty = faculty
-        post.save()
+        try:
+            _save_timeline_post(post)
+        except Exception as exc:
+            _log_media_debug("BOARD COMPOSE FAILED", str(exc), exc=exc)
+            messages.error(
+                request,
+                "投稿の保存に失敗しました。画像アップロード設定を確認してください。",
+            )
+            return _board_redirect(request, tag=form.data.get("course_name", ""))
         if post.image:
             messages.success(request, "写真付きのつぶやきを投稿しました。")
         else:
             messages.success(request, "つぶやきを投稿しました。")
     else:
         _log_auth_debug("BOARD COMPOSE", f"errors={form.errors.as_json()}")
+        _log_media_debug(
+            "BOARD COMPOSE VALIDATION",
+            f"errors={form.errors.as_json()} files={list(request.FILES.keys())}",
+        )
         messages.error(request, "投稿に失敗しました。内容を確認してください。")
         for field, errors in form.errors.items():
             for error in errors:
