@@ -767,6 +767,29 @@
       border-color: var(--accent);
     }
 
+    .tweet-dm-form {
+      margin: 0;
+    }
+
+    .btn-tweet-dm {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border: 1px solid #d4a0a8;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-tweet-dm:hover {
+      background: #fdf5f6;
+      border-color: var(--accent);
+    }
+
     .tweet-author { font-size: 13px; font-weight: 600; color: #333; }
     .tweet-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 
@@ -1203,7 +1226,12 @@
           <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author.username }}</a>
           <div class="tweet-header-end">
             <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
-            {% if user.is_authenticated and post.author_id == user.id %}
+            {% if user.is_authenticated and post.author_id != user.id %}
+            <form class="tweet-dm-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-tweet-dm" aria-label="{{ post.author.username }}にDM">DM</button>
+            </form>
+            {% elif user.is_authenticated and post.author_id == user.id %}
             <form class="tweet-delete-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
               {% csrf_token %}
               <button type="submit" class="btn-tweet-delete" aria-label="投稿を削除">🗑 削除</button>

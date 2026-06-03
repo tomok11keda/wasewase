@@ -19,8 +19,11 @@ from .models import (
     SignupOTP,
     TimelinePost,
     TradeMessage,
+    UserDirectMessage,
+    UserDirectMessageRoom,
     UserProfile,
 )
+from .dm_services import get_or_create_dm_room, ordered_user_pair
 from .services import build_product_share_timeline_body
 from wasewase.email_env import (
     is_plausible_email,
@@ -1239,3 +1242,102 @@ class ProductChatTests(TestCase):
         self.assertContains(page, "購入希望者とのチャット")
         self.assertContains(page, reverse("chat_room", args=[room.pk]))
         self.assertContains(page, self.buyer.username)
+
+
+class UserDirectMessageTests(TestCase):
+    def setUp(self):
+        self.user_a = get_user_model().objects.create_user(
+            email="dm-a@waseda.jp",
+            password="password",
+            username="dm_user_a",
+        )
+        self.user_b = get_user_model().objects.create_user(
+            email="dm-b@waseda.jp",
+            password="password",
+            username="dm_user_b",
+        )
+        self.other = get_user_model().objects.create_user(
+            email="dm-other@waseda.jp",
+            password="password",
+            username="dm_other",
+        )
+
+    def test_ordered_pair_prevents_duplicate_rooms(self):
+        room1, created1 = get_or_create_dm_room(self.user_a, self.user_b)
+        room2, created2 = get_or_create_dm_room(self.user_b, self.user_a)
+        self.assertTrue(created1)
+        self.assertFalse(created2)
+        self.assertEqual(room1.pk, room2.pk)
+        self.assertEqual(UserDirectMessageRoom.objects.count(), 1)
+        low, high = ordered_user_pair(self.user_b, self.user_a)
+        self.assertLess(low.pk, high.pk)
+
+    def test_start_user_dm_creates_room_and_redirects(self):
+        self.client.force_login(self.user_a)
+        response = self.client.post(reverse("start_user_dm", args=[self.user_b.pk]))
+        self.assertEqual(response.status_code, 302)
+        room = UserDirectMessageRoom.objects.get()
+        self.assertEqual(response["Location"], reverse("user_dm_room", args=[room.pk]))
+
+    def test_cannot_dm_self(self):
+        self.client.force_login(self.user_a)
+        response = self.client.post(reverse("start_user_dm", args=[self.user_a.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UserDirectMessageRoom.objects.exists())
+
+    def test_other_user_cannot_access_dm_room(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("home"))
+
+    def test_participants_can_send_dm_messages(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        self.client.force_login(self.user_a)
+        response = self.client.post(
+            reverse("send_user_dm_message", args=[room.pk]),
+            {"body": "こんにちは！"},
+        )
+        self.assertEqual(response.status_code, 302)
+        message = UserDirectMessage.objects.get(room=room)
+        self.assertEqual(message.sender, self.user_a)
+        self.assertEqual(message.body, "こんにちは！")
+
+        self.client.force_login(self.user_b)
+        page = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertContains(page, "こんにちは！")
+
+    def test_profile_shows_dm_button_for_other_user(self):
+        self.client.force_login(self.user_a)
+        page = self.client.get(
+            reverse("user_profile", args=[self.user_b.pk]),
+            {"from": "thread"},
+        )
+        self.assertContains(page, "DMを送る")
+        self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
+
+    def test_timeline_shows_dm_button_for_other_author(self):
+        post = TimelinePost.objects.create(
+            author=self.user_b,
+            body="DMテスト投稿",
+        )
+        self.client.force_login(self.user_a)
+        page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
+        self.assertContains(page, "DMテスト投稿")
+
+    def test_dm_is_separate_from_product_chat_room(self):
+        product = Product.objects.create(
+            seller=self.user_b,
+            name="別チャット商品",
+            price=100,
+            category="本",
+        )
+        ChatRoom.objects.create(product=product, buyer=self.user_a)
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        self.assertNotEqual(
+            ChatRoom.objects.filter(product=product, buyer=self.user_a).count(),
+            0,
+        )
+        self.assertEqual(UserDirectMessageRoom.objects.filter(pk=room.pk).count(), 1)

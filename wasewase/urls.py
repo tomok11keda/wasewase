@@ -39,6 +39,13 @@ urlpatterns = [
         name="send_trade_message",
     ),
     path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
+    path("user/<int:pk>/dm/start/", app_views.start_user_dm, name="start_user_dm"),
+    path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),
+    path(
+        "dm/<int:room_pk>/message/",
+        app_views.send_user_dm_message,
+        name="send_user_dm_message",
+    ),
     path("notifications/", app_views.notifications, name="notifications"),
     path("mypage/", app_views.mypage, name="mypage"),
     path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),

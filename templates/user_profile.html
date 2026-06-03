@@ -134,6 +134,22 @@
       border: 1px solid var(--accent);
     }
 
+    .btn-dm {
+      background: #fff;
+      color: var(--accent);
+      border: 1px solid #d4a0a8;
+    }
+
+    .btn-dm:hover {
+      background: #f7edf0;
+    }
+
+    .btn-dm-open {
+      background: var(--accent);
+      color: #fff;
+      border: 1px solid var(--accent);
+    }
+
     .stats-row {
       display: flex;
       justify-content: space-around;
@@ -355,6 +371,16 @@
           <button type="submit" class="btn btn-follow">フォロー</button>
           {% endif %}
         </form>
+        {% if can_send_dm %}
+          {% if user_dm_room %}
+          <a class="btn btn-dm-open" href="{% url 'user_dm_room' user_dm_room.pk %}">💬 DMを開く</a>
+          {% else %}
+          <form method="post" action="{% url 'start_user_dm' profile_user.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-dm">💬 DMを送る</button>
+          </form>
+          {% endif %}
+        {% endif %}
         {% else %}
         <a class="btn btn-outline" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログインしてフォロー</a>
         {% endif %}
