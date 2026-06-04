@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from urllib.parse import quote
 
@@ -1411,4 +1412,66 @@ class PwaTests(TestCase):
         self.assertContains(response, 'rel="manifest"')
         self.assertContains(response, "/manifest.json")
         self.assertContains(response, "serviceWorker.register")
+
+
+class EnsureSuperuserCommandTests(TestCase):
+    def test_creates_superuser_when_not_exists(self):
+        from io import StringIO
+        from unittest.mock import patch
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "admin",
+            "DJANGO_SUPERUSER_EMAIL": "deploy-admin@waseda.jp",
+            "DJANGO_SUPERUSER_PASSWORD": "secure-pass-123",
+        }
+        out = StringIO()
+        with patch.dict(os.environ, env, clear=False):
+            call_command("ensure_superuser", stdout=out)
+
+        user = get_user_model().objects.get(email="deploy-admin@waseda.jp")
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
+        self.assertEqual(user.username, "admin")
+        self.assertIn("作成しました", out.getvalue())
+
+    def test_skips_when_email_already_exists(self):
+        from io import StringIO
+        from unittest.mock import patch
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        get_user_model().objects.create_superuser(
+            email="existing@waseda.jp",
+            password="password",
+            username="existing",
+        )
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "admin",
+            "DJANGO_SUPERUSER_EMAIL": "existing@waseda.jp",
+            "DJANGO_SUPERUSER_PASSWORD": "secure-pass-123",
+        }
+        out = StringIO()
+        with patch.dict(os.environ, env, clear=False):
+            call_command("ensure_superuser", stdout=out)
+
+        self.assertEqual(get_user_model().objects.filter(is_superuser=True).count(), 1)
+        self.assertIn("既に存在します", out.getvalue())
+
+    def test_skips_without_password_env(self):
+        from io import StringIO
+        from unittest.mock import patch
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        out = StringIO()
+        with patch.dict(os.environ, {}, clear=True):
+            call_command("ensure_superuser", stdout=out)
+
+        self.assertFalse(get_user_model().objects.filter(is_superuser=True).exists())
+        self.assertIn("スキップ", out.getvalue())
 
