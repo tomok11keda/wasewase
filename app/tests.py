@@ -1388,3 +1388,27 @@ class UserDirectMessageTests(TestCase):
             0,
         )
         self.assertEqual(UserDirectMessageRoom.objects.filter(pk=room.pk).count(), 1)
+
+
+class PwaTests(TestCase):
+    def test_manifest_json_is_served(self):
+        response = self.client.get(reverse("pwa_manifest"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/manifest+json; charset=utf-8")
+        data = response.json()
+        self.assertEqual(data["name"], "わせわせ")
+        self.assertEqual(data["theme_color"], "#891E2B")
+        self.assertTrue(data["icons"])
+
+    def test_service_worker_is_served(self):
+        response = self.client.get(reverse("pwa_service_worker"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response["Content-Type"])
+        self.assertIn("skipWaiting", response.content.decode())
+
+    def test_home_includes_manifest_link(self):
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'rel="manifest"')
+        self.assertContains(response, "/manifest.json")
+        self.assertContains(response, "serviceWorker.register")
+

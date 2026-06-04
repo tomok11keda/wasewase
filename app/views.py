@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import traceback
@@ -11,11 +12,11 @@ from django.contrib.auth.views import LoginView
 from django.db import transaction
 from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
 from django.utils import timezone
-from django.views.decorators.http import require_POST
-from django.http import JsonResponse
+from django.views.decorators.cache import cache_control
+from django.views.decorators.http import require_GET, require_POST
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
 
 from .constants import FACULTY_CHOICES, TRADE_LOCATION_PRESETS
 from .dm_services import (
@@ -1396,6 +1397,60 @@ def delete_comment(request, pk):
     if post_id:
         return _board_redirect(request, tag=tag, post_id=post_id)
     return redirect(reverse("home"))
+
+
+def _pwa_icon_url(request, filename: str) -> str:
+    return request.build_absolute_uri(f"{settings.STATIC_URL}pwa/{filename}")
+
+
+@require_GET
+def pwa_manifest(request):
+    """Web App Manifest（/manifest.json）"""
+    manifest = {
+        "name": settings.PWA_APP_NAME,
+        "short_name": settings.PWA_SHORT_NAME,
+        "description": settings.PWA_DESCRIPTION,
+        "start_url": request.build_absolute_uri(reverse("home")),
+        "scope": request.build_absolute_uri("/"),
+        "display": "standalone",
+        "orientation": "portrait-primary",
+        "background_color": settings.PWA_BACKGROUND_COLOR,
+        "theme_color": settings.PWA_THEME_COLOR,
+        "lang": "ja",
+        "icons": [
+            {
+                "src": _pwa_icon_url(request, "icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": _pwa_icon_url(request, "icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": _pwa_icon_url(request, "icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+    return HttpResponse(
+        json.dumps(manifest, ensure_ascii=False),
+        content_type="application/manifest+json; charset=utf-8",
+    )
+
+
+@require_GET
+@cache_control(max_age=0, no_cache=True, no_store=True, must_revalidate=True)
+def pwa_service_worker(request):
+    """Service Worker（/service-worker.js）"""
+    sw_path = settings.BASE_DIR / "static" / "pwa" / "service-worker.js"
+    content = sw_path.read_text(encoding="utf-8")
+    return HttpResponse(content, content_type="application/javascript; charset=utf-8")
 
 
 def logout_view(request):

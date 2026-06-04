@@ -307,6 +307,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# PWA（Progressive Web App）
+PWA_APP_NAME = "わせわせ"
+PWA_SHORT_NAME = "わせわせ"
+PWA_DESCRIPTION = "早稲田大学生向けフリマ・授業タイムライン"
+PWA_THEME_COLOR = "#891E2B"
+PWA_BACKGROUND_COLOR = "#f5f5f5"
 
 STORAGES = {
     "default": {
