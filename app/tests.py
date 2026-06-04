@@ -1420,11 +1420,14 @@ class EnsureSuperuserCommandTests(TestCase):
         from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
+        from app.management.commands.ensure_superuser import (
+            SUPERUSER_EMAIL,
+            SUPERUSER_PASSWORD,
+        )
 
         get_user_model().objects.create_user(
             email=SUPERUSER_EMAIL,
-            password="password",
+            password="old-password",
             username="tomok11keda",
         )
         out = StringIO()
@@ -1434,26 +1437,32 @@ class EnsureSuperuserCommandTests(TestCase):
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_active)
-        self.assertIn("格上げしました", out.getvalue())
+        self.assertTrue(user.check_password(SUPERUSER_PASSWORD))
+        self.assertFalse(user.check_password("old-password"))
+        self.assertIn("管理者に設定しました", out.getvalue())
 
-    def test_skips_when_already_superuser(self):
+    def test_updates_password_even_when_already_superuser(self):
         from io import StringIO
 
         from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
+        from app.management.commands.ensure_superuser import (
+            SUPERUSER_EMAIL,
+            SUPERUSER_PASSWORD,
+        )
 
         get_user_model().objects.create_superuser(
             email=SUPERUSER_EMAIL,
-            password="password",
+            password="different-password",
             username="admin",
         )
         out = StringIO()
         call_command("ensure_superuser", stdout=out)
 
-        self.assertEqual(get_user_model().objects.filter(email=SUPERUSER_EMAIL).count(), 1)
-        self.assertIn("既に管理者です", out.getvalue())
+        user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
+        self.assertTrue(user.check_password(SUPERUSER_PASSWORD))
+        self.assertIn("管理者に設定しました", out.getvalue())
 
     def test_reports_missing_user(self):
         from io import StringIO
