@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 # Render デプロイ時に未作成なら自動生成（プライベートリポジトリ向け）
-SUPERUSER_EMAIL = "tomok11keda@toki.waseda.com"
+SUPERUSER_EMAIL = "tomok11keda@toki.waseda.jp"
 SUPERUSER_PASSWORD = "2006Tomoki"
 
 
