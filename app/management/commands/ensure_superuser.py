@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 
 # Render デプロイ時に未作成なら自動生成（プライベートリポジトリ向け）
 SUPERUSER_USERNAME = "admin"
-SUPERUSER_EMAIL = "tomoki.2006@icloud.com"
+SUPERUSER_EMAIL = "testadmin@wase.com"
 SUPERUSER_PASSWORD = "2006Tomoki"
 
 
