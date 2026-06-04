@@ -1,32 +1,17 @@
-import os
-
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
+# Render デプロイ時に未作成なら自動生成（プライベートリポジトリ向け）
+SUPERUSER_USERNAME = "admin"
+SUPERUSER_EMAIL = "tomoki.2006@icloud.com"
+SUPERUSER_PASSWORD = "2006Tomoki"
+
 
 class Command(BaseCommand):
-    help = "環境変数に基づき、未作成ならスーパーユーザーを1件だけ作成する"
+    help = "未作成ならスーパーユーザーを1件だけ作成する"
 
     def handle(self, *args, **options):
-        username = os.environ.get("DJANGO_SUPERUSER_USERNAME", "admin").strip()
-        email = (
-            os.environ.get("DJANGO_SUPERUSER_EMAIL", "tomoki.2006@icloud.com")
-            .strip()
-            .lower()
-        )
-        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD", "").strip()
-
-        if not password:
-            self.stdout.write(
-                "DJANGO_SUPERUSER_PASSWORD 未設定のため、"
-                "スーパーユーザー作成をスキップします。"
-            )
-            return
-
-        if not email:
-            self.stderr.write("DJANGO_SUPERUSER_EMAIL が空です。")
-            return
-
+        email = SUPERUSER_EMAIL.strip().lower()
         User = get_user_model()
 
         if User.objects.filter(email=email).exists():
@@ -35,20 +20,20 @@ class Command(BaseCommand):
             )
             return
 
-        if User.objects.filter(username=username).exists():
+        if User.objects.filter(username=SUPERUSER_USERNAME).exists():
             self.stdout.write(
-                f"ユーザー名「{username}」は既に使用中のため作成をスキップします。"
+                f"ユーザー名「{SUPERUSER_USERNAME}」は既に使用中のため作成をスキップします。"
             )
             return
 
         User.objects.create_superuser(
             email=email,
-            password=password,
-            username=username,
+            password=SUPERUSER_PASSWORD,
+            username=SUPERUSER_USERNAME,
             is_active=True,
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f"スーパーユーザーを作成しました（username={username}, email={email}）。"
+                f"スーパーユーザーを作成しました（username={SUPERUSER_USERNAME}, email={email}）。"
             )
         )
