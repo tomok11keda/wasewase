@@ -1,31 +1,38 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-# Render デプロイ時に未作成なら自動生成（プライベートリポジトリ向け）
+# Render デプロイ時に既存ユーザーを管理者に格上げ（プライベートリポジトリ向け）
 SUPERUSER_EMAIL = "tomok11keda@toki.waseda.jp"
-SUPERUSER_PASSWORD = "2006Tomoki"
 
 
 class Command(BaseCommand):
-    help = "未作成ならスーパーユーザーを1件だけ作成する"
+    help = "既存ユーザーを検索し、未設定なら is_staff / is_superuser を有効化する"
 
     def handle(self, *args, **options):
         email = SUPERUSER_EMAIL.strip().lower()
         User = get_user_model()
 
-        if User.objects.filter(email=email).exists():
-            self.stdout.write(
-                f"スーパーユーザーは既に存在します（email={email}）。"
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            self.stderr.write(
+                f"メールアドレス {email} のユーザーが見つかりません。"
+                " 先にアプリへ登録してから再デプロイしてください。"
             )
             return
 
-        user = User.objects.create_superuser(
-            email=email,
-            password=SUPERUSER_PASSWORD,
-            is_active=True,
-        )
+        if user.is_superuser and user.is_staff:
+            self.stdout.write(
+                f"既に管理者です（email={email}, username={user.username}）。"
+            )
+            return
+
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        user.save(update_fields=["is_staff", "is_superuser", "is_active"])
         self.stdout.write(
             self.style.SUCCESS(
-                f"スーパーユーザーを作成しました（username={user.username}, email={email}）。"
+                f"管理者に格上げしました（username={user.username}, email={email}）。"
             )
         )

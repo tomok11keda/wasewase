@@ -1414,7 +1414,7 @@ class PwaTests(TestCase):
 
 
 class EnsureSuperuserCommandTests(TestCase):
-    def test_creates_superuser_when_not_exists(self):
+    def test_promotes_existing_user_to_superuser(self):
         from io import StringIO
 
         from django.contrib.auth import get_user_model
@@ -1422,15 +1422,21 @@ class EnsureSuperuserCommandTests(TestCase):
 
         from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
 
+        get_user_model().objects.create_user(
+            email=SUPERUSER_EMAIL,
+            password="password",
+            username="tomok11keda",
+        )
         out = StringIO()
         call_command("ensure_superuser", stdout=out)
 
         user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
-        self.assertIn("作成しました", out.getvalue())
+        self.assertTrue(user.is_active)
+        self.assertIn("格上げしました", out.getvalue())
 
-    def test_skips_when_email_already_exists(self):
+    def test_skips_when_already_superuser(self):
         from io import StringIO
 
         from django.contrib.auth import get_user_model
@@ -1441,11 +1447,24 @@ class EnsureSuperuserCommandTests(TestCase):
         get_user_model().objects.create_superuser(
             email=SUPERUSER_EMAIL,
             password="password",
-            username="existing",
+            username="admin",
         )
         out = StringIO()
         call_command("ensure_superuser", stdout=out)
 
-        self.assertEqual(get_user_model().objects.filter(is_superuser=True).count(), 1)
-        self.assertIn("既に存在します", out.getvalue())
+        self.assertEqual(get_user_model().objects.filter(email=SUPERUSER_EMAIL).count(), 1)
+        self.assertIn("既に管理者です", out.getvalue())
+
+    def test_reports_missing_user(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
+
+        out = StringIO()
+        err = StringIO()
+        call_command("ensure_superuser", stdout=out, stderr=err)
+
+        self.assertIn("見つかりません", err.getvalue())
 
