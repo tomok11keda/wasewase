@@ -2,8 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 # Render デプロイ時に未作成なら自動生成（プライベートリポジトリ向け）
-SUPERUSER_USERNAME = "admin"
-SUPERUSER_EMAIL = "testadmin@wase.com"
+SUPERUSER_EMAIL = "tomok11keda@toki.waseda.com"
 SUPERUSER_PASSWORD = "2006Tomoki"
 
 
@@ -20,20 +19,13 @@ class Command(BaseCommand):
             )
             return
 
-        if User.objects.filter(username=SUPERUSER_USERNAME).exists():
-            self.stdout.write(
-                f"ユーザー名「{SUPERUSER_USERNAME}」は既に使用中のため作成をスキップします。"
-            )
-            return
-
-        User.objects.create_superuser(
+        user = User.objects.create_superuser(
             email=email,
             password=SUPERUSER_PASSWORD,
-            username=SUPERUSER_USERNAME,
             is_active=True,
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f"スーパーユーザーを作成しました（username={SUPERUSER_USERNAME}, email={email}）。"
+                f"スーパーユーザーを作成しました（username={user.username}, email={email}）。"
             )
         )

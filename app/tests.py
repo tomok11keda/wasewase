@@ -1420,10 +1420,7 @@ class EnsureSuperuserCommandTests(TestCase):
         from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import (
-            SUPERUSER_EMAIL,
-            SUPERUSER_USERNAME,
-        )
+        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
 
         out = StringIO()
         call_command("ensure_superuser", stdout=out)
@@ -1431,7 +1428,6 @@ class EnsureSuperuserCommandTests(TestCase):
         user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
-        self.assertEqual(user.username, SUPERUSER_USERNAME)
         self.assertIn("作成しました", out.getvalue())
 
     def test_skips_when_email_already_exists(self):
