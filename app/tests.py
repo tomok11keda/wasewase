@@ -867,6 +867,27 @@ class ProfileAndFollowTests(TestCase):
         self.assertContains(profile_page, "新しい表示名")
         self.assertContains(profile_page, "@new_user_id")
 
+    def test_mypage_edit_persists_after_reload(self):
+        self.client.force_login(self.viewer)
+        self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "リロード後も残る名前",
+                "user_id": "persist_user",
+                "bio": "",
+                "department": "",
+                "grade": "",
+            },
+        )
+        mypage = self.client.get(reverse("mypage"))
+        self.assertContains(mypage, "リロード後も残る名前")
+        self.assertContains(mypage, "@persist_user")
+
+        profile = UserProfile.objects.get(user=self.viewer)
+        self.viewer.refresh_from_db()
+        self.assertEqual(profile.name, "リロード後も残る名前")
+        self.assertEqual(self.viewer.username, "persist_user")
+
     def test_user_profile_shows_product_count_from_market(self):
         Product.objects.create(
             seller=self.target,
