@@ -28,6 +28,11 @@ urlpatterns = [
     ),
     path("chat/<int:room_pk>/", app_views.chat_room, name="chat_room"),
     path(
+        "chat/<int:room_pk>/messages/",
+        app_views.chat_room_messages,
+        name="chat_room_messages",
+    ),
+    path(
         "chat/<int:room_pk>/message/",
         app_views.send_chat_message,
         name="send_chat_message",
@@ -43,6 +48,11 @@ urlpatterns = [
     path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
     path("user/<int:pk>/dm/start/", app_views.start_user_dm, name="start_user_dm"),
     path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),
+    path(
+        "dm/<int:room_pk>/messages/",
+        app_views.user_dm_room_messages,
+        name="user_dm_room_messages",
+    ),
     path(
         "dm/<int:room_pk>/message/",
         app_views.send_user_dm_message,

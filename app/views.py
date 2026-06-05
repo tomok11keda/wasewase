@@ -87,8 +87,41 @@ from .services import (
     is_trade_participant,
     notify_seller,
     prioritize_same_faculty,
+    user_display_name,
 )
 User = get_user_model()
+
+
+def _serialize_room_message(message, current_user_id):
+    created = timezone.localtime(message.created_at)
+    return {
+        "id": message.pk,
+        "sender_id": message.sender_id,
+        "sender_name": user_display_name(message.sender),
+        "body": message.body,
+        "created_at": created.strftime("%m/%d %H:%M"),
+        "is_mine": message.sender_id == current_user_id,
+    }
+
+
+def _room_messages_json(request, message_queryset):
+    after = request.GET.get("after", "").strip()
+    messages_qs = message_queryset.select_related("sender").order_by("created_at")
+    if after.isdigit():
+        messages_qs = messages_qs.filter(pk__gt=int(after))
+
+    latest_id = (
+        message_queryset.order_by("-pk").values_list("pk", flat=True).first() or 0
+    )
+    return JsonResponse(
+        {
+            "messages": [
+                _serialize_room_message(message, request.user.id)
+                for message in messages_qs
+            ],
+            "latest_id": latest_id,
+        }
+    )
 
 
 def index(request):
@@ -421,6 +454,9 @@ def chat_room(request, room_pk):
         else room.product.seller
     )
     chat_messages = room.messages.select_related("sender")
+    latest_message_id = (
+        chat_messages.order_by("-pk").values_list("pk", flat=True).first() or 0
+    )
 
     return render(
         request,
@@ -430,6 +466,10 @@ def chat_room(request, room_pk):
             "product": room.product,
             "partner": partner,
             "chat_messages": chat_messages,
+            "latest_message_id": latest_message_id,
+            "messages_poll_url": reverse(
+                "chat_room_messages", kwargs={"room_pk": room.pk}
+            ),
         },
     )
 
@@ -474,6 +514,19 @@ def send_chat_message(request, room_pk):
         )
 
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+@require_GET
+def chat_room_messages(request, room_pk):
+    room = get_object_or_404(
+        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
+        pk=room_pk,
+    )
+    if not can_access_chat_room(room, request.user):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    return _room_messages_json(request, room.messages)
 
 
 @login_required
@@ -894,6 +947,9 @@ def user_dm_room(request, room_pk):
 
     partner = room.other_user(request.user)
     dm_messages = room.messages.select_related("sender")
+    latest_message_id = (
+        dm_messages.order_by("-pk").values_list("pk", flat=True).first() or 0
+    )
     back_url = (
         reverse("user_profile", kwargs={"pk": partner.pk}) + "?from=thread"
         if partner
@@ -908,6 +964,10 @@ def user_dm_room(request, room_pk):
             "partner": partner,
             "dm_messages": dm_messages,
             "back_url": back_url,
+            "latest_message_id": latest_message_id,
+            "messages_poll_url": reverse(
+                "user_dm_room_messages", kwargs={"room_pk": room.pk}
+            ),
         },
     )
 
@@ -948,6 +1008,19 @@ def send_user_dm_message(request, room_pk):
         )
 
     return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+@require_GET
+def user_dm_room_messages(request, room_pk):
+    room = get_object_or_404(
+        UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
+        pk=room_pk,
+    )
+    if not can_access_dm_room(room, request.user):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    return _room_messages_json(request, room.messages)
 
 
 @login_required

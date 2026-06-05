@@ -5,7 +5,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
-  <meta http-equiv="refresh" content="15">
   <title>わせわせ — DM{% if partner %} @{{ partner|display_name }}{% endif %}</title>
   <style>
     :root {
@@ -241,36 +240,47 @@
       <h2>メッセージ</h2>
       <p class="chat-hint">1対1のやり取りです（15秒ごとに自動更新）</p>
 
-      {% if dm_messages %}
-      <ul class="message-list" id="message-list">
-        {% for msg in dm_messages %}
-        <li class="chat-msg{% if msg.sender_id == user.id %} is-mine{% endif %}">
-          <div class="chat-msg-meta">
-            {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}
-          </div>
-          {{ msg.body }}
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="empty-message">まだメッセージはありません。最初の一言を送ってみましょう。</p>
-      {% endif %}
+      <div
+        id="message-area"
+        data-poll-url="{{ messages_poll_url }}"
+        data-latest-id="{{ latest_message_id }}"
+      >
+        {% if dm_messages %}
+        <ul class="message-list" id="message-list">
+          {% for msg in dm_messages %}
+          <li
+            class="chat-msg{% if msg.sender_id == user.id %} is-mine{% endif %}"
+            data-message-id="{{ msg.pk }}"
+          >
+            <div class="chat-msg-meta">
+              {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}
+            </div>
+            {{ msg.body }}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-message" id="empty-message">まだメッセージはありません。最初の一言を送ってみましょう。</p>
+        {% endif %}
+      </div>
 
       <form class="chat-form" method="post" action="{% url 'send_user_dm_message' room.pk %}">
         {% csrf_token %}
-        <input type="text" name="body" placeholder="メッセージを入力..." maxlength="500" required autocomplete="off">
+        <input
+          type="text"
+          id="message-input"
+          name="body"
+          placeholder="メッセージを入力..."
+          maxlength="500"
+          required
+          autocomplete="off"
+        >
         <button type="submit">送信</button>
       </form>
     </section>
   </main>
 
-  {% if dm_messages %}
-  <script>
-    (function () {
-      var list = document.getElementById("message-list");
-      if (list) list.scrollTop = list.scrollHeight;
-    })();
-  </script>
-  {% endif %}
+  {% load static %}
+  <script src="{% static 'js/chat_poll.js' %}"></script>
 </body>
 </html>
