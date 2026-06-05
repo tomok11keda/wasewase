@@ -747,12 +747,19 @@ def mypage_edit(request):
             request.POST, instance=profile, user=request.user
         )
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                saved_profile = form.save()
+            request.user.refresh_from_db()
+            profile = UserProfile.objects.get(pk=saved_profile.pk)
             messages.success(
                 request,
                 "ニックネーム・ユーザーID・プロフィールを更新しました。",
             )
             return redirect(reverse("mypage"))
+        messages.error(request, "保存に失敗しました。入力内容を確認してください。")
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
     else:
         form = AccountProfileForm(instance=profile, user=request.user)
 
@@ -1057,7 +1064,7 @@ def _persist_signup_user(form):
 
     UserProfile.objects.update_or_create(
         user=user,
-        defaults={"department": faculty},
+        defaults={"department": faculty, "name": nickname},
     )
     return user
 

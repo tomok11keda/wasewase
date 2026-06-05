@@ -3,6 +3,7 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import get_user_model
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from .constants import FACULTY_CHOICES, WASEDA_EMAIL_ERROR, is_waseda_email
 from .models import (
@@ -202,10 +203,23 @@ class AccountProfileForm(forms.ModelForm):
         return user_id
 
     def save(self, commit=True):
-        profile = super().save(commit=commit)
-        if self.account_user:
-            self.account_user.username = self.cleaned_data["user_id"]
-            self.account_user.save(update_fields=["username"])
+        profile = super().save(commit=False)
+        user_id = self.cleaned_data["user_id"]
+
+        if commit:
+            with transaction.atomic():
+                profile.save()
+                if self.account_user:
+                    updated = User.objects.filter(pk=self.account_user.pk).update(
+                        username=user_id
+                    )
+                    if updated != 1:
+                        raise ValidationError("ユーザー情報の更新に失敗しました。")
+                    self.account_user.username = user_id
+            profile.refresh_from_db()
+            if self.account_user:
+                self.account_user.refresh_from_db()
+
         return profile
 
 

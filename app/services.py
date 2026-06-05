@@ -13,15 +13,21 @@ def user_display_name(user: AbstractBaseUser | None) -> str:
         return "匿名"
     if getattr(user, "is_authenticated", True) is False:
         return "匿名"
-    profile = None
-    if hasattr(user, "profile"):
-        try:
-            profile = user.profile
-        except UserProfile.DoesNotExist:
-            profile = None
-    if profile and profile.name and profile.name.strip():
-        return profile.name.strip()
-    return (user.username or "").strip() or "ユーザー"
+
+    profile_name = (
+        UserProfile.objects.filter(user_id=user.pk)
+        .values_list("name", flat=True)
+        .first()
+    )
+    if profile_name and str(profile_name).strip():
+        return str(profile_name).strip()
+
+    username = (
+        user.__class__.objects.filter(pk=user.pk)
+        .values_list("username", flat=True)
+        .first()
+    )
+    return (username or getattr(user, "username", "") or "").strip() or "ユーザー"
 
 
 def get_following_user_ids(user: AbstractBaseUser) -> list[int]:

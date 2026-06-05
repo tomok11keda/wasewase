@@ -96,7 +96,12 @@ class UserProfile(models.Model):
         """アプリ内の表示名（ニックネーム）。未設定時はユーザーID。"""
         if self.name and self.name.strip():
             return self.name.strip()
-        return self.user.username
+        username = (
+            User.objects.filter(pk=self.user_id)
+            .values_list("username", flat=True)
+            .first()
+        )
+        return username or self.user.username
 
     @property
     def department_grade_display(self) -> str:
