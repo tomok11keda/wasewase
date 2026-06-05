@@ -320,10 +320,15 @@ STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
+    # collectstatic で STATIC_ROOT に集約。配信は WhiteNoise ミドルウェアが担当。
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+# 本番: build.sh の collectstatic 後は staticfiles/ のみから配信（開発時は自動探索）
+WHITENOISE_USE_FINDERS = DEBUG
+WHITENOISE_AUTOREFRESH = DEBUG
 
 if USE_CLOUDINARY:
     STORAGES["default"] = {

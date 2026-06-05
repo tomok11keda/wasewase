@@ -1297,6 +1297,46 @@ class ProductChatTests(TestCase):
         page = self.client.get(reverse("chat_room", args=[room.pk]))
         self.assertContains(page, "こんにちは、購入希望です。")
 
+    def test_chat_room_uses_partial_poll_instead_of_meta_refresh(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        self.client.force_login(self.buyer)
+        page = self.client.get(reverse("chat_room", args=[room.pk]))
+        self.assertNotContains(page, 'http-equiv="refresh"')
+        self.assertContains(page, 'id="message-area"')
+        self.assertContains(page, 'id="message-input"')
+        self.assertContains(page, reverse("chat_room_messages", args=[room.pk]))
+
+    def test_chat_room_messages_api_returns_only_new_messages(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        first = Message.objects.create(
+            chat_room=room,
+            sender=self.buyer,
+            body="1通目",
+        )
+        second = Message.objects.create(
+            chat_room=room,
+            sender=self.seller,
+            body="2通目",
+        )
+        self.client.force_login(self.buyer)
+        response = self.client.get(
+            reverse("chat_room_messages", args=[room.pk]),
+            {"after": first.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["latest_id"], second.pk)
+        self.assertEqual(len(data["messages"]), 1)
+        self.assertEqual(data["messages"][0]["id"], second.pk)
+        self.assertEqual(data["messages"][0]["body"], "2通目")
+        self.assertTrue(data["messages"][0]["is_mine"] is False)
+
+    def test_other_user_cannot_poll_chat_room_messages(self):
+        room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("chat_room_messages", args=[room.pk]))
+        self.assertEqual(response.status_code, 403)
+
     def test_product_detail_shows_chat_button_for_non_seller(self):
         self.client.force_login(self.buyer)
         page = self.client.get(reverse("product_detail", args=[self.product.pk]))
@@ -1375,6 +1415,46 @@ class UserDirectMessageTests(TestCase):
         self.client.force_login(self.user_b)
         page = self.client.get(reverse("user_dm_room", args=[room.pk]))
         self.assertContains(page, "こんにちは！")
+
+    def test_dm_room_uses_partial_poll_instead_of_meta_refresh(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        self.client.force_login(self.user_a)
+        page = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertNotContains(page, 'http-equiv="refresh"')
+        self.assertContains(page, 'id="message-area"')
+        self.assertContains(page, 'id="message-input"')
+        self.assertContains(page, reverse("user_dm_room_messages", args=[room.pk]))
+
+    def test_dm_room_messages_api_returns_only_new_messages(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        first = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_a,
+            body="最初",
+        )
+        second = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="返信",
+        )
+        self.client.force_login(self.user_a)
+        response = self.client.get(
+            reverse("user_dm_room_messages", args=[room.pk]),
+            {"after": first.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["latest_id"], second.pk)
+        self.assertEqual(len(data["messages"]), 1)
+        self.assertEqual(data["messages"][0]["id"], second.pk)
+        self.assertEqual(data["messages"][0]["body"], "返信")
+        self.assertTrue(data["messages"][0]["is_mine"] is False)
+
+    def test_other_user_cannot_poll_dm_room_messages(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("user_dm_room_messages", args=[room.pk]))
+        self.assertEqual(response.status_code, 403)
 
     def test_profile_shows_dm_button_for_other_user(self):
         self.client.force_login(self.user_a)
