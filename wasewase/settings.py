@@ -251,6 +251,28 @@ WSGI_APPLICATION = 'wasewase.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Render 永続ディスクのマウント先（ダッシュボードの Mount Path と一致させる）
+RENDER_DEFAULT_DISK_MOUNT = "/opt/render/project/src/data"
+
+
+def _resolve_sqlite_db_path() -> Path:
+    """
+    SQLite の保存先。
+    - ローカル: プロジェクト直下の db.sqlite3
+    - Render: 永続ディスク配下（再起動・デプロイ後も保持）
+    DATABASE_PATH があればそちらを最優先。
+    """
+    custom_path = _env("DATABASE_PATH")
+    if custom_path:
+        return Path(custom_path)
+
+    if RENDER_EXTERNAL_HOSTNAME:
+        disk_mount = _env("RENDER_DISK_PATH", default=RENDER_DEFAULT_DISK_MOUNT)
+        return Path(disk_mount) / "db.sqlite3"
+
+    return BASE_DIR / "db.sqlite3"
+
+
 DATABASE_URL = env("DATABASE_URL", default="")
 if DATABASE_URL:
     import dj_database_url
@@ -263,12 +285,23 @@ if DATABASE_URL:
         )
     }
 else:
+    SQLITE_DB_PATH = _resolve_sqlite_db_path()
+    if RENDER_EXTERNAL_HOSTNAME:
+        SQLITE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": SQLITE_DB_PATH,
         }
     }
+
+    if RENDER_EXTERNAL_HOSTNAME:
+        print(
+            f"[WASE] Database: SQLite on persistent disk ({SQLITE_DB_PATH})",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 # Password validation
