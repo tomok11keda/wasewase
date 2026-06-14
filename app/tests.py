@@ -1524,6 +1524,7 @@ class PwaTests(TestCase):
         self.assertEqual(privacy.status_code, 200)
         self.assertContains(privacy, "プライバシーポリシー")
         self.assertContains(privacy, "Google AdSense")
+        self.assertContains(privacy, "wasewaseofficial@gmail.com")
 
         terms = self.client.get(reverse("terms"))
         self.assertEqual(terms.status_code, 200)
@@ -1533,6 +1534,7 @@ class PwaTests(TestCase):
         home = self.client.get(reverse("home"))
         self.assertContains(home, reverse("privacy"))
         self.assertContains(home, reverse("terms"))
+        self.assertContains(home, "wasewaseofficial@gmail.com")
 
 
 class EnsureSuperuserCommandTests(TestCase):
