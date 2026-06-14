@@ -8,6 +8,7 @@ from app import views as app_views
 urlpatterns = [
     path("manifest.json", app_views.pwa_manifest, name="pwa_manifest"),
     path("service-worker.js", app_views.pwa_service_worker, name="pwa_service_worker"),
+    path("ads.txt", app_views.ads_txt, name="ads_txt"),
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
