@@ -9,6 +9,8 @@ urlpatterns = [
     path("manifest.json", app_views.pwa_manifest, name="pwa_manifest"),
     path("service-worker.js", app_views.pwa_service_worker, name="pwa_service_worker"),
     path("ads.txt", app_views.ads_txt, name="ads_txt"),
+    path("privacy/", app_views.privacy_policy, name="privacy"),
+    path("terms/", app_views.terms_of_service, name="terms"),
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),

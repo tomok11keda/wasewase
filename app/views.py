@@ -1533,6 +1533,14 @@ def ads_txt(request):
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
+def privacy_policy(request):
+    return render(request, "privacy.html")
+
+
+def terms_of_service(request):
+    return render(request, "terms.html")
+
+
 @require_GET
 @cache_control(max_age=0, no_cache=True, no_store=True, must_revalidate=True)
 def pwa_service_worker(request):
