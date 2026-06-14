@@ -1513,6 +1513,12 @@ class PwaTests(TestCase):
         self.assertContains(response, "/manifest.json")
         self.assertContains(response, "serviceWorker.register")
 
+    def test_ads_txt_is_served(self):
+        response = self.client.get(reverse("ads_txt"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/plain; charset=utf-8")
+        self.assertIn(b"Google AdSense ads.txt placeholder", response.content)
+
 
 class EnsureSuperuserCommandTests(TestCase):
     def test_promotes_existing_user_to_superuser(self):

@@ -1525,6 +1525,15 @@ def pwa_manifest(request):
 
 
 @require_GET
+@cache_control(max_age=3600, public=True)
+def ads_txt(request):
+    """Google AdSense 用 ads.txt（/ads.txt）"""
+    ads_path = settings.BASE_DIR / "ads.txt"
+    content = ads_path.read_text(encoding="utf-8")
+    return HttpResponse(content, content_type="text/plain; charset=utf-8")
+
+
+@require_GET
 @cache_control(max_age=0, no_cache=True, no_store=True, must_revalidate=True)
 def pwa_service_worker(request):
     """Service Worker（/service-worker.js）"""
