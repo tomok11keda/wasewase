@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}<title>わせわせ — プライバシーポリシー</title>{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --card: #fff;
+    --text: #222;
+    --muted: #666;
+    --accent: #891E2B;
+    --accent-dark: #6f1722;
+    --radius: 12px;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .legal-header {
+    background: var(--accent);
+    color: #fff;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--accent-dark);
+  }
+
+  .legal-header a {
+    color: #fff;
+    font-size: 14px;
+    text-decoration: none;
+  }
+
+  .legal-header h1 {
+    margin: 8px 0 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .legal-main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .legal-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    line-height: 1.75;
+    font-size: 14px;
+  }
+
+  .legal-card h2 {
+    margin: 24px 0 8px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .legal-card h2:first-child {
+    margin-top: 0;
+  }
+
+  .legal-card p {
+    margin: 0 0 12px;
+  }
+
+  .legal-card a {
+    color: var(--accent);
+    word-break: break-all;
+  }
+
+  .legal-date {
+    margin-top: 24px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="legal-header">
+  <a href="{% url 'home' %}">← トップへ</a>
+  <h1>プライバシーポリシー</h1>
+</header>
+
+<main class="legal-main">
+  <article class="legal-card">
+    <h2>1. 個人情報の管理</h2>
+    <p>「わせわせ」（以下、当サービス）は、ユーザーの個人情報への不正アクセス・紛失・破損・改ざん・漏洩などを防止するため、セキュリティシステムの維持・管理体制の整備等の必要な措置を講じ、個人情報の厳重な管理を行ないます。</p>
+
+    <h2>2. 個人情報の利用目的</h2>
+    <p>ユーザーからお預かりした個人情報は、当サービスからのご連絡や業務のご案内、ご質問に対する回答、およびサービスの円滑な運営（認証等）にのみ利用いたします。</p>
+
+    <h2>3. 広告の配信について</h2>
+    <p>当サービスでは、第三者配信の広告サービス「Google AdSense」を利用しています。</p>
+    <p>広告配信事業者は、ユーザーの興味に応じた商品やサービスの広告を表示するため、当サイトや他サイトへのアクセスに関する情報「Cookie」（氏名、住所、メール アドレス、電話番号は含まれません）を使用することがあります。</p>
+    <p>Cookieを無効にする設定およびGoogleアドセンスに関する詳細は「<a href="https://adssettings.google.com/" rel="noopener noreferrer" target="_blank">Google広告設定</a>」をご覧ください。</p>
+
+    <h2>4. 免責事項</h2>
+    <p>当サービスに掲載されている情報、あるいは当サービスを利用したことによって生じたトラブルや損失、損害に対して、当サービスの管理者は一切の責任を負いません。</p>
+
+    <h2>5. プライバシーポリシーの変更</h2>
+    <p>当サービスは、保有する個人情報に関して適用される日本の法令を遵守するとともに、本ポリシーの内容を適宜見直し、その改善に努めます。修正された最新のプライバシーポリシーは常に本ページにて開示されます。</p>
+
+    <p class="legal-date">【策定日】2026年6月14日</p>
+  </article>
+</main>
+{% endblock %}
+
+{% block site_footer %}{% include "includes/site_footer.html" %}{% endblock %}

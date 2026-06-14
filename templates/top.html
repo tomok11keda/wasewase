@@ -1077,6 +1077,35 @@
         max-width: none;
       }
     }
+
+    .site-footer {
+      margin: 8px 0 calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
+      padding: 12px 16px;
+      text-align: center;
+    }
+
+    .site-footer-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .site-footer-nav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .site-footer-nav a:hover {
+      text-decoration: underline;
+    }
+
+    .site-footer-sep {
+      color: #bbb;
+    }
   </style>
 </head>
 <body class="{% if tab == 'board' %}mode-board{% endif %}">
@@ -1307,6 +1336,8 @@
       {% endfor %}
     </div>
   </main>
+
+  {% include "includes/site_footer.html" %}
 
   <nav class="bottom-nav" aria-label="メイン">
     <a class="nav-item" href="{% url 'home' %}?tab={{ tab }}{% if feed_scope == 'following' %}&amp;feed=following{% endif %}" aria-current="page">

@@ -1519,6 +1519,21 @@ class PwaTests(TestCase):
         self.assertEqual(response["Content-Type"], "text/plain; charset=utf-8")
         self.assertIn(b"Google AdSense ads.txt placeholder", response.content)
 
+    def test_privacy_and_terms_pages_are_served(self):
+        privacy = self.client.get(reverse("privacy"))
+        self.assertEqual(privacy.status_code, 200)
+        self.assertContains(privacy, "プライバシーポリシー")
+        self.assertContains(privacy, "Google AdSense")
+
+        terms = self.client.get(reverse("terms"))
+        self.assertEqual(terms.status_code, 200)
+        self.assertContains(terms, "利用規約")
+        self.assertContains(terms, "第1条（利用資格）")
+
+        home = self.client.get(reverse("home"))
+        self.assertContains(home, reverse("privacy"))
+        self.assertContains(home, reverse("terms"))
+
 
 class EnsureSuperuserCommandTests(TestCase):
     def test_promotes_existing_user_to_superuser(self):
