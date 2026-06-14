@@ -1102,7 +1102,7 @@
       <a href="{% url 'home' %}?tab=flea{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
         class="{% if tab == 'flea' %}is-active{% endif %}">フリマ</a>
       <a href="{% url 'home' %}?tab=board{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
-        class="{% if tab == 'board' %}is-active{% endif %}">授業情報</a>
+        class="{% if tab == 'board' %}is-active{% endif %}">つぶやく</a>
     </nav>
   </header>
 
