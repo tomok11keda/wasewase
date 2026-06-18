@@ -1570,6 +1570,7 @@ class PwaTests(TestCase):
         home = self.client.get(reverse("home"))
         self.assertContains(home, reverse("privacy"))
         self.assertContains(home, reverse("terms"))
+        self.assertContains(home, "運営：『わせわせ』運営事務局")
         self.assertContains(home, "wasewaseofficial@gmail.com")
 
 
