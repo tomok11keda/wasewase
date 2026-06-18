@@ -627,7 +627,7 @@ class ProductTimestampDisplayTests(TestCase):
         )
 
     def test_home_product_card_shows_seller_and_posted_time(self):
-        response = self.client.get(reverse("home"))
+        response = self.client.get(reverse("home"), {"tab": "flea"})
 
         self.assertContains(response, "線形代数の教科書")
         self.assertContains(response, "seller")
@@ -668,7 +668,9 @@ class ProductTimestampDisplayTests(TestCase):
             faculty="法学部",
         )
 
-        response = self.client.get(reverse("home"), {"faculty": "基幹理工学部"})
+        response = self.client.get(
+            reverse("home"), {"tab": "flea", "faculty": "基幹理工学部"}
+        )
 
         self.assertContains(response, "線形代数の教科書")
         self.assertNotContains(response, "法学部の参考書")
@@ -1535,6 +1537,41 @@ class PwaTests(TestCase):
         self.assertContains(home, reverse("privacy"))
         self.assertContains(home, reverse("terms"))
         self.assertContains(home, "wasewaseofficial@gmail.com")
+
+
+class TimelineInfiniteScrollTests(TestCase):
+    def setUp(self):
+        from app.board_services import TIMELINE_INITIAL_SIZE
+
+        self.author = get_user_model().objects.create_user(
+            email="timeline-author@waseda.jp",
+            password="password",
+        )
+        self.initial_size = TIMELINE_INITIAL_SIZE
+        for i in range(self.initial_size + 5):
+            TimelinePost.objects.create(author=self.author, body=f"scroll-post-{i}")
+
+    def test_initial_timeline_shows_25_posts_without_show_all_button(self):
+        response = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="timeline-list"')
+        self.assertContains(response, 'data-has-more="true"')
+        self.assertNotContains(response, "すべて表示")
+        self.assertEqual(
+            response.content.decode().count('class="tweet-card'),
+            self.initial_size,
+        )
+
+    def test_timeline_feed_returns_next_batch(self):
+        response = self.client.get(
+            reverse("timeline_feed"),
+            {"offset": self.initial_size},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["next_offset"], self.initial_size + 5)
+        self.assertFalse(data["has_more"])
+        self.assertEqual(data["html"].count('class="tweet-card"'), 5)
 
 
 class EnsureSuperuserCommandTests(TestCase):

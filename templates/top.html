@@ -699,6 +699,18 @@
 
     .timeline-list { display: flex; flex-direction: column; gap: 10px; }
 
+    .timeline-scroll-status {
+      margin: 8px 0 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+
+    .timeline-scroll-sentinel {
+      height: 1px;
+    }
+
     .timeline-ad-slot {
       width: 100%;
       box-sizing: border-box;
@@ -1272,84 +1284,24 @@
     <p class="faculty-hint">🏷 {{ active_faculty }}で絞り込み中</p>
     {% endif %}
     <h2 class="section-title">{% if active_tag %}{{ active_tag }}{% elif query %}「{{ query }}」{% else %}タイムライン{% endif %}</h2>
-    <div class="timeline-list">
+    <div
+      class="timeline-list"
+      id="timeline-list"
+      data-feed-url="{% url 'timeline_feed' %}?tab=board{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
+      data-has-more="{% if timeline_has_more %}true{% else %}false{% endif %}"
+      data-next-offset="{{ timeline_next_offset }}"
+    >
       {% for post in timeline_posts %}
-      <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
-        <div class="tweet-header">
-          <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author|display_name }}</a>
-          <div class="tweet-header-end">
-            <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
-            {% if user.is_authenticated and post.author_id != user.id %}
-            <form class="tweet-dm-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn-tweet-dm" aria-label="{{ post.author|display_name }}にDM">DM</button>
-            </form>
-            {% elif user.is_authenticated and post.author_id == user.id %}
-            <form class="tweet-delete-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
-              {% csrf_token %}
-              <button type="submit" class="btn-tweet-delete" aria-label="投稿を削除">🗑 削除</button>
-            </form>
-            {% endif %}
-          </div>
-        </div>
-        {% if post.course_name %}
-        <a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
-        {% endif %}
-        {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
-        {% if post.professor_name %}
-        <p class="tweet-professor">教授: {{ post.professor_name }}先生</p>
-        {% endif %}
-        <p class="tweet-body">{{ post.body }}</p>
-        {% if post.image %}
-        <img class="tweet-image" src="{{ post.image.url }}" alt="{% if post.course_name %}{{ post.course_name }}の{% endif %}投稿画像" loading="lazy">
-        {% endif %}
-        {% if user.is_authenticated %}
-        <div class="tweet-actions">
-          <form method="post" action="{% url 'board_timeline_like' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-like{% if post.user_has_liked %} is-liked{% endif %}" aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}">{% if post.user_has_liked %}❤️{% else %}🤍{% endif %} いいね</button></form>
-          <form method="post" action="{% url 'board_timeline_god' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-god" {% if not can_god %}disabled{% endif %}>⚡ 神！</button></form>
-        </div>
-        {% endif %}
-        <p class="tweet-stats">❤️ {{ post.like_count }} · ⚡ {{ post.god_count }}</p>
-        <details class="timeline-comments">
-          <summary>💬 {{ post.comments.count }}</summary>
-          <div class="comment-list">
-            {% for comment in post.comments.all %}
-            <div class="timeline-comment">
-              <p class="comment-meta">
-                {% if comment.author %}{{ comment.author|display_name }}{% else %}匿名{% endif %}
-                · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
-                {% if user.is_authenticated and comment.author_id == user.id %}
-                <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
-                  {% csrf_token %}
-                  <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
-                </form>
-                {% endif %}
-              </p>
-              <p class="comment-body">{{ comment.body }}</p>
-            </div>
-            {% empty %}
-            <p class="comment-meta">まだコメントはありません。</p>
-            {% endfor %}
-          </div>
-          {% if user.is_authenticated %}
-          <form class="comment-form" method="post" action="{% url 'board_timeline_comment' post.pk %}{% if query %}?q={{ query|urlencode }}{% endif %}">
-            {% csrf_token %}
-            <input type="text" name="body" placeholder="コメントを入力..." required>
-            <button type="submit">送信</button>
-          </form>
-          {% else %}
-          <p class="comment-meta"><a href="{% url 'login' %}">ログイン</a>してコメント</p>
-          {% endif %}
-        </details>
-      </article>
-      {% if forloop.first %}
-      {% include "components/timeline_ad_slot.html" %}
-      {% endif %}
+      {% include "includes/timeline_post_card.html" with post=post show_ad_slot=forloop.first %}
       {% empty %}
       <p class="empty-message">
         {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。{% endif %}
       </p>
       {% endfor %}
+      {% if timeline_has_more %}
+      <div id="timeline-scroll-sentinel" class="timeline-scroll-sentinel" aria-hidden="true"></div>
+      <p id="timeline-scroll-status" class="timeline-scroll-status" aria-live="polite"></p>
+      {% endif %}
     </div>
   </main>
 
@@ -1376,5 +1328,9 @@
       <span>マイページ</span>
     </a>
   </nav>
+  {% if tab == 'board' and timeline_has_more %}
+  {% load static %}
+  <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
+  {% endif %}
 </body>
 </html>
