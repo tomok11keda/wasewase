@@ -66,6 +66,7 @@ urlpatterns = [
     path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),
     path("user/<int:pk>/follow/", app_views.toggle_follow, name="toggle_follow"),
     path("board/compose/", app_views.board_compose, name="board_compose"),
+    path("board/feed/", app_views.timeline_feed, name="timeline_feed"),
     path("board/post/<int:pk>/like/", app_views.board_timeline_like, name="board_timeline_like"),
     path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),
     path("board/post/<int:pk>/comment/", app_views.board_timeline_comment, name="board_timeline_comment"),

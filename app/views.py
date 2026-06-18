@@ -16,6 +16,7 @@ from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET, require_POST
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from .constants import FACULTY_CHOICES, TRADE_LOCATION_PRESETS
@@ -27,6 +28,9 @@ from .dm_services import (
 )
 from .board_services import (
     GOD_USES_PER_MONTH,
+    TIMELINE_INITIAL_SIZE,
+    TIMELINE_LOAD_MORE_SIZE,
+    build_timeline_posts_queryset,
     can_use_god_button,
     god_uses_remaining,
     notify_timeline_post_author,
@@ -125,9 +129,9 @@ def _room_messages_json(request, message_queryset):
 
 
 def index(request):
-    tab = request.GET.get("tab", "flea")
+    tab = request.GET.get("tab", "board")
     if tab not in ("flea", "board"):
-        tab = "flea"
+        tab = "board"
 
     feed_scope = request.GET.get("feed", "all").strip().lower()
     if feed_scope not in ("all", "following"):
@@ -152,38 +156,16 @@ def index(request):
     popular_tags = []
     active_tag = request.GET.get("tag", "").strip()
     timeline_form = None
+    timeline_has_more = False
+    timeline_next_offset = 0
+    timeline_total_count = 0
 
     if tab == "board":
-        timeline_posts = (
-            TimelinePost.objects.select_related("author", "author__profile")
-            .prefetch_related("comments__author")
-        )
-        if active_faculty:
-            timeline_posts = timeline_posts.filter(faculty=active_faculty)
-        if active_tag:
-            timeline_posts = timeline_posts.filter(course_name=active_tag)
-        if query:
-            timeline_posts = timeline_posts.filter(
-                Q(body__icontains=query)
-                | Q(course_name__icontains=query)
-                | Q(professor_name__icontains=query)
-            )
-        if feed_scope == "following":
-            if request.user.is_authenticated:
-                following_ids = get_following_user_ids(request.user)
-                timeline_posts = timeline_posts.filter(author_id__in=following_ids)
-            else:
-                timeline_posts = timeline_posts.none()
-        timeline_posts = timeline_posts.order_by("-created_at")
-        if request.user.is_authenticated:
-            timeline_posts = timeline_posts.annotate(
-                user_has_liked=Exists(
-                    TimelineLike.objects.filter(
-                        timeline_post_id=OuterRef("pk"),
-                        user_id=request.user.id,
-                    )
-                )
-            )
+        timeline_qs = build_timeline_posts_queryset(request)
+        timeline_total_count = timeline_qs.count()
+        timeline_posts = list(timeline_qs[:TIMELINE_INITIAL_SIZE])
+        timeline_has_more = timeline_total_count > len(timeline_posts)
+        timeline_next_offset = len(timeline_posts)
 
         trending_posts = (
             TimelinePost.objects.select_related("author")
@@ -278,7 +260,43 @@ def index(request):
                 active_faculty=active_faculty,
                 active_tag=active_tag,
             ),
+            "timeline_has_more": timeline_has_more,
+            "timeline_next_offset": timeline_next_offset,
+            "timeline_total_count": timeline_total_count,
         },
+    )
+
+
+@require_GET
+def timeline_feed(request):
+    """タイムラインの追加読み込み（無限スクロール用）。"""
+    try:
+        offset = max(0, int(request.GET.get("offset", "0")))
+    except ValueError:
+        offset = 0
+
+    timeline_qs = build_timeline_posts_queryset(request)
+    total_count = timeline_qs.count()
+    posts = list(timeline_qs[offset : offset + TIMELINE_LOAD_MORE_SIZE])
+    next_offset = offset + len(posts)
+    has_more = next_offset < total_count
+
+    html = render_to_string(
+        "includes/timeline_posts_batch.html",
+        {
+            "timeline_posts": posts,
+            "query": request.GET.get("q", "").strip(),
+            "can_god": can_use_god_button(request.user),
+        },
+        request=request,
+    )
+    return JsonResponse(
+        {
+            "html": html,
+            "has_more": has_more,
+            "next_offset": next_offset,
+            "total_count": total_count,
+        }
     )
 
 

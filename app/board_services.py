@@ -1,12 +1,17 @@
 from urllib.parse import quote
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.db.models import Exists, OuterRef, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import GodButtonUse, Notification, TimelinePost
+from .constants import FACULTY_CHOICES
+from .models import GodButtonUse, Notification, TimelineLike, TimelinePost
+from .services import get_following_user_ids
 
 GOD_USES_PER_MONTH = 3
+TIMELINE_INITIAL_SIZE = 25
+TIMELINE_LOAD_MORE_SIZE = 15
 
 
 def god_uses_this_month(user: AbstractBaseUser) -> int:
@@ -24,6 +29,51 @@ def god_uses_remaining(user: AbstractBaseUser) -> int:
 
 def can_use_god_button(user: AbstractBaseUser) -> bool:
     return user.is_authenticated and god_uses_remaining(user) > 0
+
+
+def build_timeline_posts_queryset(request):
+    """タイムライン一覧用の QuerySet（フィルタ・いいね状態付き）。"""
+    faculty_values = {value for value, _ in FACULTY_CHOICES}
+    active_faculty = request.GET.get("faculty", "").strip()
+    if active_faculty not in faculty_values:
+        active_faculty = ""
+    active_tag = request.GET.get("tag", "").strip()
+    query = request.GET.get("q", "").strip()
+    feed_scope = request.GET.get("feed", "all").strip().lower()
+    if feed_scope not in ("all", "following"):
+        feed_scope = "all"
+
+    timeline_posts = (
+        TimelinePost.objects.select_related("author", "author__profile")
+        .prefetch_related("comments__author")
+    )
+    if active_faculty:
+        timeline_posts = timeline_posts.filter(faculty=active_faculty)
+    if active_tag:
+        timeline_posts = timeline_posts.filter(course_name=active_tag)
+    if query:
+        timeline_posts = timeline_posts.filter(
+            Q(body__icontains=query)
+            | Q(course_name__icontains=query)
+            | Q(professor_name__icontains=query)
+        )
+    if feed_scope == "following":
+        if request.user.is_authenticated:
+            following_ids = get_following_user_ids(request.user)
+            timeline_posts = timeline_posts.filter(author_id__in=following_ids)
+        else:
+            timeline_posts = TimelinePost.objects.none()
+    timeline_posts = timeline_posts.order_by("-created_at")
+    if request.user.is_authenticated:
+        timeline_posts = timeline_posts.annotate(
+            user_has_liked=Exists(
+                TimelineLike.objects.filter(
+                    timeline_post_id=OuterRef("pk"),
+                    user_id=request.user.id,
+                )
+            )
+        )
+    return timeline_posts
 
 
 def timeline_post_link(post: TimelinePost) -> str:
