@@ -493,6 +493,40 @@ class BoardTimelineImageTests(TestCase):
         page = self.client.get(reverse("home"), {"tab": "board"})
         self.assertContains(page, "テキストだけの投稿です")
 
+    def test_board_compose_redirects_to_unfiltered_timeline(self):
+        other = get_user_model().objects.create_user(
+            email="other@example.com",
+            password="password",
+        )
+        TimelinePost.objects.create(
+            author=other,
+            body="別授業の投稿です",
+            course_name="統計学",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("board_compose"),
+            {
+                "body": "線形代数のメモです",
+                "course_name": "線形代数",
+                "professor_name": "",
+                "faculty": "基幹理工学部",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        post = TimelinePost.objects.get(body="線形代数のメモです")
+        self.assertEqual(
+            response["Location"],
+            f"{reverse('home')}?tab=board#post-{post.pk}",
+        )
+        self.assertNotIn("tag=", response["Location"])
+
+        page = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(page, "線形代数のメモです")
+        self.assertContains(page, "別授業の投稿です")
+
 
 class BoardTimelineNotificationTests(TestCase):
     def setUp(self):

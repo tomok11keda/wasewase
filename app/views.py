@@ -1349,11 +1349,12 @@ def board_compose(request):
                 request,
                 "投稿の保存に失敗しました。画像アップロード設定を確認してください。",
             )
-            return _board_redirect(request, tag=form.data.get("course_name", ""))
+            return _board_redirect(request)
         if post.image:
             messages.success(request, "写真付きのつぶやきを投稿しました。")
         else:
             messages.success(request, "つぶやきを投稿しました。")
+        return _board_redirect(request, post_id=post.pk)
     else:
         _log_auth_debug("BOARD COMPOSE", f"errors={form.errors.as_json()}")
         _log_media_debug(
@@ -1364,7 +1365,7 @@ def board_compose(request):
         for field, errors in form.errors.items():
             for error in errors:
                 messages.error(request, f"{field}: {error}")
-    return _board_redirect(request, tag=form.data.get("course_name", ""))
+    return _board_redirect(request)
 
 
 @login_required
