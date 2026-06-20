@@ -1090,6 +1090,254 @@
       }
     }
 
+    /* --- AdSense / SEO ランディングコンテンツ --- */
+    .landing-info {
+      background: linear-gradient(180deg, #f0f2f6 0%, var(--bg) 120px);
+      border-top: 1px solid #e5e5e5;
+      padding: 20px 8px 8px;
+    }
+
+    .landing-info-inner {
+      max-width: 672px;
+      margin: 0 auto;
+    }
+
+    .landing-info-hero {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid #e8edf2;
+      padding: 18px 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .landing-info-hero h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.4;
+    }
+
+    .landing-info-hero p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.75;
+      color: #444;
+    }
+
+    .info-block {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid #e8edf2;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .info-block h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f7edf0;
+    }
+
+    .info-block > p,
+    .info-block li,
+    .info-block dd {
+      font-size: 14px;
+      line-height: 1.75;
+      color: #444;
+    }
+
+    .info-block > p {
+      margin: 0 0 12px;
+    }
+
+    .info-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .info-step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px;
+      background: #fafbfc;
+      border-radius: 10px;
+      border-left: 4px solid var(--accent);
+    }
+
+    .info-step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .info-step-body h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .info-step-body p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #555;
+    }
+
+    .info-rules-list {
+      margin: 0;
+      padding-left: 1.2em;
+    }
+
+    .info-rules-list li {
+      margin-bottom: 10px;
+    }
+
+    .info-rules-list li:last-child {
+      margin-bottom: 0;
+    }
+
+    .info-faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .info-faq-item {
+      border: 1px solid #e8edf2;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fafbfc;
+    }
+
+    .info-faq-item summary {
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .info-faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .info-faq-item summary::before {
+      content: "Q. ";
+      font-weight: 800;
+    }
+
+    .info-faq-item[open] summary {
+      border-bottom: 1px solid #e8edf2;
+      background: #f7edf0;
+    }
+
+    .info-faq-answer {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.75;
+      color: #555;
+    }
+
+    .info-faq-answer::before {
+      content: "A. ";
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .info-sample-note {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #666;
+      background: #fff8e6;
+      border: 1px solid #f0e0a8;
+      border-radius: 8px;
+    }
+
+    .info-sample-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .info-sample-card {
+      padding: 14px;
+      border: 1px solid #e8edf2;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #fff 0%, #fafbfc 100%);
+    }
+
+    .info-sample-faculty {
+      display: inline-block;
+      margin-bottom: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      background: #f7edf0;
+      border-radius: 4px;
+    }
+
+    .info-sample-title {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .info-sample-meta {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .info-sample-price {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      background: rgba(137, 30, 43, 0.88);
+      border-radius: 6px;
+    }
+
+    .info-sample-desc {
+      margin: 10px 0 0;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #555;
+    }
+
+    @media (min-width: 600px) {
+      .info-sample-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
     .site-footer {
       margin: 8px 0 calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
       padding: 12px 16px;
@@ -1310,6 +1558,316 @@
       {% endif %}
     </div>
   </main>
+
+  <section class="landing-info" aria-label="わせわせサービス詳細ガイド">
+    <div class="landing-info-inner">
+
+      <header class="landing-info-hero">
+        <h2>わせわせ — 早稲田大学キャンパス内フリマ＆授業タイムライン</h2>
+        <p>
+          「わせわせ」は、早稲田大学の在学生を対象とした、学内限定のキャンパスフリーマーケットサービスです。
+          郵送や宅配便を使わず、早稲田大学の各キャンパス内で対面手渡しによる取引を基本としているため、
+          教科書・参考書・過去問・ノートなど、学業に直結するアイテムを「その日のうちに」「近くで」「安心して」受け渡しできます。
+          同時に、授業名タグ付きのタイムライン（つぶやき）機能により、履修情報の共有や試験対策のヒント交換も可能です。
+          本ページでは、わせわせの取引の流れ、安全な利用のためのガイドライン、よくある質問、
+          および各学部でよく流通する教科書の出品例を詳しくご紹介します。
+        </p>
+      </header>
+
+      <article class="info-block" id="info-flow">
+        <h3>📦 詳細な取引フロー（キャンパス内対面手渡し）</h3>
+        <p>
+          一般的なフリマアプリのように商品を梱包して郵送する必要はありません。
+          わせわせは「早稲田大学のキャンパス内での対面手渡し」を前提とした、学生同士の近距離取引プラットフォームです。
+          以下の4ステップで、出品から取引完了までをスムーズかつ安全に進められます。
+        </p>
+        <ol class="info-steps">
+          <li class="info-step">
+            <span class="info-step-num">1</span>
+            <div class="info-step-body">
+              <h4>サイト内で購入手続きを行う</h4>
+              <p>
+                トップページまたは検索画面から気になる教科書・参考書を見つけたら、商品詳細ページを開き「購入する」ボタンから購入手続きに進みます。
+                早稲田大学のメールアドレス（waseda.jp）で登録・ログインした在学生のみが取引に参加できるため、
+                学外の第三者が紛れ込むリスクを低減しています。購入確定後、出品者と購入者の双方に取引専用チャットルームが自動的に開設され、
+                以降のやり取りはすべてアプリ内で完結します。現金の授受はキャンパス内での対面時に行う想定であり、
+                サイト上での決済機能は提供していません。価格・商品状態・学部情報は出品時に明記されているため、
+                購入前に内容を十分ご確認ください。
+              </p>
+            </div>
+          </li>
+          <li class="info-step">
+            <span class="info-step-num">2</span>
+            <div class="info-step-body">
+              <h4>学内チャットで会う日時・場所を決定する</h4>
+              <p>
+                購入手続き完了後、取引専用チャットで出品者と購入者が直接メッセージを交換し、受け渡しの日時と場所を調整します。
+                早稲田キャンパス（西早稲田、戸山、所沢、学習院大学前・早稲田連携エリアなど）内の、
+                人通りの多い公共スペースを受け渡し場所として指定することを強く推奨しています。
+                例として、西早稲田キャンパスでは大隈記念講堂前広場付近、戸山キャンパスではキャンパス正門付近のベンチエリア、
+                所沢キャンパスでは50周年記念館ロビー付近などが利用されやすい場所です。
+                チャットでは「何時頃に」「どの建物の前で」「何を着ているか」など、双方が迷わない程度の情報を共有してください。
+                急な予定変更がある場合も、チャット上で早めに連絡することがトラブル防止の基本です。
+              </p>
+            </div>
+          </li>
+          <li class="info-step">
+            <span class="info-step-num">3</span>
+            <div class="info-step-body">
+              <h4>キャンパス内で対面し、商品を手渡す</h4>
+              <p>
+                約束した日時・場所で出品者と購入者が直接会い、商品を目視確認のうえ手渡しします。
+                教科書であれば「版数」「書き込みの有無」「付属品（解答集・シール付きノートなど）の有無」をその場で確認し、
+                出品ページの説明と相違がないかをチェックしてください。問題があれば、その場で丁寧に確認・相談することが重要です。
+                受け渡しは必ず早稲田大学のキャンパス内、またはキャンパスから徒歩圏内の明るく人目のある場所で行い、
+                夜間の僻静な場所や学外の私有地での取引は避けてください。現金の授受は商品確認後に行い、
+                双方が了承したうえで取引を進めてください。わせわせは対面手渡しに特化しているため、
+                配送料や到着待ちのストレスなく、学期初め・試験前など必要なタイミングで素早く教科書を手に入れられます。
+              </p>
+            </div>
+          </li>
+          <li class="info-step">
+            <span class="info-step-num">4</span>
+            <div class="info-step-body">
+              <h4>その場でスマホから評価し、取引完了</h4>
+              <p>
+                商品の受け渡しと代金の授受が無事に完了したら、双方がスマートフォンからわせわせの取引画面を開き、
+                「取引完了」および相互評価（あれば）を行います。これにより取引ステータスが「完了」に更新され、
+                該当商品は他のユーザーから購入できない状態（SOLD OUT）となります。
+                丁寧な対応をしてくれた相手には好印象の評価を、問題があった場合は運営までご報告ください。
+                取引完了後も、チャット履歴は一定期間参照可能です。トラブルが発生した場合の証拠としても活用できます。
+                わせわせ運営事務局は、通報や問い合わせに基づき、悪質な出品・不適切な行為に対してアカウント停止等の措置を行います。
+                早稲田の学生同士が気持ちよく循環させるための、学内フリマ文化の定着を目指しています。
+              </p>
+            </div>
+          </li>
+        </ol>
+      </article>
+
+      <article class="info-block" id="info-safety">
+        <h3>🛡 安心安全ガイドライン・利用ルール</h3>
+        <p>
+          わせわせを安全に、快適にご利用いただくため、以下のルールを必ずお守りください。
+          本ガイドラインは早稲田大学の在学生同士が安心して取引できる環境を維持するために定められており、
+          すべてのユーザーに適用されます。違反が確認された場合、警告・出品削除・アカウント停止などの措置を行うことがあります。
+        </p>
+        <ul class="info-rules-list">
+          <li>
+            <strong>対面場所は必ず人通りの多い学内公共エリアを選ぶこと。</strong>
+            早稲田大学の各キャンパス内において、正門付近・講堂前・食堂前・図書館ロビー付近など、
+            昼夜を問わず一定の人目がある場所での受け渡しを原則とします。夜間の単独待ち合わせ、
+            学外の駐車場やマンションエントランスなど、第三者の監視が期待できない場所での取引は禁止です。
+          </li>
+          <li>
+            <strong>出品可能な商品は、主に教科書・参考書・学習用ノート・過去問に限定します。</strong>
+            わせわせは学業支援を目的としたサービスです。教科書・参考書・レポート用ノート・試験対策プリントなど、
+            学習に直接関連する物品の出品を推奨します。衣類・電化製品・食品・コスメ・チケット類など、
+            学業と無関係な物品の出品は原則禁止とし、運営判断により削除する場合があります。
+          </li>
+          <li>
+            <strong>偽ブランド品・違法物・著作権侵害物の出品は固く禁止します。</strong>
+            海賊版教科書、無断複製されたプリント、違法薬物、武器類、盗品、その他法令に抵触する物品の出品・購入は一切認めません。
+            発見次第、即時削除および関係機関への通報を含む厳正な対応を行います。
+          </li>
+          <li>
+            <strong>出品情報は正確に記載し、虚偽説明をしないこと。</strong>
+            書き込みの有無、版数、付属品の有無、商品の状態（新品同様・やや使用感あり等）を出品ページに正直に記載してください。
+            実物と説明が大きく異なる場合、取引キャンセルや通報の対象となります。
+          </li>
+          <li>
+            <strong>ハラスメント・差別的発言・個人情報の不正取得を禁止します。</strong>
+            チャットやタイムラインにおいて、相手を侮辱する発言、ストーカー行為、
+            取引に必要な範囲を超えた個人情報（自宅住所・電話番号等）の要求は禁止です。
+          </li>
+          <li>
+            <strong>運営によるパトロールと通報制度を活用してください。</strong>
+            わせわせ運営事務局は、出品内容・チャット・タイムライン投稿を定期的に確認し、
+            ガイドライン違反が疑われる場合は調査・削除・アカウント停止等の措置を行います。
+            不審な出品や迷惑行為を見つけた際は、商品ページまたはプロフィールから通報するか、
+            お問い合わせメール（wasewaseofficial@gmail.com）までご連絡ください。
+          </li>
+          <li>
+            <strong>早稲田大学の規則・法令を遵守すること。</strong>
+            わせわせの利用は、早稲田大学の学生規則および日本国の関連法令の範囲内で行ってください。
+            学内での迷惑行為、無許可の商業活動、学業以外の営利目的での大量出品等は禁止です。
+          </li>
+        </ul>
+      </article>
+
+      <article class="info-block" id="info-faq">
+        <h3>❓ よくある質問（FAQ）</h3>
+        <div class="info-faq-list">
+          <details class="info-faq-item">
+            <summary>お金のやり取りはどうするの？サイト上で決済できますか？</summary>
+            <p class="info-faq-answer">
+              わせわせでは、サイト上でのクレジットカード決済や銀行振込機能は提供していません。
+              代金の授受は、キャンパス内での対面手渡し時に現金で行うことを基本としています。
+              商品の状態を確認したうえで、双方が合意した金額をその場で授受してください。
+              将来的にキャッシュレス決済への対応を検討する可能性はありますが、
+              現時点ではあくまで「学内対面・現金授受」が標準的な取引方法です。
+              高額な参考書セットなどの場合は、事前にチャットで金額と支払い方法（小銭の用意等）を確認しておくとスムーズです。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>他学部や他キャンパスの人とも取引できますか？</summary>
+            <p class="info-faq-answer">
+              はい、可能です。わせわせは早稲田大学の在学生であれば学部・キャンパスを問わず利用できます。
+              政治経済学部（西早稲田）の学生が、基幹理工学部（西早稲田）や所沢キャンパスの学生と取引するケースも想定しています。
+              受け渡し場所は双方の通学キャンパスや中間地点をチャットで相談のうえ決定してください。
+              トップページの学部フィルター機能を使えば、自分の学部の出品を優先表示することもできます。
+              遠方キャンパス間の取引では、双方のスケジュールに余裕を持って日程調整することをおすすめします。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>書き込みがある教科書でも売れますか？状態はどう書けばいい？</summary>
+            <p class="info-faq-answer">
+              はい、書き込みがある教科書も出品できます。早稲田の学生の間では、
+              過去の履修者のメモやマーカー付きの教科書を「勉強の参考になる」として需要がある場合も多いです。
+              ただし、出品ページには書き込みの量（なし・軽微・多め）や、付箋・マーカーの色、
+              解答記入の有無などを正直に記載してください。「書き込みなし良品」「軽いマーカーあり」「問題集に解答記入あり」
+              など、具体的な表現を使うと購入者の判断材料になり、取引後のトラブルも減らせます。
+              反対に、書き込みがあるにもかかわらず「美品」とだけ記載するのは避けてください。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>早稲田大学以外の人（大学院生・教職員・一般の人）は使えますか？</summary>
+            <p class="info-faq-answer">
+              わせわせへの登録は、早稲田大学のメールアドレス（@waseda.jp）を持つ在学生に限定しています。
+              これにより、学外の第三者が不正にアカウントを作成し、キャンパス内取引に介入するリスクを低減しています。
+              大学院生で waseda.jp のアドレスをお持ちの方は登録可能です。
+              教職員の方や、早稲田以外の大学の学生の方は、現時点ではご利用いただけません。
+              将来的な利用範囲の拡大については、運営方針および大学側との調整を踏まえて検討する予定です。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>取引相手が来なかった・商品が説明と違った場合はどうすればいい？</summary>
+            <p class="info-faq-answer">
+              まずは取引専用チャットで状況を確認し、連絡が取れない・説明と著しく異なる場合は、
+              取引を中止し、運営事務局（wasewaseofficial@gmail.com）まで状況を報告してください。
+              チャットのスクリーンショットや出品ページのURLを添えていただくと、調査がスムーズです。
+              悪質な場合は、該当アカウントへの警告・停止措置を行います。
+              ただし、わせわせ運営は取引の仲介・保証会社ではないため、
+              個別の金銭トラブルについて法的な仲裁までは行えない点をご理解ください。
+              トラブル未然防止のため、初対面の相手とは必ず学内の人目のある場所で取引し、
+              商品確認後に代金を授受する流れを守ってください。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>「つぶやき（タイムライン）」機能は何に使えるの？</summary>
+            <p class="info-faq-answer">
+              つぶやき機能は、授業名タグを付けて履修情報や試験対策のヒントを共有できる、
+              早稲田学生向けのタイムラインです。例えば「○○先生のミクロ経済学、期末試験は計算問題多めだった」
+              「△△の教科書、先輩から買うなら第3版がおすすめ」など、フリマ出品とは別に、
+              学業に役立つ情報を気軽に投稿・閲覧できます。いいねや「神！」ボタンで応援も可能です。
+              授業タグで絞り込めば、同じ科目を履修する学生同士の情報交換ハブとして活用できます。
+              個人を特定できる情報や、試験問題そのものの不正流布など、学則・著作権に抵触する投稿は禁止です。
+            </p>
+          </details>
+          <details class="info-faq-item">
+            <summary>出品手数料や月額料金はかかりますか？</summary>
+            <p class="info-faq-answer">
+              現時点では、わせわせの出品・購入・タイムライン利用に関して、
+              ユーザーから運営事務局へ支払う手数料や月額利用料は設定していません（無料でご利用いただけます）。
+              サービスの維持・改善のため、将来的に広告表示（Google AdSense 等）を導入する場合があります。
+              料金体系に変更がある場合は、利用規約および本サイト上で事前にお知らせします。
+              早稲田の学生が気軽に教科書を循環させられる環境づくりを、運営チーム一同で目指しています。
+            </p>
+          </details>
+        </div>
+      </article>
+
+      <article class="info-block" id="info-samples">
+        <h3>📚 現在の出品サンプル一覧（注目・新着）</h3>
+        <p class="info-sample-note">
+          ※以下はサービスリリースに向けた表示例（サンプルデータ）です。実際の出品は早稲田大学の在学生がログイン後に行います。
+          各学部でよく流通する教科書・参考書の例を掲載しています。
+        </p>
+        <div class="info-sample-grid">
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">政治経済学部</span>
+            <h4 class="info-sample-title">ミクロ経済学 入門（第2版）</h4>
+            <p class="info-sample-meta">状態：書き込みなし良品 · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥1,000</span>
+            <p class="info-sample-desc">
+              1年生必修のミクロ経済学で使用した教科書。表紙に少し角スレありますが、本文に書き込み・マーカーは一切ありません。
+              付属のオンライン演習コードは使用済みのため付きません。前期履修終了に伴い出品します。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">法学部</span>
+            <h4 class="info-sample-title">民法総則 第4版</h4>
+            <p class="info-sample-meta">状態：軽いマーカーあり · 戸山キャンパス受け渡し</p>
+            <span class="info-sample-price">¥1,800</span>
+            <p class="info-sample-desc">
+              法学部基礎科目「民法総則」で使用。重要箇所に黄色マーカー数カ所ありますが、判例の要点整理として参考になります。
+              書き込みはありません。試験前の総復習用として、先輩ノート代わりにも最適です。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">商学部</span>
+            <h4 class="info-sample-title">簿記論 標準テキスト</h4>
+            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥900</span>
+            <p class="info-sample-desc">
+              商学部1〜2年次で広く使われる簿記の基礎テキスト。ほぼ新品同様で、付属の練習問題集も未使用です。
+              日商簿記3級・2級の自学にもそのまま使えます。急ぎで必要な方、ぜひご検討ください。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">基幹理工学部</span>
+            <h4 class="info-sample-title">線形代数 入門</h4>
+            <p class="info-sample-meta">状態：問題解答記入あり · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥700</span>
+            <p class="info-sample-desc">
+              理系基礎科目の線形代数テキスト。章末問題に鉛筆で解答記入がありますが、消しやすい程度です。
+              ベクトル空間・行列・固有値など、試験直前の解法確認用として活用できます。別冊の解答集は付属しません。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">社会科学部</span>
+            <h4 class="info-sample-title">社会調査法 実践ガイド</h4>
+            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥1,200</span>
+            <p class="info-sample-desc">
+              社会科学部の専門科目「社会調査法」で使用した参考書。アンケート設計・統計処理の基礎が学べる1冊です。
+              レポート作成時に付箋を貼っていた箇所がありますが、すべて剥がしてあり綺麗な状態です。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">文学部</span>
+            <h4 class="info-sample-title">日本文学史 概説</h4>
+            <p class="info-sample-meta">状態：やや使用感あり · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥650</span>
+            <p class="info-sample-desc">
+              文学部共通科目で使用した日本文学史の概説書。カバーに日焼けがありますが、ページの折れや落書きはありません。
+              古典から近代まで幅広くカバーしており、履修前の予習・試験対策の総合参考書として使えます。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">人間科学部</span>
+            <h4 class="info-sample-title">心理学統計法</h4>
+            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
+            <span class="info-sample-price">¥1,500</span>
+            <p class="info-sample-desc">
+              人間科学部の心理統計科目で使用。t検定・分散分析・回帰分析など、SPSSを使った演習例が豊富です。
+              統計ソフトの操作手順が載っており、レポート作成時の参照用として重宝します。付属CDは同梱します。
+            </p>
+          </article>
+          <article class="info-sample-card">
+            <span class="info-sample-faculty">先進理工学部</span>
+            <h4 class="info-sample-title">物理化学 基礎テキスト（所沢）</h4>
+            <p class="info-sample-meta">状態：書き込みなし良品 · 所沢キャンパス受け渡し</p>
+            <span class="info-sample-price">¥2,200</span>
+            <p class="info-sample-desc">
+              所沢キャンパスで使用する物理化学の定番テキスト。熱力学・量子化学の基礎が丁寧に解説されています。
+              書店価格より大幅にお得です。2年生後期の履修予定の方、早めの確保をおすすめします。
+            </p>
+          </article>
+        </div>
+      </article>
+
+    </div>
+  </section>
 
   {% include "includes/site_footer.html" %}
 
