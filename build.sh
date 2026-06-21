@@ -8,5 +8,5 @@ if [ ! -f staticfiles/admin/css/base.css ]; then
   echo "ERROR: collectstatic failed — admin static files missing." >&2
   exit 1
 fi
-python manage.py migrate --noinput
-python manage.py ensure_superuser
+# 本番 SQLite は永続ディスク上のため、build 時の migrate / ensure_superuser は効かない。
+# これらは start.sh（起動時）で実行する。

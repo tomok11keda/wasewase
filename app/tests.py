@@ -1,10 +1,12 @@
 from datetime import timedelta
+from unittest.mock import patch
 from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import OperationalError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -1723,6 +1725,16 @@ class UserLevelTests(TestCase):
         response = self.client.get(reverse("mypage"))
         self.assertContains(response, "Lv.1")
         self.assertContains(response, "【一般学生】")
+
+    def test_recalculate_user_level_survives_missing_profile_columns(self):
+        stats = compute_level_score(self.author)
+        with patch.object(
+            UserProfile.objects,
+            "get_or_create",
+            side_effect=OperationalError("no such column: app_userprofile.level_score"),
+        ):
+            result = recalculate_user_level(self.author)
+        self.assertEqual(result, stats)
 
 
 class EnsureSuperuserCommandTests(TestCase):
