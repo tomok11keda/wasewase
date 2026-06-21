@@ -1668,13 +1668,15 @@ class UserLevelTests(TestCase):
         stats = compute_level_score(self.author)
         self.assertEqual(stats["likes_received"], 3)
         self.assertEqual(stats["gods_received"], 2)
-        self.assertEqual(stats["engagement_score"], 5)
+        self.assertEqual(stats["like_score"], 3)
+        self.assertEqual(stats["god_score"], 60)
+        self.assertEqual(stats["engagement_score"], 63)
         self.assertEqual(stats["completed_trades"], 1)
         self.assertEqual(stats["trade_score"], 20)
-        self.assertEqual(stats["total_score"], 25)
-        self.assertEqual(stats["level"], 3)
-        self.assertEqual(stats["rank_title"], "一般学生")
-        self.assertEqual(stats["score_to_next_level"], 5)
+        self.assertEqual(stats["total_score"], 83)
+        self.assertEqual(stats["level"], 9)
+        self.assertEqual(stats["rank_title"], "アクティブ早大生")
+        self.assertEqual(stats["score_to_next_level"], 7)
 
     def test_recalculate_user_level_updates_profile_fields(self):
         TimelinePost.objects.create(
@@ -1710,9 +1712,11 @@ class UserLevelTests(TestCase):
         )
         recalculate_user_level(self.author)
         response = self.client.get(reverse("user_profile", args=[self.author.pk]))
-        self.assertContains(response, "Lv.6")
-        self.assertContains(response, "【アクティブ早大生】")
+        self.assertContains(response, "Lv.35")
+        self.assertContains(response, "【早稲田インフルエンサー】")
         self.assertContains(response, "次のレベルまであと")
+        self.assertContains(response, "わせわせレベル＆ランクシステム")
+        self.assertContains(response, "神！ボタンをもらう：＋30点")
 
     def test_mypage_shows_level_and_rank(self):
         TimelinePost.objects.create(
@@ -1725,6 +1729,7 @@ class UserLevelTests(TestCase):
         response = self.client.get(reverse("mypage"))
         self.assertContains(response, "Lv.1")
         self.assertContains(response, "【一般学生】")
+        self.assertContains(response, "レベル・ランクシステムの説明")
 
     def test_recalculate_user_level_survives_missing_profile_columns(self):
         stats = compute_level_score(self.author)

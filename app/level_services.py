@@ -5,6 +5,8 @@ from django.db.utils import OperationalError
 from .models import Product, TimelinePost, UserProfile
 
 SCORE_PER_LEVEL = 10
+LIKE_SCORE_MULTIPLIER = 1
+GOD_SCORE_MULTIPLIER = 30
 TRADE_SCORE_MULTIPLIER = 20
 
 
@@ -42,11 +44,12 @@ def compute_level_score(user: AbstractBaseUser) -> dict:
     )
     likes_received = engagement["likes"] or 0
     gods_received = engagement["gods"] or 0
-    engagement_score = likes_received + gods_received
+    like_score = likes_received * LIKE_SCORE_MULTIPLIER
+    god_score = gods_received * GOD_SCORE_MULTIPLIER
 
     completed_trades = count_completed_trades(user)
     trade_score = completed_trades * TRADE_SCORE_MULTIPLIER
-    total_score = engagement_score + trade_score
+    total_score = like_score + god_score + trade_score
     level = level_from_score(total_score)
 
     return {
@@ -54,7 +57,9 @@ def compute_level_score(user: AbstractBaseUser) -> dict:
         "level": level,
         "rank_title": rank_title_from_level(level),
         "score_to_next_level": score_to_next_level(total_score),
-        "engagement_score": engagement_score,
+        "like_score": like_score,
+        "god_score": god_score,
+        "engagement_score": like_score + god_score,
         "likes_received": likes_received,
         "gods_received": gods_received,
         "completed_trades": completed_trades,

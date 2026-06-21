@@ -1,13 +1,144 @@
+<style>
+  .level-card {
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f7edf0 0%, #fff 100%);
+    border: 1px solid #e8c4ca;
+  }
+
+  .level-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .level-badge {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--accent, #891E2B);
+  }
+
+  .level-rank {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #444;
+  }
+
+  .level-help-details {
+    margin-left: auto;
+  }
+
+  .level-help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #d4a0a8;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--accent, #891E2B);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .level-help-btn::-webkit-details-marker {
+    display: none;
+  }
+
+  .level-help-panel {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e8c4ca;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #444;
+  }
+
+  .level-help-panel h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--accent, #891E2B);
+  }
+
+  .level-help-panel p {
+    margin: 0 0 10px;
+  }
+
+  .level-help-panel ul {
+    margin: 0 0 10px;
+    padding-left: 1.2em;
+  }
+
+  .level-help-panel li {
+    margin-bottom: 4px;
+  }
+
+  .level-help-panel li:last-child {
+    margin-bottom: 0;
+  }
+
+  .level-progress {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: #555;
+  }
+
+  .level-progress strong {
+    color: var(--accent, #891E2B);
+    font-weight: 800;
+  }
+
+  .level-breakdown {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted, #888);
+  }
+</style>
+
 <section class="level-card" aria-label="レベルとランク">
   <div class="level-card-header">
     <p class="level-badge">Lv.{{ level_stats.level }}</p>
     <p class="level-rank">【{{ level_stats.rank_title }}】</p>
+    <details class="level-help-details">
+      <summary class="level-help-btn" aria-label="レベル・ランクシステムの説明">?</summary>
+      <div class="level-help-panel">
+        <h4>■ わせわせレベル＆ランクシステム</h4>
+        <p>アプリを使って早稲田ライフを盛り上げると、総スコアに応じてレベルとランクが永久にアップしていきます！</p>
+        <p><strong>[スコアの獲得ルール]</strong></p>
+        <ul>
+          <li>いいねをもらう：＋1点</li>
+          <li>フリマでの取引成立：＋20点（2レベルUP！）</li>
+          <li>神！ボタンをもらう：＋30点（3レベルUP！）※月3回限定の激レア</li>
+        </ul>
+        <p><strong>[ランク一覧]</strong></p>
+        <ul>
+          <li>Lv.1 〜 Lv.4 ：【一般学生】</li>
+          <li>Lv.5 〜 Lv.14 ：【アクティブ早大生】</li>
+          <li>Lv.15 〜 Lv.29：【わせわせ常連組】</li>
+          <li>Lv.30 〜 Lv.49：【早稲田インフルエンサー】</li>
+          <li>Lv.50以上 ：【大隈重信クラス】</li>
+        </ul>
+      </div>
+    </details>
   </div>
   <p class="level-progress">
     次のレベルまであと <strong>{{ level_stats.score_to_next_level }}</strong> スコア
   </p>
   <p class="level-breakdown">
     総スコア {{ level_stats.total_score }}
-    （いいね＋神！ {{ level_stats.engagement_score }} · 取引成立 {{ level_stats.completed_trades }}件 × 20）
+    （いいね {{ level_stats.likes_received }} · 神！ {{ level_stats.gods_received }} × 30 · 取引成立 {{ level_stats.completed_trades }}件 × 20）
   </p>
 </section>
