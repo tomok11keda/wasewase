@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Q, Sum
+from django.db.utils import OperationalError
 
 from .models import Product, TimelinePost, UserProfile
 
@@ -63,11 +64,15 @@ def compute_level_score(user: AbstractBaseUser) -> dict:
 
 def recalculate_user_level(user: AbstractBaseUser) -> dict:
     stats = compute_level_score(user)
-    profile, _ = UserProfile.objects.get_or_create(user=user)
-    if profile.level_score != stats["total_score"] or profile.level != stats["level"]:
-        profile.level_score = stats["total_score"]
-        profile.level = stats["level"]
-        profile.save(update_fields=["level_score", "level"])
+    try:
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        if profile.level_score != stats["total_score"] or profile.level != stats["level"]:
+            profile.level_score = stats["total_score"]
+            profile.level = stats["level"]
+            profile.save(update_fields=["level_score", "level"])
+    except OperationalError:
+        # マイグレーション未適用時も表示・処理全体が落ちないよう計算結果のみ返す
+        return stats
     return stats
 
 
