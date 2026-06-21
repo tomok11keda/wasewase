@@ -1,0 +1,13 @@
+<section class="level-card" aria-label="レベルとランク">
+  <div class="level-card-header">
+    <p class="level-badge">Lv.{{ level_stats.level }}</p>
+    <p class="level-rank">【{{ level_stats.rank_title }}】</p>
+  </div>
+  <p class="level-progress">
+    次のレベルまであと <strong>{{ level_stats.score_to_next_level }}</strong> スコア
+  </p>
+  <p class="level-breakdown">
+    総スコア {{ level_stats.total_score }}
+    （いいね＋神！ {{ level_stats.engagement_score }} · 取引成立 {{ level_stats.completed_trades }}件 × 20）
+  </p>
+</section>

@@ -85,6 +85,8 @@ class UserProfile(models.Model):
         choices=GRADE_CHOICES,
         blank=True,
     )
+    level_score = models.PositiveIntegerField("レベルスコア", default=0)
+    level = models.PositiveIntegerField("レベル", default=1)
 
     def __str__(self) -> str:
         label = self.name or self.user.username
