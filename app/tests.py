@@ -24,7 +24,13 @@ from .models import (
     UserProfile,
 )
 from .dm_services import get_or_create_dm_room, ordered_user_pair
-from .services import build_product_share_timeline_body
+from .level_services import (
+    compute_level_score,
+    level_from_score,
+    rank_title_from_level,
+    recalculate_user_level,
+    score_to_next_level,
+)
 from wasewase.email_env import (
     is_plausible_email,
     load_sanitized_email_env,
@@ -1607,6 +1613,116 @@ class TimelineInfiniteScrollTests(TestCase):
         self.assertEqual(data["next_offset"], self.initial_size + 5)
         self.assertFalse(data["has_more"])
         self.assertEqual(data["html"].count('class="tweet-card"'), 5)
+
+
+class UserLevelTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user(
+            email="level-author@example.com",
+            password="password",
+            username="level_author",
+        )
+        self.actor = User.objects.create_user(
+            email="level-actor@example.com",
+            password="password",
+            username="level_actor",
+        )
+        self.buyer = User.objects.create_user(
+            email="level-buyer@example.com",
+            password="password",
+            username="level_buyer",
+        )
+
+    def test_level_helpers(self):
+        self.assertEqual(level_from_score(0), 1)
+        self.assertEqual(level_from_score(9), 1)
+        self.assertEqual(level_from_score(10), 2)
+        self.assertEqual(level_from_score(49), 5)
+        self.assertEqual(score_to_next_level(0), 10)
+        self.assertEqual(score_to_next_level(9), 1)
+        self.assertEqual(rank_title_from_level(1), "一般学生")
+        self.assertEqual(rank_title_from_level(5), "アクティブ早大生")
+        self.assertEqual(rank_title_from_level(15), "わせわせ常連組")
+        self.assertEqual(rank_title_from_level(30), "早稲田インフルエンサー")
+        self.assertEqual(rank_title_from_level(50), "大隈重信クラス")
+
+    def test_compute_level_score_from_likes_gods_and_trades(self):
+        TimelinePost.objects.create(
+            author=self.author,
+            body="人気投稿",
+            like_count=3,
+            god_count=2,
+        )
+        Product.objects.create(
+            seller=self.author,
+            buyer=self.buyer,
+            name="教科書",
+            price=1000,
+            category="本",
+            status=Product.Status.SOLD_OUT,
+        )
+
+        stats = compute_level_score(self.author)
+        self.assertEqual(stats["likes_received"], 3)
+        self.assertEqual(stats["gods_received"], 2)
+        self.assertEqual(stats["engagement_score"], 5)
+        self.assertEqual(stats["completed_trades"], 1)
+        self.assertEqual(stats["trade_score"], 20)
+        self.assertEqual(stats["total_score"], 25)
+        self.assertEqual(stats["level"], 3)
+        self.assertEqual(stats["rank_title"], "一般学生")
+        self.assertEqual(stats["score_to_next_level"], 5)
+
+    def test_recalculate_user_level_updates_profile_fields(self):
+        TimelinePost.objects.create(
+            author=self.author,
+            body="保存テスト",
+            like_count=10,
+            god_count=0,
+        )
+        stats = recalculate_user_level(self.author)
+        profile = UserProfile.objects.get(user=self.author)
+        self.assertEqual(profile.level_score, stats["total_score"])
+        self.assertEqual(profile.level, stats["level"])
+        self.assertEqual(profile.level, 2)
+
+    def test_like_updates_author_level(self):
+        post = TimelinePost.objects.create(
+            author=self.author,
+            body="いいね対象",
+            like_count=0,
+        )
+        self.client.force_login(self.actor)
+        self.client.post(reverse("board_timeline_like", args=[post.pk]))
+        profile = UserProfile.objects.get(user=self.author)
+        self.assertEqual(profile.level_score, 1)
+        self.assertEqual(profile.level, 1)
+
+    def test_profile_page_shows_level_and_rank(self):
+        TimelinePost.objects.create(
+            author=self.author,
+            body="表示テスト",
+            like_count=40,
+            god_count=10,
+        )
+        recalculate_user_level(self.author)
+        response = self.client.get(reverse("user_profile", args=[self.author.pk]))
+        self.assertContains(response, "Lv.6")
+        self.assertContains(response, "【アクティブ早大生】")
+        self.assertContains(response, "次のレベルまであと")
+
+    def test_mypage_shows_level_and_rank(self):
+        TimelinePost.objects.create(
+            author=self.author,
+            body="マイページ表示",
+            like_count=0,
+            god_count=0,
+        )
+        self.client.force_login(self.author)
+        response = self.client.get(reverse("mypage"))
+        self.assertContains(response, "Lv.1")
+        self.assertContains(response, "【一般学生】")
 
 
 class EnsureSuperuserCommandTests(TestCase):

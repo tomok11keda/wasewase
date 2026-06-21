@@ -73,6 +73,7 @@ from .otp_services import (
 )
 
 logger = logging.getLogger(__name__)
+from .level_services import get_user_level_stats, sync_user_level_stats
 from .services import (
     calc_sales_total,
     get_reviewee,
@@ -798,6 +799,9 @@ def complete_trade(request, pk):
             )
 
     product.save(update_fields=update_fields)
+    if product.status == Product.Status.SOLD_OUT:
+        sync_user_level_stats(product.seller)
+        sync_user_level_stats(product.buyer)
     return redirect(reverse("product_trade", kwargs={"pk": pk}))
 
 
@@ -880,6 +884,7 @@ def mypage(request):
     )
     total_sales = calc_sales_total(request.user)
     rating_stats = get_user_rating_stats(request.user)
+    level_stats = get_user_level_stats(request.user)
 
     return render(
         request,
@@ -890,6 +895,7 @@ def mypage(request):
             "sold_products": sold_products,
             "rating_stats": rating_stats,
             "profile": profile,
+            "level_stats": level_stats,
         },
     )
 
@@ -907,6 +913,7 @@ def user_profile(request, pk):
     )
     rating_stats = get_user_rating_stats(profile_user)
     stats = get_profile_stats(profile_user, from_source)
+    level_stats = get_user_level_stats(profile_user)
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
     user_is_following = (
         is_following(request.user, profile_user)
@@ -928,6 +935,7 @@ def user_profile(request, pk):
             "rating_stats": rating_stats,
             "profile": profile,
             "stats": stats,
+            "level_stats": level_stats,
             "from_source": from_source,
             "is_own_profile": is_own_profile,
             "user_is_following": user_is_following,
@@ -1390,6 +1398,7 @@ def board_timeline_like(request, pk):
         post.like_count = max(0, post.like_count - 1)
         post.save(update_fields=["like_count"])
         messages.success(request, "いいねを取り消しました。")
+    sync_user_level_stats(post.author)
     return _board_redirect(request, tag=post.course_name)
 
 
@@ -1414,6 +1423,7 @@ def board_timeline_god(request, pk):
         f"{request.user.username}さんがあなたの投稿を『神！』と言っています",
     )
     messages.success(request, "神！を押しました。")
+    sync_user_level_stats(post.author)
     return _board_redirect(request, tag=post.course_name)
 
 

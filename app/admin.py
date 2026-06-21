@@ -114,7 +114,7 @@ class GodButtonUseAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "name", "department", "grade")
+    list_display = ("user", "name", "department", "grade", "level", "level_score")
     list_filter = ("department", "grade")
     search_fields = ("user__username", "user__email", "name")
 
