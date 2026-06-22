@@ -31,6 +31,49 @@
     }
   }
 
+  function getCsrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function getPushPlatform() {
+    if (!window.Capacitor || !window.Capacitor.getPlatform) {
+      return "ios";
+    }
+    var platform = window.Capacitor.getPlatform();
+    return platform === "android" ? "android" : "ios";
+  }
+
+  async function registerTokenWithBackend(token) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      var response = await fetch("/api/push-token/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          token: token,
+          platform: getPushPlatform(),
+        }),
+      });
+
+      if (!response.ok) {
+        logNative("Push token registration failed", response.status);
+        return;
+      }
+
+      logNative("Push token registered with backend");
+    } catch (error) {
+      logNative("Push token registration error", error);
+    }
+  }
+
   async function initializePushNotifications() {
     var PushNotifications = getPlugin("PushNotifications");
     if (!PushNotifications) {
@@ -44,6 +87,7 @@
       window.dispatchEvent(
         new CustomEvent("wase:push-token", { detail: token.value })
       );
+      registerTokenWithBackend(token.value);
     });
 
     await PushNotifications.addListener("registrationError", function (error) {
@@ -121,6 +165,9 @@
     try {
       await initializePushNotifications();
       await initializeAdMob();
+      if (window.WASE_PUSH_TOKEN) {
+        await registerTokenWithBackend(window.WASE_PUSH_TOKEN);
+      }
       handlePageTriggers();
     } catch (error) {
       logNative("bootstrap failed", error);
@@ -133,6 +180,7 @@
     getPushToken: function () {
       return window.WASE_PUSH_TOKEN || null;
     },
+    registerPushToken: registerTokenWithBackend,
   };
 
   function startWhenReady() {

@@ -288,6 +288,35 @@ class Notification(models.Model):
         return f"{self.recipient}: {self.message[:30]}"
 
 
+class DevicePushToken(models.Model):
+    """FCM / APNs デバイストークン（Capacitor プッシュ通知用）。"""
+
+    class Platform(models.TextChoices):
+        IOS = "ios", "iOS"
+        ANDROID = "android", "Android"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="device_push_tokens",
+    )
+    token = models.CharField("デバイストークン", max_length=512, unique=True)
+    platform = models.CharField(
+        "プラットフォーム",
+        max_length=16,
+        choices=Platform.choices,
+        default=Platform.IOS,
+    )
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} ({self.platform})"
+
+
 class Review(models.Model):
     class Rating(models.IntegerChoices):
         BAD = 1, "悪い"

@@ -81,6 +81,7 @@ urlpatterns = [
     path("signup/", app_views.signup, name="signup"),
     path("verify-otp/", app_views.verify_otp, name="verify_otp"),
     path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),
+    path("api/push-token/", app_views.register_push_token, name="register_push_token"),
 ]
 
 if settings.DEBUG or getattr(settings, "SERVE_MEDIA", False):

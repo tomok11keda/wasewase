@@ -14,6 +14,7 @@ from django.utils import timezone
 from .models import (
     ChatRoom,
     Comment,
+    DevicePushToken,
     Follow,
     Message,
     Notification,
@@ -40,6 +41,7 @@ from wasewase.email_env import (
 )
 
 from .otp_services import SIGNUP_PENDING_SESSION_KEY, create_and_send_signup_otp
+from .services import build_product_share_timeline_body, notify_seller
 
 
 class EmailEnvSanitizeTests(TestCase):
@@ -1805,4 +1807,128 @@ class EnsureSuperuserCommandTests(TestCase):
         call_command("ensure_superuser", stdout=out, stderr=err)
 
         self.assertIn("見つかりません", err.getvalue())
+
+
+class PushNotificationTests(TestCase):
+    def setUp(self):
+        self.seller = get_user_model().objects.create_user(
+            email="push-seller@example.com",
+            password="password",
+        )
+        self.buyer = get_user_model().objects.create_user(
+            email="push-buyer@example.com",
+            password="password",
+        )
+        self.product = Product.objects.create(
+            seller=self.seller,
+            name="プッシュ通知テスト商品",
+            price=500,
+            description="",
+            category="未分類",
+            faculty="商学部",
+        )
+
+    def test_register_push_token_api(self):
+        self.client.force_login(self.seller)
+
+        response = self.client.post(
+            reverse("register_push_token"),
+            data='{"token":"abc123token","platform":"ios"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        device = DevicePushToken.objects.get(user=self.seller)
+        self.assertEqual(device.token, "abc123token")
+        self.assertEqual(device.platform, DevicePushToken.Platform.IOS)
+
+    def test_register_push_token_updates_existing_token_owner(self):
+        DevicePushToken.objects.create(
+            user=self.buyer,
+            token="shared-token",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        self.client.force_login(self.seller)
+
+        response = self.client.post(
+            reverse("register_push_token"),
+            data='{"token":"shared-token","platform":"android"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        device = DevicePushToken.objects.get(token="shared-token")
+        self.assertEqual(device.user, self.seller)
+        self.assertEqual(device.platform, DevicePushToken.Platform.ANDROID)
+
+    @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
+    @patch("app.push_services.notify_user_push")
+    def test_comment_notifies_seller_with_push(self, mock_notify_push):
+        mock_notify_push.return_value = 1
+        DevicePushToken.objects.create(
+            user=self.seller,
+            token="seller-device-token",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        self.client.force_login(self.buyer)
+
+        response = self.client.post(
+            reverse("product_detail", args=[self.product.pk]),
+            data={"body": "購入検討中です"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.seller,
+                message__contains="コメントがつきました",
+            ).exists()
+        )
+        mock_notify_push.assert_called_once()
+        _, kwargs = mock_notify_push.call_args
+        self.assertIn("コメントがつきました", kwargs["body"])
+
+    @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
+    @patch("app.push_services.notify_user_push")
+    def test_purchase_notifies_seller_with_push(self, mock_notify_push):
+        mock_notify_push.return_value = 1
+        DevicePushToken.objects.create(
+            user=self.seller,
+            token="seller-device-token",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        self.client.force_login(self.buyer)
+
+        response = self.client.post(
+            reverse("purchase_product", args=[self.product.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.seller,
+                message__contains="購入希望がありました",
+            ).exists()
+        )
+        mock_notify_push.assert_called_once()
+        _, kwargs = mock_notify_push.call_args
+        self.assertIn("購入希望がありました", kwargs["body"])
+
+    @override_settings(PUSH_NOTIFICATIONS_ENABLED=False)
+    @patch("app.push_services.get_firebase_app")
+    def test_notify_seller_skips_push_when_disabled(self, mock_get_firebase_app):
+        DevicePushToken.objects.create(
+            user=self.seller,
+            token="seller-device-token",
+            platform=DevicePushToken.Platform.IOS,
+        )
+
+        notify_seller(
+            self.product,
+            "テスト通知",
+            actor_id=self.buyer.id,
+        )
+
+        mock_get_firebase_app.assert_not_called()
 

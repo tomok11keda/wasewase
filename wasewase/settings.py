@@ -487,3 +487,14 @@ STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
 DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
 
 _log_media_storage_startup()
+
+# ---------------------------------------------------------------------------
+# Firebase Cloud Messaging（プッシュ通知）
+# Render 等では FIREBASE_CREDENTIALS_JSON にサービスアカウント JSON をそのまま設定。
+# ローカルでは FIREBASE_CREDENTIALS_PATH に JSON ファイルパスを指定してもよい。
+# ---------------------------------------------------------------------------
+FIREBASE_CREDENTIALS_JSON = _env("FIREBASE_CREDENTIALS_JSON")
+FIREBASE_CREDENTIALS_PATH = _env("FIREBASE_CREDENTIALS_PATH")
+PUSH_NOTIFICATIONS_ENABLED = bool(
+    FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH
+)

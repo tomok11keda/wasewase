@@ -223,8 +223,12 @@ def notify_seller(product: Product, message: str, *, actor_id: int | None = None
         return
     if actor_id is not None and actor_id == product.seller_id:
         return
+    link = product_detail_path(product)
     Notification.objects.create(
         recipient=product.seller,
         message=message,
-        link=product_detail_path(product),
+        link=link,
     )
+    from .push_services import notify_user_push
+
+    notify_user_push(product.seller, body=message, link=link)
