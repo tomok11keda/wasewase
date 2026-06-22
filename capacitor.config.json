@@ -10,5 +10,10 @@
   "ios": {
     "contentInset": "automatic",
     "allowsLinkPreview": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
   }
 }

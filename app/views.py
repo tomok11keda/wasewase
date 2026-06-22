@@ -1063,7 +1063,7 @@ def exhibit(request):
                 messages.error(request, "出品の保存に失敗しました。時間をおいて再度お試しください。")
                 return render(request, "exhibit.html", {"form": form})
             _log_saved_file_field(product, "image", "EXHIBIT IMAGE")
-            return redirect(reverse("home"))
+            return redirect(reverse("home") + "?tab=flea&exhibit_success=1")
     else:
         form = ProductExhibitForm(initial={"faculty": get_user_faculty(request.user)})
 

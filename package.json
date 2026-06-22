@@ -9,8 +9,10 @@
     "cap:copy": "npx cap copy"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^7.2.0",
     "@capacitor/core": "^7.6.7",
-    "@capacitor/ios": "^7.6.7"
+    "@capacitor/ios": "^7.6.7",
+    "@capacitor/push-notifications": "^7.0.6"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.7"
