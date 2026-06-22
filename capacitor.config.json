@@ -1,0 +1,14 @@
+{
+  "appId": "com.wasewase.app",
+  "appName": "わせわせ",
+  "webDir": "www",
+  "server": {
+    "url": "https://wasewase.onrender.com",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false
+  }
+}

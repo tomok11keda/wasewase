@@ -1,0 +1,18 @@
+{
+  "name": "wasewase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "わせわせ — 早稲田大学キャンパスフリマ（Capacitor iOS ラッパー）",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:copy": "npx cap copy"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.6.7",
+    "@capacitor/ios": "^7.6.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.7"
+  }
+}
