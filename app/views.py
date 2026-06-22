@@ -1579,6 +1579,40 @@ def pwa_service_worker(request):
     return HttpResponse(content, content_type="application/javascript; charset=utf-8")
 
 
+@login_required
+@require_POST
+def register_push_token(request):
+    """Capacitor が取得したデバイストークンを保存・更新する。"""
+    if request.content_type == "application/json":
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({"error": "invalid_json"}, status=400)
+    else:
+        payload = request.POST
+
+    token = (payload.get("token") or "").strip()
+    if not token:
+        return JsonResponse({"error": "token_required"}, status=400)
+
+    platform = (payload.get("platform") or "ios").strip()
+
+    from .push_services import register_device_token
+
+    try:
+        device = register_device_token(request.user, token, platform=platform)
+    except ValueError:
+        return JsonResponse({"error": "token_required"}, status=400)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "platform": device.platform,
+            "updated_at": device.updated_at.isoformat(),
+        }
+    )
+
+
 def logout_view(request):
     logout(request)
     return redirect(settings.LOGOUT_REDIRECT_URL)

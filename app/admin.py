@@ -5,6 +5,7 @@ from .models import (
     User,
     ChatRoom,
     Comment,
+    DevicePushToken,
     UserDirectMessage,
     UserDirectMessageRoom,
     CourseThread,
@@ -170,6 +171,20 @@ class CommentAdmin(admin.ModelAdmin):
 class LikeAdmin(admin.ModelAdmin):
     list_display = ("user", "product", "created_at")
     list_filter = ("created_at",)
+
+
+@admin.register(DevicePushToken)
+class DevicePushTokenAdmin(admin.ModelAdmin):
+    list_display = ("user", "platform", "token_preview", "updated_at")
+    list_filter = ("platform", "updated_at")
+    search_fields = ("user__email", "user__username", "token")
+    readonly_fields = ("created_at", "updated_at")
+
+    @admin.display(description="トークン")
+    def token_preview(self, obj):
+        if len(obj.token) <= 24:
+            return obj.token
+        return f"{obj.token[:12]}…{obj.token[-8:]}"
 
 
 @admin.register(Notification)
