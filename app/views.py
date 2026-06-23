@@ -1075,6 +1075,11 @@ class AppLoginView(LoginView):
     authentication_form = EmailAuthenticationForm
     redirect_authenticated_user = True
 
+    def get_success_url(self):
+        url = super().get_success_url()
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}login_success=1"
+
 
 def _log_auth_debug(label: str, detail: str, *, exc: BaseException | None = None) -> None:
     logger.warning("%s: %s", label, detail, exc_info=exc)
@@ -1277,7 +1282,7 @@ def verify_otp(request):
                 messages.success(
                     request, "メール認証が完了しました。ようこそ、わせわせへ！"
                 )
-                return redirect(reverse("home"))
+                return redirect(reverse("home") + "?login_success=1")
         else:
             _log_auth_debug(
                 "VERIFY OTP VALIDATION", f"errors={form.errors.as_json()}"

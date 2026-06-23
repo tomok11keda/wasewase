@@ -2,16 +2,14 @@
   "appId": "com.wasewase.app",
   "appName": "わせわせ",
   "webDir": "www",
-  "server": {
-    "url": "https://wasewase.onrender.com",
-    "cleartext": false,
-    "androidScheme": "https"
-  },
   "ios": {
     "contentInset": "automatic",
     "allowsLinkPreview": false
   },
   "plugins": {
+    "AdMob": {
+      "appId": "ca-app-pub-3330130877204303~8437918867"
+    },
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
     }
