@@ -1,4 +1,9 @@
 /* Capacitor ネイティブアプリ: 下部バナー広告分の余白 */
 html.has-native-banner-ad body {
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 50px);
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+}
+
+html.has-native-banner-ad .site-footer,
+html.has-native-banner-ad footer {
+  margin-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }

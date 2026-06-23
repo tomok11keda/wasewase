@@ -6,7 +6,8 @@
   "scripts": {
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
-    "cap:copy": "npx cap copy"
+    "cap:copy": "npx cap copy",
+    "cap:copy:www-ads": "node -e \"const fs=require('fs');fs.copyFileSync('static/js/admob_config.js','www/js/admob_config.js');fs.copyFileSync('static/js/capacitor_native.js','www/js/capacitor_native.js');\""
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",

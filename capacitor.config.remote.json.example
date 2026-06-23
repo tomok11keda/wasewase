@@ -1,0 +1,8 @@
+{
+  "_comment": "本番 URL を WebView で直接開く設定。有効にする場合は server ブロックを capacitor.config.json にマージしてください。",
+  "server": {
+    "url": "https://wasewase.onrender.com",
+    "cleartext": false,
+    "androidScheme": "https"
+  }
+}
