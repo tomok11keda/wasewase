@@ -18,6 +18,22 @@
   var bannerTrackingReady = false;
   var bannerRepositionTimer = null;
   var bannerRepositionInFlight = false;
+  var bannerFailureListenersReady = false;
+
+  var DEFAULT_ADMOB_IDS = {
+    test: {
+      appId: "ca-app-pub-3940256099942544~1458002511",
+      banner: "ca-app-pub-3940256099942544/2934735716",
+      interstitial: "ca-app-pub-3940256099942544/4411468910",
+      appOpen: "ca-app-pub-3940256099942544/5575463023",
+    },
+    production: {
+      appId: "ca-app-pub-3330130877204303~8437918867",
+      banner: "ca-app-pub-3330130877204303/8624675602",
+      interstitial: "ca-app-pub-3330130877204303/5502432638",
+      appOpen: "ca-app-pub-3330130877204303/9431324966",
+    },
+  };
 
   function getAdMobConfig() {
     return window.WASE_ADMOB_CONFIG || {};
@@ -29,7 +45,10 @@
 
   function getActiveAdIds() {
     var config = getAdMobConfig();
-    return isProductionAds() ? config.production : config.test;
+    if (isProductionAds()) {
+      return config.production || DEFAULT_ADMOB_IDS.production;
+    }
+    return config.test || DEFAULT_ADMOB_IDS.test;
   }
 
   function isNativeApp() {
@@ -51,6 +70,63 @@
     if (window.console && console.info) {
       console.info("[WaseCapacitor] " + label, detail || "");
     }
+  }
+
+  function logNativeError(label, detail) {
+    if (window.console && console.error) {
+      console.error("[WaseCapacitor] " + label, detail || "");
+    }
+  }
+
+  function wait(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function getAdMobPlugin() {
+    if (!window.Capacitor) {
+      return null;
+    }
+    if (typeof window.Capacitor.getPlugin === "function") {
+      var viaGet = window.Capacitor.getPlugin("AdMob");
+      if (viaGet) {
+        return viaGet;
+      }
+    }
+    if (window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) {
+      return window.Capacitor.Plugins.AdMob;
+    }
+    return null;
+  }
+
+  async function waitForAdMobPlugin(maxAttempts) {
+    var attempts = maxAttempts || 50;
+    for (var i = 0; i < attempts; i++) {
+      var plugin = getAdMobPlugin();
+      if (plugin) {
+        logNative("AdMob plugin ready", { attempt: i + 1 });
+        return plugin;
+      }
+      await wait(100);
+    }
+    return null;
+  }
+
+  function waitForDomLayout() {
+    function afterFrames() {
+      return new Promise(function (resolve) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(resolve);
+        });
+      });
+    }
+    if (document.readyState === "loading") {
+      return new Promise(function (resolve) {
+        document.addEventListener("DOMContentLoaded", resolve, { once: true });
+      }).then(afterFrames);
+    }
+    return afterFrames();
   }
 
   function getCsrfToken() {
@@ -160,17 +236,22 @@
   }
 
   async function initializeAdMob() {
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob) {
-      logNative("AdMob plugin not found");
+      logNativeError("AdMob plugin not found during initialize");
       return false;
     }
 
     var testing = !isProductionAds();
-    await AdMob.initialize({
-      initializeForTesting: testing,
-      requestTrackingAuthorization: true,
-    });
+    try {
+      await AdMob.initialize({
+        initializeForTesting: testing,
+        requestTrackingAuthorization: true,
+      });
+    } catch (error) {
+      logNativeError("AdMob.initialize failed", error);
+      return false;
+    }
 
     if (typeof AdMob.requestTrackingAuthorization === "function") {
       try {
@@ -185,6 +266,27 @@
 
     logNative("AdMob initialized", { testing: testing });
     return true;
+  }
+
+  function setupBannerFailureListeners() {
+    var AdMob = getAdMobPlugin();
+    if (!AdMob || typeof AdMob.addListener !== "function" || bannerFailureListenersReady) {
+      return;
+    }
+    bannerFailureListenersReady = true;
+
+    AdMob.addListener("bannerAdFailedToLoad", function (error) {
+      logNativeError("bannerAdFailedToLoad", error);
+      if (bannerMode === "inline") {
+        showBottomFallbackBanner().catch(function (fallbackError) {
+          logNativeError("Bottom fallback after banner load fail", fallbackError);
+        });
+      }
+    });
+
+    AdMob.addListener("bannerAdLoaded", function () {
+      logNative("bannerAdLoaded");
+    });
   }
 
   function setBannerLayoutClass(mode) {
@@ -273,7 +375,7 @@
   }
 
   async function hideBannerAd() {
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob || !bannerVisible) {
       return;
     }
@@ -291,7 +393,7 @@
   }
 
   async function renderBanner(options) {
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob) {
       return false;
     }
@@ -300,7 +402,13 @@
       await hideBannerAd();
     }
 
-    await AdMob.showBanner(options);
+    try {
+      await AdMob.showBanner(options);
+    } catch (error) {
+      logNativeError("AdMob.showBanner failed", error);
+      throw error;
+    }
+
     bannerVisible = true;
     logNative("Banner ad rendered", {
       position: options.position,
@@ -335,6 +443,13 @@
     }
 
     var margin = computeBannerTopMargin(anchor, currentBannerHeight);
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    if (margin > viewportHeight - 32) {
+      logNative("Banner anchor off-screen; using bottom fallback", { margin: margin });
+      await showBottomFallbackBanner();
+      return;
+    }
+
     if (
       bannerVisible &&
       bannerMode === "inline" &&
@@ -347,13 +462,19 @@
     var ids = getActiveAdIds();
     var testing = !isProductionAds();
     markActiveBannerAnchor(anchor);
-    await renderBanner({
-      adId: ids.banner,
-      adSize: "ADAPTIVE_BANNER",
-      position: "TOP_CENTER",
-      margin: margin,
-      isTesting: testing,
-    });
+    try {
+      await renderBanner({
+        adId: ids.banner,
+        adSize: "ADAPTIVE_BANNER",
+        position: "TOP_CENTER",
+        margin: margin,
+        isTesting: testing,
+      });
+    } catch (error) {
+      logNativeError("Inline banner render failed; using bottom fallback", error);
+      await showBottomFallbackBanner();
+      return;
+    }
     bannerMode = "inline";
     lastBannerMargin = margin;
     setBannerLayoutClass("none");
@@ -408,7 +529,7 @@
     window.addEventListener("resize", scheduleBannerReposition);
     window.addEventListener("orientationchange", scheduleBannerReposition);
 
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (AdMob && typeof AdMob.addListener === "function") {
       AdMob.addListener("bannerAdSizeChanged", function (size) {
         if (size && size.height) {
@@ -428,12 +549,17 @@
   }
 
   async function showBannerAd() {
-    if (!getPlugin("AdMob")) {
+    if (!getAdMobPlugin()) {
+      logNativeError("showBannerAd skipped: plugin missing");
       return;
     }
 
     setupInlineBannerTracking();
     var anchor = findBestAdAnchor();
+    logNative("showBannerAd", {
+      anchorFound: Boolean(anchor),
+      anchorType: anchor ? anchor.getAttribute("data-wase-admob-anchor") : null,
+    });
     if (anchor) {
       await positionBannerAtAnchor(anchor);
       return;
@@ -443,7 +569,7 @@
   }
 
   async function prepareInterstitialAd() {
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob) {
       return false;
     }
@@ -463,7 +589,7 @@
       return false;
     }
 
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob) {
       return false;
     }
@@ -482,7 +608,7 @@
       return true;
     } catch (error) {
       interstitialPrepared = false;
-      logNative("Interstitial failed", error);
+      logNativeError("Interstitial failed", error);
       return false;
     }
   }
@@ -493,8 +619,9 @@
     }
     appOpenHandled = true;
 
-    var AdMob = getPlugin("AdMob");
+    var AdMob = getAdMobPlugin();
     if (!AdMob) {
+      logNativeError("showAppOpenAd skipped: plugin missing");
       return;
     }
 
@@ -513,11 +640,11 @@
           logNative("App open ad shown", { testing: testing });
           return;
         }
-        logNative("App open ad not loaded in time");
-        return;
+        logNative("App open ad not loaded in time; trying interstitial fallback");
+      } else {
+        logNative("App Open API unavailable; using interstitial fallback");
       }
 
-      logNative("App Open API unavailable; using interstitial fallback");
       await AdMob.prepareInterstitial({
         adId: ids.interstitial,
         isTesting: testing,
@@ -527,7 +654,7 @@
       markInterstitialShown();
       logNative("Launch interstitial fallback shown", { testing: testing });
     } catch (error) {
-      logNative("App open ad failed", error);
+      logNativeError("App open ad failed", error);
     }
   }
 
@@ -562,31 +689,61 @@
       });
   }
 
+  async function runAdMobBootstrap() {
+    var adsReady = await initializeAdMob();
+    if (!adsReady) {
+      return;
+    }
+
+    setupBannerFailureListeners();
+
+    try {
+      await showAppOpenAd();
+    } catch (error) {
+      logNativeError("App open bootstrap failed", error);
+    }
+
+    await waitForDomLayout();
+
+    try {
+      await showBannerAd();
+    } catch (error) {
+      logNativeError("Banner bootstrap failed; trying bottom fallback", error);
+      try {
+        await showBottomFallbackBanner();
+      } catch (fallbackError) {
+        logNativeError("Bottom banner fallback failed", fallbackError);
+      }
+    }
+
+    prepareInterstitialAd().catch(function (error) {
+      logNativeError("Initial interstitial preload failed", error);
+    });
+  }
+
   async function bootstrap() {
     if (!isNativeApp()) {
       return;
     }
 
     document.documentElement.classList.add("is-native-capacitor");
+    logNative("bootstrap start", {
+      href: window.location.href,
+      hasAdMobConfig: Boolean(window.WASE_ADMOB_CONFIG),
+    });
 
     try {
-      var adsReady = await initializeAdMob();
-      if (adsReady) {
-        await showAppOpenAd();
-        if (document.readyState === "loading") {
-          await new Promise(function (resolve) {
-            document.addEventListener("DOMContentLoaded", resolve, { once: true });
-          });
-        }
-        await new Promise(function (resolve) {
-          requestAnimationFrame(function () {
-            requestAnimationFrame(resolve);
-          });
+      var adMobPlugin = await waitForAdMobPlugin(50);
+      if (!adMobPlugin) {
+        logNativeError("AdMob plugin not available", {
+          hasCapacitor: Boolean(window.Capacitor),
+          pluginKeys:
+            window.Capacitor && window.Capacitor.Plugins
+              ? Object.keys(window.Capacitor.Plugins)
+              : [],
         });
-        await showBannerAd();
-        prepareInterstitialAd().catch(function (error) {
-          logNative("Initial interstitial preload failed", error);
-        });
+      } else {
+        await runAdMobBootstrap();
       }
 
       await initializePushNotifications();
@@ -597,7 +754,7 @@
 
       handlePageTriggers();
     } catch (error) {
-      logNative("bootstrap failed", error);
+      logNativeError("bootstrap failed", error);
     }
   }
 

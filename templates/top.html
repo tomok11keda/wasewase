@@ -210,6 +210,19 @@
       color: #999;
     }
 
+    .wase-admob-anchor:empty::before {
+      content: "【スポンサーリンク】広告枠";
+      display: block;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #999;
+    }
+
+    html.is-native-capacitor .wase-admob-anchor:empty::before {
+      content: "";
+      display: none;
+    }
+
     .product-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

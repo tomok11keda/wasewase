@@ -1,6 +1,6 @@
 /* Capacitor ネイティブ: AdMob バナーを HTML 広告枠に重ねる */
-html.is-native-capacitor .wase-admob-anchor .flea-banner-ad-slot__placeholder,
-html.is-native-capacitor .wase-admob-anchor .timeline-ad-slot__placeholder {
+html.is-native-capacitor .wase-admob-anchor:empty::before {
+  content: "";
   display: none;
 }
 
