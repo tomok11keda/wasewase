@@ -1,9 +1,44 @@
-/* Capacitor ネイティブアプリ: 下部バナー広告分の余白 */
-html.has-native-banner-ad body {
+/* Capacitor ネイティブ: AdMob バナーを HTML 広告枠に重ねる */
+html.is-native-capacitor .wase-admob-anchor .flea-banner-ad-slot__placeholder,
+html.is-native-capacitor .wase-admob-anchor .timeline-ad-slot__placeholder {
+  display: none;
+}
+
+html.is-native-capacitor .wase-admob-anchor {
+  position: relative;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0;
+  min-height: 50px;
+  overflow: hidden;
+  border-style: solid;
+  border-color: #e6e6e6;
+  background: #fff;
+}
+
+html.is-native-capacitor .flea-banner-ad-slot.wase-admob-anchor {
+  width: calc(100% - 8px);
+  max-width: calc(100% - 8px);
+  margin: 4px 4px 16px;
+}
+
+html.is-native-capacitor .timeline-ad-slot.wase-admob-anchor {
+  width: 100%;
+  margin: 0;
+}
+
+html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 画面下部フォールバック時のみ余白を確保 */
+html.is-native-capacitor.has-native-bottom-banner body {
   padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
-html.has-native-banner-ad .site-footer,
-html.has-native-banner-ad footer {
+html.is-native-capacitor.has-native-bottom-banner .site-footer,
+html.is-native-capacitor.has-native-bottom-banner footer {
   margin-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }
