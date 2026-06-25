@@ -88,6 +88,7 @@ class TimelinePostAdmin(admin.ModelAdmin):
     list_display = (
         "course_name",
         "author",
+        "quoted_post",
         "god_count",
         "like_count",
         "has_image",

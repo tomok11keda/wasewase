@@ -80,10 +80,10 @@
         {% for error in form.email.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
         <p style="font-size:12px;color:#666;margin:-8px 0 14px;">@waseda.jp または @〇〇.waseda.jp のアドレスのみ登録できます。</p>
 
-        <label for="{{ form.nickname.id_for_label }}">ユーザー名（ニックネーム）</label>
+        <label for="{{ form.nickname.id_for_label }}">ニックネーム（表示名）</label>
         {{ form.nickname }}
         {% for error in form.nickname.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-        <p style="font-size:12px;color:#666;margin:-8px 0 14px;">プロフィールに表示されるニックネームです。英数字・ひらがな・漢字などが使えます。</p>
+        <p style="font-size:12px;color:#666;margin:-8px 0 14px;">タイムラインなどに表示される名前です。ハンドル（@ID）は登録後に自動で付与され、マイページから変更できます。</p>
 
         <label for="{{ form.faculty.id_for_label }}">学部（わせわせ認証バッジ）</label>
         {{ form.faculty }}

@@ -123,8 +123,8 @@
     <form class="form-card" method="post">
       {% csrf_token %}
       <p class="form-intro">
-        <strong>ニックネーム（表示名）</strong>は投稿名・出品者名などに、
-        <strong>ユーザーID</strong>はプロフィールの @ の後ろ（例：@いけ）に表示されます。どちらもここで変更できます。
+        <strong>ニックネーム（表示名）</strong>は投稿名などに、
+        <strong>ハンドル（@ID）</strong>はプロフィールの @ の後ろ（例：@wase_taro）に表示されます。英数字と _ のみ、3〜30文字です。
       </p>
       {% for field in form %}
       <div class="field">

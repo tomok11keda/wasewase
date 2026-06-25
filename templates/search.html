@@ -51,7 +51,7 @@
           <time class="tweet-time">{{ post.created_at|timesince }}前</time>
         </div>
         {% if post.course_name %}<span class="course-tag">📘 {{ post.course_name }}</span>{% endif %}
-        <p class="tweet-body">{{ post.body }}</p>
+        <p class="tweet-body">{{ post.body|linkify_mentions }}</p>
       </a>
       {% empty %}
       <p class="empty-message">該当する投稿はありません。</p>

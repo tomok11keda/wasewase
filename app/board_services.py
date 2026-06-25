@@ -8,7 +8,7 @@ from django.utils import timezone
 from .constants import FACULTY_CHOICES
 from .models import GodButtonUse, Notification, TimelineLike, TimelinePost
 from .services import get_following_user_ids
-from .ugc_services import filter_visible_timeline_posts
+from .ugc_services import filter_visible_timeline_posts, get_blocked_user_ids
 
 GOD_USES_PER_MONTH = 3
 TIMELINE_INITIAL_SIZE = 25
@@ -45,7 +45,13 @@ def build_timeline_posts_queryset(request):
         feed_scope = "all"
 
     timeline_posts = (
-        TimelinePost.objects.select_related("author", "author__profile")
+        TimelinePost.objects.select_related(
+            "author",
+            "author__profile",
+            "quoted_post",
+            "quoted_post__author",
+            "quoted_post__author__profile",
+        )
         .prefetch_related("comments__author")
     )
     if active_faculty:
@@ -86,6 +92,27 @@ def timeline_post_link(post: TimelinePost) -> str:
     if post.course_name:
         return f"{base}?tag={quote(post.course_name)}#post-{post.pk}"
     return f"{base}#post-{post.pk}"
+
+
+def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> TimelinePost | None:
+    """引用可能な投稿を返す（削除済み・ブロック相手は不可）。"""
+    post = (
+        TimelinePost.objects.select_related(
+            "author",
+            "author__profile",
+            "quoted_post",
+            "quoted_post__author",
+        )
+        .filter(pk=post_id, is_removed=False)
+        .first()
+    )
+    if not post:
+        return None
+    if viewer and viewer.is_authenticated and post.author_id:
+        blocked_ids = get_blocked_user_ids(viewer)
+        if post.author_id in blocked_ids:
+            return None
+    return post
 
 
 def notify_timeline_post_author(

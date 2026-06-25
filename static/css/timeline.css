@@ -10,8 +10,13 @@
   background: linear-gradient(135deg, #fffef8 0%, #fff 100%);
 }
 .tweet-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.tweet-author-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tweet-header-end { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .tweet-author { font-size: 13px; font-weight: 600; color: #333; text-decoration: none; }
+.tweet-handle { font-size: 12px; color: #888; text-decoration: none; }
+.tweet-handle:hover, .tweet-author:hover { color: #891E2B; }
+.mention-link { color: #891E2B; font-weight: 600; text-decoration: none; }
+.mention-link:hover { text-decoration: underline; }
 .tweet-time { font-size: 11px; color: #888; }
 .btn-tweet-dm, .btn-tweet-delete {
   padding: 4px 8px; border: 1px solid #d4a0a8; border-radius: 6px; background: #fff;
@@ -27,6 +32,23 @@
 .tweet-image { display: block; width: 100%; max-height: 420px; margin: 0 0 12px; border-radius: 12px; object-fit: cover; }
 .tweet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .tweet-actions form { margin: 0; flex: 1; min-width: 100px; }
+.tweet-actions a.btn-tweet-quote { flex: 1; min-width: 100px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.btn-tweet-quote { background: #fff; border: 2px solid #5c7cfa; color: #3b5bdb; }
+.quoted-post-card {
+  display: block; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #d8dee8;
+  border-radius: 10px; background: #f7f9fc; text-decoration: none; color: inherit;
+}
+.quoted-post-card--unavailable { background: #f3f3f3; border-style: dashed; }
+.quoted-post-header { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin-bottom: 6px; }
+.quoted-post-author { font-size: 12px; font-weight: 700; color: #333; }
+.quoted-post-handle { font-size: 11px; color: #888; }
+.quoted-post-tag { display: inline-block; font-size: 11px; color: #891E2B; margin-bottom: 4px; }
+.quoted-post-body { margin: 0; font-size: 13px; line-height: 1.45; color: #444; white-space: pre-wrap; }
+.quoted-post-thumb {
+  display: block; width: 100%; max-height: 160px; margin-top: 8px; border-radius: 8px;
+  object-fit: cover;
+}
+.quoted-post-unavailable { margin: 0; font-size: 13px; color: #888; }
 .btn-tweet { width: 100%; height: 36px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
 .btn-tweet-like { background: #fff; border: 2px solid #e91e63; color: #e91e63; }
 .btn-tweet-like.is-liked { background: #fce4ec; }

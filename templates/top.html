@@ -90,6 +90,9 @@
       width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;
       font-size: 15px; font-family: inherit; margin-bottom: 8px;
     }
+    .compose-quote-label {
+      margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--muted);
+    }
     .compose-row { display: flex; flex-wrap: wrap; gap: 8px; }
     .compose-field { flex: 1; min-width: 150px; }
     .compose-field label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -224,8 +227,15 @@
 
     {% if timeline_form %}
     <div class="compose-box" id="compose">
+      {% if quote_post %}
+      <p class="compose-quote-label">引用投稿</p>
+      {% include "includes/quoted_post_card.html" with post=quote_post %}
+      {% endif %}
       <form method="post" action="{% url 'board_compose' %}" enctype="multipart/form-data">
         {% csrf_token %}
+        {% if quote_post %}
+        <input type="hidden" name="quoted_post_id" value="{{ quote_post.pk }}">
+        {% endif %}
         {{ timeline_form.body }}
         <div class="compose-image-field">
           <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>

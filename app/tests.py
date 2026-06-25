@@ -89,24 +89,30 @@ class EmailEnvSanitizeTests(TestCase):
 
 
 class EmailAuthTests(TestCase):
-    def test_signup_rejects_duplicate_nickname(self):
+    def test_signup_allows_duplicate_nickname(self):
         get_user_model().objects.create_user(
             email="taken@example.com",
             password="password",
             username="taken_name",
         )
-        response = self.client.post(
-            reverse("signup"),
-            {
-                "email": "other@stu.waseda.jp",
-                "nickname": "taken_name",
-                "password1": "newpass123",
-                "password2": "newpass123",
-                "faculty": "商学部",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "すでに使われています")
+        with self.settings(
+            EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+            DEFAULT_FROM_EMAIL="test@waseda.jp",
+        ):
+            response = self.client.post(
+                reverse("signup"),
+                {
+                    "email": "other@stu.waseda.jp",
+                    "nickname": "たろう",
+                    "password1": "newpass123",
+                    "password2": "newpass123",
+                    "faculty": "商学部",
+                },
+            )
+        self.assertRedirects(response, reverse("verify_otp"))
+        user = get_user_model().objects.get(email="other@stu.waseda.jp")
+        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(profile.name, "たろう")
 
     def test_signup_rejects_duplicate_email(self):
         get_user_model().objects.create_user(
@@ -197,9 +203,10 @@ class EmailAuthTests(TestCase):
         )
         self.assertRedirects(response, reverse("verify_otp"))
         user = get_user_model().objects.get(email="new@waseda.jp")
-        self.assertEqual(user.username, "wase_taro")
+        self.assertEqual(user.username, f"user_{user.pk}")
         self.assertFalse(user.is_active)
         profile = UserProfile.objects.get(user=user)
+        self.assertEqual(profile.name, "wase_taro")
         self.assertEqual(profile.department, "法学部")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("認証コード", mail.outbox[0].subject)
@@ -548,6 +555,7 @@ class BoardTimelineNotificationTests(TestCase):
         self.actor = get_user_model().objects.create_user(
             email="actor@example.com",
             password="password",
+            username="actor",
         )
         self.post = TimelinePost.objects.create(
             author=self.author,
@@ -650,6 +658,115 @@ class BoardTimelineNotificationTests(TestCase):
 
         self.assertContains(response, "💬 1")
         self.assertContains(response, "助かりました。")
+
+
+class SocialFeaturesTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user(
+            email="author@example.com",
+            password="password",
+            username="post_author",
+        )
+        UserProfile.objects.create(user=self.author, name="投稿者")
+        self.mentioned = User.objects.create_user(
+            email="mentioned@example.com",
+            password="password",
+            username="mention_me",
+        )
+        UserProfile.objects.create(user=self.mentioned, name="メンション先")
+        self.actor = User.objects.create_user(
+            email="actor@example.com",
+            password="password",
+            username="quote_actor",
+        )
+        self.original = TimelinePost.objects.create(
+            author=self.author,
+            body="引用される元投稿です。",
+            course_name="民法",
+        )
+
+    def test_post_mention_creates_notification(self):
+        self.client.force_login(self.actor)
+        response = self.client.post(
+            reverse("board_compose"),
+            {"body": "こんにちは @mention_me さん", "course_name": "", "professor_name": "", "faculty": ""},
+        )
+        self.assertEqual(response.status_code, 302)
+        notification = Notification.objects.get(recipient=self.mentioned)
+        self.assertIn("メンション", notification.message)
+
+    def test_comment_mention_creates_notification(self):
+        self.client.force_login(self.actor)
+        self.client.post(
+            reverse("board_timeline_comment", args=[self.original.pk]),
+            {"body": "@mention_me 見てください"},
+        )
+        notification = Notification.objects.get(recipient=self.mentioned)
+        self.assertIn("メンション", notification.message)
+
+    def test_quote_post_renders_embedded_card(self):
+        self.client.force_login(self.actor)
+        response = self.client.post(
+            reverse("board_compose"),
+            {
+                "body": "これについて意見です",
+                "quoted_post_id": self.original.pk,
+                "course_name": "",
+                "professor_name": "",
+                "faculty": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        quote = TimelinePost.objects.get(body="これについて意見です")
+        self.assertEqual(quote.quoted_post_id, self.original.pk)
+
+        page = self.client.get(reverse("home"))
+        self.assertContains(page, "quoted-post-card")
+        self.assertContains(page, "引用される元投稿です。")
+
+    def test_board_quote_redirects_to_compose(self):
+        self.client.force_login(self.actor)
+        response = self.client.get(reverse("board_quote", args=[self.original.pk]))
+        self.assertRedirects(
+            response,
+            f"{reverse('home')}?quote={self.original.pk}#compose",
+        )
+
+    def test_signup_assigns_user_pk_handle(self):
+        with self.settings(
+            EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+            DEFAULT_FROM_EMAIL="test@waseda.jp",
+        ):
+            response = self.client.post(
+                reverse("signup"),
+                {
+                    "email": "handle@waseda.jp",
+                    "nickname": "表示名テスト",
+                    "password1": "newpass123",
+                    "password2": "newpass123",
+                    "faculty": "商学部",
+                },
+            )
+        self.assertRedirects(response, reverse("verify_otp"))
+        user = get_user_model().objects.get(email="handle@waseda.jp")
+        self.assertEqual(user.username, f"user_{user.pk}")
+        self.assertEqual(UserProfile.objects.get(user=user).name, "表示名テスト")
+
+    def test_mypage_edit_rejects_duplicate_handle(self):
+        self.client.force_login(self.actor)
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "",
+                "user_id": "mention_me",
+                "bio": "",
+                "department": "",
+                "grade": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "すでに使われています")
 
 
 class ProductTimestampDisplayTests(TestCase):

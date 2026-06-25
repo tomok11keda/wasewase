@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from .constants import FACULTY_CHOICES
+from .mention_services import notify_mentions
 from .dm_services import (
     can_access_dm_room,
     dm_room_link,
@@ -32,6 +33,7 @@ from .board_services import (
     TIMELINE_LOAD_MORE_SIZE,
     build_timeline_posts_queryset,
     can_use_god_button,
+    get_quotable_post,
     god_uses_remaining,
     notify_timeline_post_author,
     timeline_post_link,
@@ -175,6 +177,11 @@ def index(request):
     if request.user.is_authenticated:
         timeline_form = TimelinePostForm(initial={"faculty": user_faculty})
 
+    quote_post = None
+    quote_param = request.GET.get("quote", "").strip()
+    if quote_param.isdigit():
+        quote_post = get_quotable_post(int(quote_param), request.user)
+
     god_remaining = (
         god_uses_remaining(request.user) if request.user.is_authenticated else 0
     )
@@ -213,6 +220,7 @@ def index(request):
             "timeline_next_offset": timeline_next_offset,
             "timeline_total_count": timeline_total_count,
             "nav_active": "home",
+            "quote_post": quote_post,
         },
     )
 
@@ -682,8 +690,7 @@ def _persist_signup_user(form):
     pending = User.objects.filter(email__iexact=email, is_active=False).first()
     if pending:
         pending.set_password(password)
-        pending.username = nickname
-        pending.save(update_fields=["password", "username"])
+        pending.save(update_fields=["password"])
         user = pending
     else:
         user = form.save()
@@ -880,8 +887,12 @@ def board_compose(request):
                 "投稿の保存に失敗しました。画像アップロード設定を確認してください。",
             )
             return _board_redirect(request)
+        link = timeline_post_link(post)
+        notify_mentions(body=post.body, actor=request.user, link=link)
         if post.image:
             messages.success(request, "写真付きのつぶやきを投稿しました。")
+        elif post.quoted_post_id:
+            messages.success(request, "引用投稿しました。")
         else:
             messages.success(request, "つぶやきを投稿しました。")
         return _board_redirect(request, post_id=post.pk)
@@ -950,6 +961,16 @@ def board_timeline_god(request, pk):
 
 
 @login_required
+@require_GET
+def board_quote(request, pk):
+    post = get_quotable_post(pk, request.user)
+    if not post:
+        messages.error(request, "この投稿は引用できません。")
+        return redirect(reverse("home"))
+    return redirect(f"{reverse('home')}?quote={post.pk}#compose")
+
+
+@login_required
 @require_POST
 def board_timeline_comment(request, pk):
     post = get_object_or_404(TimelinePost, pk=pk)
@@ -959,6 +980,7 @@ def board_timeline_comment(request, pk):
         comment.timeline_post = post
         comment.author = request.user
         comment.save()
+        link = timeline_post_link(post)
         if post.author_id and post.author_id != request.user.id:
             Notification.objects.create(
                 recipient=post.author,
@@ -966,8 +988,14 @@ def board_timeline_comment(request, pk):
                     f"「{request.user.username}さんが"
                     "あなたの投稿にコメントしました」"
                 ),
-                link=timeline_post_link(post),
+                link=link,
             )
+        notify_mentions(
+            body=comment.body,
+            actor=request.user,
+            link=link,
+            exclude_user_ids={post.author_id} if post.author_id else None,
+        )
         messages.success(request, "コメントを投稿しました。")
     else:
         messages.error(request, "コメントを投稿できませんでした。")
