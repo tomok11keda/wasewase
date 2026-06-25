@@ -194,6 +194,15 @@ class Product(models.Model):
         help_text="進行中の Stripe Checkout Session ID",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    is_removed = models.BooleanField("運営削除", default=False, db_index=True)
+    removed_at = models.DateTimeField("削除日時", null=True, blank=True)
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="removed_products",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -234,6 +243,15 @@ class Comment(models.Model):
     )
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    is_removed = models.BooleanField("運営削除", default=False, db_index=True)
+    removed_at = models.DateTimeField("削除日時", null=True, blank=True)
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="removed_comments",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["created_at"]
@@ -315,6 +333,82 @@ class DevicePushToken(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} ({self.platform})"
+
+
+class ContentReport(models.Model):
+    """ユーザーからの UGC 通報。"""
+
+    class TargetType(models.TextChoices):
+        POST = "post", "タイムライン投稿"
+        COMMENT = "comment", "コメント"
+        USER = "user", "ユーザー"
+        PRODUCT = "product", "出品"
+
+    class Reason(models.TextChoices):
+        SPAM = "spam", "スパム・宣伝"
+        HARASSMENT = "harassment", "嫌がらせ・誹謗中傷"
+        INAPPROPRIATE = "inappropriate", "不適切な内容"
+        FRAUD = "fraud", "詐欺・虚偽出品"
+        OTHER = "other", "その他"
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="content_reports_sent",
+    )
+    target_type = models.CharField(
+        "対象種別",
+        max_length=16,
+        choices=TargetType.choices,
+    )
+    target_id = models.PositiveIntegerField("対象ID")
+    reason = models.CharField(
+        "理由",
+        max_length=32,
+        choices=Reason.choices,
+    )
+    detail = models.TextField("詳細", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reporter", "target_type", "target_id"],
+                name="unique_content_report_per_user_target",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reporter_id} → {self.target_type}:{self.target_id}"
+
+
+class UserBlock(models.Model):
+    """ユーザーブロック（相手の投稿・出品を非表示）。"""
+
+    blocker = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blocks_initiated",
+    )
+    blocked = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blocks_received",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["blocker", "blocked"],
+                name="unique_user_block",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.blocker_id} ⊘ {self.blocked_id}"
 
 
 class Review(models.Model):
@@ -578,6 +672,15 @@ class TimelinePost(models.Model):
     god_count = models.PositiveIntegerField(default=0)
     like_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_removed = models.BooleanField("運営削除", default=False, db_index=True)
+    removed_at = models.DateTimeField("削除日時", null=True, blank=True)
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="removed_timeline_posts",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["-created_at"]

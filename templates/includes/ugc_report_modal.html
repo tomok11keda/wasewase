@@ -1,0 +1,37 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/ugc_safety.css' %}">
+
+<div id="ugc-report-modal" class="ugc-modal" hidden aria-hidden="true">
+  <div class="ugc-modal__backdrop" data-ugc-modal-close></div>
+  <div class="ugc-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ugc-report-title">
+    <h2 id="ugc-report-title" class="ugc-modal__title">コンテンツを通報</h2>
+    <p class="ugc-modal__lead">不適切な内容を運営に報告します。虚偽の通報は利用規約違反となる場合があります。</p>
+    <form id="ugc-report-form" method="post" action="{% url 'submit_report' %}">
+      {% csrf_token %}
+      <input type="hidden" name="target_type" id="ugc-report-target-type" value="">
+      <input type="hidden" name="target_id" id="ugc-report-target-id" value="">
+      <fieldset class="ugc-report-reasons">
+        <legend class="ugc-sr-only">通報理由</legend>
+        {% for value, label in report_reason_choices %}
+        <label class="ugc-report-reason">
+          <input type="radio" name="reason" value="{{ value }}" {% if forloop.first %}required{% endif %}>
+          <span>{{ label }}</span>
+        </label>
+        {% endfor %}
+      </fieldset>
+      <label class="ugc-report-detail-label" for="ugc-report-detail">詳細（任意）</label>
+      <textarea id="ugc-report-detail" name="detail" rows="3" maxlength="500" placeholder="状況を具体的に記入してください（任意）"></textarea>
+      <p id="ugc-report-error" class="ugc-report-error" hidden></p>
+      <div class="ugc-modal__actions">
+        <button type="button" class="btn-ugc-secondary" data-ugc-modal-close>キャンセル</button>
+        <button type="submit" class="btn-ugc-primary">通報する</button>
+      </div>
+    </form>
+    <div id="ugc-report-success" class="ugc-report-success" hidden>
+      <p class="ugc-report-success__message"></p>
+      <button type="button" class="btn-ugc-primary" data-ugc-modal-close>閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'js/ugc_report.js' %}" defer></script>

@@ -690,6 +690,12 @@
       </div>
       <div class="product-info">
         <h1 class="product-name">{{ product.name }}</h1>
+        {% if ugc_report_enabled and product.seller_id and product.seller_id != user.id %}
+        <p class="product-report-row">
+          {% include "includes/ugc_report_button.html" with report_type="product" report_id=product.pk %}
+          <span class="product-report-hint">不適切な出品を通報</span>
+        </p>
+        {% endif %}
         <p class="product-seller">
           出品者:
           {% if product.seller %}
@@ -938,5 +944,8 @@
       });
     })();
   </script>
+  {% if ugc_report_enabled %}
+  {% include "includes/ugc_report_modal.html" %}
+  {% endif %}
 </body>
 </html>

@@ -1,10 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
+from django.utils import timezone
+
 from .models import (
     User,
     ChatRoom,
     Comment,
+    ContentReport,
     DevicePushToken,
     UserDirectMessage,
     UserDirectMessageRoom,
@@ -21,8 +24,27 @@ from .models import (
     TimelineLike,
     TradeMessage,
     Follow,
+    UserBlock,
     UserProfile,
 )
+
+
+@admin.action(description="運営削除（フィードから非表示）")
+def mark_as_removed(modeladmin, request, queryset):
+    queryset.filter(is_removed=False).update(
+        is_removed=True,
+        removed_at=timezone.now(),
+        removed_by=request.user,
+    )
+
+
+@admin.action(description="運営削除を解除")
+def restore_removed(modeladmin, request, queryset):
+    queryset.filter(is_removed=True).update(
+        is_removed=False,
+        removed_at=None,
+        removed_by=None,
+    )
 
 
 @admin.register(User)
@@ -69,13 +91,15 @@ class TimelinePostAdmin(admin.ModelAdmin):
         "god_count",
         "like_count",
         "has_image",
+        "is_removed",
         "created_at",
     )
+    actions = [mark_as_removed, restore_removed]
+    list_filter = ("is_removed", "faculty", "created_at")
 
     @admin.display(boolean=True, description="画像")
     def has_image(self, obj):
         return bool(obj.image)
-    list_filter = ("faculty", "created_at")
     search_fields = ("body", "course_name", "professor_name")
 
 
@@ -126,10 +150,43 @@ class FollowAdmin(admin.ModelAdmin):
     raw_id_fields = ("follower", "following")
 
 
+@admin.register(ContentReport)
+class ContentReportAdmin(admin.ModelAdmin):
+    list_display = ("target_type", "target_id", "reason", "reporter", "created_at")
+    list_filter = ("target_type", "reason", "created_at")
+    search_fields = ("target_id", "reporter__email", "reporter__username", "detail")
+    readonly_fields = ("created_at",)
+    actions = ["moderate_reported_content"]
+
+    @admin.action(description="通報対象を運営削除（ユーザー通報は対象外）")
+    def moderate_reported_content(self, request, queryset):
+        from .ugc_services import soft_remove_content
+
+        removed = 0
+        for report in queryset:
+            if report.target_type == ContentReport.TargetType.USER:
+                continue
+            if soft_remove_content(
+                target_type=report.target_type,
+                target_id=report.target_id,
+                moderator=request.user,
+            ):
+                removed += 1
+        self.message_user(request, f"{removed} 件のコンテンツを非表示にしました。")
+
+
+@admin.register(UserBlock)
+class UserBlockAdmin(admin.ModelAdmin):
+    list_display = ("blocker", "blocked", "created_at")
+    search_fields = ("blocker__email", "blocked__email")
+    raw_id_fields = ("blocker", "blocked")
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "seller", "price", "status", "category", "created_at")
-    list_filter = ("status", "category", "created_at")
+    list_display = ("name", "seller", "price", "status", "category", "is_removed", "created_at")
+    list_filter = ("status", "category", "is_removed", "created_at")
+    actions = [mark_as_removed, restore_removed]
     search_fields = (
         "name",
         "description",
@@ -162,9 +219,10 @@ class ReviewAdmin(admin.ModelAdmin):
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ("product", "body", "created_at")
-    list_filter = ("created_at",)
+    list_display = ("product", "timeline_post", "author", "is_removed", "created_at")
+    list_filter = ("is_removed", "created_at")
     search_fields = ("body", "product__name")
+    actions = [mark_as_removed, restore_removed]
 
 
 @admin.register(Like)

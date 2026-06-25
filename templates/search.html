@@ -399,5 +399,8 @@
       <span>マイページ</span>
     </a>
   </nav>
+  {% if ugc_report_enabled %}
+  {% include "includes/ugc_report_modal.html" %}
+  {% endif %}
 </body>
 </html>

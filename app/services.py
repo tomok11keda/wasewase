@@ -5,6 +5,7 @@ from django.db.models import Avg, Case, Count, IntegerField, Q, Sum, Value, When
 from django.urls import reverse
 
 from .models import Comment, Follow, Notification, Product, Review, ThreadPost, TimelinePost, UserProfile
+from .ugc_services import filter_visible_products, filter_visible_timeline_posts
 
 
 def user_display_name(user: AbstractBaseUser | None) -> str:
@@ -44,22 +45,24 @@ def build_search_url(query: str = "") -> str:
     return reverse("search")
 
 
-def search_products(query: str):
+def search_products(query: str, viewer=None):
     """フリマ商品を名前・説明で検索。"""
     qs = Product.objects.select_related("seller", "seller__profile")
     if not query:
         return qs.none()
-    return qs.filter(
+    qs = qs.filter(
         Q(name__icontains=query) | Q(description__icontains=query)
     ).order_by("-created_at")
+    return filter_visible_products(qs, viewer)
 
 
-def search_timeline_posts(query: str):
+def search_timeline_posts(query: str, viewer=None):
     """タイムライン投稿を本文で検索。"""
     qs = TimelinePost.objects.select_related("author", "author__profile")
     if not query:
         return qs.none()
-    return qs.filter(Q(body__icontains=query)).order_by("-created_at")
+    qs = qs.filter(Q(body__icontains=query)).order_by("-created_at")
+    return filter_visible_timeline_posts(qs, viewer)
 
 
 def build_home_url(

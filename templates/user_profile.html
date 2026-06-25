@@ -382,6 +382,18 @@
           </form>
           {% endif %}
         {% endif %}
+        <form method="post" action="{% url 'toggle_block' profile_user.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% if user_is_blocked %}
+          <button type="submit" class="btn-ugc-block btn-ugc-block--active">ブロック解除</button>
+          {% else %}
+          <button type="submit" class="btn-ugc-block" onclick="return confirm('このユーザーをブロックしますか？投稿と出品が表示されなくなります。');">ブロックする</button>
+          {% endif %}
+        </form>
+        {% if ugc_report_enabled %}
+        {% include "includes/ugc_report_button.html" with report_type="user" report_id=profile_user.pk %}
+        {% endif %}
         {% else %}
         <a class="btn btn-outline" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログインしてフォロー</a>
         {% endif %}
@@ -453,5 +465,8 @@
       <span>マイページ</span>
     </a>
   </nav>
+  {% if ugc_report_enabled %}
+  {% include "includes/ugc_report_modal.html" %}
+  {% endif %}
 </body>
 </html>

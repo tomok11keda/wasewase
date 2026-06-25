@@ -4,6 +4,9 @@
     <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author|display_name }}</a>
     <div class="tweet-header-end">
       <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
+      {% if ugc_report_enabled and post.author_id != user.id %}
+      {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk %}
+      {% endif %}
       {% if user.is_authenticated and post.author_id != user.id %}
       <form class="tweet-dm-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
         {% csrf_token %}

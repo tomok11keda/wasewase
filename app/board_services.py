@@ -8,6 +8,7 @@ from django.utils import timezone
 from .constants import FACULTY_CHOICES
 from .models import GodButtonUse, Notification, TimelineLike, TimelinePost
 from .services import get_following_user_ids
+from .ugc_services import filter_visible_timeline_posts
 
 GOD_USES_PER_MONTH = 3
 TIMELINE_INITIAL_SIZE = 25
@@ -63,6 +64,10 @@ def build_timeline_posts_queryset(request):
             timeline_posts = timeline_posts.filter(author_id__in=following_ids)
         else:
             timeline_posts = TimelinePost.objects.none()
+    timeline_posts = filter_visible_timeline_posts(
+        timeline_posts,
+        request.user if request.user.is_authenticated else None,
+    )
     timeline_posts = timeline_posts.order_by("-created_at")
     if request.user.is_authenticated:
         timeline_posts = timeline_posts.annotate(

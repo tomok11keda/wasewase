@@ -8,6 +8,7 @@ from django.db import transaction
 from .constants import FACULTY_CHOICES, WASEDA_EMAIL_ERROR, is_waseda_email
 from .models import (
     Comment,
+    ContentReport,
     CourseThread,
     Product,
     Review,
@@ -430,3 +431,27 @@ class TimelineCommentForm(forms.ModelForm):
         widgets = {
             "body": forms.TextInput(attrs={"placeholder": "コメントを入力..."})
         }
+
+
+class ContentReportForm(forms.Form):
+    target_type = forms.ChoiceField(
+        choices=ContentReport.TargetType.choices,
+        widget=forms.HiddenInput(),
+    )
+    target_id = forms.IntegerField(min_value=1, widget=forms.HiddenInput())
+    reason = forms.ChoiceField(
+        label="通報理由",
+        choices=ContentReport.Reason.choices,
+        widget=forms.RadioSelect,
+    )
+    detail = forms.CharField(
+        label="詳細（任意）",
+        required=False,
+        max_length=500,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 3,
+                "placeholder": "状況を具体的に記入してください（任意）",
+            }
+        ),
+    )
