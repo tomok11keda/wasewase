@@ -1,3 +1,8 @@
+import re
+
+HANDLE_PATTERN = re.compile(r"^[a-zA-Z0-9_]{3,30}$")
+HANDLE_MENTION_PATTERN = re.compile(r"@([a-zA-Z0-9_]{3,30})")
+
 GRADE_CHOICES = [
     ("", "未設定"),
     ("1年", "1年"),

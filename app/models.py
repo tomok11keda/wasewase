@@ -1,8 +1,11 @@
+import secrets
+import string
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
-from .constants import FACULTY_CHOICES, GRADE_CHOICES
+from .constants import FACULTY_CHOICES, GRADE_CHOICES, HANDLE_PATTERN
 
 
 class UserManager(BaseUserManager):
@@ -42,27 +45,51 @@ class User(AbstractUser):
     objects = UserManager()
 
     def save(self, *args, **kwargs):
+        assign_handle_after_insert = False
         if not self.username:
-            self.username = self._generate_username()
+            self.username = self._generate_unique_username_without_pk()
+            assign_handle_after_insert = True
         super().save(*args, **kwargs)
+        if assign_handle_after_insert and self.pk:
+            desired = self._generate_unique_username()
+            if self.username != desired:
+                self.username = desired
+                super().save(update_fields=["username"])
 
-    def _generate_username(self) -> str:
-        if self.email:
-            local = self.email.split("@")[0]
-            base = "".join(c if c.isalnum() or c == "_" else "_" for c in local)[:20]
-            base = base or "user"
-        else:
-            base = "user"
-        candidate = base
-        suffix = 1
-        while (
-            User.objects.filter(username=candidate)
+    def _generate_unique_username_without_pk(self) -> str:
+        alphabet = string.ascii_lowercase + string.digits
+        for _ in range(50):
+            suffix = "".join(secrets.choice(alphabet) for _ in range(8))
+            candidate = f"user_{suffix}"
+            if self._is_available_handle(candidate):
+                return candidate
+        return f"user_{secrets.token_hex(8)}"
+
+    def _is_available_handle(self, candidate: str) -> bool:
+        if not HANDLE_PATTERN.match(candidate):
+            return False
+        return (
+            not User.objects.filter(username__iexact=candidate)
             .exclude(pk=self.pk)
             .exists()
-        ):
-            candidate = f"{base}{suffix}"
-            suffix += 1
-        return candidate
+        )
+
+    def _generate_unique_username(self) -> str:
+        candidates: list[str] = []
+        if self.pk:
+            candidates.append(f"user_{self.pk}")
+            for suffix in range(1, 1000):
+                candidates.append(f"user_{self.pk}_{suffix}")
+        for _ in range(30):
+            candidates.append(self._generate_unique_username_without_pk())
+        seen: set[str] = set()
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if self._is_available_handle(candidate):
+                return candidate
+        raise ValueError("一意なハンドルを生成できませんでした。")
 
 
 class UserProfile(models.Model):
@@ -654,6 +681,14 @@ class TimelinePost(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="timeline_posts",
+    )
+    quoted_post = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotes",
+        verbose_name="引用元投稿",
     )
     body = models.CharField(max_length=280)
     course_name = models.CharField(

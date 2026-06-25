@@ -1,0 +1,20 @@
+{% load wase_extras %}
+{% if post.is_removed %}
+<div class="quoted-post-card quoted-post-card--unavailable">
+  <p class="quoted-post-unavailable">この投稿は表示できません</p>
+</div>
+{% else %}
+<a class="quoted-post-card" href="{% url 'home' %}#post-{{ post.pk }}">
+  <div class="quoted-post-header">
+    <span class="quoted-post-author">{{ post.author|display_name }}</span>
+    <span class="quoted-post-handle">@{{ post.author.username }}</span>
+  </div>
+  {% if post.course_name %}
+  <span class="quoted-post-tag">📘 {{ post.course_name }}</span>
+  {% endif %}
+  <p class="quoted-post-body">{{ post.body|truncatechars:120 }}</p>
+  {% if post.image %}
+  <img class="quoted-post-thumb" src="{{ post.image.url }}" alt="" loading="lazy">
+  {% endif %}
+</a>
+{% endif %}

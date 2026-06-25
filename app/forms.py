@@ -1,11 +1,10 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import get_user_model
-from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .constants import FACULTY_CHOICES, WASEDA_EMAIL_ERROR, is_waseda_email
+from .constants import FACULTY_CHOICES, HANDLE_PATTERN, WASEDA_EMAIL_ERROR, is_waseda_email
 from .models import (
     Comment,
     ContentReport,
@@ -43,14 +42,13 @@ class EmailAuthenticationForm(AuthenticationForm):
 
 class SignUpForm(UserCreationForm):
     nickname = forms.CharField(
-        label="ユーザー名（ニックネーム）",
-        max_length=150,
+        label="ニックネーム（表示名）",
+        max_length=80,
         required=True,
-        validators=[UnicodeUsernameValidator()],
         widget=forms.TextInput(
             attrs={
                 "placeholder": "例：わせ太郎",
-                "autocomplete": "username",
+                "autocomplete": "nickname",
             }
         ),
     )
@@ -79,15 +77,7 @@ class SignUpForm(UserCreationForm):
     def clean_nickname(self):
         nickname = (self.cleaned_data.get("nickname") or "").strip()
         if not nickname:
-            raise ValidationError("ユーザー名を入力してください。")
-
-        email = (self.data.get("email") or "").strip().lower()
-        qs = User.objects.filter(username__iexact=nickname)
-        pending = User.objects.filter(email__iexact=email, is_active=False).first()
-        if pending:
-            qs = qs.exclude(pk=pending.pk)
-        if qs.exists():
-            raise ValidationError("このユーザー名はすでに使われています。")
+            raise ValidationError("ニックネームを入力してください。")
         return nickname
 
     def clean_faculty(self):
@@ -114,7 +104,7 @@ class SignUpForm(UserCreationForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data["email"].strip().lower()
-        user.username = self.cleaned_data["nickname"]
+        user.username = ""
         user.is_active = False
         if commit:
             user.save()
@@ -145,20 +135,20 @@ class SignupOTPVerifyForm(forms.Form):
 
 
 class AccountProfileForm(forms.ModelForm):
-    """マイページからニックネーム・ユーザーID・プロフィールを編集する。"""
+    """マイページからニックネーム・ハンドル・プロフィールを編集する。"""
 
     user_id = forms.CharField(
-        label="ユーザーID",
-        max_length=150,
+        label="ハンドル（@ID）",
+        max_length=30,
+        min_length=3,
         required=True,
-        validators=[UnicodeUsernameValidator()],
         widget=forms.TextInput(
             attrs={
                 "placeholder": "例：wase_taro",
                 "autocomplete": "off",
             }
         ),
-        help_text="プロフィールなどに @ の後ろで表示されるIDです（英数字・ひらがな等）。",
+        help_text="英数字とアンダースコア（_）のみ、3〜30文字。プロフィールで @ の後ろに表示されます。",
     )
 
     class Meta:
@@ -187,21 +177,34 @@ class AccountProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["name"].required = False
         self.fields["name"].help_text = (
-            "タイムライン・フリマの出品者名などに表示されます。空欄の場合はユーザーIDが表示されます。"
+            "タイムラインなどに表示されるニックネームです。空欄の場合はハンドルが表示されます。"
         )
         if user is not None:
             self.fields["user_id"].initial = user.username
 
     def clean_user_id(self):
-        user_id = (self.cleaned_data.get("user_id") or "").strip()
-        if not user_id:
-            raise ValidationError("ユーザーIDを入力してください。")
-        qs = User.objects.filter(username__iexact=user_id)
+        return self.clean_username(self.cleaned_data.get("user_id"))
+
+    def clean_username(self, value=None):
+        """ハンドル変更時の形式・一意性チェック。"""
+        if value is None:
+            value = self.cleaned_data.get("user_id")
+        return self._clean_handle(value)
+
+    def _clean_handle(self, raw_value: str | None) -> str:
+        handle = (raw_value or "").strip()
+        if not handle:
+            raise ValidationError("ハンドルを入力してください。")
+        if not HANDLE_PATTERN.match(handle):
+            raise ValidationError(
+                "ハンドルは英数字とアンダースコア（_）のみ、3〜30文字で入力してください。"
+            )
+        qs = User.objects.filter(username__iexact=handle)
         if self.account_user:
             qs = qs.exclude(pk=self.account_user.pk)
         if qs.exists():
-            raise ValidationError("このユーザーIDはすでに使われています。")
-        return user_id
+            raise ValidationError("このハンドルはすでに使われています。")
+        return handle
 
     def save(self, commit=True):
         profile = super().save(commit=False)
@@ -302,6 +305,11 @@ class ReviewForm(forms.ModelForm):
 
 
 class TimelinePostForm(forms.ModelForm):
+    quoted_post_id = forms.IntegerField(
+        required=False,
+        widget=forms.HiddenInput,
+    )
+
     class Meta:
         model = TimelinePost
         fields = ("body", "course_name", "professor_name", "faculty", "image")
@@ -359,6 +367,24 @@ class TimelinePostForm(forms.ModelForm):
         if image.size > 5 * 1024 * 1024:
             raise ValidationError("画像は5MB以下にしてください。")
         return image
+
+    def clean_quoted_post_id(self):
+        value = self.cleaned_data.get("quoted_post_id")
+        if not value:
+            return None
+        post = TimelinePost.objects.filter(pk=value, is_removed=False).first()
+        if not post:
+            raise ValidationError("引用元の投稿が見つかりません。")
+        return post.pk
+
+    def save(self, commit=True):
+        post = super().save(commit=False)
+        quoted_post_id = self.cleaned_data.get("quoted_post_id")
+        if quoted_post_id:
+            post.quoted_post_id = quoted_post_id
+        if commit:
+            post.save()
+        return post
 
 
 class CourseThreadForm(forms.ModelForm):

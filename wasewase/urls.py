@@ -56,6 +56,7 @@ urlpatterns = [
     path("user/<int:pk>/block/", app_views.toggle_block, name="toggle_block"),
     path("report/", app_views.submit_report, name="submit_report"),
     path("board/compose/", app_views.board_compose, name="board_compose"),
+    path("board/post/<int:pk>/quote/", app_views.board_quote, name="board_quote"),
     path("board/feed/", app_views.timeline_feed, name="timeline_feed"),
     path("board/post/<int:pk>/like/", app_views.board_timeline_like, name="board_timeline_like"),
     path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),
