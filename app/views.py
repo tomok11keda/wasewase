@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
 from django.utils import timezone
 from django.views.decorators.cache import cache_control
@@ -41,6 +41,7 @@ from .forms import (
     EmailAuthenticationForm,
     ProductExhibitForm,
     AccountProfileForm,
+    ContentReportForm,
     ReviewForm,
     SignUpForm,
     SignupOTPVerifyForm,
@@ -50,6 +51,7 @@ from .forms import (
 from .models import (
     ChatRoom,
     Comment,
+    ContentReport,
     Follow,
     GodButtonUse,
     Like,
@@ -93,6 +95,16 @@ from .services import (
     notify_seller,
     prioritize_same_faculty,
     user_display_name,
+)
+from .ugc_services import (
+    block_user,
+    filter_visible_comments,
+    filter_visible_products,
+    filter_visible_timeline_posts,
+    get_report_target,
+    get_reported_user_id,
+    is_user_blocked,
+    unblock_user,
 )
 User = get_user_model()
 
@@ -168,10 +180,13 @@ def index(request):
         timeline_has_more = timeline_total_count > len(timeline_posts)
         timeline_next_offset = len(timeline_posts)
 
-        trending_posts = (
-            TimelinePost.objects.select_related("author")
-            .filter(god_count__gt=0)
-            .order_by("-god_count", "-created_at")[:5]
+        trending_posts = list(
+            filter_visible_timeline_posts(
+                TimelinePost.objects.select_related("author")
+                .filter(god_count__gt=0)
+                .order_by("-god_count", "-created_at"),
+                request.user if request.user.is_authenticated else None,
+            )[:5]
         )
 
         popular_tags = list(
@@ -184,7 +199,10 @@ def index(request):
         if request.user.is_authenticated:
             timeline_form = TimelinePostForm(initial={"faculty": user_faculty})
     else:
-        products = Product.objects.select_related("seller", "seller__profile").all()
+        products = filter_visible_products(
+            Product.objects.select_related("seller", "seller__profile").all(),
+            request.user if request.user.is_authenticated else None,
+        )
         if active_faculty:
             products = products.filter(faculty=active_faculty)
         if query:
@@ -304,9 +322,10 @@ def timeline_feed(request):
 def search(request):
     """フリマ（Product）とタイムライン（TimelinePost）を横断検索。"""
     query = request.GET.get("q", "").strip()
-    products = search_products(query) if query else Product.objects.none()
+    viewer = request.user if request.user.is_authenticated else None
+    products = search_products(query, viewer=viewer) if query else Product.objects.none()
     timeline_posts = (
-        search_timeline_posts(query).prefetch_related("comments__author")
+        search_timeline_posts(query, viewer=viewer).prefetch_related("comments__author")
         if query
         else TimelinePost.objects.none()
     )
@@ -327,12 +346,18 @@ def search(request):
 
 def product_detail(request, pk):
     product = get_object_or_404(
-        Product.objects.select_related(
-            "seller", "seller__profile", "buyer", "buyer__profile"
-        ).prefetch_related("likes"),
+        filter_visible_products(
+            Product.objects.select_related(
+                "seller", "seller__profile", "buyer", "buyer__profile"
+            ).prefetch_related("likes"),
+            request.user if request.user.is_authenticated else None,
+        ),
         pk=pk,
     )
-    comments = product.comments.select_related("author")
+    comments = filter_visible_comments(
+        product.comments.select_related("author"),
+        request.user if request.user.is_authenticated else None,
+    )
     like_count = product.likes.count()
     user_liked = False
     if request.user.is_authenticated:
@@ -873,6 +898,85 @@ def toggle_follow(request, pk):
 
 
 @login_required
+@require_POST
+def toggle_block(request, pk):
+    profile_user = get_object_or_404(User, pk=pk)
+    if profile_user == request.user:
+        messages.error(request, "自分自身をブロックすることはできません。")
+        return redirect(reverse("user_profile", kwargs={"pk": pk}))
+
+    if is_user_blocked(request.user, profile_user):
+        unblock_user(request.user, profile_user)
+        messages.info(request, f"{profile_user.username} さんのブロックを解除しました。")
+    else:
+        block_user(request.user, profile_user)
+        messages.success(
+            request,
+            f"{profile_user.username} さんをブロックしました。このユーザーの投稿と出品は表示されなくなります。",
+        )
+
+    next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
+    return redirect(next_url)
+
+
+def _wants_json_response(request) -> bool:
+    accept = request.headers.get("Accept", "")
+    if "application/json" in accept:
+        return True
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+@login_required
+@require_POST
+def submit_report(request):
+    form = ContentReportForm(request.POST)
+    if not form.is_valid():
+        if _wants_json_response(request):
+            return JsonResponse({"ok": False, "errors": form.errors}, status=400)
+        messages.error(request, "通報内容を確認してください。")
+        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+    target_type = form.cleaned_data["target_type"]
+    target_id = form.cleaned_data["target_id"]
+    target = get_report_target(target_type, target_id)
+    if target is None:
+        message = "通報対象が見つからないか、すでに削除されています。"
+        if _wants_json_response(request):
+            return JsonResponse({"ok": False, "message": message}, status=404)
+        messages.error(request, message)
+        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+    reported_user_id = get_reported_user_id(target_type, target)
+    if reported_user_id == request.user.pk:
+        message = "自分自身のコンテンツは通報できません。"
+        if _wants_json_response(request):
+            return JsonResponse({"ok": False, "message": message}, status=400)
+        messages.error(request, message)
+        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+    try:
+        ContentReport.objects.create(
+            reporter=request.user,
+            target_type=target_type,
+            target_id=target_id,
+            reason=form.cleaned_data["reason"],
+            detail=form.cleaned_data.get("detail", ""),
+        )
+    except IntegrityError:
+        message = "この内容はすでに通報済みです。運営が確認します。"
+        if _wants_json_response(request):
+            return JsonResponse({"ok": True, "message": message})
+        messages.info(request, message)
+        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+    message = "通報を受け付けました。内容を確認し、必要に応じて対応します。"
+    if _wants_json_response(request):
+        return JsonResponse({"ok": True, "message": message})
+    messages.success(request, message)
+    return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+
+@login_required
 def mypage(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
@@ -908,8 +1012,11 @@ def user_profile(request, pk):
     if from_source not in ("market", "thread"):
         from_source = "market"
 
-    available_products = Product.objects.filter(
-        seller=profile_user, status=Product.Status.AVAILABLE
+    available_products = filter_visible_products(
+        Product.objects.filter(
+            seller=profile_user, status=Product.Status.AVAILABLE
+        ),
+        request.user if request.user.is_authenticated else None,
     )
     rating_stats = get_user_rating_stats(profile_user)
     stats = get_profile_stats(profile_user, from_source)
@@ -917,6 +1024,11 @@ def user_profile(request, pk):
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
     user_is_following = (
         is_following(request.user, profile_user)
+        if request.user.is_authenticated and not is_own_profile
+        else False
+    )
+    user_is_blocked = (
+        is_user_blocked(request.user, profile_user)
         if request.user.is_authenticated and not is_own_profile
         else False
     )
@@ -939,6 +1051,7 @@ def user_profile(request, pk):
             "from_source": from_source,
             "is_own_profile": is_own_profile,
             "user_is_following": user_is_following,
+            "user_is_blocked": user_is_blocked,
             "can_send_dm": can_send_dm,
             "user_dm_room": user_dm_room,
         },

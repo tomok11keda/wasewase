@@ -240,6 +240,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'app.context_processors.notification_badge',
+                'app.context_processors.ugc_safety',
             ],
         },
     },

@@ -14,6 +14,7 @@ from django.utils import timezone
 from .models import (
     ChatRoom,
     Comment,
+    ContentReport,
     DevicePushToken,
     Follow,
     Message,
@@ -1931,4 +1932,97 @@ class PushNotificationTests(TestCase):
         )
 
         mock_get_firebase_app.assert_not_called()
+
+
+class UGCSafetyTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.viewer = User.objects.create_user(
+            email="viewer@example.com",
+            password="pass12345",
+            username="viewer",
+        )
+        self.author = User.objects.create_user(
+            email="author@example.com",
+            password="pass12345",
+            username="author",
+        )
+        self.post = TimelinePost.objects.create(
+            author=self.author,
+            body="テスト投稿",
+            course_name="線形代数",
+        )
+        self.product = Product.objects.create(
+            seller=self.author,
+            name="テスト出品",
+            price=500,
+            category="本",
+        )
+
+    def test_submit_report_creates_record(self):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("submit_report"),
+            {
+                "target_type": ContentReport.TargetType.POST,
+                "target_id": self.post.pk,
+                "reason": ContentReport.Reason.SPAM,
+                "detail": "宣伝です",
+            },
+            HTTP_ACCEPT="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            ContentReport.objects.filter(
+                reporter=self.viewer,
+                target_type=ContentReport.TargetType.POST,
+                target_id=self.post.pk,
+            ).exists()
+        )
+
+    def test_submit_report_rejects_self_report(self):
+        self.client.force_login(self.author)
+        response = self.client.post(
+            reverse("submit_report"),
+            {
+                "target_type": ContentReport.TargetType.POST,
+                "target_id": self.post.pk,
+                "reason": ContentReport.Reason.OTHER,
+            },
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_toggle_block_hides_timeline_posts(self):
+        self.client.force_login(self.viewer)
+        self.client.post(reverse("toggle_block", args=[self.author.pk]))
+
+        response = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertNotContains(response, "テスト投稿")
+
+        self.client.post(reverse("toggle_block", args=[self.author.pk]))
+        response = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertContains(response, "テスト投稿")
+
+    def test_toggle_block_hides_products(self):
+        self.client.force_login(self.viewer)
+        self.client.post(reverse("toggle_block", args=[self.author.pk]))
+
+        response = self.client.get(reverse("home"), {"tab": "flea"})
+        self.assertNotContains(response, "テスト出品")
+
+    def test_soft_removed_post_hidden_from_feed(self):
+        self.post.is_removed = True
+        self.post.save(update_fields=["is_removed"])
+
+        response = self.client.get(reverse("home"), {"tab": "board"})
+        self.assertNotContains(response, "テスト投稿")
+
+    def test_soft_removed_product_returns_404(self):
+        self.product.is_removed = True
+        self.product.save(update_fields=["is_removed"])
+
+        response = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 404)
 

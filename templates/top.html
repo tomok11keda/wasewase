@@ -1460,6 +1460,7 @@
     {% include "components/flea_banner_ad_slot.html" %}
     <div class="product-grid">
       {% for product in products %}
+      <div class="product-card-wrap">
       <a class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}" href="{% url 'product_detail' product.pk %}">
         <div class="product-card-media">
           {% if product.image %}
@@ -1482,6 +1483,10 @@
         <p class="product-card-title">{{ product.name }}</p>
         <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前</p>
       </a>
+      {% if ugc_report_enabled and product.seller_id != user.id %}
+      {% include "includes/ugc_report_button.html" with report_type="product" report_id=product.pk %}
+      {% endif %}
+      </div>
       {% empty %}
       <p class="empty-message">
         {% if feed_following_unauthenticated %}ログインするとフォロー中の出品が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの出品はまだありません。{% else %}該当する商品がありません。{% endif %}
@@ -1908,6 +1913,9 @@
   {% if tab == 'board' and timeline_has_more %}
   {% load static %}
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
+  {% endif %}
+  {% if ugc_report_enabled %}
+  {% include "includes/ugc_report_modal.html" %}
   {% endif %}
 </body>
 </html>
