@@ -67,13 +67,12 @@ def search_timeline_posts(query: str, viewer=None):
 
 def build_home_url(
     *,
-    tab: str,
     feed_scope: str = "all",
     query: str = "",
     active_faculty: str = "",
     active_tag: str = "",
 ) -> str:
-    params: dict[str, str] = {"tab": tab}
+    params: dict[str, str] = {}
     if feed_scope == "following":
         params["feed"] = "following"
     if query:
@@ -82,6 +81,8 @@ def build_home_url(
         params["faculty"] = active_faculty
     if active_tag:
         params["tag"] = active_tag
+    if not params:
+        return reverse("home")
     return f"{reverse('home')}?{urlencode(params)}"
 
 
@@ -145,24 +146,15 @@ def is_following(follower: AbstractBaseUser, target: AbstractBaseUser) -> bool:
     return Follow.objects.filter(follower=follower, following=target).exists()
 
 
-def get_profile_stats(user: AbstractBaseUser, from_source: str) -> dict:
-    """プロフィール画面上部の3つの数字（左は from により出品数/投稿数）。"""
-    product_count = count_user_products(user)
+def get_profile_stats(user: AbstractBaseUser) -> dict:
+    """プロフィール画面上部の統計。"""
     post_count = count_user_posts(user)
-    if from_source == "thread":
-        left_label = "投稿数"
-        left_count = post_count
-    else:
-        left_label = "出品数"
-        left_count = product_count
     return {
-        "left_label": left_label,
-        "left_count": left_count,
-        "product_count": product_count,
+        "left_label": "投稿数",
+        "left_count": post_count,
         "post_count": post_count,
         "follower_count": count_followers(user),
         "following_count": count_following(user),
-        "from_source": from_source if from_source in ("market", "thread") else "market",
     }
 
 

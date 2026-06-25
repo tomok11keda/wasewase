@@ -2,8 +2,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
+from django.views.generic import RedirectView
 
 from app import views as app_views
+
+_HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
 
 urlpatterns = [
     path("manifest.json", app_views.pwa_manifest, name="pwa_manifest"),
@@ -14,40 +17,25 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
-    path("exhibit/", app_views.exhibit, name="exhibit"),
-    path("product/<int:pk>/", app_views.product_detail, name="product_detail"),
-    path("product/<int:pk>/delete/", app_views.delete_product, name="delete_product"),
-    path("product/<int:pk>/like/", app_views.toggle_like, name="toggle_like"),
+    # フリマ機能（温存モデル・管理画面のみ。公開ルートはホームへリダイレクト）
+    path("exhibit/", _HOME_REDIRECT, name="exhibit"),
+    path("product/<int:pk>/", _HOME_REDIRECT, name="product_detail"),
+    path("product/<int:pk>/delete/", _HOME_REDIRECT, name="delete_product"),
+    path("product/<int:pk>/like/", _HOME_REDIRECT, name="toggle_like"),
     path(
         "product/<int:pk>/share-to-timeline/",
-        app_views.share_product_to_timeline,
+        _HOME_REDIRECT,
         name="share_product_to_timeline",
     ),
-    path("product/<int:pk>/purchase/", app_views.purchase_product, name="purchase_product"),
-    path(
-        "product/<int:pk>/chat/start/",
-        app_views.start_product_chat,
-        name="start_product_chat",
-    ),
-    path("chat/<int:room_pk>/", app_views.chat_room, name="chat_room"),
-    path(
-        "chat/<int:room_pk>/messages/",
-        app_views.chat_room_messages,
-        name="chat_room_messages",
-    ),
-    path(
-        "chat/<int:room_pk>/message/",
-        app_views.send_chat_message,
-        name="send_chat_message",
-    ),
-    path("product/<int:pk>/trade/", app_views.product_trade, name="product_trade"),
-    path("product/<int:pk>/trade/complete/", app_views.complete_trade, name="complete_trade"),
-    path("product/<int:pk>/review/", app_views.submit_review, name="submit_review"),
-    path(
-        "product/<int:pk>/trade-message/",
-        app_views.send_trade_message,
-        name="send_trade_message",
-    ),
+    path("product/<int:pk>/purchase/", _HOME_REDIRECT, name="purchase_product"),
+    path("product/<int:pk>/chat/start/", _HOME_REDIRECT, name="start_product_chat"),
+    path("chat/<int:room_pk>/", _HOME_REDIRECT, name="chat_room"),
+    path("chat/<int:room_pk>/messages/", _HOME_REDIRECT, name="chat_room_messages"),
+    path("chat/<int:room_pk>/message/", _HOME_REDIRECT, name="send_chat_message"),
+    path("product/<int:pk>/trade/", _HOME_REDIRECT, name="product_trade"),
+    path("product/<int:pk>/trade/complete/", _HOME_REDIRECT, name="complete_trade"),
+    path("product/<int:pk>/review/", _HOME_REDIRECT, name="submit_review"),
+    path("product/<int:pk>/trade-message/", _HOME_REDIRECT, name="send_trade_message"),
     path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
     path("user/<int:pk>/dm/start/", app_views.start_user_dm, name="start_user_dm"),
     path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),

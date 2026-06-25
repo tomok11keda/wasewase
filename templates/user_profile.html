@@ -348,20 +348,12 @@
       <p class="profile-meta">{{ profile.department_grade_display }}</p>
       {% endif %}
 
-      <p class="profile-rating">
-        {% if rating_stats.count %}
-        評価：★{{ rating_stats.avg_display }}（{{ rating_stats.count }}件）
-        {% else %}
-        評価：まだありません
-        {% endif %}
-      </p>
-
       {% include "includes/profile_level_card.html" %}
 
       <div class="profile-actions">
         {% if is_own_profile %}
         <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィール・アカウント設定</a>
-        <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ（売上・出品管理）</a>
+        <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ</a>
         {% elif user.is_authenticated %}
         <form method="post" action="{% url 'toggle_follow' profile_user.pk %}">
           {% csrf_token %}
@@ -388,7 +380,7 @@
           {% if user_is_blocked %}
           <button type="submit" class="btn-ugc-block btn-ugc-block--active">ブロック解除</button>
           {% else %}
-          <button type="submit" class="btn-ugc-block" onclick="return confirm('このユーザーをブロックしますか？投稿と出品が表示されなくなります。');">ブロックする</button>
+          <button type="submit" class="btn-ugc-block" onclick="return confirm('このユーザーをブロックしますか？投稿が表示されなくなります。');">ブロックする</button>
           {% endif %}
         </form>
         {% if ugc_report_enabled %}
@@ -414,57 +406,11 @@
         </div>
       </div>
 
-      <div class="mode-switch">
-        {% if from_source == "thread" %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">🛍️ この人の出品（フリマ）を見る</a>
-        {% else %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">📄 この人の投稿（スレッド）を見る</a>
-        {% endif %}
       </div>
     </section>
-
-    <h3 class="section-title">出品中の商品（{{ available_products|length }}）</h3>
-    {% if available_products %}
-    <div class="product-list">
-      {% for product in available_products %}
-      <a class="product-item" href="{% url 'product_detail' product.pk %}">
-        <div class="product-item-thumb">
-          {% if product.image %}
-          <img src="{{ product.image.url }}" alt="">
-          {% endif %}
-        </div>
-        <div>
-          <p class="product-item-name">{{ product.name }}</p>
-          <p class="product-item-price">¥{{ product.price|floatformat:0 }}</p>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty-message">現在出品中の商品はありません。</p>
-    {% endif %}
   </main>
 
-  <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="{% url 'home' %}">
-      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
-      <span>ホーム</span>
-    </a>
-    <a class="nav-item" href="{% url 'notifications' %}">
-      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <span>通知</span>
-    </a>
-    <a class="nav-item nav-item--fab" href="{% url 'exhibit' %}">
-      <span class="fab-circle">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-      </span>
-      <span>出品</span>
-    </a>
-    <a class="nav-item" href="{% url 'mypage' %}">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      <span>マイページ</span>
-    </a>
-  </nav>
+  {% include "includes/bottom_nav.html" %}
   {% if ugc_report_enabled %}
   {% include "includes/ugc_report_modal.html" %}
   {% endif %}

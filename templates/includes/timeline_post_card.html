@@ -1,7 +1,7 @@
 {% load wase_extras %}
 <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
   <div class="tweet-header">
-    <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}?from=thread">{{ post.author|display_name }}</a>
+    <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}">{{ post.author|display_name }}</a>
     <div class="tweet-header-end">
       <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
       {% if ugc_report_enabled and post.author_id != user.id %}
@@ -21,7 +21,7 @@
     </div>
   </div>
   {% if post.course_name %}
-  <a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
+  <a class="course-tag" href="{% url 'home' %}?tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
   {% endif %}
   {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
   {% if post.professor_name %}

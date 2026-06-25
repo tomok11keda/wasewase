@@ -4,81 +4,17 @@
 
 {% block extra_head %}
 <style>
-  :root {
-    --bg: #f5f5f5;
-    --card: #fff;
-    --text: #222;
-    --muted: #666;
-    --accent: #891E2B;
-    --accent-dark: #6f1722;
-    --radius: 12px;
-  }
-
-  body {
-    margin: 0;
-    font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-  }
-
-  .legal-header {
-    background: var(--accent);
-    color: #fff;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--accent-dark);
-  }
-
-  .legal-header a {
-    color: #fff;
-    font-size: 14px;
-    text-decoration: none;
-  }
-
-  .legal-header h1 {
-    margin: 8px 0 0;
-    font-size: 20px;
-    font-weight: 700;
-  }
-
-  .legal-main {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-
-  .legal-card {
-    background: var(--card);
-    border-radius: var(--radius);
-    padding: 24px 20px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    line-height: 1.75;
-    font-size: 14px;
-  }
-
-  .legal-card h2 {
-    margin: 24px 0 8px;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .legal-card p {
-    margin: 0 0 12px;
-  }
-
-  .legal-card ol {
-    margin: 0 0 12px;
-    padding-left: 1.4em;
-  }
-
-  .legal-card li {
-    margin-bottom: 6px;
-  }
-
-  .legal-date {
-    margin-top: 24px;
-    color: var(--muted);
-    font-size: 13px;
-  }
+  :root { --bg: #f5f5f5; --card: #fff; --text: #222; --muted: #666; --accent: #891E2B; --radius: 12px; }
+  body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif; background: var(--bg); color: var(--text); }
+  .legal-header { background: var(--accent); color: #fff; padding: 14px 16px; }
+  .legal-header a { color: #fff; font-size: 14px; text-decoration: none; }
+  .legal-header h1 { margin: 8px 0 0; font-size: 20px; }
+  .legal-main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .legal-card { background: var(--card); border-radius: var(--radius); padding: 24px 20px; line-height: 1.75; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .legal-card h2 { margin: 24px 0 8px; font-size: 16px; }
+  .legal-card p, .legal-card ol { margin: 0 0 12px; }
+  .legal-card ol { padding-left: 1.4em; }
+  .legal-date { margin-top: 24px; color: var(--muted); font-size: 13px; }
 </style>
 {% endblock %}
 
@@ -90,33 +26,47 @@
 
 <main class="legal-main">
   <article class="legal-card">
-    <p>この利用規約（以下、「本規約」）は、「わせわせ」（以下、「当サービス」）が提供するすべてのサービスにおける利用条件を定めるものです。ユーザーの皆様（以下、「ユーザー」）には、本規約に従って当サービスをご利用いただきます。</p>
+    <p>この利用規約（以下「本規約」）は、「わせわせ」（以下「当サービス」）が提供する早稲田大学生向けコミュニティSNSの利用条件を定めるものです。ユーザーは本規約に同意のうえ、当サービスをご利用ください。</p>
 
     <h2>第1条（利用資格）</h2>
-    <p>当サービスは、原則として早稲田大学の学生、教職員、その他関係者を対象としたコミュニティサービスです。不正な手段での登録や、対象外のユーザーによる利用が発覚した場合、管理者の裁量によりアカウントを停止できるものとします。</p>
+    <p>当サービスは、原則として早稲田大学の学生・教職員など、当サービスが定める学内コミュニティのメンバーを対象とします。早稲田大学のメールアドレス（waseda.jp）による本人確認を行います。虚偽の登録や対象外の利用が判明した場合、管理者はアカウントの停止等の措置を取ることができます。</p>
 
-    <h2>第2条（禁止事項）</h2>
-    <p>ユーザーは、当サービスの利用にあたり、以下の行為をしてはなりません。</p>
+    <h2>第2条（サービスの内容）</h2>
+    <p>当サービスは、ユーザーがテキスト・画像等の投稿（ユーザー生成コンテンツ、以下「UGC」）を共有し、他のユーザーと交流するためのプラットフォームです。授業タグ付きのタイムライン、フォロー、ダイレクトメッセージ、通報・ブロック等の機能を提供します。</p>
+
+    <h2>第3条（禁止事項）</h2>
+    <p>ユーザーは、以下の行為をしてはなりません。</p>
     <ol>
       <li>法令または公序良俗に違反する行為</li>
-      <li>犯罪行為に関連する行為</li>
-      <li>当サービスのサーバーまたはネットワークの機能を破壊したり、妨害したりする行為</li>
-      <li>他のユーザーに対する嫌がらせ、誹謗中傷、迷惑行為</li>
-      <li>虚偽の情報を用いて出品、または投稿を行う行為</li>
+      <li>犯罪行為に関連する行為、またはその助長</li>
+      <li>他のユーザーに対する嫌がらせ、誹謗中傷、脅迫、ストーキング</li>
+      <li>スパム、無断の宣伝・勧誘、なりすまし</li>
+      <li>他人の個人情報（氏名・連絡先・住所等）を本人の同意なく投稿する行為</li>
+      <li>わせわせ以外への誘導を主目的とした迷惑行為</li>
+      <li>当サービスのサーバー・ネットワークの機能を妨害する行為</li>
+      <li>虚偽の通報を繰り返す行為</li>
       <li>その他、管理者が不適切と判断する行為</li>
     </ol>
 
-    <h2>第3条（免責事項・ユーザー間トラブル）</h2>
-    <p>1. 当サービスは、ユーザー同士の交流や物品の取引等の場を提供するプラットフォームです。ユーザー間で生じたトラブル（代金の未払い、商品の不着、連絡不通、誹謗中傷など）について、当サービスの管理者は一切の責任を負いません。すべて当事者間で解決するものとします。</p>
-    <p>2. 当サービスの利用に関連してユーザーに生じた損害について、管理者は何らの責任も負わないものとします。</p>
+    <h2>第4条（UGCの取扱いとモデレーション）</h2>
+    <p>1. ユーザーは、投稿したコンテンツについて、当サービス上での表示・保存・配信に必要な範囲で、当サービスに非独占的な利用許諾を付与するものとします。</p>
+    <p>2. ユーザーは、他ユーザーの投稿について通報機能を利用できます。運営は通報内容を確認し、必要に応じて投稿の非表示・アカウント制限等の措置を行います。</p>
+    <p>3. ユーザーは、他ユーザーをブロックでき、ブロックしたユーザーの投稿は表示されなくなります。</p>
+    <p>4. 運営は、本規約違反または不適切と判断したUGCを、事前の通知なく削除または非表示にできるものとします。</p>
 
-    <h2>第4条（利用制限および登録抹消）</h2>
-    <p>ユーザーが本規約のいずれかに違反した場合、管理者は事前の通知なく、投稿データを削除し、またはユーザーに対して当サービスの全部もしくは一部の利用を制限・アカウントを抹消することができるものとします。</p>
+    <h2>第5条（ユーザー間のトラブル）</h2>
+    <p>ユーザー同士の交流（DMを含む）により生じたトラブルについて、運営は法令上必要な場合を除き、当事者間での解決を基本とし、一切の責任を負いません。ただし、通報を受けた場合は本規約に基づき適切に対応します。</p>
 
-    <h2>第5条（規約の変更）</h2>
-    <p>管理者は、必要と判断した場合には、ユーザーに通知することなくいつでも本規約を変更することができるものとします。</p>
+    <h2>第6条（免責事項）</h2>
+    <p>当サービスの利用に関連してユーザーに生じた損害について、運営は故意または重過失がある場合を除き、責任を負いません。投稿内容の正確性・有用性についても保証しません。</p>
 
-    <p class="legal-date">【策定日】2026年6月14日</p>
+    <h2>第7条（利用制限および登録抹消）</h2>
+    <p>ユーザーが本規約に違反した場合、運営は事前の通知なく、投稿の削除、利用制限、アカウントの停止・抹消等の措置を取ることができます。</p>
+
+    <h2>第8条（規約の変更）</h2>
+    <p>運営は、必要と判断した場合、ユーザーへの通知なく本規約を変更できるものとします。変更後の規約は、本ページに掲載した時点から効力を生じます。</p>
+
+    <p class="legal-date">【制定日】2026年6月14日<br>【改定日】2026年6月21日</p>
   </article>
 </main>
 {% endblock %}
