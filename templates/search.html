@@ -1,4 +1,4 @@
-{% load wase_extras %}
+{% load wase_extras static %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,305 +6,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — {% if query %}「{{ query }}」の検索結果{% else %}検索{% endif %}</title>
+  <link rel="stylesheet" href="{% static 'css/timeline.css' %}">
   <style>
-    :root {
-      --bg: #f5f5f5;
-      --card: #fff;
-      --text: #222;
-      --muted: #888;
-      --accent: #891E2B;
-      --accent-dark: #6f1722;
-      --radius: 12px;
-      --nav-h: 56px;
-    }
-
+    :root { --bg: #f7f9fc; --card: #fff; --text: #222; --muted: #888; --accent: #891E2B; --radius: 12px; --nav-h: 56px; }
     * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding-bottom: calc(var(--nav-h) + 16px);
-    }
-
-    .site-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--accent);
-      color: #fff;
-      border-bottom: 1px solid var(--accent-dark);
-      padding: 8px 12px;
-    }
-
-    .header-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .search-form { flex: 1; min-width: 0; }
-
-    .search-bar {
-      width: 100%;
-      height: 36px;
-      padding: 0 12px;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      font-size: 14px;
-    }
-
-    .back-link {
-      display: inline-block;
-      margin-top: 8px;
-      font-size: 13px;
-      color: #fff;
-      text-decoration: none;
-    }
-
-    .main-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 12px;
-    }
-
-    .search-intro {
-      margin: 0 0 16px;
-      padding: 12px 14px;
-      background: var(--card);
-      border-radius: var(--radius);
-      font-size: 14px;
-      line-height: 1.6;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    }
-
-    .search-section {
-      margin-bottom: 28px;
-    }
-
-    .search-section-header {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-      margin: 0 0 12px;
-      padding: 0 4px;
-    }
-
-    .search-section-title {
-      margin: 0;
-      font-size: 17px;
-      font-weight: 700;
-    }
-
-    .search-section-count {
-      margin: 0;
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    .product-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 8px;
-    }
-
-    .product-card {
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-
-    .product-card-media {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #e8e8e8;
-    }
-
-    .product-card-media img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .product-card-placeholder {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .product-price-badge {
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      z-index: 3;
-      padding: 5px 8px;
-      font-size: 14px;
-      font-weight: 800;
-      color: #fff;
-      background: rgba(137, 30, 43, 0.88);
-      border-top-right-radius: 8px;
-    }
-
-    .product-card-mask {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      background: rgba(0, 0, 0, 0.48);
-    }
-
-    .product-status-label {
-      position: absolute;
-      z-index: 2;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      margin: 0;
-      padding: 8px 14px;
-      font-size: 14px;
-      font-weight: 900;
-      letter-spacing: 0.1em;
-      color: #fff;
-      background: #d32f2f;
-      border-radius: 4px;
-    }
-
-    .product-status-label--trading {
-      top: 8px;
-      left: 8px;
-      transform: none;
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      padding: 5px 10px;
-      background: rgba(95, 102, 112, 0.95);
-    }
-
-    .product-card-title {
-      margin: 6px 2px 0;
-      font-size: 12px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .timeline-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .tweet-card {
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: 14px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-
-    .tweet-card:hover {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .tweet-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 13px;
-    }
-
-    .tweet-author {
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .tweet-time {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .tweet-body {
-      margin: 0;
-      font-size: 15px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-    }
-
-    .course-tag {
-      display: inline-block;
-      margin-bottom: 6px;
-      font-size: 12px;
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .empty-message {
-      padding: 24px 16px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 14px;
-      background: var(--card);
-      border-radius: var(--radius);
-    }
-
-    .bottom-nav {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 200;
-      background: var(--card);
-      border-top: 1px solid #e5e5e5;
-      display: flex;
-      justify-content: space-around;
-      height: var(--nav-h);
-      padding-top: 4px;
-    }
-
-    .nav-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      font-size: 10px;
-      color: #666;
-      text-decoration: none;
-    }
-
+    body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif; background: var(--bg); color: var(--text); padding-bottom: calc(var(--nav-h) + 16px); }
+    .site-header { position: sticky; top: 0; z-index: 100; background: var(--accent); color: #fff; padding: 8px 12px; }
+    .header-row { display: flex; align-items: center; gap: 8px; }
+    .search-form { flex: 1; }
+    .search-bar { width: 100%; height: 36px; padding: 0 12px; border-radius: 20px; border: 1px solid #ddd; }
+    .back-link { display: inline-block; margin-top: 8px; font-size: 13px; color: #fff; text-decoration: none; }
+    .main-inner { max-width: 672px; margin: 0 auto; padding: 12px; }
+    .search-intro { margin: 0 0 16px; padding: 12px 14px; background: var(--card); border-radius: var(--radius); font-size: 14px; }
+    .empty-message { padding: 24px; text-align: center; color: var(--muted); background: var(--card); border-radius: var(--radius); }
+    .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 200; background: var(--card); border-top: 1px solid #e5e5e5; display: flex; justify-content: space-around; height: var(--nav-h); padding-top: 4px; }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: #666; text-decoration: none; }
+    .nav-item.is-active, .nav-item[aria-current="page"] { color: var(--accent); }
     .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
-
-    @media (min-width: 480px) {
-      .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-
-    @media (min-width: 768px) {
-      .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-    }
-
-    @media (min-width: 1024px) {
-      .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-    }
+    .nav-item--fab { color: var(--accent); }
+    .nav-item--fab .fab-circle { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; margin-top: -8px; }
+    .nav-item--fab .fab-circle svg { fill: #fff; }
+    .nav-item--notify { position: relative; }
+    .nav-badge { position: absolute; top: 0; right: calc(50% - 22px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
   </style>
 </head>
 <body>
   <header class="site-header">
     <div class="header-row">
       <form class="search-form" method="get" action="{% url 'search' %}" role="search">
-        <label class="visually-hidden" for="q">フリマ・タイムラインを検索</label>
-        <input class="search-bar" id="q" type="search" name="q" value="{{ query }}"
-          placeholder="フリマ・スレッドを横断検索" autocomplete="off">
+        <input class="search-bar" id="q" type="search" name="q" value="{{ query }}" placeholder="タイムラインを検索" autocomplete="off">
       </form>
     </div>
     <a class="back-link" href="{% url 'home' %}">← ホームに戻る</a>
@@ -312,95 +42,28 @@
 
   <main class="main-inner">
     {% if query %}
-    <p class="search-intro">
-      「<strong>{{ query }}</strong>」の検索結果 — フリマ <strong>{{ product_count }}</strong> 件 /
-      スレッド <strong>{{ timeline_count }}</strong> 件
-    </p>
-
-    <section class="search-section" aria-labelledby="flea-results-title">
-      <div class="search-section-header">
-        <h2 id="flea-results-title" class="search-section-title">🛍️ フリマの検索結果</h2>
-        <p class="search-section-count">{{ product_count }}件</p>
-      </div>
-      <div class="product-grid">
-        {% for product in products %}
-        <a class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}"
-          href="{% url 'product_detail' product.pk %}">
-          <div class="product-card-media">
-            {% if product.image %}
-            <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
-            {% elif product.image_url %}
-            <img src="{{ product.image_url }}" alt="{{ product.name }}" loading="lazy">
-            {% else %}
-            <span class="product-card-placeholder">No Image</span>
-            {% endif %}
-            {% if product.is_sold or product.is_trading %}
-            <span class="product-card-mask" aria-hidden="true"></span>
-            {% endif %}
-            {% if product.is_sold %}
-            <p class="product-status-label">SOLD OUT</p>
-            {% elif product.is_trading %}
-            <p class="product-status-label product-status-label--trading">取引中</p>
-            {% endif %}
-            <span class="product-price-badge">¥{{ product.price|floatformat:0 }}</span>
-          </div>
-          <p class="product-card-title">{{ product.name }}</p>
-        </a>
-        {% empty %}
-        <p class="empty-message">該当する商品はありません。</p>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="search-section" aria-labelledby="thread-results-title">
-      <div class="search-section-header">
-        <h2 id="thread-results-title" class="search-section-title">📄 スレッドの検索結果</h2>
-        <p class="search-section-count">{{ timeline_count }}件</p>
-      </div>
-      <div class="timeline-list">
-        {% for post in timeline_posts %}
-        <a class="tweet-card" href="{% url 'home' %}?tab=board#post-{{ post.pk }}">
-          <div class="tweet-header">
-            <span class="tweet-author">{{ post.author|display_name }}</span>
-            <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|timesince }}前</time>
-          </div>
-          {% if post.course_name %}
-          <span class="course-tag">📘 {{ post.course_name }}</span>
-          {% endif %}
-          <p class="tweet-body">{{ post.body }}</p>
-        </a>
-        {% empty %}
-        <p class="empty-message">該当する投稿はありません。</p>
-        {% endfor %}
-      </div>
-    </section>
-
+    <p class="search-intro">「<strong>{{ query }}</strong>」の検索結果 — <strong>{{ timeline_count }}</strong> 件</p>
+    <div class="timeline-list">
+      {% for post in timeline_posts %}
+      <a class="tweet-card" href="{% url 'home' %}#post-{{ post.pk }}" style="text-decoration:none;color:inherit;display:block;">
+        <div class="tweet-header">
+          <span class="tweet-author">{{ post.author|display_name }}</span>
+          <time class="tweet-time">{{ post.created_at|timesince }}前</time>
+        </div>
+        {% if post.course_name %}<span class="course-tag">📘 {{ post.course_name }}</span>{% endif %}
+        <p class="tweet-body">{{ post.body }}</p>
+      </a>
+      {% empty %}
+      <p class="empty-message">該当する投稿はありません。</p>
+      {% endfor %}
+    </div>
     {% else %}
-    <p class="search-intro">キーワードを入力して、フリマの商品とスレッド投稿をまとめて検索できます。</p>
+    <p class="search-intro">キーワードでタイムライン投稿を検索できます。</p>
     <p class="empty-message">上の検索バーにキーワードを入力してください。</p>
     {% endif %}
   </main>
 
-  <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="{% url 'home' %}">
-      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
-      <span>ホーム</span>
-    </a>
-    <a class="nav-item" href="{% url 'notifications' %}">
-      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <span>通知</span>
-    </a>
-    <a class="nav-item" href="{% url 'exhibit' %}">
-      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-      <span>出品</span>
-    </a>
-    <a class="nav-item" href="{% url 'mypage' %}">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      <span>マイページ</span>
-    </a>
-  </nav>
-  {% if ugc_report_enabled %}
-  {% include "includes/ugc_report_modal.html" %}
-  {% endif %}
+  {% include "includes/bottom_nav.html" %}
+  {% if ugc_report_enabled %}{% include "includes/ugc_report_modal.html" %}{% endif %}
 </body>
 </html>

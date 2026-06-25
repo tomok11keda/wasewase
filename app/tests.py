@@ -417,7 +417,7 @@ class BoardTimelineSearchTests(TestCase):
             professor_name="山田太郎",
         )
 
-        response = self.client.get(reverse("home"), {"tab": "board", "q": "佐藤"})
+        response = self.client.get(reverse("home"), { "q": "佐藤"})
 
         self.assertContains(response, "中間レポートは講義資料を見れば大丈夫です。")
         self.assertNotContains(response, "期末試験は持ち込み不可です。")
@@ -442,7 +442,7 @@ class BoardTimelineSearchTests(TestCase):
 
         response = self.client.get(
             reverse("home"),
-            {"tab": "board", "faculty": "社会科学部"},
+            {"faculty": "社会科学部"},
         )
 
         self.assertContains(response, "社学向けの履修情報です。")
@@ -480,7 +480,7 @@ class BoardTimelineImageTests(TestCase):
         post = TimelinePost.objects.get(body="板書の写真です")
         self.assertTrue(post.image.name.startswith("post_images/"))
 
-        page = self.client.get(reverse("home"), {"tab": "board"})
+        page = self.client.get(reverse("home"))
         self.assertContains(page, "板書の写真です")
         self.assertContains(page, post.image.url)
 
@@ -501,7 +501,7 @@ class BoardTimelineImageTests(TestCase):
         self.assertIsNone(post.professor_name)
         self.assertEqual(post.faculty, "")
 
-        page = self.client.get(reverse("home"), {"tab": "board"})
+        page = self.client.get(reverse("home"))
         self.assertContains(page, "テキストだけの投稿です")
 
     def test_board_compose_redirects_to_unfiltered_timeline(self):
@@ -530,11 +530,11 @@ class BoardTimelineImageTests(TestCase):
         post = TimelinePost.objects.get(body="線形代数のメモです")
         self.assertEqual(
             response["Location"],
-            f"{reverse('home')}?tab=board#post-{post.pk}",
+            f"{reverse('home')}#post-{post.pk}",
         )
         self.assertNotIn("tag=", response["Location"])
 
-        page = self.client.get(reverse("home"), {"tab": "board"})
+        page = self.client.get(reverse("home"))
         self.assertContains(page, "線形代数のメモです")
         self.assertContains(page, "別授業の投稿です")
 
@@ -571,7 +571,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
+            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_god_notifies_timeline_post_author(self):
@@ -587,7 +587,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
+            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_like_toggle_decrements_count(self):
@@ -625,7 +625,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tab=board&tag={quote('民法')}#post-{self.post.pk}",
+            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
         )
 
     def test_self_comment_does_not_create_notification(self):
@@ -646,7 +646,7 @@ class BoardTimelineNotificationTests(TestCase):
             body="助かりました。",
         )
 
-        response = self.client.get(reverse("home"), {"tab": "board"})
+        response = self.client.get(reverse("home"))
 
         self.assertContains(response, "💬 1")
         self.assertContains(response, "助かりました。")
@@ -904,7 +904,7 @@ class ProfileAndFollowTests(TestCase):
         home = self.client.get(reverse("home"), {"tab": "flea"})
         self.assertContains(home, "新しい表示名")
         self.assertNotContains(home, "new_user_id")
-        board = self.client.get(reverse("home"), {"tab": "board"})
+        board = self.client.get(reverse("home"))
         self.assertContains(board, "新しい表示名")
 
         profile_page = self.client.get(
@@ -1053,7 +1053,7 @@ class FeedAndShareTests(TestCase):
 
     def test_board_following_feed_shows_only_followed_posts(self):
         self.client.force_login(self.viewer)
-        response = self.client.get(reverse("home"), {"tab": "board", "feed": "following"})
+        response = self.client.get(reverse("home"), {"feed": "following"})
         self.assertContains(response, "フォロー投稿")
         self.assertNotContains(response, "その他投稿")
 
@@ -1128,7 +1128,7 @@ class DeleteContentTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.post(reverse("delete_timeline_post", args=[self.post.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], f"{reverse('home')}?tab=board&tag={quote('憲法')}")
+        self.assertEqual(response["Location"], f"{reverse('home')}?tag={quote('憲法')}")
         self.assertFalse(TimelinePost.objects.filter(pk=self.post.pk).exists())
 
     def test_other_user_cannot_delete_timeline_post(self):
@@ -1139,12 +1139,12 @@ class DeleteContentTests(TestCase):
 
     def test_timeline_shows_delete_only_for_author(self):
         self.client.force_login(self.owner)
-        owner_page = self.client.get(reverse("home"), {"tab": "board"})
+        owner_page = self.client.get(reverse("home"))
         self.assertContains(owner_page, "btn-tweet-delete")
         self.assertContains(owner_page, reverse("delete_timeline_post", args=[self.post.pk]))
 
         self.client.force_login(self.other)
-        other_page = self.client.get(reverse("home"), {"tab": "board"})
+        other_page = self.client.get(reverse("home"))
         self.assertNotContains(other_page, reverse("delete_timeline_post", args=[self.post.pk]))
 
     def test_owner_can_delete_product(self):
@@ -1225,7 +1225,7 @@ class DeleteCommentTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response["Location"],
-            f"{reverse('home')}?tab=board&tag={quote('刑法')}#post-{self.timeline_post.pk}",
+            f"{reverse('home')}?tag={quote('刑法')}#post-{self.timeline_post.pk}",
         )
         self.assertFalse(
             Comment.objects.filter(pk=self.timeline_comment.pk).exists()
@@ -1266,7 +1266,7 @@ class DeleteCommentTests(TestCase):
             body="他人の返信",
         )
         self.client.force_login(self.owner)
-        page = self.client.get(reverse("home"), {"tab": "board"})
+        page = self.client.get(reverse("home"))
         self.assertContains(
             page,
             reverse("delete_comment", args=[self.timeline_comment.pk]),
@@ -1518,7 +1518,7 @@ class UserDirectMessageTests(TestCase):
             body="DMテスト投稿",
         )
         self.client.force_login(self.user_a)
-        page = self.client.get(reverse("home"), {"tab": "board"})
+        page = self.client.get(reverse("home"))
         self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
         self.assertContains(page, "DMテスト投稿")
 
@@ -1598,7 +1598,7 @@ class TimelineInfiniteScrollTests(TestCase):
             TimelinePost.objects.create(author=self.author, body=f"scroll-post-{i}")
 
     def test_initial_timeline_shows_25_posts_without_show_all_button(self):
-        response = self.client.get(reverse("home"), {"tab": "board"})
+        response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="timeline-list"')
         self.assertContains(response, 'data-has-more="true"')
@@ -1998,31 +1998,25 @@ class UGCSafetyTests(TestCase):
         self.client.force_login(self.viewer)
         self.client.post(reverse("toggle_block", args=[self.author.pk]))
 
-        response = self.client.get(reverse("home"), {"tab": "board"})
+        response = self.client.get(reverse("home"))
         self.assertNotContains(response, "テスト投稿")
 
         self.client.post(reverse("toggle_block", args=[self.author.pk]))
-        response = self.client.get(reverse("home"), {"tab": "board"})
+        response = self.client.get(reverse("home"))
         self.assertContains(response, "テスト投稿")
-
-    def test_toggle_block_hides_products(self):
-        self.client.force_login(self.viewer)
-        self.client.post(reverse("toggle_block", args=[self.author.pk]))
-
-        response = self.client.get(reverse("home"), {"tab": "flea"})
-        self.assertNotContains(response, "テスト出品")
 
     def test_soft_removed_post_hidden_from_feed(self):
         self.post.is_removed = True
         self.post.save(update_fields=["is_removed"])
 
-        response = self.client.get(reverse("home"), {"tab": "board"})
+        response = self.client.get(reverse("home"))
         self.assertNotContains(response, "テスト投稿")
 
-    def test_soft_removed_product_returns_404(self):
+    def test_soft_removed_product_redirects_home(self):
         self.product.is_removed = True
         self.product.save(update_fields=["is_removed"])
 
         response = self.client.get(reverse("product_detail", args=[self.product.pk]))
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response["Location"], "/")
 

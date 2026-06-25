@@ -1,0 +1,47 @@
+.tweet-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e8edf2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.tweet-card.is-hot {
+  border-color: #f0e0a0;
+  background: linear-gradient(135deg, #fffef8 0%, #fff 100%);
+}
+.tweet-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.tweet-header-end { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.tweet-author { font-size: 13px; font-weight: 600; color: #333; text-decoration: none; }
+.tweet-time { font-size: 11px; color: #888; }
+.btn-tweet-dm, .btn-tweet-delete {
+  padding: 4px 8px; border: 1px solid #d4a0a8; border-radius: 6px; background: #fff;
+  color: #891E2B; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.course-tag {
+  display: inline-block; padding: 4px 10px; background: #e8f0fa; color: #891E2B;
+  border-radius: 6px; font-size: 12px; font-weight: 700; text-decoration: none; margin-bottom: 8px;
+}
+.tag-faculty { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f7edf0; color: #891E2B; font-weight: 600; }
+.tweet-professor { margin: -2px 0 8px; font-size: 12px; font-weight: 600; color: #888; }
+.tweet-body { margin: 0 0 12px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; }
+.tweet-image { display: block; width: 100%; max-height: 420px; margin: 0 0 12px; border-radius: 12px; object-fit: cover; }
+.tweet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.tweet-actions form { margin: 0; flex: 1; min-width: 100px; }
+.btn-tweet { width: 100%; height: 36px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+.btn-tweet-like { background: #fff; border: 2px solid #e91e63; color: #e91e63; }
+.btn-tweet-like.is-liked { background: #fce4ec; }
+.btn-tweet-god { background: linear-gradient(135deg, #891E2B, #6f1722); color: #fff; }
+.btn-tweet-god:disabled { opacity: 0.45; cursor: not-allowed; }
+.tweet-stats { margin-top: 8px; font-size: 12px; color: #888; }
+.timeline-comments { margin-top: 10px; border-top: 1px solid #eef2f6; padding-top: 8px; }
+.timeline-comments summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #888; list-style: none; }
+.timeline-comments summary::-webkit-details-marker { display: none; }
+.comment-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.timeline-comment { padding: 8px 10px; background: #f7f9fc; border-radius: 8px; }
+.comment-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 11px; color: #888; }
+.comment-body { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.comment-form { display: flex; gap: 8px; margin-top: 8px; }
+.comment-form input { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 9px 10px; font-size: 13px; }
+.comment-form button { border: none; border-radius: 8px; padding: 0 14px; background: #891E2B; color: #fff; font-weight: 700; cursor: pointer; }
+.btn-comment-delete { border: none; background: none; color: #891E2B; font-size: 11px; text-decoration: underline; cursor: pointer; }
+.timeline-ad-slot { margin: 0; padding: 20px 16px; border: 1px dashed #ccc; border-radius: 12px; background: #f7f7f7; text-align: center; }

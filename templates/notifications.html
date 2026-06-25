@@ -158,23 +158,6 @@
     {% endif %}
   </main>
 
-  <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="{% url 'home' %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
-      <span>ホーム</span>
-    </a>
-    <a class="nav-item" href="{% url 'notifications' %}" aria-current="page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <span>通知</span>
-    </a>
-    <a class="nav-item" href="{% url 'exhibit' %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-      <span>出品</span>
-    </a>
-    <a class="nav-item" href="{% url 'mypage' %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      <span>マイページ</span>
-    </a>
-  </nav>
+  {% include "includes/bottom_nav.html" %}
 </body>
 </html>

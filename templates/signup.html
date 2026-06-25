@@ -83,7 +83,7 @@
         <label for="{{ form.nickname.id_for_label }}">ユーザー名（ニックネーム）</label>
         {{ form.nickname }}
         {% for error in form.nickname.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-        <p style="font-size:12px;color:#666;margin:-8px 0 14px;">プロフィールや出品者名に表示されます。英数字・ひらがな・漢字などが使えます。</p>
+        <p style="font-size:12px;color:#666;margin:-8px 0 14px;">プロフィールに表示されるニックネームです。英数字・ひらがな・漢字などが使えます。</p>
 
         <label for="{{ form.faculty.id_for_label }}">学部（わせわせ認証バッジ）</label>
         {{ form.faculty }}

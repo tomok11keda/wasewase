@@ -82,9 +82,9 @@ def build_timeline_posts_queryset(request):
 
 
 def timeline_post_link(post: TimelinePost) -> str:
-    base = f"{reverse('home')}?tab=board"
+    base = reverse("home")
     if post.course_name:
-        return f"{base}&tag={quote(post.course_name)}#post-{post.pk}"
+        return f"{base}?tag={quote(post.course_name)}#post-{post.pk}"
     return f"{base}#post-{post.pk}"
 
 

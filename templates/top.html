@@ -1,1416 +1,177 @@
-{% load wase_extras %}
+{% load wase_extras static %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
-  <title>わせわせ — {% if tab == 'board' %}つぶやき{% else %}フリマ{% endif %}</title>
+  <title>わせわせ — タイムライン</title>
+  <link rel="stylesheet" href="{% static 'css/ugc_safety.css' %}">
+  <link rel="stylesheet" href="{% static 'css/timeline.css' %}">
   <style>
     :root {
-      --bg: #f5f5f5;
+      --bg: #f7f9fc;
       --card: #fff;
       --text: #222;
       --muted: #888;
       --accent: #891E2B;
       --accent-dark: #6f1722;
-      --header-h: 52px;
       --nav-h: 56px;
       --radius: 12px;
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
       background: var(--bg);
       color: var(--text);
       padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
     }
-
-    /* --- ヘッダー --- */
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
     .site-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--accent);
-      color: #fff;
+      position: sticky; top: 0; z-index: 100;
+      background: var(--accent); color: #fff;
       border-bottom: 1px solid var(--accent-dark);
-      padding: 8px 12px calc(8px + env(safe-area-inset-top, 0px));
-      padding-top: max(8px, env(safe-area-inset-top, 0px));
+      padding: 8px 12px max(8px, env(safe-area-inset-top, 0px));
     }
-
-    .header-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .search-wrap {
-      flex: 1;
-      min-width: 0;
-    }
-
+    .header-row { display: flex; align-items: center; gap: 8px; }
+    .search-form { flex: 1; min-width: 0; margin: 0; }
     .search-bar {
-      width: 100%;
-      height: 36px;
-      padding: 0 12px 0 36px;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      font-size: 14px;
-      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") 12px center no-repeat;
-      outline: none;
+      width: 100%; height: 36px; padding: 0 12px 0 36px;
+      border: 1px solid #ddd; border-radius: 20px; font-size: 14px; background: #fff;
     }
-
-    .search-bar:focus {
-      border-color: var(--accent);
-      background-color: var(--card);
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
+    .header-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      height: 32px;
-      padding: 0 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      text-decoration: none;
-      border: none;
-      cursor: pointer;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 32px; padding: 0 12px; border-radius: 8px;
+      font-size: 12px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
     }
-
-    .btn-ghost {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.55);
-    }
-
-    .btn-primary {
-      background: #fff;
-      color: var(--accent);
-    }
-
-    .btn-primary:hover { background: #f6edf0; }
-
-    /* --- 学部フィルター横スクロール --- */
+    .btn-ghost { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.55); }
+    .btn-primary { background: #fff; color: var(--accent); }
     .faculty-filter-section {
-      background: var(--card);
-      padding: 10px 0;
-      margin-bottom: 8px;
-      border-bottom: 1px solid #eee;
+      background: var(--card); padding: 10px 0; margin-bottom: 8px; border-bottom: 1px solid #eee;
     }
-
     .faculty-tabs {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 0 12px;
-      scroll-snap-type: x proximity;
-      -webkit-overflow-scrolling: touch;
+      display: flex; gap: 8px; overflow-x: auto; padding: 0 12px;
       scrollbar-width: none;
     }
-
-    .faculty-tabs::-webkit-scrollbar {
-      display: none;
-    }
-
+    .faculty-tabs::-webkit-scrollbar { display: none; }
     .faculty-tab {
-      flex: 0 0 auto;
-      scroll-snap-align: start;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 34px;
-      padding: 0 14px;
-      border: 1px solid #e5d3d7;
-      border-radius: 999px;
-      background: #fff;
-      color: #6b5b5f;
-      font-size: 13px;
-      font-weight: 700;
-      white-space: nowrap;
-      text-decoration: none;
+      flex: 0 0 auto; min-height: 34px; padding: 0 14px;
+      border: 1px solid #e5d3d7; border-radius: 999px; background: #fff;
+      color: #6b5b5f; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap;
     }
-
-    .faculty-tab.is-active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-      box-shadow: 0 2px 8px rgba(137, 30, 43, 0.18);
-    }
-
-    /* --- 商品グリッド --- */
-    .main-inner {
-      padding: 0 8px 16px;
-      max-width: 560px;
-      margin: 0 auto;
-    }
-
-    .main-inner.flea-panel {
-      max-width: 1200px;
-    }
-
-    .board-panel-wrap {
-      width: 100%;
-      max-width: 672px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .section-title {
-      font-size: 15px;
-      font-weight: 700;
-      margin: 12px 4px 10px;
-    }
-
-    .flea-banner-ad-slot {
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-      margin: 4px 4px 16px;
-      padding: 18px 12px;
-      min-height: 72px;
-      border: 1px dashed #ccc;
-      border-radius: var(--radius);
-      background: #f7f7f7;
-      text-align: center;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .flea-banner-ad-slot__placeholder {
-      margin: 0;
-      font-size: 11px;
-      line-height: 1.5;
-      color: #999;
-    }
-
-    .wase-admob-anchor:empty::before {
-      content: "【スポンサーリンク】広告枠";
-      display: block;
-      font-size: 11px;
-      line-height: 1.5;
-      color: #999;
-    }
-
-    html.is-native-capacitor .wase-admob-anchor:empty::before {
-      content: "";
-      display: none;
-    }
-
-    .product-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 8px;
-    }
-
-    .product-card {
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-
-    .product-card-media {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 10px;
-      overflow: hidden;
-      background: linear-gradient(145deg, #ececec 0%, #d8d8d8 100%);
-    }
-
-    .product-card-media img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .product-card-placeholder {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .product-price-badge {
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      z-index: 3;
-      padding: 5px 8px;
-      font-size: 14px;
-      font-weight: 800;
-      line-height: 1.2;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.72);
-      border-top-right-radius: 8px;
-      letter-spacing: 0.02em;
-    }
-
-    .product-card:not(.is-sold):not(.is-trading) .product-price-badge {
-      background: rgba(137, 30, 43, 0.88);
-    }
-
-    .product-card-mask {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      background: rgba(0, 0, 0, 0.48);
-      pointer-events: none;
-    }
-
-    .product-card.is-trading .product-card-mask {
-      background: rgba(0, 0, 0, 0.35);
-    }
-
-    .product-status-label {
-      position: absolute;
-      z-index: 2;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      margin: 0;
-      padding: 8px 14px;
-      font-size: 15px;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      line-height: 1;
-      color: #fff;
-      background: #d32f2f;
-      border: 2px solid #fff;
-      border-radius: 4px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-      pointer-events: none;
-    }
-
-    .product-status-label--trading {
-      top: 8px;
-      left: 8px;
-      transform: none;
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      padding: 5px 10px;
-      background: rgba(95, 102, 112, 0.95);
-      border: none;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    }
-
-    .product-card-title {
-      margin: 6px 2px 0;
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.35;
-      color: var(--text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .product-card-meta {
-      margin: 2px 2px 0;
-      font-size: 11px;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .nav-badge {
-      position: absolute;
-      top: 0;
-      right: calc(50% - 22px);
-      min-width: 16px;
-      height: 16px;
-      padding: 0 4px;
-      border-radius: 8px;
-      background: var(--accent);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 700;
-      line-height: 16px;
-      text-align: center;
-    }
-
-    .nav-item--notify {
-      position: relative;
-    }
-
-    /* --- 下部固定ナビ（メルカリ風） --- */
-    .bottom-nav {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 200;
-      background: var(--card);
-      border-top: 1px solid #e5e5e5;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-      display: flex;
-      justify-content: space-around;
-      align-items: stretch;
-      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-      padding-top: 4px;
-    }
-
-    .nav-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 2px;
-      padding: 4px 0;
-      font-size: 10px;
-      color: #666;
-      text-decoration: none;
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .nav-item[aria-current="page"] {
-      color: var(--accent);
-    }
-
-    .nav-item svg {
-      width: 24px;
-      height: 24px;
-      fill: currentColor;
-    }
-
-    .nav-item--fab {
-      color: var(--accent);
-    }
-
-    .nav-item--fab .fab-circle {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: -8px;
-      box-shadow: 0 4px 12px rgba(137, 30, 43, 0.35);
-    }
-
-    .nav-item--fab .fab-circle svg {
-      fill: #fff;
-    }
-
-    .nav-item--fab span:last-child {
-      margin-top: 2px;
-    }
-
-    .search-form {
-      flex: 1;
-      min-width: 0;
-      margin: 0;
-    }
-
-    .empty-message {
-      grid-column: 1 / -1;
-      text-align: center;
-      padding: 32px 16px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .faculty-hint {
-      margin: 0 4px 10px;
-      padding: 8px 12px;
-      background: #f7edf0;
-      border-radius: 8px;
-      font-size: 12px;
-      color: var(--accent);
-    }
-
-    .product-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 4px;
-    }
-
-    .tag {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: #f0f0f0;
-      color: #555;
-    }
-
-    .tag-faculty {
-      background: #f7edf0;
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-  /* --- ダブル・トップ切替 --- */
-    .mode-switch {
-      display: flex;
-      margin: 8px 0 0;
-      padding: 3px;
-      background: rgba(255, 255, 255, 0.18);
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.28);
-    }
-
-    .mode-switch a {
-      flex: 1;
-      text-align: center;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 700;
-      text-decoration: none;
-      color: rgba(255, 255, 255, 0.82);
-      border-radius: 8px;
-      transition: background 0.15s, color 0.15s;
-    }
-
-    .mode-switch a.is-active {
-      background: var(--card);
-      color: var(--accent);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    }
-
-    .feed-scope-tabs {
-      display: flex;
-      gap: 8px;
-      margin: 0 0 12px;
-      padding: 0 4px;
-    }
-
+    .faculty-tab.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .main-inner { padding: 0 8px 16px; max-width: 672px; margin: 0 auto; }
+    .feed-scope-tabs { display: flex; gap: 8px; margin: 0 0 12px; padding: 0 4px; }
     .feed-scope-tab {
-      flex: 1;
-      text-align: center;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      text-decoration: none;
-      color: var(--text);
-      background: var(--card);
-      border: 1px solid #e5e5e5;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      flex: 1; text-align: center; padding: 10px 12px; border-radius: 8px;
+      font-size: 14px; font-weight: 700; text-decoration: none; color: var(--text);
+      background: var(--card); border: 1px solid #e5e5e5;
     }
-
-    .feed-scope-tab.is-active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
+    .feed-scope-tab.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .feed-scope-hint {
-      margin: 0 0 12px;
-      padding: 10px 12px;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #555;
-      background: #fff8e6;
-      border: 1px solid #f0e0a8;
-      border-radius: 8px;
+      margin: 0 0 12px; padding: 10px 12px; font-size: 13px; line-height: 1.5;
+      background: #fff8e6; border: 1px solid #f0e0a8; border-radius: 8px;
     }
-
-    .feed-scope-hint a {
-      color: var(--accent);
-      font-weight: 700;
-    }
-
-    body.mode-board {
-      --board-bg: #f7f9fc;
-    }
-
-    body.mode-board .site-header {
-      border-bottom-color: var(--accent-dark);
-    }
-
-    .board-panel {
-      background: var(--board-bg, #f7f9fc);
-      min-height: 40vh;
-    }
-
+    .feed-scope-hint a { color: var(--accent); font-weight: 700; }
     .board-intro {
-      margin: 0 4px 12px;
-      padding: 12px 14px;
-      background: #fff;
-      border-radius: var(--radius);
-      font-size: 13px;
-      line-height: 1.6;
-      color: #444;
-      border-left: 4px solid var(--accent);
+      margin: 0 4px 12px; padding: 12px 14px; background: #fff; border-radius: var(--radius);
+      font-size: 13px; line-height: 1.6; border-left: 4px solid var(--accent);
     }
-
-    .board-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 0 4px 12px;
-    }
-
-    .board-actions .god-hint {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .btn-board-new {
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 14px;
-      background: var(--accent);
-      color: #fff;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .tag-filter-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0 4px 12px;
-      padding: 10px 12px;
-      background: #e8f0fa;
-      border-radius: 8px;
-      font-size: 13px;
-    }
-
-    .tag-filter-bar a { color: var(--accent); font-weight: 600; }
-
-    .popular-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin: 0 4px 12px;
-    }
-
-    .tag-link {
-      padding: 6px 12px;
-      background: #fff;
-      border: 1px solid #d0dae8;
-      border-radius: 16px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .tag-link.is-active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
     .compose-box {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 14px;
-      margin: 0 4px 12px;
-      border: 1px solid #e8edf2;
+      background: #fff; border-radius: var(--radius); padding: 14px; margin: 0 4px 12px;
+      border: 1px solid #e8edf2; scroll-margin-top: 72px;
     }
-
-    .compose-box textarea,
-    .compose-box input,
-    .compose-box select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 15px;
-      font-family: inherit;
-      margin-bottom: 8px;
+    .compose-box textarea, .compose-box input, .compose-box select {
+      width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 15px; font-family: inherit; margin-bottom: 8px;
     }
-
-    .compose-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .compose-field {
-      flex: 1;
-      min-width: 150px;
-    }
-
-    .compose-field label {
-      display: block;
-      margin: 0 0 4px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-    }
-
-    .compose-row input,
-    .compose-row select { margin-bottom: 0; }
-
+    .compose-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .compose-field { flex: 1; min-width: 150px; }
+    .compose-field label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
     .btn-compose {
-      width: 100%;
-      height: 40px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 8px;
+      width: 100%; height: 40px; background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; font-weight: 700; cursor: pointer; margin-top: 8px;
     }
-
+    .popular-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px 12px; }
+    .tag-link {
+      padding: 6px 12px; background: #fff; border: 1px solid #d0dae8; border-radius: 16px;
+      font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none;
+    }
+    .tag-filter-bar {
+      display: flex; align-items: center; gap: 8px; margin: 0 4px 12px; padding: 10px 12px;
+      background: #e8f0fa; border-radius: 8px; font-size: 13px;
+    }
+    .tag-filter-bar a { color: var(--accent); font-weight: 600; }
     .trending-section {
-      margin: 0 4px 16px;
-      padding: 14px;
-      background: linear-gradient(135deg, #fffef5 0%, #fff 100%);
-      border: 1px solid #f0e0a0;
-      border-radius: var(--radius);
+      margin: 0 4px 16px; padding: 14px; background: linear-gradient(135deg, #fffef5, #fff);
+      border: 1px solid #f0e0a0; border-radius: var(--radius);
     }
-
-    .trending-section h3 {
-      margin: 0 0 10px;
-      font-size: 14px;
-      color: #8a7000;
-    }
-
-    .trending-item {
-      padding: 10px 0;
-      border-top: 1px solid #f5ecd0;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
+    .trending-section h3 { margin: 0 0 10px; font-size: 14px; color: #8a7000; }
+    .trending-item { padding: 10px 0; border-top: 1px solid #f5ecd0; font-size: 14px; line-height: 1.5; }
     .trending-item:first-of-type { border-top: none; padding-top: 0; }
-
+    .section-title { font-size: 15px; font-weight: 700; margin: 12px 4px 10px; }
     .timeline-list { display: flex; flex-direction: column; gap: 10px; }
-
-    .timeline-scroll-status {
-      margin: 8px 0 0;
-      text-align: center;
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 1.2em;
+    .empty-message { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 14px; }
+    .faculty-hint {
+      margin: 0 4px 10px; padding: 8px 12px; background: #f7edf0; border-radius: 8px;
+      font-size: 12px; color: var(--accent);
     }
-
-    .timeline-scroll-sentinel {
-      height: 1px;
+    .bottom-nav {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+      background: var(--card); border-top: 1px solid #e5e5e5;
+      display: flex; justify-content: space-around;
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      padding-top: 4px; padding-bottom: env(safe-area-inset-bottom, 0px);
     }
-
-    .timeline-ad-slot {
-      width: 100%;
-      box-sizing: border-box;
-      margin: 0;
-      padding: 20px 16px;
-      border: 1px dashed #ccc;
-      border-radius: var(--radius);
-      background: #f7f7f7;
-      text-align: center;
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 4px 0; font-size: 10px; color: #666; text-decoration: none;
     }
-
-    .timeline-ad-slot__placeholder {
-      margin: 0;
-      font-size: 11px;
-      line-height: 1.5;
-      color: #999;
-    }
-
-    .tweet-card {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      border: 1px solid #e8edf2;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    }
-
-    .tweet-card.is-hot {
-      border-color: #f0e0a0;
-      background: linear-gradient(135deg, #fffef8 0%, #fff 100%);
-    }
-
-    .tweet-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 8px;
-      gap: 8px;
-    }
-
-    .tweet-header-end {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .tweet-delete-form {
-      margin: 0;
-    }
-
-    .btn-tweet-delete {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      padding: 4px 8px;
-      border: 1px solid #d4a0a8;
-      border-radius: 6px;
-      background: #fff;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .btn-tweet-delete:hover {
-      background: #fdf5f6;
-      border-color: var(--accent);
-    }
-
-    .tweet-dm-form {
-      margin: 0;
-    }
-
-    .btn-tweet-dm {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border: 1px solid #d4a0a8;
-      border-radius: 6px;
-      background: #fff;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .btn-tweet-dm:hover {
-      background: #fdf5f6;
-      border-color: var(--accent);
-    }
-
-    .tweet-author { font-size: 13px; font-weight: 600; color: #333; }
-    .tweet-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
-
-    .course-tag {
-      display: inline-block;
-      padding: 4px 10px;
-      background: #e8f0fa;
-      color: var(--accent);
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 700;
-      text-decoration: none;
-      margin-bottom: 8px;
-    }
-
-    .tweet-professor {
-      margin: -2px 0 8px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-    }
-
-    .tweet-body {
-      margin: 0 0 12px;
-      font-size: 15px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-    }
-
-    .tweet-image {
-      display: block;
-      width: 100%;
-      max-height: 420px;
-      margin: 0 0 12px;
-      border-radius: 12px;
-      border: 1px solid #e8e8e8;
-      object-fit: cover;
-      background: #f0f0f0;
-    }
-
-    .compose-image-field {
-      margin: 8px 0 12px;
-    }
-
-    .compose-image-field label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted, #666);
-      margin-bottom: 6px;
-    }
-
-    .compose-image-field input[type="file"] {
-      width: 100%;
-      font-size: 14px;
-      margin-bottom: 0;
-    }
-
-    .compose-image-hint {
-      margin: 4px 0 0;
-      font-size: 12px;
-      color: var(--muted, #888);
-    }
-
-    .field-error {
-      color: var(--accent, #891E2B);
-      font-size: 13px;
-      margin: 4px 0 8px;
-    }
-
-    .tweet-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .tweet-actions form { margin: 0; flex: 1; min-width: 100px; }
-
-    .btn-tweet {
-      width: 100%;
-      height: 36px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      border: none;
-    }
-
-    .btn-tweet-like {
-      background: #fff;
-      border: 2px solid #e91e63;
-      color: #e91e63;
-    }
-
-    .btn-tweet-like.is-liked {
-      background: #fce4ec;
-      border-color: #c2185b;
-      color: #c2185b;
-    }
-
-    .btn-tweet-god {
-      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-      color: #fff;
-    }
-
-    .btn-tweet-god:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    .tweet-stats {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .timeline-comments {
-      margin-top: 10px;
-      border-top: 1px solid #eef2f6;
-      padding-top: 8px;
-    }
-
-    .timeline-comments summary {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 700;
-      list-style: none;
-    }
-
-    .timeline-comments summary::-webkit-details-marker { display: none; }
-
-    .comment-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin: 10px 0;
-    }
-
-    .timeline-comment {
-      padding: 8px 10px;
-      background: #f7f9fc;
-      border-radius: 8px;
-    }
-
-    .comment-meta {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      margin: 0 0 4px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .comment-delete-form {
-      margin: 0;
-    }
-
-    .btn-comment-delete {
-      padding: 0 4px;
-      border: none;
-      background: none;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-
-    .btn-comment-delete:hover {
-      color: var(--accent-dark);
-    }
-
-    .comment-body {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
-
-    .comment-form {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .comment-form input {
-      flex: 1;
-      min-width: 0;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 9px 10px;
-      font-family: inherit;
-      font-size: 13px;
-    }
-
-    .comment-form button {
-      border: none;
-      border-radius: 8px;
-      padding: 0 14px;
-      background: var(--accent);
-      color: #fff;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .btn-compose:hover,
-    .comment-form button:hover {
-      background: var(--accent-dark);
-    }
-
-    .btn-tweet-like:hover {
-      background: #fce4ec;
-    }
-
-    .btn-tweet-god:hover:not(:disabled) {
-      background: var(--accent-dark);
-    }
-
-    .flea-panel { display: block; }
-    .board-panel-wrap { display: none; }
-    body.mode-board .flea-panel { display: none; }
-    body.mode-board .board-panel-wrap { display: block; }
-
-    body.mode-board .nav-item--fab { color: var(--accent); }
-    body.mode-board .nav-item--fab .fab-circle {
-      background: var(--accent);
+    .nav-item.is-active, .nav-item[aria-current="page"] { color: var(--accent); }
+    .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
+    .nav-item--fab { color: var(--accent); }
+    .nav-item--fab .fab-circle {
+      width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center; margin-top: -8px;
       box-shadow: 0 4px 12px rgba(137, 30, 43, 0.35);
     }
-
-    @media (min-width: 480px) and (max-width: 767px) {
-      .product-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px 10px;
-      }
+    .nav-item--fab .fab-circle svg { fill: #fff; }
+    .nav-item--notify { position: relative; }
+    .nav-badge {
+      position: absolute; top: 0; right: calc(50% - 22px);
+      min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+      background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
     }
-
-    @media (min-width: 768px) {
-      .main-inner {
-        padding-left: 16px;
-        padding-right: 16px;
-      }
-
-      .product-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px 12px;
-      }
-
-      .product-card-title {
-        font-size: 13px;
-        margin-top: 8px;
-      }
-
-      .product-price-badge {
-        font-size: 15px;
-        padding: 6px 10px;
-      }
-
-      .product-status-label {
-        font-size: 17px;
-        padding: 10px 18px;
-      }
-    }
-
-    @media (min-width: 1024px) {
-      .product-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px 14px;
-      }
-    }
-
-    @media (min-width: 1200px) {
-      .product-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 767px) {
-      .board-panel-wrap {
-        max-width: none;
-      }
-    }
-
-    /* --- AdSense / SEO ランディングコンテンツ --- */
     .landing-info {
       background: linear-gradient(180deg, #f0f2f6 0%, var(--bg) 120px);
-      border-top: 1px solid #e5e5e5;
-      padding: 20px 8px 8px;
+      border-top: 1px solid #e5e5e5; padding: 20px 8px 8px;
     }
-
-    .landing-info-inner {
-      max-width: 672px;
-      margin: 0 auto;
-    }
-
+    .landing-info-inner { max-width: 672px; margin: 0 auto; }
     .landing-info-hero {
-      background: var(--card);
-      border-radius: var(--radius);
-      border: 1px solid #e8edf2;
-      padding: 18px 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      background: var(--card); border-radius: var(--radius); border: 1px solid #e8edf2;
+      padding: 18px 16px; margin-bottom: 14px; font-size: 14px; line-height: 1.75;
     }
-
-    .landing-info-hero h2 {
-      margin: 0 0 10px;
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--accent);
-      line-height: 1.4;
-    }
-
-    .landing-info-hero p {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.75;
-      color: #444;
-    }
-
-    .info-block {
-      background: var(--card);
-      border-radius: var(--radius);
-      border: 1px solid #e8edf2;
-      padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    }
-
-    .info-block h3 {
-      margin: 0 0 12px;
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--text);
-      padding-bottom: 8px;
-      border-bottom: 2px solid #f7edf0;
-    }
-
-    .info-block > p,
-    .info-block li,
-    .info-block dd {
-      font-size: 14px;
-      line-height: 1.75;
-      color: #444;
-    }
-
-    .info-block > p {
-      margin: 0 0 12px;
-    }
-
-    .info-steps {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .info-step {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      padding: 12px;
-      background: #fafbfc;
-      border-radius: 10px;
-      border-left: 4px solid var(--accent);
-    }
-
-    .info-step-num {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #fff;
-      font-size: 13px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .info-step-body h4 {
-      margin: 0 0 6px;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .info-step-body p {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.7;
-      color: #555;
-    }
-
-    .info-rules-list {
-      margin: 0;
-      padding-left: 1.2em;
-    }
-
-    .info-rules-list li {
-      margin-bottom: 10px;
-    }
-
-    .info-rules-list li:last-child {
-      margin-bottom: 0;
-    }
-
-    .info-faq-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .info-faq-item {
-      border: 1px solid #e8edf2;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #fafbfc;
-    }
-
-    .info-faq-item summary {
-      padding: 12px 14px;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent);
-      cursor: pointer;
-      list-style: none;
-    }
-
-    .info-faq-item summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .info-faq-item summary::before {
-      content: "Q. ";
-      font-weight: 800;
-    }
-
-    .info-faq-item[open] summary {
-      border-bottom: 1px solid #e8edf2;
-      background: #f7edf0;
-    }
-
-    .info-faq-answer {
-      margin: 0;
-      padding: 12px 14px;
-      font-size: 13px;
-      line-height: 1.75;
-      color: #555;
-    }
-
-    .info-faq-answer::before {
-      content: "A. ";
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .info-sample-note {
-      margin: 0 0 12px;
-      padding: 10px 12px;
-      font-size: 12px;
-      line-height: 1.6;
-      color: #666;
-      background: #fff8e6;
-      border: 1px solid #f0e0a8;
-      border-radius: 8px;
-    }
-
-    .info-sample-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-
-    .info-sample-card {
-      padding: 14px;
-      border: 1px solid #e8edf2;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #fff 0%, #fafbfc 100%);
-    }
-
-    .info-sample-faculty {
-      display: inline-block;
-      margin-bottom: 6px;
-      padding: 3px 8px;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent);
-      background: #f7edf0;
-      border-radius: 4px;
-    }
-
-    .info-sample-title {
-      margin: 0 0 6px;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
-      line-height: 1.4;
-    }
-
-    .info-sample-meta {
-      margin: 0 0 8px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .info-sample-price {
-      display: inline-block;
-      padding: 4px 10px;
-      font-size: 14px;
-      font-weight: 800;
-      color: #fff;
-      background: rgba(137, 30, 43, 0.88);
-      border-radius: 6px;
-    }
-
-    .info-sample-desc {
-      margin: 10px 0 0;
-      font-size: 13px;
-      line-height: 1.65;
-      color: #555;
-    }
-
-    @media (min-width: 600px) {
-      .info-sample-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    .site-footer {
-      margin: 8px 0 calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
-      padding: 12px 16px;
-      text-align: center;
-    }
-
-    .site-footer-nav {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-size: 12px;
-    }
-
-    .site-footer-nav a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .site-footer-nav a:hover {
-      text-decoration: underline;
-    }
-
-    .site-footer-sep {
-      color: #bbb;
-    }
-
-    .site-footer-operator {
-      margin: 8px 0 0;
-      font-size: 12px;
-      color: #666;
-    }
-
-    .site-footer-contact {
-      margin: 8px 0 0;
-      font-size: 12px;
-      color: #666;
-    }
-
-    .site-footer-contact a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .site-footer-contact a:hover {
-      text-decoration: underline;
-    }
+    .landing-info-hero h2 { margin: 0 0 8px; font-size: 17px; }
+    .messages { margin: 8px 12px 0; padding: 0; list-style: none; max-width: 672px; margin-left: auto; margin-right: auto; }
+    .messages li { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    .messages .success { background: #e8f5e9; color: #2e7d32; }
+    .messages .error { background: #ffebee; color: #c62828; }
+    .messages .warning { background: #fff8e1; color: #f57f17; }
+    .messages .info { background: #e3f2fd; color: #1565c0; }
   </style>
 </head>
-<body class="{% if tab == 'board' %}mode-board{% endif %}">
+<body>
   <header class="site-header">
     <div class="header-row">
       <form class="search-form" method="get" action="{% url 'search' %}" role="search">
-        <label class="visually-hidden" for="q">フリマ・タイムラインを検索</label>
+        <label class="visually-hidden" for="q">投稿を検索</label>
         <input class="search-bar" id="q" type="search" name="q" value="{{ query }}"
-          placeholder="フリマ・スレッドを横断検索"
-          autocomplete="off">
+          placeholder="タイムラインを検索" autocomplete="off">
       </form>
       <div class="header-actions">
         {% if user.is_authenticated %}
@@ -1422,105 +183,54 @@
         {% endif %}
       </div>
     </div>
-    <nav class="mode-switch" aria-label="モード切替">
-      <a href="{% url 'home' %}?tab=flea{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
-        class="{% if tab == 'flea' %}is-active{% endif %}">フリマ</a>
-      <a href="{% url 'home' %}?tab=board{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
-        class="{% if tab == 'board' %}is-active{% endif %}">つぶやく</a>
-    </nav>
   </header>
+
+  {% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+    <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
 
   <section class="faculty-filter-section" aria-label="学部で絞り込み">
     <div class="faculty-tabs">
       {% for faculty_tab in faculty_tabs %}
       <a class="faculty-tab{% if active_faculty == faculty_tab.value %} is-active{% endif %}"
-        href="{% url 'home' %}?tab={{ tab }}{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if faculty_tab.value %}&amp;faculty={{ faculty_tab.value|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}">
+        href="{% url 'home' %}{% if faculty_tab.value or feed_scope == 'following' or query or active_tag %}?{% endif %}{% if feed_scope == 'following' %}feed=following{% if faculty_tab.value or query or active_tag %}&amp;{% endif %}{% endif %}{% if query %}q={{ query|urlencode }}{% if faculty_tab.value or active_tag %}&amp;{% endif %}{% endif %}{% if faculty_tab.value %}faculty={{ faculty_tab.value|urlencode }}{% if active_tag %}&amp;{% endif %}{% endif %}{% if active_tag %}tag={{ active_tag|urlencode }}{% endif %}">
         {{ faculty_tab.label }}
       </a>
       {% endfor %}
     </div>
   </section>
 
-  <main class="main-inner flea-panel">
-    <nav class="feed-scope-tabs" aria-label="フリマ表示範囲">
-      <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all_flea }}">全体</a>
-      <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following_flea }}">フォロー中</a>
-    </nav>
-    {% if feed_following_unauthenticated %}
-    <p class="feed-scope-hint">フォロー中の出品を見るには<a href="{% url 'login' %}?next={{ feed_url_following_flea|urlencode }}">ログイン</a>してください。</p>
-    {% elif feed_scope == 'following' and user.is_authenticated %}
-    <p class="feed-scope-hint">フォローしているユーザーの出品だけを表示しています。</p>
-    {% endif %}
-    {% if active_faculty %}
-    <p class="faculty-hint">🏷 {{ active_faculty }}で絞り込み中</p>
-    {% elif user_faculty and not query and tab == 'flea' and feed_scope != 'following' %}
-    <p class="faculty-hint">📍 {{ user_faculty }}の出品を優先表示しています</p>
-    {% endif %}
-    <h2 class="section-title">{% if query %}「{{ query }}」の検索結果{% else %}おすすめ商品{% endif %}</h2>
-    {% include "components/flea_banner_ad_slot.html" %}
-    <div class="product-grid">
-      {% for product in products %}
-      <div class="product-card-wrap">
-      <a class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}" href="{% url 'product_detail' product.pk %}">
-        <div class="product-card-media">
-          {% if product.image %}
-          <img src="{{ product.image.url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
-          {% elif product.image_url %}
-          <img src="{{ product.image_url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
-          {% else %}
-          <span class="product-card-placeholder">No Image</span>
-          {% endif %}
-          {% if product.is_sold or product.is_trading %}
-          <span class="product-card-mask" aria-hidden="true"></span>
-          {% endif %}
-          {% if product.is_sold %}
-          <p class="product-status-label">SOLD OUT</p>
-          {% elif product.is_trading %}
-          <p class="product-status-label product-status-label--trading">取引中</p>
-          {% endif %}
-          <span class="product-price-badge">¥{{ product.price|floatformat:0 }}</span>
-        </div>
-        <p class="product-card-title">{{ product.name }}</p>
-        <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前</p>
-      </a>
-      {% if ugc_report_enabled and product.seller_id != user.id %}
-      {% include "includes/ugc_report_button.html" with report_type="product" report_id=product.pk %}
-      {% endif %}
-      </div>
-      {% empty %}
-      <p class="empty-message">
-        {% if feed_following_unauthenticated %}ログインするとフォロー中の出品が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの出品はまだありません。{% else %}該当する商品がありません。{% endif %}
-      </p>
-      {% endfor %}
-    </div>
-  </main>
-
-  <main class="main-inner board-panel-wrap board-panel">
+  <main class="main-inner">
     <nav class="feed-scope-tabs" aria-label="タイムライン表示範囲">
-      <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all_board }}">全体</a>
-      <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following_board }}">フォロー中</a>
+      <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all }}">全体</a>
+      <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following }}">フォロー中</a>
     </nav>
     {% if feed_following_unauthenticated %}
-    <p class="feed-scope-hint">フォロー中の投稿を見るには<a href="{% url 'login' %}?next={{ feed_url_following_board|urlencode }}">ログイン</a>してください。</p>
+    <p class="feed-scope-hint">フォロー中の投稿を見るには<a href="{% url 'login' %}?next={{ feed_url_following|urlencode }}">ログイン</a>してください。</p>
     {% elif feed_scope == 'following' and user.is_authenticated %}
     <p class="feed-scope-hint">フォローしているユーザーの投稿だけを表示しています。</p>
     {% endif %}
+
     <p class="board-intro">
-      授業タグ付きの<strong>タイムライン</strong>です。タグで授業別に絞り込み、<strong>いいね</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
+      早稲田大学生向けの<strong>キャンパスSNS</strong>です。授業タグ付きでつぶやき、<strong>いいね</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
     </p>
     {% if user.is_authenticated %}
     <p style="margin:0 4px 10px;font-size:12px;color:var(--muted)">神！残り {{ god_remaining }} / {{ god_limit }} 回</p>
     {% endif %}
+
     {% if timeline_form %}
-    <div class="compose-box">
+    <div class="compose-box" id="compose">
       <form method="post" action="{% url 'board_compose' %}" enctype="multipart/form-data">
         {% csrf_token %}
         {{ timeline_form.body }}
         <div class="compose-image-field">
           <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
           {{ timeline_form.image }}
-          {% for error in timeline_form.image.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
-          <p class="compose-image-hint">JPEG / PNG / GIF（5MBまで）</p>
+          <p class="compose-image-hint" style="font-size:12px;color:var(--muted);margin:4px 0 0">JPEG / PNG / GIF（5MBまで）</p>
         </div>
         <div class="compose-row">
           <div class="compose-field">
@@ -1536,30 +246,36 @@
             {{ timeline_form.professor_name }}
           </div>
         </div>
-        <button type="submit" class="btn-compose">つぶやく</button>
+        <button type="submit" class="btn-compose">投稿する</button>
       </form>
     </div>
     {% else %}
-    <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>してつぶやく</p>
+    <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>して投稿する</p>
     {% endif %}
+
     {% if active_tag %}
-    <div class="tag-filter-bar"><span>📘 {{ active_tag }}</span><a href="{% url 'home' %}?tab=board">すべて</a></div>
+    <div class="tag-filter-bar"><span>📘 {{ active_tag }}</span><a href="{% url 'home' %}">すべて</a></div>
     {% elif popular_tags %}
-    <div class="popular-tags">{% for t in popular_tags %}<a class="tag-link" href="{% url 'home' %}?tab=board&amp;tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
+    <div class="popular-tags">{% for t in popular_tags %}<a class="tag-link" href="{% url 'home' %}?tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
     {% endif %}
+
     {% if trending_posts and not active_tag %}
     <section class="trending-section"><h3>⚡ 話題の投稿</h3>
-    {% for p in trending_posts %}<article class="trending-item">{% if p.course_name %}<a class="course-tag" href="{% url 'home' %}?tab=board&amp;tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>{% endfor %}
+    {% for p in trending_posts %}
+    <article class="trending-item">{% if p.course_name %}<a class="tag-link" href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>
+    {% endfor %}
     </section>
     {% endif %}
+
     {% if active_faculty %}
     <p class="faculty-hint">🏷 {{ active_faculty }}で絞り込み中</p>
     {% endif %}
+
     <h2 class="section-title">{% if active_tag %}{{ active_tag }}{% elif query %}「{{ query }}」{% else %}タイムライン{% endif %}</h2>
     <div
       class="timeline-list"
       id="timeline-list"
-      data-feed-url="{% url 'timeline_feed' %}?tab=board{% if feed_scope == 'following' %}&amp;feed=following{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% if active_faculty %}&amp;faculty={{ active_faculty|urlencode }}{% endif %}{% if active_tag %}&amp;tag={{ active_tag|urlencode }}{% endif %}"
+      data-feed-url="{% url 'timeline_feed' %}{% if feed_scope == 'following' or query or active_faculty or active_tag %}?{% endif %}{% if feed_scope == 'following' %}feed=following{% if query or active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if query %}q={{ query|urlencode }}{% if active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if active_faculty %}faculty={{ active_faculty|urlencode }}{% if active_tag %}&amp;{% endif %}{% endif %}{% if active_tag %}tag={{ active_tag|urlencode }}{% endif %}"
       data-has-more="{% if timeline_has_more %}true{% else %}false{% endif %}"
       data-next-offset="{{ timeline_next_offset }}"
     >
@@ -1567,355 +283,55 @@
       {% include "includes/timeline_post_card.html" with post=post show_ad_slot=forloop.first %}
       {% empty %}
       <p class="empty-message">
-        {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。{% endif %}
+        {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。最初のひとことをどうぞ。{% endif %}
       </p>
       {% endfor %}
       {% if timeline_has_more %}
       <div id="timeline-scroll-sentinel" class="timeline-scroll-sentinel" aria-hidden="true"></div>
-      <p id="timeline-scroll-status" class="timeline-scroll-status" aria-live="polite"></p>
+      <p id="timeline-scroll-status" class="empty-message" aria-live="polite"></p>
       {% endif %}
     </div>
   </main>
 
-  <section class="landing-info" aria-label="わせわせサービス詳細ガイド">
+  <section class="landing-info" aria-label="わせわせについて">
     <div class="landing-info-inner">
-
       <header class="landing-info-hero">
-        <h2>わせわせ — 早稲田大学キャンパス内フリマ＆授業タイムライン</h2>
+        <h2>わせわせ — 早稲田大学生のキャンパスSNS</h2>
         <p>
-          「わせわせ」は、早稲田大学の在学生を対象とした、学内限定のキャンパスフリーマーケットサービスです。
-          郵送や宅配便を使わず、早稲田大学の各キャンパス内で対面手渡しによる取引を基本としているため、
-          教科書・参考書・過去問・ノートなど、学業に直結するアイテムを「その日のうちに」「近くで」「安心して」受け渡しできます。
-          同時に、授業名タグ付きのタイムライン（つぶやき）機能により、履修情報の共有や試験対策のヒント交換も可能です。
-          本ページでは、わせわせの取引の流れ、安全な利用のためのガイドライン、よくある質問、
-          および各学部でよく流通する教科書の出品例を詳しくご紹介します。
+          わせわせは、早稲田大学の在学生向けコミュニティです。授業名タグ付きのタイムラインで、履修の感想・試験対策・キャンパス情報を気軽に共有できます。
+          早稲田メール（waseda.jp）での登録により、学内メンバーに限定した安全な空間を提供します。不適切な投稿は通報・ブロック機能と運営モデレーションで対応します。
         </p>
       </header>
-
-      <article class="info-block" id="info-flow">
-        <h3>📦 詳細な取引フロー（キャンパス内対面手渡し）</h3>
-        <p>
-          一般的なフリマアプリのように商品を梱包して郵送する必要はありません。
-          わせわせは「早稲田大学のキャンパス内での対面手渡し」を前提とした、学生同士の近距離取引プラットフォームです。
-          以下の4ステップで、出品から取引完了までをスムーズかつ安全に進められます。
-        </p>
-        <ol class="info-steps">
-          <li class="info-step">
-            <span class="info-step-num">1</span>
-            <div class="info-step-body">
-              <h4>サイト内で購入手続きを行う</h4>
-              <p>
-                トップページまたは検索画面から気になる教科書・参考書を見つけたら、商品詳細ページを開き「購入する」ボタンから購入手続きに進みます。
-                早稲田大学のメールアドレス（waseda.jp）で登録・ログインした在学生のみが取引に参加できるため、
-                学外の第三者が紛れ込むリスクを低減しています。購入確定後、出品者と購入者の双方に取引専用チャットルームが自動的に開設され、
-                以降のやり取りはすべてアプリ内で完結します。現金の授受はキャンパス内での対面時に行う想定であり、
-                サイト上での決済機能は提供していません。価格・商品状態・学部情報は出品時に明記されているため、
-                購入前に内容を十分ご確認ください。
-              </p>
-            </div>
-          </li>
-          <li class="info-step">
-            <span class="info-step-num">2</span>
-            <div class="info-step-body">
-              <h4>学内チャットで会う日時・場所を決定する</h4>
-              <p>
-                購入手続き完了後、取引専用チャットで出品者と購入者が直接メッセージを交換し、受け渡しの日時と場所を調整します。
-                早稲田キャンパス（西早稲田、戸山、所沢、学習院大学前・早稲田連携エリアなど）内の、
-                人通りの多い公共スペースを受け渡し場所として指定することを強く推奨しています。
-                例として、西早稲田キャンパスでは大隈記念講堂前広場付近、戸山キャンパスではキャンパス正門付近のベンチエリア、
-                所沢キャンパスでは50周年記念館ロビー付近などが利用されやすい場所です。
-                チャットでは「何時頃に」「どの建物の前で」「何を着ているか」など、双方が迷わない程度の情報を共有してください。
-                急な予定変更がある場合も、チャット上で早めに連絡することがトラブル防止の基本です。
-              </p>
-            </div>
-          </li>
-          <li class="info-step">
-            <span class="info-step-num">3</span>
-            <div class="info-step-body">
-              <h4>キャンパス内で対面し、商品を手渡す</h4>
-              <p>
-                約束した日時・場所で出品者と購入者が直接会い、商品を目視確認のうえ手渡しします。
-                教科書であれば「版数」「書き込みの有無」「付属品（解答集・シール付きノートなど）の有無」をその場で確認し、
-                出品ページの説明と相違がないかをチェックしてください。問題があれば、その場で丁寧に確認・相談することが重要です。
-                受け渡しは必ず早稲田大学のキャンパス内、またはキャンパスから徒歩圏内の明るく人目のある場所で行い、
-                夜間の僻静な場所や学外の私有地での取引は避けてください。現金の授受は商品確認後に行い、
-                双方が了承したうえで取引を進めてください。わせわせは対面手渡しに特化しているため、
-                配送料や到着待ちのストレスなく、学期初め・試験前など必要なタイミングで素早く教科書を手に入れられます。
-              </p>
-            </div>
-          </li>
-          <li class="info-step">
-            <span class="info-step-num">4</span>
-            <div class="info-step-body">
-              <h4>その場でスマホから評価し、取引完了</h4>
-              <p>
-                商品の受け渡しと代金の授受が無事に完了したら、双方がスマートフォンからわせわせの取引画面を開き、
-                「取引完了」および相互評価（あれば）を行います。これにより取引ステータスが「完了」に更新され、
-                該当商品は他のユーザーから購入できない状態（SOLD OUT）となります。
-                丁寧な対応をしてくれた相手には好印象の評価を、問題があった場合は運営までご報告ください。
-                取引完了後も、チャット履歴は一定期間参照可能です。トラブルが発生した場合の証拠としても活用できます。
-                わせわせ運営事務局は、通報や問い合わせに基づき、悪質な出品・不適切な行為に対してアカウント停止等の措置を行います。
-                早稲田の学生同士が気持ちよく循環させるための、学内フリマ文化の定着を目指しています。
-              </p>
-            </div>
-          </li>
-        </ol>
-      </article>
-
-      <article class="info-block" id="info-safety">
-        <h3>🛡 安心安全ガイドライン・利用ルール</h3>
-        <p>
-          わせわせを安全に、快適にご利用いただくため、以下のルールを必ずお守りください。
-          本ガイドラインは早稲田大学の在学生同士が安心して取引できる環境を維持するために定められており、
-          すべてのユーザーに適用されます。違反が確認された場合、警告・出品削除・アカウント停止などの措置を行うことがあります。
-        </p>
-        <ul class="info-rules-list">
-          <li>
-            <strong>対面場所は必ず人通りの多い学内公共エリアを選ぶこと。</strong>
-            早稲田大学の各キャンパス内において、正門付近・講堂前・食堂前・図書館ロビー付近など、
-            昼夜を問わず一定の人目がある場所での受け渡しを原則とします。夜間の単独待ち合わせ、
-            学外の駐車場やマンションエントランスなど、第三者の監視が期待できない場所での取引は禁止です。
-          </li>
-          <li>
-            <strong>出品可能な商品は、主に教科書・参考書・学習用ノート・過去問に限定します。</strong>
-            わせわせは学業支援を目的としたサービスです。教科書・参考書・レポート用ノート・試験対策プリントなど、
-            学習に直接関連する物品の出品を推奨します。衣類・電化製品・食品・コスメ・チケット類など、
-            学業と無関係な物品の出品は原則禁止とし、運営判断により削除する場合があります。
-          </li>
-          <li>
-            <strong>偽ブランド品・違法物・著作権侵害物の出品は固く禁止します。</strong>
-            海賊版教科書、無断複製されたプリント、違法薬物、武器類、盗品、その他法令に抵触する物品の出品・購入は一切認めません。
-            発見次第、即時削除および関係機関への通報を含む厳正な対応を行います。
-          </li>
-          <li>
-            <strong>出品情報は正確に記載し、虚偽説明をしないこと。</strong>
-            書き込みの有無、版数、付属品の有無、商品の状態（新品同様・やや使用感あり等）を出品ページに正直に記載してください。
-            実物と説明が大きく異なる場合、取引キャンセルや通報の対象となります。
-          </li>
-          <li>
-            <strong>ハラスメント・差別的発言・個人情報の不正取得を禁止します。</strong>
-            チャットやタイムラインにおいて、相手を侮辱する発言、ストーカー行為、
-            取引に必要な範囲を超えた個人情報（自宅住所・電話番号等）の要求は禁止です。
-          </li>
-          <li>
-            <strong>運営によるパトロールと通報制度を活用してください。</strong>
-            わせわせ運営事務局は、出品内容・チャット・タイムライン投稿を定期的に確認し、
-            ガイドライン違反が疑われる場合は調査・削除・アカウント停止等の措置を行います。
-            不審な出品や迷惑行為を見つけた際は、商品ページまたはプロフィールから通報するか、
-            お問い合わせメール（wasewaseofficial@gmail.com）までご連絡ください。
-          </li>
-          <li>
-            <strong>早稲田大学の規則・法令を遵守すること。</strong>
-            わせわせの利用は、早稲田大学の学生規則および日本国の関連法令の範囲内で行ってください。
-            学内での迷惑行為、無許可の商業活動、学業以外の営利目的での大量出品等は禁止です。
-          </li>
-        </ul>
-      </article>
-
-      <article class="info-block" id="info-faq">
-        <h3>❓ よくある質問（FAQ）</h3>
-        <div class="info-faq-list">
-          <details class="info-faq-item">
-            <summary>お金のやり取りはどうするの？サイト上で決済できますか？</summary>
-            <p class="info-faq-answer">
-              わせわせでは、サイト上でのクレジットカード決済や銀行振込機能は提供していません。
-              代金の授受は、キャンパス内での対面手渡し時に現金で行うことを基本としています。
-              商品の状態を確認したうえで、双方が合意した金額をその場で授受してください。
-              将来的にキャッシュレス決済への対応を検討する可能性はありますが、
-              現時点ではあくまで「学内対面・現金授受」が標準的な取引方法です。
-              高額な参考書セットなどの場合は、事前にチャットで金額と支払い方法（小銭の用意等）を確認しておくとスムーズです。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>他学部や他キャンパスの人とも取引できますか？</summary>
-            <p class="info-faq-answer">
-              はい、可能です。わせわせは早稲田大学の在学生であれば学部・キャンパスを問わず利用できます。
-              政治経済学部（西早稲田）の学生が、基幹理工学部（西早稲田）や所沢キャンパスの学生と取引するケースも想定しています。
-              受け渡し場所は双方の通学キャンパスや中間地点をチャットで相談のうえ決定してください。
-              トップページの学部フィルター機能を使えば、自分の学部の出品を優先表示することもできます。
-              遠方キャンパス間の取引では、双方のスケジュールに余裕を持って日程調整することをおすすめします。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>書き込みがある教科書でも売れますか？状態はどう書けばいい？</summary>
-            <p class="info-faq-answer">
-              はい、書き込みがある教科書も出品できます。早稲田の学生の間では、
-              過去の履修者のメモやマーカー付きの教科書を「勉強の参考になる」として需要がある場合も多いです。
-              ただし、出品ページには書き込みの量（なし・軽微・多め）や、付箋・マーカーの色、
-              解答記入の有無などを正直に記載してください。「書き込みなし良品」「軽いマーカーあり」「問題集に解答記入あり」
-              など、具体的な表現を使うと購入者の判断材料になり、取引後のトラブルも減らせます。
-              反対に、書き込みがあるにもかかわらず「美品」とだけ記載するのは避けてください。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>早稲田大学以外の人（大学院生・教職員・一般の人）は使えますか？</summary>
-            <p class="info-faq-answer">
-              わせわせへの登録は、早稲田大学のメールアドレス（@waseda.jp）を持つ在学生に限定しています。
-              これにより、学外の第三者が不正にアカウントを作成し、キャンパス内取引に介入するリスクを低減しています。
-              大学院生で waseda.jp のアドレスをお持ちの方は登録可能です。
-              教職員の方や、早稲田以外の大学の学生の方は、現時点ではご利用いただけません。
-              将来的な利用範囲の拡大については、運営方針および大学側との調整を踏まえて検討する予定です。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>取引相手が来なかった・商品が説明と違った場合はどうすればいい？</summary>
-            <p class="info-faq-answer">
-              まずは取引専用チャットで状況を確認し、連絡が取れない・説明と著しく異なる場合は、
-              取引を中止し、運営事務局（wasewaseofficial@gmail.com）まで状況を報告してください。
-              チャットのスクリーンショットや出品ページのURLを添えていただくと、調査がスムーズです。
-              悪質な場合は、該当アカウントへの警告・停止措置を行います。
-              ただし、わせわせ運営は取引の仲介・保証会社ではないため、
-              個別の金銭トラブルについて法的な仲裁までは行えない点をご理解ください。
-              トラブル未然防止のため、初対面の相手とは必ず学内の人目のある場所で取引し、
-              商品確認後に代金を授受する流れを守ってください。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>「つぶやき（タイムライン）」機能は何に使えるの？</summary>
-            <p class="info-faq-answer">
-              つぶやき機能は、授業名タグを付けて履修情報や試験対策のヒントを共有できる、
-              早稲田学生向けのタイムラインです。例えば「○○先生のミクロ経済学、期末試験は計算問題多めだった」
-              「△△の教科書、先輩から買うなら第3版がおすすめ」など、フリマ出品とは別に、
-              学業に役立つ情報を気軽に投稿・閲覧できます。いいねや「神！」ボタンで応援も可能です。
-              授業タグで絞り込めば、同じ科目を履修する学生同士の情報交換ハブとして活用できます。
-              個人を特定できる情報や、試験問題そのものの不正流布など、学則・著作権に抵触する投稿は禁止です。
-            </p>
-          </details>
-          <details class="info-faq-item">
-            <summary>出品手数料や月額料金はかかりますか？</summary>
-            <p class="info-faq-answer">
-              現時点では、わせわせの出品・購入・タイムライン利用に関して、
-              ユーザーから運営事務局へ支払う手数料や月額利用料は設定していません（無料でご利用いただけます）。
-              サービスの維持・改善のため、将来的に広告表示（Google AdSense 等）を導入する場合があります。
-              料金体系に変更がある場合は、利用規約および本サイト上で事前にお知らせします。
-              早稲田の学生が気軽に教科書を循環させられる環境づくりを、運営チーム一同で目指しています。
-            </p>
-          </details>
-        </div>
-      </article>
-
-      <article class="info-block" id="info-samples">
-        <h3>📚 現在の出品サンプル一覧（注目・新着）</h3>
-        <p class="info-sample-note">
-          ※以下はサービスリリースに向けた表示例（サンプルデータ）です。実際の出品は早稲田大学の在学生がログイン後に行います。
-          各学部でよく流通する教科書・参考書の例を掲載しています。
-        </p>
-        <div class="info-sample-grid">
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">政治経済学部</span>
-            <h4 class="info-sample-title">ミクロ経済学 入門（第2版）</h4>
-            <p class="info-sample-meta">状態：書き込みなし良品 · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥1,000</span>
-            <p class="info-sample-desc">
-              1年生必修のミクロ経済学で使用した教科書。表紙に少し角スレありますが、本文に書き込み・マーカーは一切ありません。
-              付属のオンライン演習コードは使用済みのため付きません。前期履修終了に伴い出品します。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">法学部</span>
-            <h4 class="info-sample-title">民法総則 第4版</h4>
-            <p class="info-sample-meta">状態：軽いマーカーあり · 戸山キャンパス受け渡し</p>
-            <span class="info-sample-price">¥1,800</span>
-            <p class="info-sample-desc">
-              法学部基礎科目「民法総則」で使用。重要箇所に黄色マーカー数カ所ありますが、判例の要点整理として参考になります。
-              書き込みはありません。試験前の総復習用として、先輩ノート代わりにも最適です。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">商学部</span>
-            <h4 class="info-sample-title">簿記論 標準テキスト</h4>
-            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥900</span>
-            <p class="info-sample-desc">
-              商学部1〜2年次で広く使われる簿記の基礎テキスト。ほぼ新品同様で、付属の練習問題集も未使用です。
-              日商簿記3級・2級の自学にもそのまま使えます。急ぎで必要な方、ぜひご検討ください。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">基幹理工学部</span>
-            <h4 class="info-sample-title">線形代数 入門</h4>
-            <p class="info-sample-meta">状態：問題解答記入あり · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥700</span>
-            <p class="info-sample-desc">
-              理系基礎科目の線形代数テキスト。章末問題に鉛筆で解答記入がありますが、消しやすい程度です。
-              ベクトル空間・行列・固有値など、試験直前の解法確認用として活用できます。別冊の解答集は付属しません。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">社会科学部</span>
-            <h4 class="info-sample-title">社会調査法 実践ガイド</h4>
-            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥1,200</span>
-            <p class="info-sample-desc">
-              社会科学部の専門科目「社会調査法」で使用した参考書。アンケート設計・統計処理の基礎が学べる1冊です。
-              レポート作成時に付箋を貼っていた箇所がありますが、すべて剥がしてあり綺麗な状態です。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">文学部</span>
-            <h4 class="info-sample-title">日本文学史 概説</h4>
-            <p class="info-sample-meta">状態：やや使用感あり · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥650</span>
-            <p class="info-sample-desc">
-              文学部共通科目で使用した日本文学史の概説書。カバーに日焼けがありますが、ページの折れや落書きはありません。
-              古典から近代まで幅広くカバーしており、履修前の予習・試験対策の総合参考書として使えます。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">人間科学部</span>
-            <h4 class="info-sample-title">心理学統計法</h4>
-            <p class="info-sample-meta">状態：書き込みなし · 西早稲田キャンパス受け渡し</p>
-            <span class="info-sample-price">¥1,500</span>
-            <p class="info-sample-desc">
-              人間科学部の心理統計科目で使用。t検定・分散分析・回帰分析など、SPSSを使った演習例が豊富です。
-              統計ソフトの操作手順が載っており、レポート作成時の参照用として重宝します。付属CDは同梱します。
-            </p>
-          </article>
-          <article class="info-sample-card">
-            <span class="info-sample-faculty">先進理工学部</span>
-            <h4 class="info-sample-title">物理化学 基礎テキスト（所沢）</h4>
-            <p class="info-sample-meta">状態：書き込みなし良品 · 所沢キャンパス受け渡し</p>
-            <span class="info-sample-price">¥2,200</span>
-            <p class="info-sample-desc">
-              所沢キャンパスで使用する物理化学の定番テキスト。熱力学・量子化学の基礎が丁寧に解説されています。
-              書店価格より大幅にお得です。2年生後期の履修予定の方、早めの確保をおすすめします。
-            </p>
-          </article>
-        </div>
-      </article>
-
     </div>
   </section>
 
   {% include "includes/site_footer.html" %}
+  {% include "includes/bottom_nav.html" %}
 
-  <nav class="bottom-nav" aria-label="メイン">
-    <a class="nav-item" href="{% url 'home' %}?tab={{ tab }}{% if feed_scope == 'following' %}&amp;feed=following{% endif %}" aria-current="page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
-      <span>ホーム</span>
-    </a>
-    <a class="nav-item nav-item--notify" href="{% url 'notifications' %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <span>通知</span>
-      {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
-    </a>
-    <a class="nav-item nav-item--fab" href="{% url 'exhibit' %}">
-      <span class="fab-circle" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-      </span>
-      <span>出品</span>
-    </a>
-    <a class="nav-item" href="{% url 'mypage' %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      <span>マイページ</span>
-    </a>
-  </nav>
-  {% if tab == 'board' and timeline_has_more %}
-  {% load static %}
+  {% if timeline_has_more %}
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
   {% endif %}
   {% if ugc_report_enabled %}
   {% include "includes/ugc_report_modal.html" %}
   {% endif %}
+  <script>
+    (function () {
+      var fab = document.getElementById("nav-compose-fab");
+      if (!fab) return;
+      fab.addEventListener("click", function (e) {
+        var compose = document.getElementById("compose");
+        if (compose && location.pathname === "{% url 'home' %}") {
+          e.preventDefault();
+          compose.scrollIntoView({ behavior: "smooth", block: "start" });
+          var field = compose.querySelector("textarea");
+          if (field) field.focus();
+        }
+      });
+      if (location.hash === "#compose") {
+        var target = document.getElementById("compose");
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    })();
+  </script>
 </body>
 </html>
