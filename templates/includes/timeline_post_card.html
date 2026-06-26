@@ -1,81 +1,151 @@
 {% load wase_extras %}
 <article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
-  <div class="tweet-header">
-    <div class="tweet-author-block">
-      <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}">{{ post.author|display_name }}</a>
-      <a class="tweet-handle" href="{% url 'user_profile' post.author.pk %}">@{{ post.author.username }}</a>
-    </div>
-    <div class="tweet-header-end">
-      <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}前</time>
-      {% if ugc_report_enabled and post.author_id != user.id %}
-      {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk %}
-      {% endif %}
-      {% if user.is_authenticated and post.author_id != user.id %}
-      <form class="tweet-dm-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
-        {% csrf_token %}
-        <button type="submit" class="btn-tweet-dm" aria-label="{{ post.author|display_name }}にDM">DM</button>
-      </form>
-      {% elif user.is_authenticated and post.author_id == user.id %}
-      <form class="tweet-delete-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
-        {% csrf_token %}
-        <button type="submit" class="btn-tweet-delete" aria-label="投稿を削除">🗑 削除</button>
-      </form>
-      {% endif %}
-    </div>
-  </div>
-  {% if post.course_name %}
-  <a class="course-tag" href="{% url 'home' %}?tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
-  {% endif %}
-  {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
-  {% if post.professor_name %}
-  <p class="tweet-professor">教授: {{ post.professor_name }}先生</p>
-  {% endif %}
-  <p class="tweet-body">{{ post.body|linkify_mentions }}</p>
-  {% if post.quoted_post_id %}
-  {% include "includes/quoted_post_card.html" with post=post.quoted_post %}
-  {% endif %}
-  {% if post.image %}
-  <img class="tweet-image" src="{{ post.image.url }}" alt="{% if post.course_name %}{{ post.course_name }}の{% endif %}投稿画像" loading="lazy">
-  {% endif %}
-  {% if user.is_authenticated %}
-  <div class="tweet-actions">
-    <form method="post" action="{% url 'board_timeline_like' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-like{% if post.user_has_liked %} is-liked{% endif %}" aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}">{% if post.user_has_liked %}❤️{% else %}🤍{% endif %} いいね</button></form>
-    <form method="post" action="{% url 'board_timeline_god' post.pk %}">{% csrf_token %}<button type="submit" class="btn-tweet btn-tweet-god" {% if not can_god %}disabled{% endif %}>⚡ 神！</button></form>
-    <a class="btn-tweet btn-tweet-quote" href="{% url 'board_quote' post.pk %}">🔁 引用</a>
-  </div>
-  {% endif %}
-  <p class="tweet-stats">❤️ {{ post.like_count }} · ⚡ {{ post.god_count }}</p>
-  <details class="timeline-comments">
-    <summary>💬 {{ post.comments.count }}</summary>
-    <div class="comment-list">
-      {% for comment in post.comments.all %}
-      <div class="timeline-comment">
-        <p class="comment-meta">
-          {% if comment.author %}{{ comment.author|display_name }}{% else %}匿名{% endif %}
-          · <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}前</time>
-          {% if user.is_authenticated and comment.author_id == user.id %}
-          <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
+  <div class="tweet-layout">
+    <a class="tweet-avatar" href="{% url 'user_profile' post.author.pk %}" aria-hidden="true">
+      {{ post.author|display_name|truncatechars:1 }}
+    </a>
+    <div class="tweet-main">
+      <header class="tweet-header">
+        <div class="tweet-identity">
+          <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}">{{ post.author|display_name }}</a>
+          <a class="tweet-handle" href="{% url 'user_profile' post.author.pk %}">@{{ post.author.username }}</a>
+          <span class="tweet-meta-dot" aria-hidden="true">·</span>
+          <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}</time>
+        </div>
+        <div class="tweet-header-menu">
+          {% if ugc_report_enabled and post.author_id != user.id %}
+          {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk %}
+          {% endif %}
+          {% if user.is_authenticated and post.author_id != user.id %}
+          <form class="tweet-menu-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
             {% csrf_token %}
-            <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
+            <button type="submit" class="tweet-menu-btn" aria-label="{{ post.author|display_name }}にDM">DM</button>
+          </form>
+          {% elif user.is_authenticated and post.author_id == user.id %}
+          <form class="tweet-menu-form" method="post" action="{% url 'delete_timeline_post' post.pk %}" onsubmit="return confirm('この投稿を削除しますか？');">
+            {% csrf_token %}
+            <button type="submit" class="tweet-menu-btn tweet-menu-btn--danger" aria-label="投稿を削除">削除</button>
           </form>
           {% endif %}
-        </p>
-        <p class="comment-body">{{ comment.body|linkify_mentions }}</p>
+        </div>
+      </header>
+
+      {% if post.course_name or post.faculty or post.professor_name %}
+      <div class="tweet-tags">
+        {% if post.course_name %}
+        <a class="course-tag" href="{% url 'home' %}?tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
+        {% endif %}
+        {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
+        {% if post.professor_name %}
+        <span class="tweet-professor">教授: {{ post.professor_name }}先生</span>
+        {% endif %}
       </div>
-      {% empty %}
-      <p class="comment-meta">まだコメントはありません。</p>
-      {% endfor %}
+      {% endif %}
+
+      <div class="tweet-body">{{ post.body|linkify_mentions }}</div>
+
+      {% if post.quoted_post_id %}
+      {% include "includes/quoted_post_card.html" with post=post.quoted_post %}
+      {% endif %}
+
+      {% if post.image %}
+      <a class="tweet-media" href="{{ post.image.url }}" target="_blank" rel="noopener">
+        <img class="tweet-image" src="{{ post.image.url }}" alt="{% if post.course_name %}{{ post.course_name }}の{% endif %}投稿画像" loading="lazy">
+      </a>
+      {% endif %}
+
+      <div class="tweet-actionbar" role="group" aria-label="投稿アクション">
+        <button
+          type="button"
+          class="tweet-action tweet-action--comment"
+          data-toggle-comments
+          aria-expanded="false"
+          aria-controls="comments-post-{{ post.pk }}"
+        >
+          <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.751 10c0-4.42 3.58-8 8-8h4.5c4.42 0 8 3.58 8 8 0 4.42-3.58 8-8 8h-1.9l-3.35 2.52a1 1 0 0 1-1.55-.83V18h-.55c-4.42 0-8-3.58-8-8z"/></svg>
+          <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
+        </button>
+
+        {% if user.is_authenticated %}
+        <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}" aria-label="引用">
+          <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 3.88l4.54 2.27-4.54 2.27V3.88M19.5 3.88v4.54l-4.54-2.27 4.54-2.27M4.5 20.12v-4.54l4.54 2.27-4.54 2.27M19.5 20.12l-4.54-2.27 4.54-2.27v4.54M12 8.5v7"/></svg>
+        </a>
+
+        <form class="tweet-action-form" method="post" action="{% url 'board_timeline_like' post.pk %}">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="tweet-action tweet-action--like{% if post.user_has_liked %} is-liked{% endif %}"
+            aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}"
+            aria-label="いいね"
+          >
+            <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.79.09-3.27 1.27-3.5 3.14-.19 1.52.38 2.91 1.83 4.38 1.2 1.17 2.98 2.53 4.36 3.58l1.06.85.06.05.07-.05 1.06-.85c1.38-1.05 3.16-2.41 4.36-3.58 1.45-1.47 2.02-2.86 1.83-4.38-.23-1.87-1.71-3.05-3.5-3.14z"/></svg>
+            <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+          </button>
+        </form>
+
+        <form class="tweet-action-form" method="post" action="{% url 'board_timeline_god' post.pk %}">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="tweet-action tweet-action--god"
+            {% if not can_god %}disabled{% endif %}
+            aria-label="神！"
+          >
+            <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+            <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
+          </button>
+        </form>
+        {% else %}
+        <span class="tweet-action tweet-action--quote tweet-action--static" aria-hidden="true">
+          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M4.5 3.88l4.54 2.27-4.54 2.27V3.88M19.5 3.88v4.54l-4.54-2.27 4.54-2.27M4.5 20.12v-4.54l4.54 2.27-4.54 2.27M19.5 20.12l-4.54-2.27 4.54-2.27v4.54M12 8.5v7"/></svg>
+          <span class="tweet-action-count"></span>
+        </span>
+        <span class="tweet-action tweet-action--like tweet-action--static">
+          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.79.09-3.27 1.27-3.5 3.14-.19 1.52.38 2.91 1.83 4.38 1.2 1.17 2.98 2.53 4.36 3.58l1.06.85.06.05.07-.05 1.06-.85c1.38-1.05 3.16-2.41 4.36-3.58 1.45-1.47 2.02-2.86 1.83-4.38-.23-1.87-1.71-3.05-3.5-3.14z"/></svg>
+          <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+        </span>
+        <span class="tweet-action tweet-action--god tweet-action--static">
+          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+          <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
+        </span>
+        {% endif %}
+      </div>
+
+      <details class="timeline-comments" id="comments-post-{{ post.pk }}">
+        <summary class="visually-hidden">コメントを表示</summary>
+        <div class="comment-list">
+          {% for comment in post.comments.all %}
+          <div class="timeline-comment">
+            <p class="comment-meta">
+              {% if comment.author %}{{ comment.author|display_name }}{% else %}匿名{% endif %}
+              <span class="tweet-meta-dot" aria-hidden="true">·</span>
+              <time datetime="{{ comment.created_at|date:'c' }}" title="{{ comment.created_at|date:'Y/m/d H:i' }}">{{ comment.created_at|timesince }}</time>
+              {% if user.is_authenticated and comment.author_id == user.id %}
+              <form class="comment-delete-form" method="post" action="{% url 'delete_comment' comment.pk %}" onsubmit="return confirm('このコメントを削除しますか？');">
+                {% csrf_token %}
+                <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
+              </form>
+              {% endif %}
+            </p>
+            <p class="comment-body">{{ comment.body|linkify_mentions }}</p>
+          </div>
+          {% empty %}
+          <p class="comment-empty">まだコメントはありません。最初のひとことをどうぞ。</p>
+          {% endfor %}
+        </div>
+        {% if user.is_authenticated %}
+        <form class="comment-form" method="post" action="{% url 'board_timeline_comment' post.pk %}{% if query %}?q={{ query|urlencode }}{% endif %}">
+          {% csrf_token %}
+          <input type="text" name="body" placeholder="返信を投稿… @handle でメンション" required maxlength="500" autocomplete="off">
+          <button type="submit" aria-label="コメントを送信">送信</button>
+        </form>
+        {% else %}
+        <p class="comment-login-hint"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">ログイン</a>してコメント</p>
+        {% endif %}
+      </details>
     </div>
-    {% if user.is_authenticated %}
-    <form class="comment-form" method="post" action="{% url 'board_timeline_comment' post.pk %}{% if query %}?q={{ query|urlencode }}{% endif %}">
-      {% csrf_token %}
-      <input type="text" name="body" placeholder="コメントを入力... @handle でメンション" required>
-      <button type="submit">送信</button>
-    </form>
-    {% else %}
-    <p class="comment-meta"><a href="{% url 'login' %}">ログイン</a>してコメント</p>
-    {% endif %}
-  </details>
+  </div>
 </article>
 {% if show_ad_slot %}
 {% include "components/timeline_ad_slot.html" %}

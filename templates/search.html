@@ -45,14 +45,7 @@
     <p class="search-intro">「<strong>{{ query }}</strong>」の検索結果 — <strong>{{ timeline_count }}</strong> 件</p>
     <div class="timeline-list">
       {% for post in timeline_posts %}
-      <a class="tweet-card" href="{% url 'home' %}#post-{{ post.pk }}" style="text-decoration:none;color:inherit;display:block;">
-        <div class="tweet-header">
-          <span class="tweet-author">{{ post.author|display_name }}</span>
-          <time class="tweet-time">{{ post.created_at|timesince }}前</time>
-        </div>
-        {% if post.course_name %}<span class="course-tag">📘 {{ post.course_name }}</span>{% endif %}
-        <p class="tweet-body">{{ post.body|linkify_mentions }}</p>
-      </a>
+      {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
       {% empty %}
       <p class="empty-message">該当する投稿はありません。</p>
       {% endfor %}
@@ -63,6 +56,7 @@
     {% endif %}
   </main>
 
+  <script src="{% static 'js/timeline_interactions.js' %}"></script>
   {% include "includes/bottom_nav.html" %}
   {% if ugc_report_enabled %}{% include "includes/ugc_report_modal.html" %}{% endif %}
 </body>
