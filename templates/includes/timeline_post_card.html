@@ -1,5 +1,5 @@
 {% load wase_extras %}
-<article id="post-{{ post.pk }}" class="tweet-card{% if post.god_count %} is-hot{% endif %}">
+<article id="post-{{ post.pk }}" class="tweet-card">
   <div class="tweet-layout">
     <a class="tweet-avatar" href="{% url 'user_profile' post.author.pk %}" aria-hidden="true">
       {{ post.author|display_name|truncatechars:1 }}
@@ -83,19 +83,6 @@
             <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
           </button>
         </form>
-
-        <form class="tweet-action-form" method="post" action="{% url 'board_timeline_god' post.pk %}">
-          {% csrf_token %}
-          <button
-            type="submit"
-            class="tweet-action tweet-action--god"
-            {% if not can_god %}disabled{% endif %}
-            aria-label="神！"
-          >
-            <span class="tweet-action-emoji" aria-hidden="true">⚡</span>
-            <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
-          </button>
-        </form>
         {% else %}
         <span class="tweet-action tweet-action--quote tweet-action--static" aria-hidden="true">
           <span class="tweet-action-emoji">🔁</span>
@@ -103,10 +90,6 @@
         <span class="tweet-action tweet-action--like tweet-action--static">
           <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
           <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
-        </span>
-        <span class="tweet-action tweet-action--god tweet-action--static">
-          <span class="tweet-action-emoji" aria-hidden="true">⚡</span>
-          <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
         </span>
         {% endif %}
       </div>

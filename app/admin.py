@@ -15,7 +15,6 @@ from .models import (
     UserDirectMessage,
     UserDirectMessageRoom,
     CourseThread,
-    GodButtonUse,
     Like,
     Message,
     Notification,
@@ -92,7 +91,6 @@ class TimelinePostAdmin(admin.ModelAdmin):
         "course_name",
         "author",
         "quoted_post",
-        "god_count",
         "like_count",
         "has_image",
         "is_removed",
@@ -148,7 +146,6 @@ class CourseThreadAdmin(admin.ModelAdmin):
         "course_name",
         "professor_name",
         "faculty",
-        "god_boost_count",
         "tip_total",
         "last_activity",
     )
@@ -158,17 +155,12 @@ class CourseThreadAdmin(admin.ModelAdmin):
 
 @admin.register(ThreadPost)
 class ThreadPostAdmin(admin.ModelAdmin):
-    list_display = ("thread", "author", "is_god_pick", "created_at")
+    list_display = ("thread", "author", "created_at")
 
 
 @admin.register(ThreadTip)
 class ThreadTipAdmin(admin.ModelAdmin):
     list_display = ("thread", "user", "amount", "created_at")
-
-
-@admin.register(GodButtonUse)
-class GodButtonUseAdmin(admin.ModelAdmin):
-    list_display = ("user", "thread", "post", "created_at")
 
 
 @admin.register(UserProfile)

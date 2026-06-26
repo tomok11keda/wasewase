@@ -627,13 +627,12 @@ class CourseThread(models.Model):
         null=True,
         blank=True,
     )
-    god_boost_count = models.PositiveIntegerField(default=0)
     tip_total = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-god_boost_count", "-last_activity"]
+        ordering = ["-last_activity"]
 
     def __str__(self) -> str:
         return self.course_name or f"スレッド #{self.pk}"
@@ -649,11 +648,10 @@ class ThreadPost(models.Model):
         related_name="thread_posts",
     )
     body = models.TextField(max_length=1000)
-    is_god_pick = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-is_god_pick", "-created_at"]
+        ordering = ["-created_at"]
 
     def __str__(self) -> str:
         label = self.thread.course_name or "授業タグなし"
@@ -704,7 +702,6 @@ class TimelinePost(models.Model):
         null=True,
         verbose_name="画像",
     )
-    god_count = models.PositiveIntegerField(default=0)
     like_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     is_removed = models.BooleanField("運営削除", default=False, db_index=True)
@@ -832,35 +829,3 @@ class TimelineLike(models.Model):
             ),
         ]
 
-
-class GodButtonUse(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="god_button_uses",
-    )
-    thread = models.ForeignKey(
-        CourseThread,
-        on_delete=models.CASCADE,
-        related_name="god_uses",
-        null=True,
-        blank=True,
-    )
-    post = models.ForeignKey(
-        ThreadPost,
-        on_delete=models.SET_NULL,
-        related_name="god_uses",
-        null=True,
-        blank=True,
-    )
-    timeline_post = models.ForeignKey(
-        TimelinePost,
-        on_delete=models.CASCADE,
-        related_name="god_uses",
-        null=True,
-        blank=True,
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]

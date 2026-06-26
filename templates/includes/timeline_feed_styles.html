@@ -10,8 +10,6 @@
   --tweet-quote-bg: rgba(0, 186, 124, 0.1);
   --tweet-comment: #1d9bf0;
   --tweet-comment-bg: rgba(29, 155, 240, 0.1);
-  --tweet-god: #891e2b;
-  --tweet-god-bg: rgba(137, 30, 43, 0.1);
   --tweet-avatar-size: 40px;
 }
 .timeline-list {
@@ -28,9 +26,6 @@
 }
 .tweet-card:last-child { border-bottom: none; }
 .tweet-card:active { background: #f7f9f9; }
-.tweet-card.is-hot {
-  background: linear-gradient(180deg, #fffef8 0%, #fff 48px);
-}
 .tweet-card--highlight { animation: tweet-highlight 2s ease; }
 @keyframes tweet-highlight {
   0%, 100% { background: #fff; }
@@ -273,15 +268,6 @@
   background: var(--tweet-like-bg);
 }
 .tweet-action--like.is-liked { color: var(--tweet-like); }
-.tweet-action--god:hover:not(:disabled),
-.tweet-action--god:focus-visible:not(:disabled) {
-  color: var(--tweet-god);
-  background: var(--tweet-god-bg);
-}
-.tweet-action--god:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
 .quoted-post-card {
   display: block;
   margin: 0 0 12px;

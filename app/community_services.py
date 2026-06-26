@@ -52,21 +52,33 @@ def _apply_thread_search(queryset, query):
     ).distinct()
 
 
-def list_communities_for_index(*, faculty=""):
-    queryset = Community.objects.filter(is_active=True)
-    faculty = (faculty or "").strip()
-    if faculty:
-        queryset = queryset.filter(faculty=faculty)
-    return queryset.order_by("sort_order", "name")
-
-
-def search_community_threads(*, query="", faculty=""):
+def list_community_threads(*, query="", faculty=""):
     queryset = _thread_queryset_base()
     faculty = (faculty or "").strip()
     if faculty:
         queryset = queryset.filter(community__faculty=faculty)
     queryset = _apply_thread_search(queryset, query)
     return _annotate_thread_queryset(queryset)
+
+
+def get_community_for_new_thread(*, faculty=""):
+    faculty = (faculty or "").strip()
+    if faculty:
+        community = Community.objects.filter(
+            is_active=True,
+            category=Community.Category.FACULTY,
+            faculty=faculty,
+        ).first()
+        if community:
+            return community
+    return (
+        Community.objects.filter(
+            is_active=True,
+            category=Community.Category.GENERAL,
+        )
+        .order_by("sort_order", "name")
+        .first()
+    )
 
 
 def get_faculty_tag_choices():
@@ -158,10 +170,6 @@ def seed_communities():
         )
 
 
-def list_threads_for_community(community, query=""):
-    queryset = community.threads.filter(is_removed=False)
-    queryset = _apply_thread_search(queryset, query)
-    return _annotate_thread_queryset(queryset)
 
 
 def create_community_thread(community, user, title, body):

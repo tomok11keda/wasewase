@@ -583,34 +583,18 @@ class BoardTimelineNotificationTests(TestCase):
             f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
         )
 
-    def test_god_notifies_timeline_post_author(self):
-        self.client.force_login(self.actor)
 
-        response = self.client.post(reverse("board_timeline_god", args=[self.post.pk]))
-
-        self.assertEqual(response.status_code, 302)
-        notification = Notification.objects.get(recipient=self.author)
-        self.assertEqual(
-            notification.message,
-            "actorさんがあなたの投稿を『神！』と言っています",
-        )
-        self.assertEqual(
-            notification.link,
-            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
-        )
-
-    def test_like_toggle_decrements_count(self):
+    def test_comment_creates_timeline_comment_and_notification(self):
         self.client.force_login(self.actor)
         self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
         self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
         self.post.refresh_from_db()
         self.assertEqual(self.post.like_count, 0)
 
-    def test_self_like_and_god_do_not_create_notifications(self):
+    def test_self_like_does_not_create_notification(self):
         self.client.force_login(self.author)
 
         self.client.post(reverse("board_timeline_like", args=[self.post.pk]))
-        self.client.post(reverse("board_timeline_god", args=[self.post.pk]))
 
         self.assertFalse(Notification.objects.filter(recipient=self.author).exists())
 
@@ -1809,12 +1793,11 @@ class UserLevelTests(TestCase):
         self.assertEqual(rank_title_from_level(30), "早稲田インフルエンサー")
         self.assertEqual(rank_title_from_level(50), "大隈重信クラス")
 
-    def test_compute_level_score_from_likes_gods_and_trades(self):
+    def test_compute_level_score_from_likes_and_trades(self):
         TimelinePost.objects.create(
             author=self.author,
             body="人気投稿",
             like_count=3,
-            god_count=2,
         )
         Product.objects.create(
             seller=self.author,
@@ -1827,15 +1810,13 @@ class UserLevelTests(TestCase):
 
         stats = compute_level_score(self.author)
         self.assertEqual(stats["likes_received"], 3)
-        self.assertEqual(stats["gods_received"], 2)
         self.assertEqual(stats["like_score"], 3)
-        self.assertEqual(stats["god_score"], 60)
-        self.assertEqual(stats["engagement_score"], 63)
+        self.assertEqual(stats["engagement_score"], 3)
         self.assertEqual(stats["completed_trades"], 1)
         self.assertEqual(stats["trade_score"], 20)
-        self.assertEqual(stats["total_score"], 83)
-        self.assertEqual(stats["level"], 9)
-        self.assertEqual(stats["rank_title"], "アクティブ早大生")
+        self.assertEqual(stats["total_score"], 23)
+        self.assertEqual(stats["level"], 3)
+        self.assertEqual(stats["rank_title"], "一般学生")
         self.assertEqual(stats["score_to_next_level"], 7)
 
     def test_recalculate_user_level_updates_profile_fields(self):
@@ -1843,7 +1824,6 @@ class UserLevelTests(TestCase):
             author=self.author,
             body="保存テスト",
             like_count=10,
-            god_count=0,
         )
         stats = recalculate_user_level(self.author)
         profile = UserProfile.objects.get(user=self.author)
@@ -1867,8 +1847,7 @@ class UserLevelTests(TestCase):
         TimelinePost.objects.create(
             author=self.author,
             body="表示テスト",
-            like_count=40,
-            god_count=10,
+            like_count=340,
         )
         recalculate_user_level(self.author)
         response = self.client.get(reverse("user_profile", args=[self.author.pk]))
@@ -1876,14 +1855,13 @@ class UserLevelTests(TestCase):
         self.assertContains(response, "【早稲田インフルエンサー】")
         self.assertContains(response, "次のレベルまであと")
         self.assertContains(response, "わせわせレベル＆ランクシステム")
-        self.assertContains(response, "神！ボタンをもらう：＋30点")
+        self.assertContains(response, "いいねをもらう：＋1点")
 
     def test_mypage_shows_level_and_rank(self):
         TimelinePost.objects.create(
             author=self.author,
             body="マイページ表示",
             like_count=0,
-            god_count=0,
         )
         self.client.force_login(self.author)
         response = self.client.get(reverse("mypage"))
@@ -2192,22 +2170,22 @@ class CommunitiesTests(TestCase):
         )
         self.community = Community.objects.get(slug="commerce")
 
-    def test_communities_index_lists_seeded_boards(self):
+    def test_communities_index_shows_thread_list(self):
         response = self.client.get(reverse("communities_index"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "商学部板")
-        self.assertContains(response, "卒論・レポート相談板")
-        self.assertContains(response, "2年生おすすめの経営系科目は？")
+        self.assertContains(response, "スレッド一覧")
+        self.assertNotContains(response, "学部別掲示板")
 
-    def test_community_detail_shows_thread_list_area(self):
+    def test_community_detail_redirects_to_index(self):
         response = self.client.get(reverse("community_detail", args=["commerce"]))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "商学部板")
-        self.assertContains(response, "まだスレッドがありません")
+        self.assertRedirects(
+            response,
+            f"{reverse('communities_index')}?tag={quote('商学部')}",
+        )
 
     def test_create_community_thread_requires_login(self):
         response = self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
+            reverse("create_community_thread"),
             {"title": "テスト", "body": "本文です"},
         )
         self.assertEqual(response.status_code, 302)
@@ -2216,19 +2194,20 @@ class CommunitiesTests(TestCase):
     def test_create_community_thread_shows_in_list(self):
         self.client.force_login(self.user)
         response = self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
+            reverse("create_community_thread"),
             {
                 "title": "履修相談スレ",
                 "body": "来学期のおすすめ科目を教えてください。",
+                "tag": "商学部",
             },
         )
         self.assertRedirects(
             response,
-            reverse("community_detail", kwargs={"slug": "commerce"}),
+            f"{reverse('communities_index')}?tag={quote('商学部')}",
         )
-        detail = self.client.get(reverse("community_detail", args=["commerce"]))
-        self.assertContains(detail, "履修相談スレ")
-        self.assertContains(detail, "来学期のおすすめ科目を教えてください")
+        index = self.client.get(reverse("communities_index"))
+        self.assertContains(index, "履修相談スレ")
+        self.assertContains(index, "来学期のおすすめ科目を教えてください")
 
         self.community.refresh_from_db()
         self.assertEqual(self.community.latest_thread_title, "履修相談スレ")
@@ -2242,17 +2221,17 @@ class CommunitiesTests(TestCase):
     def test_thread_detail_accessible_from_list(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "詳細テスト", "body": "スレッド本文です"},
+            reverse("create_community_thread"),
+            {"title": "詳細テスト", "body": "スレッド本文です", "tag": "商学部"},
         )
-        detail = self.client.get(reverse("community_detail", args=["commerce"]))
-        self.assertContains(detail, reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1}))
+        index = self.client.get(reverse("communities_index"))
+        self.assertContains(index, reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1}))
 
     def test_thread_detail_shows_op_and_reply_form(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "詳細テスト", "body": "スレッド本文です"},
+            reverse("create_community_thread"),
+            {"title": "詳細テスト", "body": "スレッド本文です", "tag": "商学部"},
         )
         response = self.client.get(
             reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
@@ -2265,8 +2244,8 @@ class CommunitiesTests(TestCase):
     def test_create_reply_requires_login(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "返信テスト", "body": "本文"},
+            reverse("create_community_thread"),
+            {"title": "返信テスト", "body": "本文", "tag": "商学部"},
         )
         self.client.logout()
         response = self.client.post(
@@ -2279,8 +2258,8 @@ class CommunitiesTests(TestCase):
     def test_create_reply_shows_on_detail_page(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "返信テスト", "body": "本文"},
+            reverse("create_community_thread"),
+            {"title": "返信テスト", "body": "本文", "tag": "商学部"},
         )
         response = self.client.post(
             reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
@@ -2301,8 +2280,8 @@ class CommunitiesTests(TestCase):
     def test_search_threads_by_title(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "ゼミ選びの相談", "body": "来月までに決めたいです"},
+            reverse("create_community_thread"),
+            {"title": "ゼミ選びの相談", "body": "来月までに決めたいです", "tag": "商学部"},
         )
         response = self.client.get(reverse("communities_index"), {"q": "ゼミ選び"})
         self.assertEqual(response.status_code, 200)
@@ -2312,8 +2291,8 @@ class CommunitiesTests(TestCase):
     def test_search_threads_by_reply_body(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "履修の質問", "body": "単位数について"},
+            reverse("create_community_thread"),
+            {"title": "履修の質問", "body": "単位数について", "tag": "商学部"},
         )
         self.client.post(
             reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
@@ -2326,12 +2305,12 @@ class CommunitiesTests(TestCase):
     def test_search_with_faculty_tag_filters_boards(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "商学部限定スレ", "body": "商学部の話"},
+            reverse("create_community_thread"),
+            {"title": "商学部限定スレ", "body": "商学部の話", "tag": "商学部"},
         )
         self.client.post(
-            reverse("create_community_thread", args=["law"]),
-            {"title": "法学部限定スレ", "body": "法学部の話"},
+            reverse("create_community_thread"),
+            {"title": "法学部限定スレ", "body": "法学部の話", "tag": "法学部"},
         )
         response = self.client.get(
             reverse("communities_index"),
@@ -2348,18 +2327,18 @@ class CommunitiesTests(TestCase):
         self.assertContains(response, 'name="tag"')
         self.assertContains(response, 'value="商学部"')
 
-    def test_community_detail_search_by_reply(self):
+    def test_communities_index_search_by_reply(self):
         self.client.force_login(self.user)
         self.client.post(
-            reverse("create_community_thread", args=["commerce"]),
-            {"title": "見つからないタイトル", "body": "本文のみ"},
+            reverse("create_community_thread"),
+            {"title": "見つからないタイトル", "body": "本文のみ", "tag": "商学部"},
         )
         self.client.post(
             reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
             {"body": "ユニーク返信キーワードXYZ"},
         )
         response = self.client.get(
-            reverse("community_detail", args=["commerce"]),
+            reverse("communities_index"),
             {"q": "ユニーク返信キーワードXYZ"},
         )
         self.assertContains(response, "見つからないタイトル")

@@ -7,10 +7,13 @@
       <button type="button" class="compose-modal__close" data-thread-modal-close aria-label="閉じる">×</button>
     </header>
 
-    <p class="compose-quote-label">{{ community.name }} にスレッドを作成します</p>
+    <p class="compose-quote-label">
+      {% if active_tag %}{{ active_tag }}のコミュニティ{% else %}コミュニティ{% endif %}にスレッドを作成します
+    </p>
 
-    <form method="post" action="{% url 'create_community_thread' community.slug %}" id="community-thread-form">
+    <form method="post" action="{% url 'create_community_thread' %}" id="community-thread-form">
       {% csrf_token %}
+      <input type="hidden" name="tag" value="{{ active_tag }}">
       <div class="compose-image-field">
         <label for="{{ thread_form.title.id_for_label }}">{{ thread_form.title.label }}</label>
         {{ thread_form.title }}

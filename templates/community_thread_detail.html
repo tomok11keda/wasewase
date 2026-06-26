@@ -272,7 +272,7 @@
     <div class="main-column">
       <header class="site-header mobile-only">
         <div class="header-row">
-          <a class="back-link" href="{% url 'community_detail' community.slug %}">← 板</a>
+          <a class="back-link" href="{% url 'communities_index' %}{% if community.faculty %}?tag={{ community.faculty|urlencode }}{% endif %}">← 一覧</a>
           <h1 class="header-title">{{ thread.title }}</h1>
         </div>
       </header>
@@ -287,9 +287,11 @@
 
       <main class="main-inner">
         <p class="thread-breadcrumb desktop-only">
-          <a href="{% url 'communities_index' %}">コミュニティ</a>
+          <a href="{% url 'communities_index' %}{% if community.faculty %}?tag={{ community.faculty|urlencode }}{% endif %}">コミュニティ</a>
+          {% if community.faculty %}
           <span aria-hidden="true"> / </span>
-          <a href="{% url 'community_detail' community.slug %}">{{ community.name }}</a>
+          <span>{{ community.faculty }}</span>
+          {% endif %}
         </p>
 
         <article class="thread-op" id="thread-op">
