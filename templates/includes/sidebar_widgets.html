@@ -1,0 +1,57 @@
+<div class="sidebar-right-inner">
+  <form class="sidebar-search" method="get" action="{% url 'search' %}" role="search">
+    <label class="visually-hidden" for="sidebar-q">投稿を検索</label>
+    <input
+      class="sidebar-search__input"
+      id="sidebar-q"
+      type="search"
+      name="q"
+      value="{{ query|default:'' }}"
+      placeholder="タイムラインを検索"
+      autocomplete="off"
+    >
+  </form>
+
+  {% if trending_posts %}
+  <section class="widget-card" aria-labelledby="widget-trending-title">
+    <h2 class="widget-card__title" id="widget-trending-title">⚡ 話題の投稿</h2>
+    <ul class="widget-trending-list">
+      {% for p in trending_posts %}
+      <li class="widget-trending-item">
+        {% if p.course_name %}
+        <a href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a>
+        {% endif %}
+        {{ p.body|truncatechars:72 }}
+        <span class="widget-trending-item__god">神！ {{ p.god_count }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% else %}
+  <section class="widget-card widget-card--placeholder" aria-labelledby="widget-trending-placeholder-title">
+    <h2 class="widget-card__title" id="widget-trending-placeholder-title">⚡ 話題の投稿</h2>
+    <p class="widget-card__lead">神！が集まった注目投稿がここに表示されます。近日中に更新予定です。</p>
+  </section>
+  {% endif %}
+
+  {% if popular_tags %}
+  <section class="widget-card" aria-labelledby="widget-tags-title">
+    <h2 class="widget-card__title" id="widget-tags-title">📘 人気タグ</h2>
+    <ul class="widget-tag-list">
+      {% for t in popular_tags %}
+      <li><a href="{% url 'home' %}?tag={{ t|urlencode }}">{{ t }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% else %}
+  <section class="widget-card widget-card--placeholder" aria-labelledby="widget-tags-placeholder-title">
+    <h2 class="widget-card__title" id="widget-tags-placeholder-title">📘 人気タグ</h2>
+    <p class="widget-card__lead">授業名タグのランキングがここに表示されます。</p>
+  </section>
+  {% endif %}
+
+  <section class="widget-card widget-card--placeholder" aria-labelledby="widget-news-title">
+    <h2 class="widget-card__title" id="widget-news-title">📰 キャンパスニュース</h2>
+    <p class="widget-card__lead">早稲田関連の話題やイベント情報を表示する予定のエリアです。</p>
+  </section>
+</div>
