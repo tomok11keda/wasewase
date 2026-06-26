@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — {% if query %}「{{ query }}」の検索結果{% else %}検索{% endif %}</title>
-  <link rel="stylesheet" href="{% static 'css/timeline.css' %}">
+  {% include "includes/timeline_feed_styles.html" %}
   <style>
     :root { --bg: #f7f9fc; --card: #fff; --text: #222; --muted: #888; --accent: #891E2B; --radius: 12px; --nav-h: 56px; }
     * { box-sizing: border-box; }
@@ -56,7 +56,7 @@
     {% endif %}
   </main>
 
-  <script src="{% static 'js/timeline_interactions.js' %}"></script>
+  {% include "includes/timeline_feed_scripts.html" %}
   {% include "includes/bottom_nav.html" %}
   {% if ugc_report_enabled %}{% include "includes/ugc_report_modal.html" %}{% endif %}
 </body>

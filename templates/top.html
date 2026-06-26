@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — タイムライン</title>
-  <link rel="stylesheet" href="{% static 'css/ugc_safety.css' %}">
-  <link rel="stylesheet" href="{% static 'css/timeline.css' %}">
+  {% include "includes/timeline_feed_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -331,7 +330,7 @@
   {% if timeline_has_more %}
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
   {% endif %}
-  <script src="{% static 'js/timeline_interactions.js' %}"></script>
+  {% include "includes/timeline_feed_scripts.html" %}
   {% if ugc_report_enabled %}
   {% include "includes/ugc_report_modal.html" %}
   {% endif %}

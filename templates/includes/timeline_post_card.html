@@ -62,13 +62,13 @@
           aria-expanded="false"
           aria-controls="comments-post-{{ post.pk }}"
         >
-          <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.751 10c0-4.42 3.58-8 8-8h4.5c4.42 0 8 3.58 8 8 0 4.42-3.58 8-8 8h-1.9l-3.35 2.52a1 1 0 0 1-1.55-.83V18h-.55c-4.42 0-8-3.58-8-8z"/></svg>
+          <span class="tweet-action-emoji" aria-hidden="true">💬</span>
           <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
         </button>
 
         {% if user.is_authenticated %}
         <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}" aria-label="引用">
-          <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 3.88l4.54 2.27-4.54 2.27V3.88M19.5 3.88v4.54l-4.54-2.27 4.54-2.27M4.5 20.12v-4.54l4.54 2.27-4.54 2.27M19.5 20.12l-4.54-2.27 4.54-2.27v4.54M12 8.5v7"/></svg>
+          <span class="tweet-action-emoji" aria-hidden="true">🔁</span>
         </a>
 
         <form class="tweet-action-form" method="post" action="{% url 'board_timeline_like' post.pk %}">
@@ -79,7 +79,7 @@
             aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}"
             aria-label="いいね"
           >
-            <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.79.09-3.27 1.27-3.5 3.14-.19 1.52.38 2.91 1.83 4.38 1.2 1.17 2.98 2.53 4.36 3.58l1.06.85.06.05.07-.05 1.06-.85c1.38-1.05 3.16-2.41 4.36-3.58 1.45-1.47 2.02-2.86 1.83-4.38-.23-1.87-1.71-3.05-3.5-3.14z"/></svg>
+            <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
             <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
           </button>
         </form>
@@ -92,28 +92,26 @@
             {% if not can_god %}disabled{% endif %}
             aria-label="神！"
           >
-            <svg class="tweet-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+            <span class="tweet-action-emoji" aria-hidden="true">⚡</span>
             <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
           </button>
         </form>
         {% else %}
         <span class="tweet-action tweet-action--quote tweet-action--static" aria-hidden="true">
-          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M4.5 3.88l4.54 2.27-4.54 2.27V3.88M19.5 3.88v4.54l-4.54-2.27 4.54-2.27M4.5 20.12v-4.54l4.54 2.27-4.54 2.27M19.5 20.12l-4.54-2.27 4.54-2.27v4.54M12 8.5v7"/></svg>
-          <span class="tweet-action-count"></span>
+          <span class="tweet-action-emoji">🔁</span>
         </span>
         <span class="tweet-action tweet-action--like tweet-action--static">
-          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.79.09-3.27 1.27-3.5 3.14-.19 1.52.38 2.91 1.83 4.38 1.2 1.17 2.98 2.53 4.36 3.58l1.06.85.06.05.07-.05 1.06-.85c1.38-1.05 3.16-2.41 4.36-3.58 1.45-1.47 2.02-2.86 1.83-4.38-.23-1.87-1.71-3.05-3.5-3.14z"/></svg>
+          <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
           <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
         </span>
         <span class="tweet-action tweet-action--god tweet-action--static">
-          <svg class="tweet-action-icon" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+          <span class="tweet-action-emoji" aria-hidden="true">⚡</span>
           <span class="tweet-action-count">{% if post.god_count %}{{ post.god_count }}{% endif %}</span>
         </span>
         {% endif %}
       </div>
 
-      <details class="timeline-comments" id="comments-post-{{ post.pk }}">
-        <summary class="visually-hidden">コメントを表示</summary>
+      <div class="timeline-comments" id="comments-post-{{ post.pk }}">
         <div class="comment-list">
           {% for comment in post.comments.all %}
           <div class="timeline-comment">
@@ -143,7 +141,7 @@
         {% else %}
         <p class="comment-login-hint"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">ログイン</a>してコメント</p>
         {% endif %}
-      </details>
+      </div>
     </div>
   </div>
 </article>
