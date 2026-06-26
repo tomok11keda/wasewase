@@ -38,12 +38,8 @@
       border-bottom: 1px solid var(--accent-dark);
       padding: 8px 12px max(8px, env(safe-area-inset-top, 0px));
     }
-    .header-row { display: flex; align-items: center; gap: 8px; }
-    .search-form { flex: 1; min-width: 0; margin: 0; }
-    .search-bar {
-      width: 100%; height: 36px; padding: 0 12px 0 36px;
-      border: 1px solid #ddd; border-radius: 20px; font-size: 14px; background: #fff;
-    }
+    .header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .header-title { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 0.02em; }
     .header-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
@@ -163,11 +159,7 @@
     <div class="main-column">
   <header class="site-header mobile-only">
     <div class="header-row">
-      <form class="search-form" method="get" action="{% url 'search' %}" role="search">
-        <label class="visually-hidden" for="q">投稿を検索</label>
-        <input class="search-bar" id="q" type="search" name="q" value="{{ query }}"
-          placeholder="タイムラインを検索" autocomplete="off">
-      </form>
+      <h1 class="header-title">わせわせ</h1>
       <div class="header-actions">
         {% if user.is_authenticated %}
         <span class="btn btn-ghost" style="cursor:default">{{ user|display_name }}</span>
@@ -291,9 +283,9 @@
   {% include "includes/ugc_report_modal.html" %}
   {% endif %}
   {% include "includes/compose_modal.html" %}
-  {% include "includes/compose_modal_scripts.html" %}
   {% if user.is_authenticated and timeline_form %}
   <button type="button" class="compose-fab shell-hide-on-desktop" data-compose-open aria-label="投稿する">＋</button>
   {% endif %}
+  {% include "includes/compose_modal_scripts.html" %}
 </body>
 </html>

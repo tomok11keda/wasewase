@@ -1,12 +1,49 @@
+<style>
+  button.nav-item {
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-soon-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    z-index: 400;
+    margin: 0;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: #0f1419;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+    transform: translateX(-50%) translateY(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .nav-soon-toast.is-visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .nav-soon-toast[hidden] {
+    display: block;
+    visibility: hidden;
+  }
+  .nav-soon-toast.is-visible[hidden] {
+    visibility: visible;
+  }
+</style>
 <nav class="bottom-nav" aria-label="メイン">
   <a class="nav-item{% if nav_active == 'home' %} is-active{% endif %}" href="{% url 'home' %}"{% if nav_active == 'home' %} aria-current="page"{% endif %}>
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
     <span>ホーム</span>
   </a>
-  <a class="nav-item nav-item--notify{% if nav_active == 'notifications' %} is-active{% endif %}" href="{% url 'notifications' %}"{% if nav_active == 'notifications' %} aria-current="page"{% endif %}>
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-    <span>通知</span>
-    {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+  <a class="nav-item{% if nav_active == 'search' %} is-active{% endif %}" href="{% url 'search' %}"{% if nav_active == 'search' %} aria-current="page"{% endif %}>
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <span>検索</span>
   </a>
   <button
     type="button"
@@ -22,3 +59,25 @@
     <span>マイページ</span>
   </a>
 </nav>
+<p class="nav-soon-toast" id="nav-soon-toast" role="status" aria-live="polite" hidden>近日公開予定</p>
+<script>
+(function () {
+  if (window.__waseNavSoonInit) return;
+  window.__waseNavSoonInit = true;
+  var soonToast = document.getElementById("nav-soon-toast");
+  var soonTimer;
+  if (!soonToast) return;
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-nav-soon]");
+    if (!button) return;
+    event.preventDefault();
+    window.clearTimeout(soonTimer);
+    soonToast.hidden = false;
+    soonToast.classList.add("is-visible");
+    soonTimer = window.setTimeout(function () {
+      soonToast.classList.remove("is-visible");
+      soonToast.hidden = true;
+    }, 2200);
+  });
+})();
+</script>
