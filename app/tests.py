@@ -656,7 +656,7 @@ class BoardTimelineNotificationTests(TestCase):
 
         response = self.client.get(reverse("home"))
 
-        self.assertContains(response, "💬 1")
+        self.assertContains(response, 'tweet-action-count">1')
         self.assertContains(response, "助かりました。")
 
 

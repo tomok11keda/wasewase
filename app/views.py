@@ -262,11 +262,27 @@ def search(request):
     """タイムライン投稿を検索。"""
     query = request.GET.get("q", "").strip()
     viewer = request.user if request.user.is_authenticated else None
-    timeline_posts = (
-        search_timeline_posts(query, viewer=viewer).prefetch_related("comments__author")
-        if query
-        else TimelinePost.objects.none()
-    )
+    timeline_posts = TimelinePost.objects.none()
+    if query:
+        timeline_posts = (
+            search_timeline_posts(query, viewer=viewer)
+            .select_related(
+                "author",
+                "author__profile",
+                "quoted_post",
+                "quoted_post__author",
+            )
+            .prefetch_related("comments__author")
+        )
+        if request.user.is_authenticated:
+            timeline_posts = timeline_posts.annotate(
+                user_has_liked=Exists(
+                    TimelineLike.objects.filter(
+                        timeline_post_id=OuterRef("pk"),
+                        user_id=request.user.id,
+                    )
+                )
+            )
 
     return render(
         request,
@@ -277,6 +293,7 @@ def search(request):
             "timeline_count": timeline_posts.count(),
             "search_url": build_search_url(query),
             "nav_active": "home",
+            "can_god": can_use_god_button(request.user),
         },
     )
 
