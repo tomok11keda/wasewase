@@ -1,0 +1,32 @@
+{% if user.is_authenticated and thread_form %}
+<div id="community-thread-modal" class="compose-modal" hidden aria-hidden="true">
+  <div class="compose-modal__backdrop" data-thread-modal-close></div>
+  <div class="compose-modal__panel" role="dialog" aria-modal="true" aria-labelledby="community-thread-modal-title">
+    <header class="compose-modal__header">
+      <h2 id="community-thread-modal-title">新規スレッド</h2>
+      <button type="button" class="compose-modal__close" data-thread-modal-close aria-label="閉じる">×</button>
+    </header>
+
+    <p class="compose-quote-label">{{ community.name }} にスレッドを作成します</p>
+
+    <form method="post" action="{% url 'create_community_thread' community.slug %}" id="community-thread-form">
+      {% csrf_token %}
+      <div class="compose-image-field">
+        <label for="{{ thread_form.title.id_for_label }}">{{ thread_form.title.label }}</label>
+        {{ thread_form.title }}
+        {% if thread_form.title.errors %}
+        <p class="compose-image-hint" style="color:#c62828">{{ thread_form.title.errors.0 }}</p>
+        {% endif %}
+      </div>
+      <div class="compose-image-field">
+        <label for="{{ thread_form.body.id_for_label }}">{{ thread_form.body.label }}</label>
+        {{ thread_form.body }}
+        {% if thread_form.body.errors %}
+        <p class="compose-image-hint" style="color:#c62828">{{ thread_form.body.errors.0 }}</p>
+        {% endif %}
+      </div>
+      <button type="submit" class="btn-compose">スレッドを作成</button>
+    </form>
+  </div>
+</div>
+{% endif %}

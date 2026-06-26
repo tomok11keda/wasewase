@@ -1,0 +1,41 @@
+<script>
+(function () {
+  var modal = document.getElementById("community-thread-modal");
+  if (!modal) return;
+
+  function openModal() {
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    var field = modal.querySelector("input[type='text'], textarea");
+    if (field) field.focus();
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  document.addEventListener("click", function (event) {
+    var trigger = event.target.closest("[data-thread-open]");
+    if (!trigger) return;
+    event.preventDefault();
+    openModal();
+  });
+
+  modal.querySelectorAll("[data-thread-modal-close]").forEach(function (el) {
+    el.addEventListener("click", closeModal);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && modal && !modal.hidden) {
+      closeModal();
+    }
+  });
+
+  if (window.location.hash === "#new-thread") {
+    openModal();
+  }
+})();
+</script>
