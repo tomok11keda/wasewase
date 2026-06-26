@@ -1,16 +1,78 @@
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
+from urllib.parse import urlencode
 
+from .constants import FACULTY_CHOICES
 from .models import Community, CommunityThread, CommunityThreadReply
 
 
-def list_communities_for_index():
-    return (
-        Community.objects.filter(is_active=True)
-        .order_by("sort_order", "name")
+def build_communities_index_url(*, tag="", query=""):
+    params = {}
+    if tag:
+        params["tag"] = tag
+    if query:
+        params["q"] = query
+    base = reverse("communities_index")
+    if not params:
+        return base
+    return f"{base}?{urlencode(params)}"
+
+
+def _thread_queryset_base():
+    return CommunityThread.objects.filter(
+        is_removed=False,
+        community__is_active=True,
     )
+
+
+def _annotate_thread_queryset(queryset):
+    return (
+        queryset.select_related("author", "author__profile", "community")
+        .annotate(
+            replies_count=Count(
+                "replies",
+                filter=Q(replies__is_removed=False),
+                distinct=True,
+            )
+        )
+        .order_by("-created_at")
+    )
+
+
+def _apply_thread_search(queryset, query):
+    query = (query or "").strip()
+    if not query:
+        return queryset
+    return queryset.filter(
+        Q(title__icontains=query)
+        | Q(replies__body__icontains=query, replies__is_removed=False)
+    ).distinct()
+
+
+def list_communities_for_index(*, faculty=""):
+    queryset = Community.objects.filter(is_active=True)
+    faculty = (faculty or "").strip()
+    if faculty:
+        queryset = queryset.filter(faculty=faculty)
+    return queryset.order_by("sort_order", "name")
+
+
+def search_community_threads(*, query="", faculty=""):
+    queryset = _thread_queryset_base()
+    faculty = (faculty or "").strip()
+    if faculty:
+        queryset = queryset.filter(community__faculty=faculty)
+    queryset = _apply_thread_search(queryset, query)
+    return _annotate_thread_queryset(queryset)
+
+
+def get_faculty_tag_choices():
+    return [{"value": "", "label": "すべて"}] + [
+        {"value": value, "label": label} for value, label in FACULTY_CHOICES
+    ]
 
 
 def seed_communities():
@@ -96,13 +158,10 @@ def seed_communities():
         )
 
 
-def list_threads_for_community(community):
-    return (
-        community.threads.filter(is_removed=False)
-        .select_related("author", "author__profile")
-        .annotate(replies_count=Count("replies", filter=Q(replies__is_removed=False)))
-        .order_by("-created_at")
-    )
+def list_threads_for_community(community, query=""):
+    queryset = community.threads.filter(is_removed=False)
+    queryset = _apply_thread_search(queryset, query)
+    return _annotate_thread_queryset(queryset)
 
 
 def create_community_thread(community, user, title, body):

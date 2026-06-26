@@ -2293,3 +2293,74 @@ class CommunitiesTests(TestCase):
         self.assertContains(detail, "これは返信です")
         self.assertContains(detail, "返信 1件")
 
+    def test_communities_index_shows_search_form(self):
+        response = self.client.get(reverse("communities_index"))
+        self.assertContains(response, 'name="q"')
+        self.assertContains(response, "スレッドのタイトル・返信を検索")
+
+    def test_search_threads_by_title(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "ゼミ選びの相談", "body": "来月までに決めたいです"},
+        )
+        response = self.client.get(reverse("communities_index"), {"q": "ゼミ選び"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ゼミ選びの相談")
+        self.assertContains(response, "の検索結果")
+
+    def test_search_threads_by_reply_body(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "履修の質問", "body": "単位数について"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "経営史ゼミはおすすめです"},
+        )
+        response = self.client.get(reverse("communities_index"), {"q": "経営史ゼミ"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "履修の質問")
+
+    def test_search_with_faculty_tag_filters_boards(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "商学部限定スレ", "body": "商学部の話"},
+        )
+        self.client.post(
+            reverse("create_community_thread", args=["law"]),
+            {"title": "法学部限定スレ", "body": "法学部の話"},
+        )
+        response = self.client.get(
+            reverse("communities_index"),
+            {"tag": "商学部", "q": "限定スレ"},
+        )
+        self.assertContains(response, "商学部限定スレ")
+        self.assertNotContains(response, "法学部限定スレ")
+
+    def test_search_form_preserves_faculty_tag(self):
+        response = self.client.get(
+            reverse("communities_index"),
+            {"tag": "商学部", "q": "テスト"},
+        )
+        self.assertContains(response, 'name="tag"')
+        self.assertContains(response, 'value="商学部"')
+
+    def test_community_detail_search_by_reply(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "見つからないタイトル", "body": "本文のみ"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "ユニーク返信キーワードXYZ"},
+        )
+        response = self.client.get(
+            reverse("community_detail", args=["commerce"]),
+            {"q": "ユニーク返信キーワードXYZ"},
+        )
+        self.assertContains(response, "見つからないタイトル")
+
