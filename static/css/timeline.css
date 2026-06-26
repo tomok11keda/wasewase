@@ -222,21 +222,24 @@
 
 /* アクションバー（X風・4列） */
 .tweet-actionbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   align-items: center;
-  justify-content: space-between;
+  width: 100%;
   max-width: 425px;
-  margin: 4px -8px 0;
+  margin: 4px 0 0;
 }
 .tweet-action-form {
   margin: 0;
-  flex: 1;
   display: flex;
   justify-content: center;
+  align-items: center;
+  min-width: 0;
 }
 .tweet-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   min-width: 36px;
   min-height: 36px;
@@ -252,11 +255,11 @@
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+  justify-self: center;
 }
 .tweet-action--static {
   cursor: default;
-  justify-content: center;
-  flex: 1;
+  justify-self: center;
 }
 .tweet-action-emoji {
   font-size: 16px;
