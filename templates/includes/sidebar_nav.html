@@ -18,6 +18,16 @@
     </li>
     <li>
       <a
+        class="sidebar-nav__item{% if nav_active == 'search' %} is-active{% endif %}"
+        href="{% url 'search' %}"
+        {% if nav_active == 'search' %}aria-current="page"{% endif %}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <span class="sidebar-nav__label">検索</span>
+      </a>
+    </li>
+    <li>
+      <a
         class="sidebar-nav__item{% if nav_active == 'notifications' %} is-active{% endif %}"
         href="{% url 'notifications' %}"
         {% if nav_active == 'notifications' %}aria-current="page"{% endif %}
@@ -26,6 +36,17 @@
         <span class="sidebar-nav__label">通知</span>
         {% if unread_notifications %}<span class="sidebar-nav__badge">{{ unread_notifications }}</span>{% endif %}
       </a>
+    </li>
+    <li>
+      <button
+        type="button"
+        class="sidebar-nav__item sidebar-nav__item--soon"
+        data-sidebar-soon
+        aria-label="ブックマーク（近日公開予定）"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+        <span class="sidebar-nav__label">ブックマーク</span>
+      </button>
     </li>
     <li>
       <a
@@ -37,12 +58,25 @@
         <span class="sidebar-nav__label">マイページ</span>
       </a>
     </li>
+    <li>
+      <button
+        type="button"
+        class="sidebar-nav__item sidebar-nav__item--soon"
+        data-sidebar-soon
+        aria-label="その他（近日公開予定）"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        <span class="sidebar-nav__label">その他</span>
+      </button>
+    </li>
   </ul>
 
   <a class="sidebar-nav__compose" href="{% url 'home' %}#compose" id="nav-compose-sidebar">
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
-    投稿する
+    <span class="sidebar-nav__compose-label">投稿する</span>
   </a>
+
+  <p class="sidebar-soon-toast" id="sidebar-soon-toast" role="status" aria-live="polite" hidden>近日公開予定</p>
 
   {% if user.is_authenticated %}
   <div class="sidebar-user">
@@ -55,7 +89,7 @@
     </a>
   </div>
   {% else %}
-  <div class="sidebar-user">
+  <div class="sidebar-user sidebar-user--guest">
     <a class="sidebar-nav__item" href="{% url 'login' %}">
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
       <span class="sidebar-nav__label">ログイン</span>
@@ -67,3 +101,21 @@
   </div>
   {% endif %}
 </nav>
+<script>
+(function () {
+  var toast = document.getElementById("sidebar-soon-toast");
+  var hideTimer;
+  if (!toast) return;
+  document.querySelectorAll("[data-sidebar-soon]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      window.clearTimeout(hideTimer);
+      toast.hidden = false;
+      toast.classList.add("is-visible");
+      hideTimer = window.setTimeout(function () {
+        toast.classList.remove("is-visible");
+        toast.hidden = true;
+      }, 2200);
+    });
+  });
+})();
+</script>

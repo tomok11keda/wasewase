@@ -292,7 +292,7 @@ def search(request):
             "timeline_posts": timeline_posts,
             "timeline_count": timeline_posts.count(),
             "search_url": build_search_url(query),
-            "nav_active": "home",
+            "nav_active": "search",
             "can_god": can_use_god_button(request.user),
         },
     )

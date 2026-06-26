@@ -28,69 +28,87 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 8px 0 16px;
+  padding: 4px 0 20px;
+  position: relative;
 }
 
 .sidebar-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin: 0 0 8px 4px;
-  padding: 12px;
-  font-size: 22px;
+  gap: 12px;
+  margin: 0 0 4px;
+  padding: 12px 14px;
+  font-size: 21px;
   font-weight: 800;
-  color: var(--accent, #891e2b);
+  color: var(--text, #0f1419);
   text-decoration: none;
-  width: fit-content;
+  width: 100%;
+  max-width: 280px;
   border-radius: 999px;
+  transition: background 0.15s ease;
 }
 .sidebar-brand:hover {
-  background: rgba(137, 30, 43, 0.06);
+  background: rgba(15, 20, 25, 0.06);
 }
 .sidebar-brand__mark {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--accent, #891e2b);
   color: #fff;
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  width: 100%;
+  max-width: 280px;
+}
+.sidebar-nav > li {
+  width: 100%;
 }
 
 .sidebar-nav__item {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 16px;
-  width: fit-content;
-  max-width: 100%;
-  padding: 12px 16px;
+  gap: 20px;
+  width: 100%;
+  max-width: 280px;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: none;
   border-radius: 999px;
+  background: transparent;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.2;
+  font-family: inherit;
   color: var(--text, #0f1419);
   text-decoration: none;
-  transition: background 0.15s ease;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .sidebar-nav__item:hover,
 .sidebar-nav__item:focus-visible {
   background: rgba(15, 20, 25, 0.06);
 }
 .sidebar-nav__item.is-active {
-  font-weight: 800;
+  font-weight: 700;
+}
+.sidebar-nav__item--soon {
+  color: var(--text, #0f1419);
 }
 .sidebar-nav__item svg {
   width: 24px;
@@ -100,12 +118,13 @@
 }
 .sidebar-nav__label {
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
 .sidebar-nav__badge {
   position: absolute;
-  top: 8px;
-  left: 36px;
+  top: 10px;
+  left: 38px;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
@@ -122,10 +141,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 90%;
-  max-width: 240px;
+  width: 100%;
+  max-width: 280px;
   min-height: 52px;
-  margin: 16px 0 8px 4px;
+  margin: 16px 0 0;
   padding: 0 24px;
   border: none;
   border-radius: 999px;
@@ -136,7 +155,7 @@
   font-family: inherit;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(137, 30, 43, 0.25);
+  box-shadow: 0 4px 14px rgba(137, 30, 43, 0.22);
   transition: background 0.15s ease, transform 0.15s ease;
 }
 .sidebar-nav__compose:hover,
@@ -150,10 +169,51 @@
   fill: currentColor;
   margin-right: 8px;
 }
+.sidebar-nav__compose-label {
+  white-space: nowrap;
+}
+
+.sidebar-soon-toast {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 84px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #0f1419;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.sidebar-soon-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sidebar-soon-toast[hidden] {
+  display: block;
+  visibility: hidden;
+}
+.sidebar-soon-toast.is-visible[hidden] {
+  visibility: visible;
+}
 
 .sidebar-user {
   margin-top: auto;
-  padding: 12px 8px 0;
+  padding: 12px 0 0;
+  width: 100%;
+  max-width: 280px;
+}
+.sidebar-user--guest {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 .sidebar-user__link {
   display: flex;
@@ -339,7 +399,23 @@
   }
 
   .sidebar-left {
-    padding: 0 12px 0 16px;
+    padding: 0 8px 0 20px;
+  }
+
+  .sidebar-left-inner {
+    padding-top: 8px;
+  }
+
+  .sidebar-brand,
+  .sidebar-nav,
+  .sidebar-nav__item,
+  .sidebar-nav__compose,
+  .sidebar-user {
+    max-width: 275px;
+  }
+
+  .sidebar-nav__compose {
+    margin-top: 18px;
   }
 
   .sidebar-right {
