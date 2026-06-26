@@ -19,11 +19,11 @@
   }
 
   if (modal) {
-    document.querySelectorAll("[data-compose-open]").forEach(function (el) {
-      el.addEventListener("click", function (event) {
-        event.preventDefault();
-        openModal();
-      });
+    document.addEventListener("click", function (event) {
+      var trigger = event.target.closest("[data-compose-open]");
+      if (!trigger) return;
+      event.preventDefault();
+      openModal();
     });
     modal.querySelectorAll("[data-compose-modal-close]").forEach(function (el) {
       el.addEventListener("click", closeModal);
@@ -38,22 +38,6 @@
     if (params.has("quote") || window.location.hash === "#compose") {
       openModal();
     }
-  }
-
-  var soonToast = document.getElementById("nav-soon-toast");
-  var soonTimer;
-  if (soonToast) {
-    document.querySelectorAll("[data-nav-soon]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        window.clearTimeout(soonTimer);
-        soonToast.hidden = false;
-        soonToast.classList.add("is-visible");
-        soonTimer = window.setTimeout(function () {
-          soonToast.classList.remove("is-visible");
-          soonToast.hidden = true;
-        }, 2200);
-      });
-    });
   }
 })();
 </script>
