@@ -86,19 +86,38 @@
       background: #fff; border-radius: var(--radius); padding: 14px; margin: 0 4px 12px;
       border: 1px solid #e8edf2; scroll-margin-top: 72px;
     }
-    .compose-box textarea, .compose-box input, .compose-box select {
+    .compose-box textarea, .compose-box input[type="file"] {
       width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 15px; font-family: inherit; margin-bottom: 8px;
+      font-size: 15px; font-family: inherit;
+    }
+    .compose-box textarea { margin-bottom: 0; min-height: 88px; resize: vertical; }
+    .compose-hashtag-hint {
+      margin: 6px 0 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--muted);
     }
     .compose-quote-label {
       margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--muted);
     }
-    .compose-row { display: flex; flex-wrap: wrap; gap: 8px; }
-    .compose-field { flex: 1; min-width: 150px; }
-    .compose-field label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .compose-image-field {
+      margin: 0 0 10px;
+    }
+    .compose-image-field label {
+      display: block;
+      margin: 0 0 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .compose-image-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 4px 0 0;
+    }
     .btn-compose {
-      width: 100%; height: 40px; background: var(--accent); color: #fff; border: none;
-      border-radius: 8px; font-weight: 700; cursor: pointer; margin-top: 8px;
+      width: 100%; height: 44px; background: var(--accent); color: #fff; border: none;
+      border-radius: 999px; font-size: 15px; font-weight: 700; cursor: pointer;
     }
     .popular-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px 12px; }
     .tag-link {
@@ -253,24 +272,13 @@
         <input type="hidden" name="quoted_post_id" value="{{ quote_post.pk }}">
         {% endif %}
         {{ timeline_form.body }}
+        <p class="compose-hashtag-hint">
+          <code>#商学部</code> <code>#授業名</code> のようにハッシュタグを入れると、検索で見つけやすくなります。
+        </p>
         <div class="compose-image-field">
           <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
           {{ timeline_form.image }}
-          <p class="compose-image-hint" style="font-size:12px;color:var(--muted);margin:4px 0 0">JPEG / PNG / GIF（5MBまで）</p>
-        </div>
-        <div class="compose-row">
-          <div class="compose-field">
-            <label for="{{ timeline_form.faculty.id_for_label }}">{{ timeline_form.faculty.label }}</label>
-            {{ timeline_form.faculty }}
-          </div>
-          <div class="compose-field">
-            <label for="{{ timeline_form.course_name.id_for_label }}">{{ timeline_form.course_name.label }}</label>
-            {{ timeline_form.course_name }}
-          </div>
-          <div class="compose-field">
-            <label for="{{ timeline_form.professor_name.id_for_label }}">教授の名前（任意）</label>
-            {{ timeline_form.professor_name }}
-          </div>
+          <p class="compose-image-hint">JPEG / PNG / GIF（5MBまで）</p>
         </div>
         <button type="submit" class="btn-compose">投稿する</button>
       </form>

@@ -312,12 +312,9 @@ class TimelinePostForm(forms.ModelForm):
 
     class Meta:
         model = TimelinePost
-        fields = ("body", "course_name", "professor_name", "faculty", "image")
+        fields = ("body", "image")
         labels = {
             "body": "つぶやき",
-            "course_name": "授業名タグ（任意）",
-            "professor_name": "教授名（任意）",
-            "faculty": "対象の学部（任意）",
             "image": "写真（任意）",
         }
         widgets = {
@@ -328,34 +325,12 @@ class TimelinePostForm(forms.ModelForm):
                     "maxlength": 280,
                 }
             ),
-            "course_name": forms.TextInput(
-                attrs={"placeholder": "授業名タグ（任意） 例：線形代数Ⅰ"}
-            ),
-            "professor_name": forms.TextInput(
-                attrs={"placeholder": "教授名（任意） 例：山田太郎"}
-            ),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["faculty"].choices = [("", "指定しない")] + list(FACULTY_CHOICES)
-        self.fields["course_name"].required = False
-        self.fields["professor_name"].required = False
-        self.fields["faculty"].required = False
         self.fields["image"].required = False
-
-    def clean_course_name(self):
-        value = (self.cleaned_data.get("course_name") or "").strip()
-        return value or None
-
-    def clean_professor_name(self):
-        value = (self.cleaned_data.get("professor_name") or "").strip()
-        return value or None
-
-    def clean_faculty(self):
-        value = (self.cleaned_data.get("faculty") or "").strip()
-        return value or ""
 
     def clean_image(self):
         image = self.cleaned_data.get("image")

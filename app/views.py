@@ -175,7 +175,7 @@ def index(request):
     )
 
     if request.user.is_authenticated:
-        timeline_form = TimelinePostForm(initial={"faculty": user_faculty})
+        timeline_form = TimelinePostForm()
 
     quote_post = None
     quote_param = request.GET.get("quote", "").strip()
