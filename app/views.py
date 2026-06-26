@@ -20,12 +20,15 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from .community_services import (
+    build_communities_index_url,
     create_community_thread as save_community_thread,
     create_thread_reply as save_thread_reply,
     get_community_thread,
+    get_faculty_tag_choices,
     list_communities_for_index,
     list_replies_for_thread,
     list_threads_for_community,
+    search_community_threads,
 )
 from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
@@ -301,9 +304,20 @@ def search(request):
 
 def communities_index(request):
     """参加可能な掲示板一覧（コミュニティ）。"""
-    communities = list_communities_for_index()
+    faculty_values = {value for value, _ in FACULTY_CHOICES}
+    active_tag = request.GET.get("tag", "").strip()
+    if active_tag not in faculty_values:
+        active_tag = ""
+    query = request.GET.get("q", "").strip()
+
+    communities = list_communities_for_index(faculty=active_tag)
     faculty_boards = [c for c in communities if c.category == Community.Category.FACULTY]
-    topic_boards = [c for c in communities if c.category != Community.Category.FACULTY]
+    topic_boards = (
+        []
+        if active_tag
+        else [c for c in communities if c.category != Community.Category.FACULTY]
+    )
+    search_threads = search_community_threads(query=query, faculty=active_tag) if query else None
 
     return render(
         request,
@@ -312,6 +326,10 @@ def communities_index(request):
             "communities": communities,
             "faculty_boards": faculty_boards,
             "topic_boards": topic_boards,
+            "faculty_tabs": get_faculty_tag_choices(),
+            "active_tag": active_tag,
+            "query": query,
+            "search_threads": search_threads,
             "nav_active": "communities",
         },
     )
@@ -320,7 +338,8 @@ def communities_index(request):
 def community_detail(request, slug):
     """掲示板詳細とスレッド一覧。"""
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    threads = list_threads_for_community(community)
+    query = request.GET.get("q", "").strip()
+    threads = list_threads_for_community(community, query=query)
     thread_form = CommunityThreadForm() if request.user.is_authenticated else None
     return render(
         request,
@@ -329,6 +348,7 @@ def community_detail(request, slug):
             "community": community,
             "threads": threads,
             "thread_form": thread_form,
+            "query": query,
             "nav_active": "communities",
         },
     )

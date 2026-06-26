@@ -1,0 +1,21 @@
+{% load wase_extras %}
+<a
+  class="community-thread-item community-thread-item--search"
+  href="{% url 'community_thread_detail' thread.community.slug thread.pk %}"
+  id="thread-{{ thread.pk }}"
+>
+  <span class="community-badge">{{ thread.community.name }}</span>
+  <div class="community-thread-item__main">
+    <h3 class="community-thread-item__title">{{ thread.title }}</h3>
+    <p class="community-thread-item__preview">{{ thread.body|truncatechars:160 }}</p>
+    <p class="community-thread-item__meta">
+      <span>{{ thread.author|display_name }}</span>
+      <span aria-hidden="true">·</span>
+      <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|timesince }}前</time>
+      {% if thread.replies_count %}
+      <span aria-hidden="true">·</span>
+      <span>返信 {{ thread.replies_count }}</span>
+      {% endif %}
+    </p>
+  </div>
+</a>
