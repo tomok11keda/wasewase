@@ -1,9 +1,10 @@
 """ユーザー間 DM（UserDirectMessageRoom）のヘルパー。"""
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.db.models import Prefetch, Q
 from django.urls import reverse
 
-from .models import UserDirectMessageRoom
+from .models import UserDirectMessage, UserDirectMessageRoom
 
 
 def ordered_user_pair(
@@ -41,3 +42,34 @@ def can_access_dm_room(room: UserDirectMessageRoom, user: AbstractBaseUser) -> b
 
 def dm_room_link(room: UserDirectMessageRoom) -> str:
     return reverse("user_dm_room", kwargs={"room_pk": room.pk})
+
+
+def list_dm_rooms_for_user(user: AbstractBaseUser):
+    """ログインユーザーが参加する DM ルームを最新順で返す。"""
+    latest_message = Prefetch(
+        "messages",
+        queryset=UserDirectMessage.objects.select_related("sender").order_by("-pk")[:1],
+        to_attr="latest_messages",
+    )
+    return (
+        UserDirectMessageRoom.objects.filter(Q(user_a=user) | Q(user_b=user))
+        .select_related("user_a", "user_b", "user_a__profile", "user_b__profile")
+        .prefetch_related(latest_message)
+        .order_by("-updated_at")
+    )
+
+
+def build_dm_conversations(user: AbstractBaseUser) -> list[dict]:
+    """インボックス表示用にルーム・相手・最新メッセージをまとめる。"""
+    conversations = []
+    for room in list_dm_rooms_for_user(user):
+        partner = room.other_user(user)
+        latest = room.latest_messages[0] if room.latest_messages else None
+        conversations.append(
+            {
+                "room": room,
+                "partner": partner,
+                "latest_message": latest,
+            }
+        )
+    return conversations

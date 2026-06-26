@@ -38,6 +38,16 @@
       </a>
     </li>
     <li>
+      <a
+        class="sidebar-nav__item{% if nav_active == 'messages' %} is-active{% endif %}"
+        href="{% url 'user_dm_inbox' %}"
+        {% if nav_active == 'messages' %}aria-current="page"{% endif %}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        <span class="sidebar-nav__label">メッセージ</span>
+      </a>
+    </li>
+    <li>
       <button
         type="button"
         class="sidebar-nav__item sidebar-nav__item--soon"
