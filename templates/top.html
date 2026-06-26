@@ -7,6 +7,7 @@
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — タイムライン</title>
   {% include "includes/timeline_feed_styles.html" %}
+  {% include "includes/timeline_shell_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -177,8 +178,14 @@
     .messages .info { background: #e3f2fd; color: #1565c0; }
   </style>
 </head>
-<body>
-  <header class="site-header">
+<body class="shell-desktop">
+  <div class="app-shell">
+    <aside class="sidebar-left" aria-label="サイドナビ">
+      {% include "includes/sidebar_nav.html" %}
+    </aside>
+
+    <div class="main-column">
+  <header class="site-header mobile-only">
     <div class="header-row">
       <form class="search-form" method="get" action="{% url 'search' %}" role="search">
         <label class="visually-hidden" for="q">投稿を検索</label>
@@ -275,11 +282,11 @@
     {% if active_tag %}
     <div class="tag-filter-bar"><span>📘 {{ active_tag }}</span><a href="{% url 'home' %}">すべて</a></div>
     {% elif popular_tags %}
-    <div class="popular-tags">{% for t in popular_tags %}<a class="tag-link" href="{% url 'home' %}?tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
+    <div class="popular-tags mobile-only">{% for t in popular_tags %}<a class="tag-link" href="{% url 'home' %}?tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
     {% endif %}
 
     {% if trending_posts and not active_tag %}
-    <section class="trending-section"><h3>⚡ 話題の投稿</h3>
+    <section class="trending-section mobile-only"><h3>⚡ 話題の投稿</h3>
     {% for p in trending_posts %}
     <article class="trending-item">{% if p.course_name %}<a class="tag-link" href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>
     {% endfor %}
@@ -312,7 +319,7 @@
     </div>
   </main>
 
-  <section class="landing-info" aria-label="わせわせについて">
+  <section class="landing-info shell-hide-on-desktop" aria-label="わせわせについて">
     <div class="landing-info-inner">
       <header class="landing-info-hero">
         <h2>わせわせ — 早稲田大学生のキャンパスSNS</h2>
@@ -325,7 +332,16 @@
   </section>
 
   {% include "includes/site_footer.html" %}
-  {% include "includes/bottom_nav.html" %}
+    </div>
+
+    <aside class="sidebar-right" aria-label="サイド情報">
+      {% include "includes/sidebar_widgets.html" %}
+    </aside>
+  </div>
+
+  <div class="shell-hide-on-desktop">
+    {% include "includes/bottom_nav.html" %}
+  </div>
 
   {% if timeline_has_more %}
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
@@ -336,20 +352,21 @@
   {% endif %}
   <script>
     (function () {
-      var fab = document.getElementById("nav-compose-fab");
-      if (!fab) return;
-      fab.addEventListener("click", function (e) {
+      function scrollToCompose(event) {
         var compose = document.getElementById("compose");
         if (compose && location.pathname === "{% url 'home' %}") {
-          e.preventDefault();
+          if (event) event.preventDefault();
           compose.scrollIntoView({ behavior: "smooth", block: "start" });
           var field = compose.querySelector("textarea");
           if (field) field.focus();
         }
+      }
+      ["nav-compose-fab", "nav-compose-sidebar"].forEach(function (id) {
+        var trigger = document.getElementById(id);
+        if (trigger) trigger.addEventListener("click", scrollToCompose);
       });
       if (location.hash === "#compose") {
-        var target = document.getElementById("compose");
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        scrollToCompose(null);
       }
     })();
   </script>
