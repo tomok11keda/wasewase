@@ -730,7 +730,7 @@ class SocialFeaturesTests(TestCase):
         response = self.client.get(reverse("board_quote", args=[self.original.pk]))
         self.assertRedirects(
             response,
-            f"{reverse('home')}?quote={self.original.pk}#compose",
+            f"{reverse('home')}?quote={self.original.pk}",
         )
 
     def test_signup_assigns_user_pk_handle(self):

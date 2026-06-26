@@ -1,0 +1,35 @@
+{% if user.is_authenticated and timeline_form %}
+<div id="compose-modal" class="compose-modal" hidden aria-hidden="true">
+  <div class="compose-modal__backdrop" data-compose-modal-close></div>
+  <div class="compose-modal__panel" role="dialog" aria-modal="true" aria-labelledby="compose-modal-title">
+    <header class="compose-modal__header">
+      <h2 id="compose-modal-title">投稿する</h2>
+      <button type="button" class="compose-modal__close" data-compose-modal-close aria-label="閉じる">×</button>
+    </header>
+
+    {% if quote_post %}
+    <p class="compose-quote-label">引用投稿</p>
+    {% include "includes/quoted_post_card.html" with post=quote_post %}
+    {% endif %}
+
+    <form method="post" action="{% url 'board_compose' %}" enctype="multipart/form-data" id="compose-modal-form">
+      {% csrf_token %}
+      {% if quote_post %}
+      <input type="hidden" name="quoted_post_id" value="{{ quote_post.pk }}">
+      {% endif %}
+      {{ timeline_form.body }}
+      <p class="compose-hashtag-hint">
+        <code>#商学部</code> <code>#授業名</code> のようにハッシュタグを入れると、検索で見つけやすくなります。
+      </p>
+      <div class="compose-image-field">
+        <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
+        {{ timeline_form.image }}
+        <p class="compose-image-hint">JPEG / PNG / GIF（5MBまで）</p>
+      </div>
+      <button type="submit" class="btn-compose">投稿する</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<p class="nav-soon-toast" id="nav-soon-toast" role="status" aria-live="polite" hidden>近日公開予定</p>

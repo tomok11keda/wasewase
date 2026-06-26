@@ -8,6 +8,7 @@
   <title>わせわせ — タイムライン</title>
   {% include "includes/timeline_feed_styles.html" %}
   {% include "includes/timeline_shell_styles.html" %}
+  {% include "includes/compose_modal_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -82,43 +83,6 @@
       margin: 0 4px 12px; padding: 12px 14px; background: #fff; border-radius: var(--radius);
       font-size: 13px; line-height: 1.6; border-left: 4px solid var(--accent);
     }
-    .compose-box {
-      background: #fff; border-radius: var(--radius); padding: 14px; margin: 0 4px 12px;
-      border: 1px solid #e8edf2; scroll-margin-top: 72px;
-    }
-    .compose-box textarea, .compose-box input[type="file"] {
-      width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 15px; font-family: inherit;
-    }
-    .compose-box textarea { margin-bottom: 0; min-height: 88px; resize: vertical; }
-    .compose-hashtag-hint {
-      margin: 6px 0 12px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--muted);
-    }
-    .compose-quote-label {
-      margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--muted);
-    }
-    .compose-image-field {
-      margin: 0 0 10px;
-    }
-    .compose-image-field label {
-      display: block;
-      margin: 0 0 4px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-    }
-    .compose-image-hint {
-      font-size: 12px;
-      color: var(--muted);
-      margin: 4px 0 0;
-    }
-    .btn-compose {
-      width: 100%; height: 44px; background: var(--accent); color: #fff; border: none;
-      border-radius: 999px; font-size: 15px; font-weight: 700; cursor: pointer;
-    }
     .popular-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px 12px; }
     .tag-link {
       padding: 6px 12px; background: #fff; border: 1px solid #d0dae8; border-radius: 16px;
@@ -166,13 +130,6 @@
     }
     .nav-item.is-active, .nav-item[aria-current="page"] { color: var(--accent); }
     .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
-    .nav-item--fab { color: var(--accent); }
-    .nav-item--fab .fab-circle {
-      width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff;
-      display: flex; align-items: center; justify-content: center; margin-top: -8px;
-      box-shadow: 0 4px 12px rgba(137, 30, 43, 0.35);
-    }
-    .nav-item--fab .fab-circle svg { fill: #fff; }
     .nav-item--notify { position: relative; }
     .nav-badge {
       position: absolute; top: 0; right: calc(50% - 22px);
@@ -258,31 +215,6 @@
     </p>
     {% if user.is_authenticated %}
     <p style="margin:0 4px 10px;font-size:12px;color:var(--muted)">神！残り {{ god_remaining }} / {{ god_limit }} 回</p>
-    {% endif %}
-
-    {% if timeline_form %}
-    <div class="compose-box" id="compose">
-      {% if quote_post %}
-      <p class="compose-quote-label">引用投稿</p>
-      {% include "includes/quoted_post_card.html" with post=quote_post %}
-      {% endif %}
-      <form method="post" action="{% url 'board_compose' %}" enctype="multipart/form-data">
-        {% csrf_token %}
-        {% if quote_post %}
-        <input type="hidden" name="quoted_post_id" value="{{ quote_post.pk }}">
-        {% endif %}
-        {{ timeline_form.body }}
-        <p class="compose-hashtag-hint">
-          <code>#商学部</code> <code>#授業名</code> のようにハッシュタグを入れると、検索で見つけやすくなります。
-        </p>
-        <div class="compose-image-field">
-          <label for="{{ timeline_form.image.id_for_label }}">写真（任意）</label>
-          {{ timeline_form.image }}
-          <p class="compose-image-hint">JPEG / PNG / GIF（5MBまで）</p>
-        </div>
-        <button type="submit" class="btn-compose">投稿する</button>
-      </form>
-    </div>
     {% else %}
     <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>して投稿する</p>
     {% endif %}
@@ -358,25 +290,10 @@
   {% if ugc_report_enabled %}
   {% include "includes/ugc_report_modal.html" %}
   {% endif %}
-  <script>
-    (function () {
-      function scrollToCompose(event) {
-        var compose = document.getElementById("compose");
-        if (compose && location.pathname === "{% url 'home' %}") {
-          if (event) event.preventDefault();
-          compose.scrollIntoView({ behavior: "smooth", block: "start" });
-          var field = compose.querySelector("textarea");
-          if (field) field.focus();
-        }
-      }
-      ["nav-compose-fab", "nav-compose-sidebar"].forEach(function (id) {
-        var trigger = document.getElementById(id);
-        if (trigger) trigger.addEventListener("click", scrollToCompose);
-      });
-      if (location.hash === "#compose") {
-        scrollToCompose(null);
-      }
-    })();
-  </script>
+  {% include "includes/compose_modal.html" %}
+  {% include "includes/compose_modal_scripts.html" %}
+  {% if user.is_authenticated and timeline_form %}
+  <button type="button" class="compose-fab shell-hide-on-desktop" data-compose-open aria-label="投稿する">＋</button>
+  {% endif %}
 </body>
 </html>

@@ -1,0 +1,59 @@
+<script>
+(function () {
+  var modal = document.getElementById("compose-modal");
+
+  function openModal() {
+    if (!modal) return;
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    var field = modal.querySelector("textarea");
+    if (field) field.focus();
+  }
+
+  function closeModal() {
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  if (modal) {
+    document.querySelectorAll("[data-compose-open]").forEach(function (el) {
+      el.addEventListener("click", function (event) {
+        event.preventDefault();
+        openModal();
+      });
+    });
+    modal.querySelectorAll("[data-compose-modal-close]").forEach(function (el) {
+      el.addEventListener("click", closeModal);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && modal && !modal.hidden) {
+        closeModal();
+      }
+    });
+
+    var params = new URLSearchParams(window.location.search);
+    if (params.has("quote") || window.location.hash === "#compose") {
+      openModal();
+    }
+  }
+
+  var soonToast = document.getElementById("nav-soon-toast");
+  var soonTimer;
+  if (soonToast) {
+    document.querySelectorAll("[data-nav-soon]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        window.clearTimeout(soonTimer);
+        soonToast.hidden = false;
+        soonToast.classList.add("is-visible");
+        soonTimer = window.setTimeout(function () {
+          soonToast.classList.remove("is-visible");
+          soonToast.hidden = true;
+        }, 2200);
+      });
+    });
+  }
+})();
+</script>

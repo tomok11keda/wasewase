@@ -51,7 +51,7 @@
       <button
         type="button"
         class="sidebar-nav__item sidebar-nav__item--soon"
-        data-sidebar-soon
+        data-nav-soon
         aria-label="ブックマーク（近日公開予定）"
       >
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
@@ -72,7 +72,7 @@
       <button
         type="button"
         class="sidebar-nav__item sidebar-nav__item--soon"
-        data-sidebar-soon
+        data-nav-soon
         aria-label="その他（近日公開予定）"
       >
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
@@ -81,12 +81,10 @@
     </li>
   </ul>
 
-  <a class="sidebar-nav__compose" href="{% url 'home' %}#compose" id="nav-compose-sidebar">
+  <button type="button" class="sidebar-nav__compose" id="nav-compose-sidebar" data-compose-open>
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
     <span class="sidebar-nav__compose-label">投稿する</span>
-  </a>
-
-  <p class="sidebar-soon-toast" id="sidebar-soon-toast" role="status" aria-live="polite" hidden>近日公開予定</p>
+  </button>
 
   {% if user.is_authenticated %}
   <div class="sidebar-user">
@@ -111,21 +109,3 @@
   </div>
   {% endif %}
 </nav>
-<script>
-(function () {
-  var toast = document.getElementById("sidebar-soon-toast");
-  var hideTimer;
-  if (!toast) return;
-  document.querySelectorAll("[data-sidebar-soon]").forEach(function (button) {
-    button.addEventListener("click", function () {
-      window.clearTimeout(hideTimer);
-      toast.hidden = false;
-      toast.classList.add("is-visible");
-      hideTimer = window.setTimeout(function () {
-        toast.classList.remove("is-visible");
-        toast.hidden = true;
-      }, 2200);
-    });
-  });
-})();
-</script>
