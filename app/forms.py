@@ -412,6 +412,57 @@ class ThreadPostForm(forms.ModelForm):
         }
 
 
+class CommunityThreadForm(forms.Form):
+    title = forms.CharField(
+        label="スレッドタイトル",
+        max_length=120,
+        widget=forms.TextInput(
+            attrs={"placeholder": "例：2年生のおすすめ科目を教えてください"}
+        ),
+    )
+    body = forms.CharField(
+        label="本文",
+        max_length=2000,
+        widget=forms.Textarea(
+            attrs={
+                "placeholder": "相談内容や共有したいことを書いてください",
+                "rows": 6,
+            }
+        ),
+    )
+
+    def clean_title(self):
+        title = (self.cleaned_data.get("title") or "").strip()
+        if not title:
+            raise forms.ValidationError("タイトルを入力してください。")
+        return title
+
+    def clean_body(self):
+        body = (self.cleaned_data.get("body") or "").strip()
+        if not body:
+            raise forms.ValidationError("本文を入力してください。")
+        return body
+
+
+class CommunityThreadReplyForm(forms.Form):
+    body = forms.CharField(
+        label="返信",
+        max_length=2000,
+        widget=forms.Textarea(
+            attrs={
+                "placeholder": "返信を入力してください",
+                "rows": 4,
+            }
+        ),
+    )
+
+    def clean_body(self):
+        body = (self.cleaned_data.get("body") or "").strip()
+        if not body:
+            raise forms.ValidationError("返信を入力してください。")
+        return body
+
+
 class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment

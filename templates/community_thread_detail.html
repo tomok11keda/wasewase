@@ -1,0 +1,376 @@
+{% load wase_extras static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {% include "includes/pwa_head.html" %}
+  <title>わせわせ — {{ thread.title }}</title>
+  {% include "includes/timeline_shell_styles.html" %}
+  {% include "includes/compose_modal_styles.html" %}
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --card: #fff;
+      --text: #0f1419;
+      --muted: #536471;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
+      --nav-h: 56px;
+      --radius: 12px;
+      --shell-border: #eff3f4;
+      --reply-form-h: 120px;
+    }
+    * { box-sizing: border-box; }
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    }
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--accent); color: #fff;
+      border-bottom: 1px solid var(--accent-dark);
+      padding: 8px 12px max(8px, env(safe-area-inset-top, 0px));
+    }
+    .header-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .back-link {
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .header-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .main-inner {
+      padding: 0 0 calc(var(--reply-form-h) + 24px);
+      max-width: 672px;
+      margin: 0 auto;
+    }
+    .thread-breadcrumb {
+      margin: 0;
+      padding: 10px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--card);
+      border-bottom: 1px solid var(--shell-border);
+    }
+    .thread-breadcrumb a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .thread-op {
+      padding: 16px;
+      background: var(--card);
+      border-bottom: 1px solid var(--shell-border);
+    }
+    .thread-op__title {
+      margin: 0 0 10px;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+    .thread-op__meta {
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .thread-op__body {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .thread-replies-header {
+      margin: 0;
+      padding: 12px 16px 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--bg);
+    }
+    .thread-replies {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      background: var(--card);
+      border-top: 1px solid var(--shell-border);
+      border-bottom: 1px solid var(--shell-border);
+    }
+    .thread-reply {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--shell-border);
+    }
+    .thread-reply:last-child { border-bottom: none; }
+    .thread-reply__meta {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .thread-reply__author {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .thread-reply__body {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .thread-empty-replies {
+      margin: 0;
+      padding: 20px 16px;
+      background: var(--card);
+      border-top: 1px solid var(--shell-border);
+      border-bottom: 1px solid var(--shell-border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .thread-reply-form-wrap {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      z-index: 120;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.96);
+      border-top: 1px solid var(--shell-border);
+      backdrop-filter: blur(8px);
+    }
+    .thread-reply-form-wrap--desktop {
+      display: none;
+    }
+    .thread-reply-form label {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .thread-reply-form textarea {
+      width: 100%;
+      min-height: 72px;
+      max-height: 120px;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      margin-bottom: 8px;
+    }
+    .thread-reply-form .btn-reply {
+      width: 100%;
+      height: 40px;
+      border: none;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .thread-reply-form .btn-reply:hover,
+    .thread-reply-form .btn-reply:focus-visible {
+      background: var(--accent-dark);
+    }
+    .thread-login-hint {
+      margin: 16px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      background: #fff8e6;
+      border: 1px solid #f0e0a8;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .thread-login-hint a {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .messages { margin: 8px 12px 0; padding: 0; list-style: none; }
+    .messages li { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    .messages .success { background: #e8f5e9; color: #2e7d32; }
+    .messages .error { background: #ffebee; color: #c62828; }
+    @media (min-width: 1024px) {
+      body { padding-bottom: 0; }
+      .main-inner {
+        max-width: none;
+        margin: 0;
+        padding: 0 0 24px;
+      }
+      .thread-reply-form-wrap {
+        display: none;
+      }
+      .thread-reply-form-wrap--desktop {
+        display: block;
+        position: static;
+        z-index: auto;
+        padding: 16px;
+        margin: 0;
+        background: var(--card);
+        border-top: 1px solid var(--shell-border);
+        border-bottom: none;
+        backdrop-filter: none;
+      }
+      .thread-reply-form-wrap--desktop textarea {
+        min-height: 100px;
+        max-height: none;
+      }
+      .thread-reply-form-wrap--desktop .btn-reply {
+        width: auto;
+        min-width: 140px;
+        padding: 0 20px;
+      }
+      .thread-reply-form__row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .thread-reply-form__field {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+  </style>
+</head>
+<body class="shell-desktop">
+  <div class="app-shell">
+    <aside class="sidebar-left" aria-label="サイドナビ">
+      {% include "includes/sidebar_nav.html" %}
+    </aside>
+
+    <div class="main-column">
+      <header class="site-header mobile-only">
+        <div class="header-row">
+          <a class="back-link" href="{% url 'community_detail' community.slug %}">← 板</a>
+          <h1 class="header-title">{{ thread.title }}</h1>
+        </div>
+      </header>
+
+      {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+        <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <main class="main-inner">
+        <p class="thread-breadcrumb desktop-only">
+          <a href="{% url 'communities_index' %}">コミュニティ</a>
+          <span aria-hidden="true"> / </span>
+          <a href="{% url 'community_detail' community.slug %}">{{ community.name }}</a>
+        </p>
+
+        <article class="thread-op" id="thread-op">
+          <h1 class="thread-op__title">{{ thread.title }}</h1>
+          <p class="thread-op__meta">
+            <span>{{ thread.author|display_name }}</span>
+            <span aria-hidden="true">·</span>
+            <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
+          </p>
+          <p class="thread-op__body">{{ thread.body }}</p>
+        </article>
+
+        <h2 class="thread-replies-header">返信 {{ replies|length }}件</h2>
+
+        {% if replies %}
+        <ol class="thread-replies">
+          {% for reply in replies %}
+          <li class="thread-reply" id="reply-{{ reply.pk }}">
+            <p class="thread-reply__meta">
+              <span class="thread-reply__author">{{ reply.author|display_name }}</span>
+              <span aria-hidden="true">·</span>
+              <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
+            </p>
+            <p class="thread-reply__body">{{ reply.body }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="thread-empty-replies">まだ返信はありません。最初の返信を投稿してみましょう。</p>
+        {% endif %}
+
+        {% if user.is_authenticated and reply_form %}
+        <div class="thread-reply-form-wrap thread-reply-form-wrap--desktop">
+          <form
+            class="thread-reply-form"
+            method="post"
+            action="{% url 'create_community_thread_reply' community.slug thread.pk %}"
+          >
+            {% csrf_token %}
+            <div class="thread-reply-form__row">
+              <div class="thread-reply-form__field">
+                <label for="{{ reply_form.body.id_for_label }}">返信を書く</label>
+                {{ reply_form.body }}
+              </div>
+              <button type="submit" class="btn-reply">返信する</button>
+            </div>
+          </form>
+        </div>
+        {% elif not user.is_authenticated %}
+        <p class="thread-login-hint">
+          返信するには<a href="{% url 'login' %}?next={{ request.path|urlencode }}">ログイン</a>してください。
+        </p>
+        {% endif %}
+      </main>
+    </div>
+
+    <aside class="sidebar-right" aria-label="サイド情報">
+      {% include "includes/sidebar_widgets.html" %}
+    </aside>
+  </div>
+
+  <div class="shell-hide-on-desktop">
+    {% include "includes/bottom_nav.html" %}
+  </div>
+
+  {% if user.is_authenticated and reply_form %}
+  <div class="thread-reply-form-wrap shell-hide-on-desktop">
+    <form
+      class="thread-reply-form"
+      method="post"
+      action="{% url 'create_community_thread_reply' community.slug thread.pk %}"
+    >
+      {% csrf_token %}
+      <label class="visually-hidden" for="{{ reply_form.body.id_for_label }}">返信</label>
+      {{ reply_form.body }}
+      <button type="submit" class="btn-reply">返信する</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% include "includes/compose_modal.html" %}
+  {% include "includes/compose_modal_scripts.html" %}
+</body>
+</html>

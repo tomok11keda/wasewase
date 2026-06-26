@@ -14,6 +14,7 @@ from django.utils import timezone
 from .models import (
     ChatRoom,
     Comment,
+    Community,
     ContentReport,
     DevicePushToken,
     Follow,
@@ -2175,4 +2176,120 @@ class UGCSafetyTests(TestCase):
         response = self.client.get(reverse("product_detail", args=[self.product.pk]))
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response["Location"], "/")
+
+
+class CommunitiesTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="board@waseda.jp",
+            password="pass12345",
+            username="boarduser",
+        )
+        UserProfile.objects.filter(user=self.user).update(
+            name="boarduser",
+            department="商学部",
+        )
+        self.community = Community.objects.get(slug="commerce")
+
+    def test_communities_index_lists_seeded_boards(self):
+        response = self.client.get(reverse("communities_index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "商学部板")
+        self.assertContains(response, "卒論・レポート相談板")
+        self.assertContains(response, "2年生おすすめの経営系科目は？")
+
+    def test_community_detail_shows_thread_list_area(self):
+        response = self.client.get(reverse("community_detail", args=["commerce"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "商学部板")
+        self.assertContains(response, "まだスレッドがありません")
+
+    def test_create_community_thread_requires_login(self):
+        response = self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "テスト", "body": "本文です"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    def test_create_community_thread_shows_in_list(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {
+                "title": "履修相談スレ",
+                "body": "来学期のおすすめ科目を教えてください。",
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse("community_detail", kwargs={"slug": "commerce"}),
+        )
+        detail = self.client.get(reverse("community_detail", args=["commerce"]))
+        self.assertContains(detail, "履修相談スレ")
+        self.assertContains(detail, "来学期のおすすめ科目を教えてください")
+
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.latest_thread_title, "履修相談スレ")
+
+    def test_communities_index_uses_shell_nav(self):
+        response = self.client.get(reverse("communities_index"))
+        self.assertContains(response, "コミュニティ")
+        self.assertContains(response, reverse("notifications"))
+        self.assertContains(response, reverse("mypage"))
+
+    def test_thread_detail_accessible_from_list(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "詳細テスト", "body": "スレッド本文です"},
+        )
+        detail = self.client.get(reverse("community_detail", args=["commerce"]))
+        self.assertContains(detail, reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1}))
+
+    def test_thread_detail_shows_op_and_reply_form(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "詳細テスト", "body": "スレッド本文です"},
+        )
+        response = self.client.get(
+            reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "詳細テスト")
+        self.assertContains(response, "スレッド本文です")
+        self.assertContains(response, "返信する")
+
+    def test_create_reply_requires_login(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "返信テスト", "body": "本文"},
+        )
+        self.client.logout()
+        response = self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "返信です"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    def test_create_reply_shows_on_detail_page(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread", args=["commerce"]),
+            {"title": "返信テスト", "body": "本文"},
+        )
+        response = self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "これは返信です"},
+        )
+        self.assertEqual(response.status_code, 302)
+        detail = self.client.get(
+            reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertContains(detail, "これは返信です")
+        self.assertContains(detail, "返信 1件")
 

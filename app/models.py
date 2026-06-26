@@ -730,6 +730,88 @@ class TimelinePost(models.Model):
         return bool(self.course_name or self.professor_name or self.faculty)
 
 
+class Community(models.Model):
+  class Category(models.TextChoices):
+    FACULTY = "faculty", "学部"
+    COURSE = "course", "授業・ゼミ"
+    GENERAL = "general", "総合"
+
+  slug = models.SlugField(max_length=80, unique=True)
+  name = models.CharField(max_length=100)
+  description = models.CharField(max_length=300, blank=True)
+  category = models.CharField(
+    max_length=20,
+    choices=Category.choices,
+    default=Category.GENERAL,
+  )
+  faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
+  latest_thread_title = models.CharField(max_length=120, blank=True)
+  latest_thread_preview = models.CharField(max_length=200, blank=True)
+  latest_activity_at = models.DateTimeField(null=True, blank=True)
+  is_active = models.BooleanField(default=True, db_index=True)
+  sort_order = models.PositiveIntegerField(default=0)
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  class Meta:
+    ordering = ["sort_order", "name"]
+    verbose_name = "コミュニティ掲示板"
+    verbose_name_plural = "コミュニティ掲示板"
+
+  def __str__(self) -> str:
+    return self.name
+
+
+class CommunityThread(models.Model):
+    community = models.ForeignKey(
+        Community,
+        on_delete=models.CASCADE,
+        related_name="threads",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_threads",
+    )
+    title = models.CharField(max_length=120)
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_removed = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "コミュニティスレッド"
+        verbose_name_plural = "コミュニティスレッド"
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class CommunityThreadReply(models.Model):
+    thread = models.ForeignKey(
+        CommunityThread,
+        on_delete=models.CASCADE,
+        related_name="replies",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_thread_replies",
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_removed = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "コミュニティスレッド返信"
+        verbose_name_plural = "コミュニティスレッド返信"
+
+    def __str__(self) -> str:
+        return self.body[:40]
+
+
 class TimelineLike(models.Model):
     timeline_post = models.ForeignKey(
         TimelinePost, on_delete=models.CASCADE, related_name="likes"

@@ -19,6 +19,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from .community_services import (
+    create_community_thread as save_community_thread,
+    create_thread_reply as save_thread_reply,
+    get_community_thread,
+    list_communities_for_index,
+    list_replies_for_thread,
+    list_threads_for_community,
+)
 from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
 from .dm_services import (
@@ -42,6 +50,8 @@ from .board_services import (
 from .forms import (
     EmailAuthenticationForm,
     AccountProfileForm,
+    CommunityThreadForm,
+    CommunityThreadReplyForm,
     ContentReportForm,
     SignUpForm,
     SignupOTPVerifyForm,
@@ -50,6 +60,7 @@ from .forms import (
 )
 from .models import (
     Comment,
+    Community,
     ContentReport,
     Follow,
     GodButtonUse,
@@ -285,6 +296,105 @@ def search(request):
             "nav_active": "search",
             "can_god": can_use_god_button(request.user),
         },
+    )
+
+
+def communities_index(request):
+    """参加可能な掲示板一覧（コミュニティ）。"""
+    communities = list_communities_for_index()
+    faculty_boards = [c for c in communities if c.category == Community.Category.FACULTY]
+    topic_boards = [c for c in communities if c.category != Community.Category.FACULTY]
+
+    return render(
+        request,
+        "communities_index.html",
+        {
+            "communities": communities,
+            "faculty_boards": faculty_boards,
+            "topic_boards": topic_boards,
+            "nav_active": "communities",
+        },
+    )
+
+
+def community_detail(request, slug):
+    """掲示板詳細とスレッド一覧。"""
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    threads = list_threads_for_community(community)
+    thread_form = CommunityThreadForm() if request.user.is_authenticated else None
+    return render(
+        request,
+        "community_detail.html",
+        {
+            "community": community,
+            "threads": threads,
+            "thread_form": thread_form,
+            "nav_active": "communities",
+        },
+    )
+
+
+@login_required
+@require_POST
+def create_community_thread(request, slug):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    form = CommunityThreadForm(request.POST)
+    if form.is_valid():
+        save_community_thread(
+            community,
+            request.user,
+            form.cleaned_data["title"],
+            form.cleaned_data["body"],
+        )
+        messages.success(request, "スレッドを作成しました。")
+    else:
+        error = next(iter(form.errors.values()))[0]
+        messages.error(request, error)
+    return redirect(reverse("community_detail", kwargs={"slug": community.slug}))
+
+
+def community_thread_detail(request, slug, thread_pk):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    thread = get_community_thread(community, thread_pk)
+    replies = list_replies_for_thread(thread)
+    reply_form = CommunityThreadReplyForm() if request.user.is_authenticated else None
+    return render(
+        request,
+        "community_thread_detail.html",
+        {
+            "community": community,
+            "thread": thread,
+            "replies": replies,
+            "reply_form": reply_form,
+            "nav_active": "communities",
+        },
+    )
+
+
+@login_required
+@require_POST
+def create_community_thread_reply(request, slug, thread_pk):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    thread = get_community_thread(community, thread_pk)
+    form = CommunityThreadReplyForm(request.POST)
+    if form.is_valid():
+        reply = save_thread_reply(thread, request.user, form.cleaned_data["body"])
+        messages.success(request, "返信を投稿しました。")
+        return redirect(
+            reverse(
+                "community_thread_detail",
+                kwargs={"slug": community.slug, "thread_pk": thread.pk},
+            )
+            + f"#reply-{reply.pk}"
+        )
+    else:
+        error = next(iter(form.errors.values()))[0]
+        messages.error(request, error)
+    return redirect(
+        reverse(
+            "community_thread_detail",
+            kwargs={"slug": community.slug, "thread_pk": thread.pk},
+        )
     )
 
 

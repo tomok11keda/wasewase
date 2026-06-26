@@ -17,6 +17,27 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
+    path("communities/", app_views.communities_index, name="communities_index"),
+    path(
+        "communities/<slug:slug>/",
+        app_views.community_detail,
+        name="community_detail",
+    ),
+    path(
+        "communities/<slug:slug>/thread/",
+        app_views.create_community_thread,
+        name="create_community_thread",
+    ),
+    path(
+        "communities/<slug:slug>/threads/<int:thread_pk>/",
+        app_views.community_thread_detail,
+        name="community_thread_detail",
+    ),
+    path(
+        "communities/<slug:slug>/threads/<int:thread_pk>/reply/",
+        app_views.create_community_thread_reply,
+        name="create_community_thread_reply",
+    ),
     # フリマ機能（温存モデル・管理画面のみ。公開ルートはホームへリダイレクト）
     path("exhibit/", _HOME_REDIRECT, name="exhibit"),
     path("product/<int:pk>/", _HOME_REDIRECT, name="product_detail"),

@@ -7,6 +7,9 @@ from .models import (
     User,
     ChatRoom,
     Comment,
+    Community,
+    CommunityThread,
+    CommunityThreadReply,
     ContentReport,
     DevicePushToken,
     UserDirectMessage,
@@ -107,6 +110,36 @@ class TimelinePostAdmin(admin.ModelAdmin):
 @admin.register(TimelineLike)
 class TimelineLikeAdmin(admin.ModelAdmin):
     list_display = ("timeline_post", "user", "created_at")
+
+
+@admin.register(Community)
+class CommunityAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "slug",
+        "category",
+        "faculty",
+        "is_active",
+        "sort_order",
+        "latest_activity_at",
+    )
+    list_filter = ("category", "faculty", "is_active")
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(CommunityThread)
+class CommunityThreadAdmin(admin.ModelAdmin):
+    list_display = ("title", "community", "author", "created_at", "is_removed")
+    list_filter = ("community", "is_removed", "created_at")
+    search_fields = ("title", "body", "author__username")
+
+
+@admin.register(CommunityThreadReply)
+class CommunityThreadReplyAdmin(admin.ModelAdmin):
+    list_display = ("thread", "author", "created_at", "is_removed")
+    list_filter = ("is_removed", "created_at")
+    search_fields = ("body", "author__username", "thread__title")
 
 
 @admin.register(CourseThread)
