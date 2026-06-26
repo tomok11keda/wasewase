@@ -151,7 +151,6 @@ def index(request):
     ]
 
     active_tag = request.GET.get("tag", "").strip()
-    timeline_form = None
 
     timeline_qs = build_timeline_posts_queryset(request)
     timeline_total_count = timeline_qs.count()
@@ -175,14 +174,6 @@ def index(request):
         .distinct()[:12]
     )
 
-    if request.user.is_authenticated:
-        timeline_form = TimelinePostForm()
-
-    quote_post = None
-    quote_param = request.GET.get("quote", "").strip()
-    if quote_param.isdigit():
-        quote_post = get_quotable_post(int(quote_param), request.user)
-
     god_remaining = (
         god_uses_remaining(request.user) if request.user.is_authenticated else 0
     )
@@ -195,7 +186,6 @@ def index(request):
             "trending_posts": trending_posts,
             "popular_tags": popular_tags,
             "active_tag": active_tag,
-            "timeline_form": timeline_form,
             "query": query,
             "user_faculty": user_faculty,
             "faculty_tabs": faculty_tabs,
@@ -221,7 +211,6 @@ def index(request):
             "timeline_next_offset": timeline_next_offset,
             "timeline_total_count": timeline_total_count,
             "nav_active": "home",
-            "quote_post": quote_post,
         },
     )
 
@@ -993,7 +982,7 @@ def board_quote(request, pk):
     if not post:
         messages.error(request, "この投稿は引用できません。")
         return redirect(reverse("home"))
-    return redirect(f"{reverse('home')}?quote={post.pk}#compose")
+    return redirect(f"{reverse('home')}?quote={post.pk}")
 
 
 @login_required
