@@ -22,7 +22,7 @@
         <a href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a>
         {% endif %}
         {{ p.body|truncatechars:72 }}
-        <span class="widget-trending-item__god">神！ {{ p.god_count }}</span>
+        <span class="widget-trending-item__likes">❤️ {{ p.like_count }}</span>
       </li>
       {% endfor %}
     </ul>
@@ -30,7 +30,7 @@
   {% else %}
   <section class="widget-card widget-card--placeholder" aria-labelledby="widget-trending-placeholder-title">
     <h2 class="widget-card__title" id="widget-trending-placeholder-title">⚡ 話題の投稿</h2>
-    <p class="widget-card__lead">神！が集まった注目投稿がここに表示されます。近日中に更新予定です。</p>
+    <p class="widget-card__lead">いいねが集まった注目投稿がここに表示されます。</p>
   </section>
   {% endif %}
 

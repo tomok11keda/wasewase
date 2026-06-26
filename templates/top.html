@@ -203,11 +203,9 @@
     {% endif %}
 
     <p class="board-intro">
-      早稲田大学生向けの<strong>キャンパスSNS</strong>です。授業タグ付きでつぶやき、<strong>いいね</strong>と<strong>神！</strong>（月{{ god_limit }}回）で応援できます。
+      早稲田大学生向けの<strong>キャンパスSNS</strong>です。授業タグ付きでつぶやき、<strong>いいね</strong>で応援できます。
     </p>
-    {% if user.is_authenticated %}
-    <p style="margin:0 4px 10px;font-size:12px;color:var(--muted)">神！残り {{ god_remaining }} / {{ god_limit }} 回</p>
-    {% else %}
+    {% if not user.is_authenticated %}
     <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>して投稿する</p>
     {% endif %}
 
@@ -220,7 +218,7 @@
     {% if trending_posts and not active_tag %}
     <section class="trending-section mobile-only"><h3>⚡ 話題の投稿</h3>
     {% for p in trending_posts %}
-    <article class="trending-item">{% if p.course_name %}<a class="tag-link" href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>神！{{ p.god_count }}</b></article>
+    <article class="trending-item">{% if p.course_name %}<a class="tag-link" href="{% url 'home' %}?tag={{ p.course_name|urlencode }}">{{ p.course_name }}</a> {% endif %}{{ p.body|truncatechars:80 }} <b>❤️{{ p.like_count }}</b></article>
     {% endfor %}
     </section>
     {% endif %}

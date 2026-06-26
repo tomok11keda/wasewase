@@ -23,12 +23,11 @@ from .community_services import (
     build_communities_index_url,
     create_community_thread as save_community_thread,
     create_thread_reply as save_thread_reply,
+    get_community_for_new_thread,
     get_community_thread,
     get_faculty_tag_choices,
-    list_communities_for_index,
+    list_community_threads,
     list_replies_for_thread,
-    list_threads_for_community,
-    search_community_threads,
 )
 from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
@@ -40,13 +39,10 @@ from .dm_services import (
     get_or_create_dm_room,
 )
 from .board_services import (
-    GOD_USES_PER_MONTH,
     TIMELINE_INITIAL_SIZE,
     TIMELINE_LOAD_MORE_SIZE,
     build_timeline_posts_queryset,
-    can_use_god_button,
     get_quotable_post,
-    god_uses_remaining,
     notify_timeline_post_author,
     timeline_post_link,
 )
@@ -66,7 +62,6 @@ from .models import (
     Community,
     ContentReport,
     Follow,
-    GodButtonUse,
     Notification,
     TimelinePost,
     TimelineLike,
@@ -175,8 +170,8 @@ def index(request):
     trending_posts = list(
         filter_visible_timeline_posts(
             TimelinePost.objects.select_related("author")
-            .filter(god_count__gt=0)
-            .order_by("-god_count", "-created_at"),
+            .filter(like_count__gt=0)
+            .order_by("-like_count", "-created_at"),
             request.user if request.user.is_authenticated else None,
         )[:5]
     )
@@ -186,10 +181,6 @@ def index(request):
         .exclude(course_name="")
         .values_list("course_name", flat=True)
         .distinct()[:12]
-    )
-
-    god_remaining = (
-        god_uses_remaining(request.user) if request.user.is_authenticated else 0
     )
 
     return render(
@@ -204,9 +195,6 @@ def index(request):
             "user_faculty": user_faculty,
             "faculty_tabs": faculty_tabs,
             "active_faculty": active_faculty,
-            "god_remaining": god_remaining,
-            "god_limit": GOD_USES_PER_MONTH,
-            "can_god": can_use_god_button(request.user),
             "feed_scope": feed_scope,
             "feed_following_unauthenticated": feed_following_unauthenticated,
             "feed_url_all": build_home_url(
@@ -248,7 +236,6 @@ def timeline_feed(request):
         {
             "timeline_posts": posts,
             "query": request.GET.get("q", "").strip(),
-            "can_god": can_use_god_button(request.user),
         },
         request=request,
     )
@@ -297,67 +284,52 @@ def search(request):
             "timeline_count": timeline_posts.count(),
             "search_url": build_search_url(query),
             "nav_active": "search",
-            "can_god": can_use_god_button(request.user),
         },
     )
 
 
 def communities_index(request):
-    """参加可能な掲示板一覧（コミュニティ）。"""
+    """学部タグと検索で絞り込めるスレッド一覧。"""
     faculty_values = {value for value, _ in FACULTY_CHOICES}
     active_tag = request.GET.get("tag", "").strip()
     if active_tag not in faculty_values:
         active_tag = ""
     query = request.GET.get("q", "").strip()
-
-    communities = list_communities_for_index(faculty=active_tag)
-    faculty_boards = [c for c in communities if c.category == Community.Category.FACULTY]
-    topic_boards = (
-        []
-        if active_tag
-        else [c for c in communities if c.category != Community.Category.FACULTY]
-    )
-    search_threads = search_community_threads(query=query, faculty=active_tag) if query else None
+    threads = list_community_threads(query=query, faculty=active_tag)
+    thread_form = CommunityThreadForm() if request.user.is_authenticated else None
 
     return render(
         request,
         "communities_index.html",
         {
-            "communities": communities,
-            "faculty_boards": faculty_boards,
-            "topic_boards": topic_boards,
+            "threads": threads,
             "faculty_tabs": get_faculty_tag_choices(),
             "active_tag": active_tag,
             "query": query,
-            "search_threads": search_threads,
+            "thread_form": thread_form,
             "nav_active": "communities",
         },
     )
 
 
 def community_detail(request, slug):
-    """掲示板詳細とスレッド一覧。"""
+    """旧掲示板URLからコミュニティ一覧へリダイレクト。"""
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    query = request.GET.get("q", "").strip()
-    threads = list_threads_for_community(community, query=query)
-    thread_form = CommunityThreadForm() if request.user.is_authenticated else None
-    return render(
-        request,
-        "community_detail.html",
-        {
-            "community": community,
-            "threads": threads,
-            "thread_form": thread_form,
-            "query": query,
-            "nav_active": "communities",
-        },
-    )
+    return redirect(build_communities_index_url(tag=community.faculty))
 
 
 @login_required
 @require_POST
-def create_community_thread(request, slug):
-    community = get_object_or_404(Community, slug=slug, is_active=True)
+def create_community_thread(request):
+    faculty_values = {value for value, _ in FACULTY_CHOICES}
+    active_tag = request.POST.get("tag", "").strip()
+    if active_tag not in faculty_values:
+        active_tag = ""
+    community = get_community_for_new_thread(faculty=active_tag)
+    if community is None:
+        messages.error(request, "スレッドを作成できる掲示板がありません。")
+        return redirect(reverse("communities_index"))
+
     form = CommunityThreadForm(request.POST)
     if form.is_valid():
         save_community_thread(
@@ -370,7 +342,7 @@ def create_community_thread(request, slug):
     else:
         error = next(iter(form.errors.values()))[0]
         messages.error(request, error)
-    return redirect(reverse("community_detail", kwargs={"slug": community.slug}))
+    return redirect(build_communities_index_url(tag=active_tag))
 
 
 def community_thread_detail(request, slug, thread_pk):
@@ -1076,31 +1048,6 @@ def board_timeline_like(request, pk):
         post.like_count = max(0, post.like_count - 1)
         post.save(update_fields=["like_count"])
         messages.success(request, "いいねを取り消しました。")
-    sync_user_level_stats(post.author)
-    return _board_redirect(request, tag=post.course_name)
-
-
-@login_required
-@require_POST
-def board_timeline_god(request, pk):
-    post = get_object_or_404(TimelinePost, pk=pk)
-
-    if not can_use_god_button(request.user):
-        messages.warning(
-            request,
-            f"今月の神！ボタンは使い切りました（月{GOD_USES_PER_MONTH}回まで）。",
-        )
-        return _board_redirect(request, tag=post.course_name)
-
-    GodButtonUse.objects.create(user=request.user, timeline_post=post)
-    post.god_count += 1
-    post.save(update_fields=["god_count"])
-    notify_timeline_post_author(
-        post,
-        request.user,
-        f"{request.user.username}さんがあなたの投稿を『神！』と言っています",
-    )
-    messages.success(request, "神！を押しました。")
     sync_user_level_stats(post.author)
     return _board_redirect(request, tag=post.course_name)
 

@@ -18,15 +18,11 @@ urlpatterns = [
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
     path("communities/", app_views.communities_index, name="communities_index"),
+    path("communities/thread/", app_views.create_community_thread, name="create_community_thread"),
     path(
         "communities/<slug:slug>/",
         app_views.community_detail,
         name="community_detail",
-    ),
-    path(
-        "communities/<slug:slug>/thread/",
-        app_views.create_community_thread,
-        name="create_community_thread",
     ),
     path(
         "communities/<slug:slug>/threads/<int:thread_pk>/",
@@ -81,7 +77,6 @@ urlpatterns = [
     path("board/post/<int:pk>/quote/", app_views.board_quote, name="board_quote"),
     path("board/feed/", app_views.timeline_feed, name="timeline_feed"),
     path("board/post/<int:pk>/like/", app_views.board_timeline_like, name="board_timeline_like"),
-    path("board/post/<int:pk>/god/", app_views.board_timeline_god, name="board_timeline_god"),
     path("board/post/<int:pk>/comment/", app_views.board_timeline_comment, name="board_timeline_comment"),
     path(
         "board/post/<int:pk>/delete/",
