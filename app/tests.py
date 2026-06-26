@@ -1551,6 +1551,45 @@ class UserDirectMessageTests(TestCase):
         room = UserDirectMessageRoom.objects.get()
         self.assertEqual(response["Location"], reverse("user_dm_room", args=[room.pk]))
 
+    def test_dm_inbox_requires_login(self):
+        response = self.client.get(reverse("user_dm_inbox"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
+
+    def test_dm_inbox_lists_conversations_ordered_by_latest(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        room_ab, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        room_ao, _ = get_or_create_dm_room(self.user_a, self.other)
+        UserDirectMessage.objects.create(
+            room=room_ab, sender=self.user_b, body="古い方のメッセージ"
+        )
+        room_ab.updated_at = timezone.now() - timedelta(hours=1)
+        room_ab.save(update_fields=["updated_at"])
+        UserDirectMessage.objects.create(
+            room=room_ao, sender=self.other, body="最新の会話です"
+        )
+        room_ao.updated_at = timezone.now()
+        room_ao.save(update_fields=["updated_at"])
+
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_inbox"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "dm_user_b")
+        self.assertContains(response, "dm_other")
+        self.assertContains(response, "最新の会話です")
+        content = response.content.decode()
+        self.assertLess(content.index("dm_other"), content.index("dm_user_b"))
+
+    def test_dm_inbox_shows_messages_nav_active(self):
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_inbox"))
+        self.assertContains(response, reverse("user_dm_inbox"))
+        self.assertContains(response, "sidebar-nav__item is-active")
+        self.assertContains(response, "メッセージ")
+
     def test_cannot_dm_self(self):
         self.client.force_login(self.user_a)
         response = self.client.post(reverse("start_user_dm", args=[self.user_a.pk]))

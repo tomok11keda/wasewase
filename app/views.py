@@ -22,6 +22,7 @@ from django.urls import reverse
 from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
 from .dm_services import (
+    build_dm_conversations,
     can_access_dm_room,
     dm_room_link,
     find_dm_room,
@@ -514,6 +515,18 @@ def user_profile(request, pk):
 
 
 @login_required
+def user_dm_inbox(request):
+    return render(
+        request,
+        "dm_inbox.html",
+        {
+            "conversations": build_dm_conversations(request.user),
+            "nav_active": "messages",
+        },
+    )
+
+
+@login_required
 @require_POST
 def start_user_dm(request, pk):
     partner = get_object_or_404(User, pk=pk)
@@ -544,12 +557,7 @@ def user_dm_room(request, room_pk):
     latest_message_id = (
         dm_messages.order_by("-pk").values_list("pk", flat=True).first() or 0
     )
-    back_url = (
-        reverse("user_profile", kwargs={"pk": partner.pk})
-        if partner
-        else reverse("home")
-    )
-
+    back_url = reverse("user_dm_inbox")
     return render(
         request,
         "dm_room.html",
@@ -562,6 +570,7 @@ def user_dm_room(request, room_pk):
             "messages_poll_url": reverse(
                 "user_dm_room_messages", kwargs={"room_pk": room.pk}
             ),
+            "nav_active": "messages",
         },
     )
 
