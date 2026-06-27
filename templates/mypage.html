@@ -38,7 +38,6 @@
   <main class="main-inner">
     <section class="profile-card">
       <h2 class="profile-name">{{ user|display_name }}</h2>
-      {% include "includes/profile_level_card.html" %}
       {% if profile.department %}
       <span class="faculty-badge">🎓 {{ profile.department }}</span>
       {% endif %}

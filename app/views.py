@@ -78,7 +78,6 @@ from .otp_services import (
 )
 
 logger = logging.getLogger(__name__)
-from .level_services import get_user_level_stats, sync_user_level_stats
 from .services import (
     build_home_url,
     build_search_url,
@@ -550,14 +549,12 @@ def submit_report(request):
 @login_required
 def mypage(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    level_stats = get_user_level_stats(request.user)
 
     return render(
         request,
         "mypage.html",
         {
             "profile": profile,
-            "level_stats": level_stats,
             "stats": get_profile_stats(request.user),
             "nav_active": "mypage",
         },
@@ -569,7 +566,6 @@ def user_profile(request, pk):
     profile, _ = UserProfile.objects.get_or_create(user=profile_user)
 
     stats = get_profile_stats(profile_user)
-    level_stats = get_user_level_stats(profile_user)
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
     user_is_following = (
         is_following(request.user, profile_user)
@@ -594,7 +590,6 @@ def user_profile(request, pk):
             "profile_user": profile_user,
             "profile": profile,
             "stats": stats,
-            "level_stats": level_stats,
             "is_own_profile": is_own_profile,
             "user_is_following": user_is_following,
             "user_is_blocked": user_is_blocked,
@@ -1048,7 +1043,6 @@ def board_timeline_like(request, pk):
         post.like_count = max(0, post.like_count - 1)
         post.save(update_fields=["like_count"])
         messages.success(request, "いいねを取り消しました。")
-    sync_user_level_stats(post.author)
     return _board_redirect(request, tag=post.course_name)
 
 
