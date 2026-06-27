@@ -348,8 +348,6 @@
       <p class="profile-meta">{{ profile.department_grade_display }}</p>
       {% endif %}
 
-      {% include "includes/profile_level_card.html" %}
-
       <div class="profile-actions">
         {% if is_own_profile %}
         <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィール・アカウント設定</a>
