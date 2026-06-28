@@ -77,6 +77,11 @@ urlpatterns = [
     path("board/post/<int:pk>/quote/", app_views.board_quote, name="board_quote"),
     path("board/feed/", app_views.timeline_feed, name="timeline_feed"),
     path("board/post/<int:pk>/like/", app_views.board_timeline_like, name="board_timeline_like"),
+    path(
+        "board/post/<int:pk>/bookmark/",
+        app_views.board_timeline_bookmark,
+        name="board_timeline_bookmark",
+    ),
     path("board/post/<int:pk>/comment/", app_views.board_timeline_comment, name="board_timeline_comment"),
     path(
         "board/post/<int:pk>/delete/",

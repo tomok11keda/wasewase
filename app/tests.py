@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
@@ -28,6 +28,7 @@ from .models import (
     UserProfile,
 )
 from .dm_services import get_or_create_dm_room, ordered_user_pair
+from .bookmark_services import BookmarkServiceError
 from wasewase.email_env import (
     is_plausible_email,
     load_sanitized_email_env,
@@ -2215,4 +2216,107 @@ class CommunitiesTests(TestCase):
             {"q": "ユニーク返信キーワードXYZ"},
         )
         self.assertContains(response, "見つからないタイトル")
+
+
+class BookmarkTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="bookmark@waseda.jp",
+            password="pass12345",
+            username="bookmarkuser",
+        )
+        self.author = User.objects.create_user(
+            email="author@waseda.jp",
+            password="pass12345",
+            username="authoruser",
+        )
+        self.post = TimelinePost.objects.create(
+            author=self.author,
+            body="ブックマーク対象の投稿です",
+            course_name="民法",
+        )
+
+    def test_bookmark_requires_login(self):
+        response = self.client.post(
+            reverse("board_timeline_bookmark", args=[self.post.pk]),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    @patch("app.views.toggle_bookmark", return_value=True)
+    def test_bookmark_view_adds_bookmark(self, mock_toggle):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("board_timeline_bookmark", args=[self.post.pk]),
+            {"next": reverse("home")},
+        )
+        self.assertEqual(response.status_code, 302)
+        mock_toggle.assert_called_once_with(self.user, self.post.pk)
+
+    @patch("app.views.toggle_bookmark", return_value=False)
+    def test_bookmark_view_removes_bookmark(self, mock_toggle):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("board_timeline_bookmark", args=[self.post.pk]))
+        self.assertEqual(response.status_code, 302)
+        mock_toggle.assert_called_once_with(self.user, self.post.pk)
+
+    @patch("app.views.toggle_bookmark", side_effect=BookmarkServiceError("unavailable"))
+    def test_bookmark_view_handles_service_error(self, mock_toggle):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("board_timeline_bookmark", args=[self.post.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(mock_toggle.call_count, 1)
+
+    @patch("app.bookmark_services.get_firestore_client")
+    def test_toggle_bookmark_writes_to_firestore(self, mock_get_client):
+        import sys
+        from app.bookmark_services import toggle_bookmark
+
+        mock_firestore = MagicMock()
+        mock_firestore.SERVER_TIMESTAMP = "SERVER_TIMESTAMP"
+        mock_doc = MagicMock()
+        mock_doc.get.return_value.exists = False
+        mock_collection = MagicMock()
+        mock_collection.document.return_value = mock_doc
+        mock_user_doc = MagicMock()
+        mock_user_doc.collection.return_value = mock_collection
+        mock_db = MagicMock()
+        mock_db.collection.return_value.document.return_value = mock_user_doc
+        mock_get_client.return_value = mock_db
+
+        with patch.dict(sys.modules, {"firebase_admin": MagicMock()}):
+            sys.modules["firebase_admin.firestore"] = mock_firestore
+            bookmarked = toggle_bookmark(self.user, self.post.pk)
+
+        self.assertTrue(bookmarked)
+        mock_doc.set.assert_called_once()
+
+    @patch("app.views.get_bookmarked_timeline_posts")
+    def test_profile_bookmarks_tab_shows_saved_posts(self, mock_get_posts):
+        self.post.user_has_bookmarked = True
+        self.post.user_has_liked = False
+        mock_get_posts.return_value = [self.post]
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("user_profile", args=[self.user.pk]),
+            {"tab": "bookmarks"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ブックマーク一覧")
+        self.assertContains(response, "ブックマーク対象の投稿です")
+        self.assertContains(response, 'aria-label="ブックマーク解除"')
+
+    def test_profile_bookmarks_tab_hidden_for_other_users(self):
+        other = get_user_model().objects.create_user(
+            email="other@waseda.jp",
+            password="pass12345",
+            username="otheruser",
+        )
+        response = self.client.get(
+            reverse("user_profile", args=[other.pk]),
+            {"tab": "bookmarks"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "ブックマーク一覧")
 

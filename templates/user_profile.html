@@ -1,10 +1,14 @@
 <!DOCTYPE html>
+{% load wase_extras %}
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — {{ profile.display_name }}</title>
+  {% if is_own_profile %}
+  {% include "includes/timeline_feed_styles.html" %}
+  {% endif %}
   <style>
     :root {
       --bg: #f5f5f5;
@@ -315,6 +319,44 @@
     }
 
     .nav-item--fab .fab-circle svg { fill: #fff; }
+
+    .profile-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 4px;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .profile-tab {
+      flex: 1;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--muted);
+    }
+
+    .profile-tab.is-active {
+      background: #f7edf0;
+      color: var(--accent);
+    }
+
+    .profile-bookmarks {
+      margin-top: 4px;
+    }
+
+    .profile-bookmarks .timeline-list {
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
   </style>
 </head>
 <body>
@@ -403,9 +445,35 @@
           <p class="stat-label">フォロー中</p>
         </div>
       </div>
+    </section>
 
+    {% if is_own_profile %}
+    <nav class="profile-tabs" aria-label="プロフィール表示">
+      <a
+        class="profile-tab{% if profile_tab == 'overview' %} is-active{% endif %}"
+        href="{% url 'user_profile' profile_user.pk %}"
+        {% if profile_tab == 'overview' %}aria-current="page"{% endif %}
+      >プロフィール</a>
+      <a
+        class="profile-tab{% if profile_tab == 'bookmarks' %} is-active{% endif %}"
+        href="{% url 'user_profile' profile_user.pk %}?tab=bookmarks"
+        {% if profile_tab == 'bookmarks' %}aria-current="page"{% endif %}
+      >ブックマーク</a>
+    </nav>
+    {% endif %}
+
+    {% if profile_tab == 'bookmarks' and is_own_profile %}
+    <section class="profile-bookmarks" aria-labelledby="profile-bookmarks-title">
+      <h2 class="section-title" id="profile-bookmarks-title">ブックマーク一覧</h2>
+      <div class="timeline-list">
+        {% for post in bookmark_posts %}
+        {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
+        {% empty %}
+        <p class="empty-message">ブックマークした投稿はまだありません。タイムラインの 🔖 から保存できます。</p>
+        {% endfor %}
       </div>
     </section>
+    {% endif %}
   </main>
 
   {% include "includes/bottom_nav.html" %}

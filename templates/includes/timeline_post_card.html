@@ -83,6 +83,19 @@
             <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
           </button>
         </form>
+
+        <form class="tweet-action-form" method="post" action="{% url 'board_timeline_bookmark' post.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button
+            type="submit"
+            class="tweet-action tweet-action--bookmark{% if post.user_has_bookmarked %} is-bookmarked{% endif %}"
+            aria-pressed="{% if post.user_has_bookmarked %}true{% else %}false{% endif %}"
+            aria-label="{% if post.user_has_bookmarked %}ブックマーク解除{% else %}ブックマーク{% endif %}"
+          >
+            <span class="tweet-action-emoji" aria-hidden="true">🔖</span>
+          </button>
+        </form>
         {% else %}
         <span class="tweet-action tweet-action--quote tweet-action--static" aria-hidden="true">
           <span class="tweet-action-emoji">🔁</span>
@@ -90,6 +103,9 @@
         <span class="tweet-action tweet-action--like tweet-action--static">
           <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
           <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+        </span>
+        <span class="tweet-action tweet-action--bookmark tweet-action--static" aria-hidden="true">
+          <span class="tweet-action-emoji">🔖</span>
         </span>
         {% endif %}
       </div>

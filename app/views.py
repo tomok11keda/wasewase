@@ -46,6 +46,12 @@ from .board_services import (
     notify_timeline_post_author,
     timeline_post_link,
 )
+from .bookmark_services import (
+    BookmarkServiceError,
+    get_bookmarked_timeline_posts,
+    prepare_timeline_posts,
+    toggle_bookmark,
+)
 from .forms import (
     EmailAuthenticationForm,
     AccountProfileForm,
@@ -163,6 +169,7 @@ def index(request):
     timeline_qs = build_timeline_posts_queryset(request)
     timeline_total_count = timeline_qs.count()
     timeline_posts = list(timeline_qs[:TIMELINE_INITIAL_SIZE])
+    timeline_posts = prepare_timeline_posts(timeline_posts, request.user)
     timeline_has_more = timeline_total_count > len(timeline_posts)
     timeline_next_offset = len(timeline_posts)
 
@@ -226,7 +233,10 @@ def timeline_feed(request):
 
     timeline_qs = build_timeline_posts_queryset(request)
     total_count = timeline_qs.count()
-    posts = list(timeline_qs[offset : offset + TIMELINE_LOAD_MORE_SIZE])
+    posts = prepare_timeline_posts(
+        list(timeline_qs[offset : offset + TIMELINE_LOAD_MORE_SIZE]),
+        request.user,
+    )
     next_offset = offset + len(posts)
     has_more = next_offset < total_count
 
@@ -273,6 +283,8 @@ def search(request):
                     )
                 )
             )
+
+    timeline_posts = prepare_timeline_posts(timeline_posts, viewer)
 
     return render(
         request,
@@ -583,6 +595,16 @@ def user_profile(request, pk):
         can_send_dm = True
         user_dm_room = find_dm_room(request.user, profile_user)
 
+    profile_tab = request.GET.get("tab", "overview").strip()
+    if profile_tab not in ("overview", "bookmarks"):
+        profile_tab = "overview"
+    if profile_tab == "bookmarks" and not is_own_profile:
+        profile_tab = "overview"
+
+    bookmark_posts = []
+    if profile_tab == "bookmarks" and is_own_profile:
+        bookmark_posts = get_bookmarked_timeline_posts(profile_user, request.user)
+
     return render(
         request,
         "user_profile.html",
@@ -595,6 +617,8 @@ def user_profile(request, pk):
             "user_is_blocked": user_is_blocked,
             "can_send_dm": can_send_dm,
             "user_dm_room": user_dm_room,
+            "profile_tab": profile_tab,
+            "bookmark_posts": bookmark_posts,
             "nav_active": "",
         },
     )
@@ -1043,6 +1067,28 @@ def board_timeline_like(request, pk):
         post.like_count = max(0, post.like_count - 1)
         post.save(update_fields=["like_count"])
         messages.success(request, "いいねを取り消しました。")
+    return _board_redirect(request, tag=post.course_name)
+
+
+@login_required
+@require_POST
+def board_timeline_bookmark(request, pk):
+    post = get_object_or_404(TimelinePost, pk=pk, is_removed=False)
+    try:
+        bookmarked = toggle_bookmark(request.user, post.pk)
+    except BookmarkServiceError:
+        messages.error(
+            request,
+            "ブックマーク機能は現在利用できません。しばらくしてからお試しください。",
+        )
+    else:
+        if bookmarked:
+            messages.success(request, "ブックマークに追加しました。")
+        else:
+            messages.success(request, "ブックマークを解除しました。")
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
+    if next_url:
+        return redirect(next_url)
     return _board_redirect(request, tag=post.course_name)
 
 
