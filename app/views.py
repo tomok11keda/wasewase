@@ -602,8 +602,11 @@ def user_profile(request, pk):
         profile_tab = "overview"
 
     bookmark_posts = []
+    bookmark_meta = {}
     if profile_tab == "bookmarks" and is_own_profile:
-        bookmark_posts = get_bookmarked_timeline_posts(profile_user, request.user)
+        bookmark_posts, bookmark_meta = get_bookmarked_timeline_posts(
+            profile_user, request.user
+        )
 
     return render(
         request,
@@ -619,6 +622,7 @@ def user_profile(request, pk):
             "user_dm_room": user_dm_room,
             "profile_tab": profile_tab,
             "bookmark_posts": bookmark_posts,
+            "bookmark_meta": bookmark_meta,
             "nav_active": "",
         },
     )

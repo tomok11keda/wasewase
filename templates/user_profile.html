@@ -469,7 +469,13 @@
         {% for post in bookmark_posts %}
         {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
         {% empty %}
+        {% if bookmark_meta.error %}
+        <p class="empty-message">ブックマークの取得に失敗しました。時間をおいて再度お試しください。</p>
+        {% elif bookmark_meta.firestore_count > 0 %}
+        <p class="empty-message">ブックマークは {{ bookmark_meta.firestore_count }} 件ありますが、表示できる投稿がありません（削除済み、非公開、またはブロック中のユーザーの投稿の可能性があります）。</p>
+        {% else %}
         <p class="empty-message">ブックマークした投稿はまだありません。タイムラインの 🔖 から保存できます。</p>
+        {% endif %}
         {% endfor %}
       </div>
     </section>

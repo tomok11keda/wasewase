@@ -2296,7 +2296,14 @@ class BookmarkTests(TestCase):
     def test_profile_bookmarks_tab_shows_saved_posts(self, mock_get_posts):
         self.post.user_has_bookmarked = True
         self.post.user_has_liked = False
-        mock_get_posts.return_value = [self.post]
+        mock_get_posts.return_value = (
+            [self.post],
+            {
+                "firestore_path": f"users/{self.user.pk}/bookmarks",
+                "firestore_count": 1,
+                "displayed_count": 1,
+            },
+        )
         self.client.force_login(self.user)
         response = self.client.get(
             reverse("user_profile", args=[self.user.pk]),
@@ -2306,6 +2313,35 @@ class BookmarkTests(TestCase):
         self.assertContains(response, "ブックマーク一覧")
         self.assertContains(response, "ブックマーク対象の投稿です")
         self.assertContains(response, 'aria-label="ブックマーク解除"')
+
+    @patch("app.bookmark_services.get_firestore_client")
+    def test_get_bookmarked_timeline_posts_reads_users_bookmarks_path(self, mock_get_client):
+        from app.bookmark_services import get_bookmarked_timeline_posts
+
+        mock_doc = MagicMock()
+        mock_doc.id = str(self.post.pk)
+        mock_doc.to_dict.return_value = {"postId": self.post.pk, "createdAt": None}
+
+        mock_collection = MagicMock()
+        mock_collection.stream.return_value = [mock_doc]
+        mock_collection.document.return_value.get.return_value.exists = False
+
+        mock_user_doc = MagicMock()
+        mock_user_doc.collection.return_value = mock_collection
+
+        mock_db = MagicMock()
+        mock_db.collection.return_value.document.return_value = mock_user_doc
+        mock_get_client.return_value = mock_db
+
+        posts, meta = get_bookmarked_timeline_posts(self.user, self.user)
+
+        mock_db.collection.assert_called_with("users")
+        mock_db.collection.return_value.document.assert_called_with(str(self.user.pk))
+        mock_user_doc.collection.assert_called_with("bookmarks")
+        self.assertEqual(posts, [self.post])
+        self.assertEqual(meta["firestore_path"], f"users/{self.user.pk}/bookmarks")
+        self.assertEqual(meta["firestore_count"], 1)
+        self.assertEqual(meta["displayed_count"], 1)
 
     def test_profile_bookmarks_tab_hidden_for_other_users(self):
         other = get_user_model().objects.create_user(
