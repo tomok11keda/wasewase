@@ -58,15 +58,24 @@
       </a>
     </li>
     <li>
-      <button
-        type="button"
-        class="sidebar-nav__item sidebar-nav__item--soon"
-        data-nav-soon
-        aria-label="ブックマーク（近日公開予定）"
+      {% if user.is_authenticated %}
+      <a
+        class="sidebar-nav__item{% if nav_active == 'bookmarks' %} is-active{% endif %}"
+        href="{% url 'user_profile' user.pk %}?tab=bookmarks"
+        {% if nav_active == 'bookmarks' %}aria-current="page"{% endif %}
       >
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
         <span class="sidebar-nav__label">ブックマーク</span>
-      </button>
+      </a>
+      {% else %}
+      <a
+        class="sidebar-nav__item"
+        href="{% url 'login' %}"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+        <span class="sidebar-nav__label">ブックマーク</span>
+      </a>
+      {% endif %}
     </li>
     <li>
       <a

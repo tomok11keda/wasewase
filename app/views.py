@@ -608,6 +608,10 @@ def user_profile(request, pk):
             profile_user, request.user
         )
 
+    nav_active = ""
+    if is_own_profile:
+        nav_active = "bookmarks" if profile_tab == "bookmarks" else "mypage"
+
     return render(
         request,
         "user_profile.html",
@@ -623,7 +627,7 @@ def user_profile(request, pk):
             "profile_tab": profile_tab,
             "bookmark_posts": bookmark_posts,
             "bookmark_meta": bookmark_meta,
-            "nav_active": "",
+            "nav_active": nav_active,
         },
     )
 
