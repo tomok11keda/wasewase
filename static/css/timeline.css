@@ -10,6 +10,8 @@
   --tweet-quote-bg: rgba(0, 186, 124, 0.1);
   --tweet-comment: #1d9bf0;
   --tweet-comment-bg: rgba(29, 155, 240, 0.1);
+  --tweet-bookmark: #891e2b;
+  --tweet-bookmark-bg: rgba(137, 30, 43, 0.1);
   --tweet-avatar-size: 40px;
 }
 
@@ -287,6 +289,14 @@
 }
 .tweet-action--like.is-liked {
   color: var(--tweet-like);
+}
+.tweet-action--bookmark:hover,
+.tweet-action--bookmark:focus-visible {
+  color: var(--tweet-bookmark);
+  background: var(--tweet-bookmark-bg);
+}
+.tweet-action--bookmark.is-bookmarked {
+  color: var(--tweet-bookmark);
 }
 
 /* 引用カード */
