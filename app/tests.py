@@ -2314,6 +2314,15 @@ class BookmarkTests(TestCase):
         self.assertContains(response, "ブックマーク対象の投稿です")
         self.assertContains(response, 'aria-label="ブックマーク解除"')
 
+    def test_sidebar_bookmark_link_points_to_profile_tab(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("home"))
+        self.assertContains(
+            response,
+            f'{reverse("user_profile", args=[self.user.pk])}?tab=bookmarks',
+        )
+        self.assertNotContains(response, "ブックマーク（近日公開予定）")
+
     @patch("app.bookmark_services.get_firestore_client")
     def test_get_bookmarked_timeline_posts_reads_users_bookmarks_path(self, mock_get_client):
         from app.bookmark_services import get_bookmarked_timeline_posts
