@@ -42,6 +42,7 @@ from .board_services import (
     TIMELINE_INITIAL_SIZE,
     TIMELINE_LOAD_MORE_SIZE,
     build_timeline_posts_queryset,
+    get_profile_timeline_posts,
     get_quotable_post,
     notify_timeline_post_author,
     timeline_post_link,
@@ -608,6 +609,11 @@ def user_profile(request, pk):
             profile_user, request.user
         )
 
+    profile_posts = []
+    if profile_tab == "overview":
+        viewer = request.user if request.user.is_authenticated else None
+        profile_posts = get_profile_timeline_posts(profile_user, viewer)
+
     nav_active = ""
     if is_own_profile:
         nav_active = "bookmarks" if profile_tab == "bookmarks" else "mypage"
@@ -627,6 +633,7 @@ def user_profile(request, pk):
             "profile_tab": profile_tab,
             "bookmark_posts": bookmark_posts,
             "bookmark_meta": bookmark_meta,
+            "profile_posts": profile_posts,
             "nav_active": nav_active,
         },
     )

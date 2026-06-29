@@ -4,9 +4,7 @@
 {% block title %}<title>わせわせ — {{ profile.display_name }}</title>{% endblock %}
 
 {% block page_styles %}
-{% if is_own_profile %}
 {% include "includes/timeline_feed_styles.html" %}
-{% endif %}
 <style>
     :root {
       --bg: #f5f5f5;
@@ -280,10 +278,15 @@
       margin-top: 4px;
     }
 
-    .profile-bookmarks .timeline-list {
+    .profile-bookmarks .timeline-list,
+    .profile-posts .timeline-list {
       border-radius: var(--radius);
       overflow: hidden;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .profile-posts {
+      margin-top: 4px;
     }
 
     .page-title {
@@ -426,6 +429,19 @@
       </div>
     </section>
     {% endif %}
+
+    {% if profile_tab == 'overview' %}
+    <section class="profile-posts" aria-labelledby="profile-posts-title">
+      <h2 class="section-title" id="profile-posts-title">投稿一覧</h2>
+      <div class="timeline-list">
+        {% for post in profile_posts %}
+        {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
+        {% empty %}
+        <p class="empty-message">まだ投稿がありません</p>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
   </main>
 {% endblock %}
 
@@ -436,7 +452,5 @@
 {% endblock %}
 
 {% block shell_scripts %}
-{% if is_own_profile %}
 {% include "includes/timeline_feed_scripts.html" %}
-{% endif %}
 {% endblock %}

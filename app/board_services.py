@@ -68,6 +68,41 @@ def build_timeline_posts_queryset(request):
     return timeline_posts
 
 
+def get_profile_timeline_posts(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser | None,
+):
+    """プロフィール画面用に、指定ユーザーの投稿一覧を表示用リストで返す。"""
+    from .bookmark_services import prepare_timeline_posts
+
+    queryset = (
+        TimelinePost.objects.select_related(
+            "author",
+            "author__profile",
+            "quoted_post",
+            "quoted_post__author",
+            "quoted_post__author__profile",
+        )
+        .prefetch_related("comments__author")
+        .filter(author=profile_user, is_removed=False)
+        .order_by("-created_at")
+    )
+    queryset = filter_visible_timeline_posts(
+        queryset,
+        viewer if viewer and viewer.is_authenticated else None,
+    )
+    if viewer and viewer.is_authenticated:
+        queryset = queryset.annotate(
+            user_has_liked=Exists(
+                TimelineLike.objects.filter(
+                    timeline_post_id=OuterRef("pk"),
+                    user_id=viewer.id,
+                )
+            )
+        )
+    return prepare_timeline_posts(queryset, viewer)
+
+
 def timeline_post_link(post: TimelinePost) -> str:
     base = reverse("home")
     if post.course_name:

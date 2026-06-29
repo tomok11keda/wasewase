@@ -1068,8 +1068,12 @@ class ProfileAndFollowTests(TestCase):
             {"from": "thread"},
         )
         self.assertContains(response, "投稿数")
-        self.assertContains(response, "この人の出品（フリマ）を見る")
-        self.assertContains(response, "?from=market")
+        self.assertContains(response, "板書メモ")
+        self.assertContains(response, "投稿一覧")
+
+    def test_user_profile_shows_empty_posts_message(self):
+        response = self.client.get(reverse("user_profile", args=[self.target.pk]))
+        self.assertContains(response, "まだ投稿がありません")
 
     def test_toggle_follow(self):
         self.client.force_login(self.viewer)
