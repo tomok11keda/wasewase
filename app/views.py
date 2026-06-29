@@ -292,7 +292,7 @@ def search(request):
         {
             "query": query,
             "timeline_posts": timeline_posts,
-            "timeline_count": timeline_posts.count(),
+            "timeline_count": len(timeline_posts),
             "search_url": build_search_url(query),
             "nav_active": "search",
         },
