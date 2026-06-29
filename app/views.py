@@ -39,6 +39,7 @@ from .dm_services import (
     get_or_create_dm_room,
 )
 from .board_services import (
+    prepare_timeline_post_for_save,
     TIMELINE_INITIAL_SIZE,
     TIMELINE_LOAD_MORE_SIZE,
     build_timeline_posts_queryset,
@@ -75,6 +76,14 @@ from .models import (
     UserDirectMessage,
     UserDirectMessageRoom,
     UserProfile,
+)
+from .media_services import (
+    describe_uploaded_file,
+    ensure_local_post_images_dir,
+    log_compose_request,
+    log_media_storage_status,
+    log_media_upload,
+    validate_timeline_image_file,
 )
 from .otp_services import (
     EmailConfigurationError,
@@ -771,12 +780,7 @@ def _log_auth_debug(label: str, detail: str, *, exc: BaseException | None = None
 
 
 def _log_media_debug(label: str, detail: str, *, exc: BaseException | None = None) -> None:
-    """画像保存の診断ログ（本番 Render でも stderr に出力）。"""
-    message = f"[WASE {label}] {detail}"
-    logger.warning(message, exc_info=exc)
-    print(message, file=sys.stderr, flush=True)
-    if exc:
-        traceback.print_exc(file=sys.stderr)
+    log_media_upload(label, detail, exc=exc)
 
 
 def _has_uploaded_file(field_file) -> bool:
@@ -805,18 +809,32 @@ def _log_saved_file_field(instance, field_name: str, label: str) -> None:
 
 
 def _save_timeline_post(post):
-    _log_media_debug(
-        "BOARD COMPOSE",
+    log_media_storage_status()
+    has_image = _has_uploaded_file(post.image)
+    log_media_upload(
+        "BOARD COMPOSE SAVE",
         (
-            f"保存開始 post_id={post.pk} "
-            f"has_image_file={_has_uploaded_file(post.image)} "
+            f"post_id={post.pk} author_id={post.author_id} "
+            f"has_image={has_image} "
+            f"image={describe_uploaded_file(post.image) if has_image else 'none'} "
             f"storage={settings.STORAGES['default']['BACKEND']}"
         ),
     )
+    if has_image and not getattr(settings, "USE_CLOUDINARY", False):
+        try:
+            ensure_local_post_images_dir()
+        except OSError as exc:
+            log_media_upload("BOARD COMPOSE MKDIR", str(exc), exc=exc)
+            raise
+    prepare_timeline_post_for_save(post)
     try:
         post.save()
     except Exception as exc:
-        _log_media_debug("BOARD COMPOSE SAVE FAILED", str(exc), exc=exc)
+        log_media_upload(
+            "BOARD COMPOSE SAVE FAILED",
+            f"type={type(exc).__qualname__} message={exc}",
+            exc=exc,
+        )
         raise
     _log_saved_file_field(post, "image", "BOARD COMPOSE IMAGE")
     return post
@@ -1022,6 +1040,7 @@ def _board_redirect(request, *, tag="", post_id=None):
 @login_required
 @require_POST
 def board_compose(request):
+    log_compose_request(request)
     form = TimelinePostForm(request.POST, request.FILES)
     if form.is_valid():
         post = form.save(commit=False)
@@ -1032,11 +1051,17 @@ def board_compose(request):
         try:
             _save_timeline_post(post)
         except Exception as exc:
-            _log_media_debug("BOARD COMPOSE FAILED", str(exc), exc=exc)
+            log_media_upload(
+                "BOARD COMPOSE FAILED",
+                f"type={type(exc).__qualname__} message={exc}",
+                exc=exc,
+            )
             messages.error(
                 request,
                 "投稿の保存に失敗しました。画像アップロード設定を確認してください。",
             )
+            if settings.DEBUG:
+                messages.error(request, f"詳細（DEBUG）: {type(exc).__name__}: {exc}")
             return _board_redirect(request)
         link = timeline_post_link(post)
         notify_mentions(body=post.body, actor=request.user, link=link)
@@ -1049,9 +1074,14 @@ def board_compose(request):
         return _board_redirect(request, post_id=post.pk)
     else:
         _log_auth_debug("BOARD COMPOSE", f"errors={form.errors.as_json()}")
-        _log_media_debug(
+        log_media_upload(
             "BOARD COMPOSE VALIDATION",
-            f"errors={form.errors.as_json()} files={list(request.FILES.keys())}",
+            (
+                f"errors={form.errors.as_json()} "
+                f"POST_keys={list(request.POST.keys())} "
+                f"FILES_keys={list(request.FILES.keys())} "
+                f"FILES=[{'; '.join(f'{k}={describe_uploaded_file(v)}' for k, v in request.FILES.items()) or 'none'}]"
+            ),
         )
         messages.error(request, "投稿に失敗しました。内容を確認してください。")
         for field, errors in form.errors.items():

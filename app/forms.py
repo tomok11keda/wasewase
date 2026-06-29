@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .constants import FACULTY_CHOICES, HANDLE_PATTERN, WASEDA_EMAIL_ERROR, is_waseda_email
+from .media_services import validate_timeline_image_file
 from .models import (
     Comment,
     ContentReport,
@@ -334,13 +335,7 @@ class TimelinePostForm(forms.ModelForm):
 
     def clean_image(self):
         image = self.cleaned_data.get("image")
-        if not image:
-            return image
-        content_type = getattr(image, "content_type", "") or ""
-        if not content_type.startswith("image/"):
-            raise ValidationError("画像ファイル（JPEG・PNG・GIFなど）を選択してください。")
-        if image.size > 5 * 1024 * 1024:
-            raise ValidationError("画像は5MB以下にしてください。")
+        validate_timeline_image_file(image)
         return image
 
     def clean_quoted_post_id(self):

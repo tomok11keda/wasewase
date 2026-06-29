@@ -13,6 +13,13 @@ TIMELINE_INITIAL_SIZE = 25
 TIMELINE_LOAD_MORE_SIZE = 15
 
 
+def prepare_timeline_post_for_save(post: TimelinePost) -> TimelinePost:
+    """保存前にカウンタ系フィールドへデフォルト値を明示的にセットする。"""
+    if post.like_count is None:
+        post.like_count = 0
+    return post
+
+
 def build_timeline_posts_queryset(request):
     """タイムライン一覧用の QuerySet（フィルタ・いいね状態付き）。"""
     faculty_values = {value for value, _ in FACULTY_CHOICES}

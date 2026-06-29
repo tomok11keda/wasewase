@@ -492,6 +492,20 @@ class BoardTimelineImageTests(TestCase):
         self.assertContains(page, "板書の写真です")
         self.assertContains(page, post.image.url)
 
+    def test_board_compose_rejects_heic_image(self):
+        self.client.force_login(self.user)
+        image = SimpleUploadedFile(
+            "photo.heic",
+            b"not-really-heic",
+            content_type="image/heic",
+        )
+        response = self.client.post(
+            reverse("board_compose"),
+            {"body": "HEICテスト", "image": image},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TimelinePost.objects.filter(body="HEICテスト").exists())
+
     def test_board_compose_allows_post_without_course_info(self):
         self.client.force_login(self.user)
         response = self.client.post(
