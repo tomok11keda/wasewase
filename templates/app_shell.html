@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load wase_extras static %}
+
+{% block extra_head %}
+{% include "includes/timeline_shell_styles.html" %}
+<style>
+  :root {
+    --bg: #f7f9fc;
+    --card: #fff;
+    --text: #0f1419;
+    --muted: #536471;
+    --accent: #891E2B;
+    --accent-dark: #6f1722;
+    --radius: 12px;
+    --nav-h: 56px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body.shell-desktop {
+    margin: 0;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--accent);
+    color: #fff;
+    border-bottom: 1px solid var(--accent-dark);
+    padding: 12px 16px;
+  }
+
+  .site-header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .main-inner {
+    max-width: 672px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  .messages {
+    margin: 8px 12px 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .messages li {
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  @media (min-width: 1024px) {
+    .main-inner {
+      max-width: none;
+      margin: 0;
+      padding: 16px;
+    }
+
+    .messages {
+      margin: 8px 16px 0;
+    }
+  }
+</style>
+{% block page_styles %}{% endblock %}
+{% endblock %}
+
+{% block body_attrs %} class="shell-desktop"{% endblock %}
+
+{% block content %}
+<div class="app-shell">
+  <aside class="sidebar-left" aria-label="サイドナビ">
+    {% include "includes/sidebar_nav.html" %}
+  </aside>
+
+  <div class="main-column">
+    {% block mobile_header %}{% endblock %}
+    {% block flash_messages %}
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endblock %}
+    {% block main %}{% endblock %}
+  </div>
+
+  {% block sidebar_right %}
+  <aside class="sidebar-right" aria-label="サイド情報">
+    {% include "includes/sidebar_widgets.html" %}
+  </aside>
+  {% endblock %}
+</div>
+
+<div class="shell-hide-on-desktop">
+  {% include "includes/bottom_nav.html" %}
+</div>
+
+{% block shell_modals %}{% endblock %}
+{% block shell_scripts %}{% endblock %}
+{% endblock %}
+
+{% block site_footer %}{% endblock %}

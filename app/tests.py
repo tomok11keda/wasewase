@@ -396,7 +396,14 @@ class GlobalSearchTests(TestCase):
 
     def test_search_empty_query_shows_prompt(self):
         response = self.client.get(reverse("search"))
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "キーワードを入力")
+
+    def test_search_zero_results_returns_200(self):
+        response = self.client.get(reverse("search"), {"q": "存在しないキーワードXYZ"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "0")
+        self.assertContains(response, "該当する投稿はありません")
 
 
 class BoardTimelineSearchTests(TestCase):
@@ -2028,6 +2035,39 @@ class UGCSafetyTests(TestCase):
         response = self.client.get(reverse("product_detail", args=[self.product.pk]))
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response["Location"], "/")
+
+
+class AppShellNavTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="shell@waseda.jp",
+            password="pass12345",
+            username="shelluser",
+        )
+
+    def _assert_app_shell_nav(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'aria-label="サイドナビ"')
+        self.assertContains(response, "sidebar-nav__label")
+        self.assertContains(response, reverse("home"))
+        self.assertContains(response, reverse("search"))
+        self.assertContains(response, reverse("mypage"))
+
+    def test_notifications_page_uses_app_shell_nav(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("notifications"))
+        self._assert_app_shell_nav(response)
+        self.assertContains(response, "sidebar-nav__item is-active")
+
+    def test_search_page_uses_app_shell_nav(self):
+        response = self.client.get(reverse("search"))
+        self._assert_app_shell_nav(response)
+
+    def test_mypage_uses_app_shell_nav(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("mypage"))
+        self._assert_app_shell_nav(response)
 
 
 class CommunitiesTests(TestCase):
