@@ -78,11 +78,14 @@ from .models import (
     UserProfile,
 )
 from .media_services import (
+    compose_save_error_message,
     describe_uploaded_file,
     ensure_local_post_images_dir,
     log_compose_request,
     log_media_storage_status,
     log_media_upload,
+    log_timelinepost_db_schema,
+    prepare_image_field_for_save,
     validate_timeline_image_file,
 )
 from .otp_services import (
@@ -826,10 +829,13 @@ def _save_timeline_post(post):
         except OSError as exc:
             log_media_upload("BOARD COMPOSE MKDIR", str(exc), exc=exc)
             raise
+    if has_image:
+        prepare_image_field_for_save(post)
     prepare_timeline_post_for_save(post)
     try:
         post.save()
     except Exception as exc:
+        log_timelinepost_db_schema()
         log_media_upload(
             "BOARD COMPOSE SAVE FAILED",
             f"type={type(exc).__qualname__} message={exc}",
@@ -1056,10 +1062,7 @@ def board_compose(request):
                 f"type={type(exc).__qualname__} message={exc}",
                 exc=exc,
             )
-            messages.error(
-                request,
-                "投稿の保存に失敗しました。画像アップロード設定を確認してください。",
-            )
+            messages.error(request, compose_save_error_message(exc))
             if settings.DEBUG:
                 messages.error(request, f"詳細（DEBUG）: {type(exc).__name__}: {exc}")
             return _board_redirect(request)

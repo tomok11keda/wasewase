@@ -24,6 +24,107 @@ ALLOWED_IMAGE_CONTENT_TYPES = frozenset(
 )
 ALLOWED_IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
 HEIC_EXTENSIONS = frozenset({".heic", ".heif"})
+ORPHAN_TIMELINEPOST_COLUMNS = frozenset(
+    {"god_count", "gad_count", "tip_total"},
+)
+
+
+def log_timelinepost_db_schema() -> None:
+    """本番 DB とモデル定義の差分をログに出す。"""
+    from django.apps import apps
+    from django.db import connection
+
+    model = apps.get_model("app", "TimelinePost")
+    model_columns = {field.column for field in model._meta.local_fields}
+    table = model._meta.db_table
+
+    try:
+        with connection.cursor() as cursor:
+            db_columns = {
+                column.name: column
+                for column in connection.introspection.get_table_description(
+                    cursor, table
+                )
+            }
+    except Exception as exc:
+        log_media_upload("DB SCHEMA", f"{table} introspection failed: {exc}", exc=exc)
+        return
+
+    col_summary = ", ".join(
+        f"{name}(null_ok={not col.null_ok}, default={col.default!r})"
+        for name, col in sorted(db_columns.items())
+    )
+    log_media_upload("DB SCHEMA", f"{table} columns=[{col_summary}]")
+
+    missing_in_db = sorted(model_columns - set(db_columns.keys()))
+    extra_in_db = sorted(set(db_columns.keys()) - model_columns)
+    orphan_not_null = sorted(
+        name
+        for name in extra_in_db
+        if name in ORPHAN_TIMELINEPOST_COLUMNS and not db_columns[name].null_ok
+    )
+    if missing_in_db:
+        log_media_upload("DB SCHEMA", f"missing_in_db={missing_in_db}")
+    if extra_in_db:
+        log_media_upload("DB SCHEMA", f"extra_in_db={extra_in_db}")
+    if orphan_not_null:
+        log_media_upload(
+            "DB SCHEMA",
+            f"orphan_not_null_columns={orphan_not_null} "
+            "(モデルに無い NOT NULL カラムが INSERT 失敗の原因になります)",
+        )
+
+
+def rewind_file_field(field_file) -> None:
+    """バリデーション後にファイルポインタを先頭へ戻す。"""
+    if not field_file:
+        return
+    try:
+        if hasattr(field_file, "seek"):
+            field_file.seek(0)
+            log_media_upload("IMAGE REWIND", "field_file.seek(0) ok")
+            return
+        inner = getattr(field_file, "file", None)
+        if inner is not None and hasattr(inner, "seek"):
+            inner.seek(0)
+            log_media_upload("IMAGE REWIND", "field_file.file.seek(0) ok")
+    except (OSError, ValueError) as exc:
+        log_media_upload("IMAGE REWIND", f"failed: {exc}", exc=exc)
+
+
+def prepare_image_field_for_save(post) -> None:
+    if not getattr(post, "image", None):
+        return
+    log_media_upload(
+        "IMAGE SAVE PREP",
+        (
+            f"name={getattr(post.image, 'name', '')!r} "
+            f"size={getattr(post.image, 'size', '?')} "
+            f"closed={getattr(post.image, 'closed', '?')}"
+        ),
+    )
+    rewind_file_field(post.image)
+
+
+def compose_save_error_message(exc: BaseException) -> str:
+    """ユーザー向けの保存失敗メッセージ（詳細はログへ）。"""
+    exc_name = type(exc).__qualname__
+    exc_text = str(exc)
+    if exc_name == "IntegrityError" or "IntegrityError" in exc_name:
+        return (
+            "投稿の保存に失敗しました（データベース制約エラー）。"
+            " しばらくしてから再度お試しください。"
+        )
+    lowered = exc_text.lower()
+    if "cloudinary" in lowered or exc_name.endswith("CloudinaryException"):
+        return (
+            "投稿の保存に失敗しました（画像アップロード先の設定を確認してください）。"
+        )
+    if "suspiciousoperation" in exc_name.lower() or "invalid image" in lowered:
+        return "投稿の保存に失敗しました。画像形式を JPEG / PNG に変換してお試しください。"
+    if "oserror" in exc_name.lower() or "permission" in lowered:
+        return "投稿の保存に失敗しました（画像の保存先に書き込めません）。"
+    return "投稿の保存に失敗しました。しばらくしてから再度お試しください。"
 
 
 def log_media_upload(
@@ -80,11 +181,14 @@ def log_media_storage_status() -> None:
         cloud_name = getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "(unset)"
         has_key = bool(getattr(settings, "CLOUDINARY_API_KEY", ""))
         has_secret = bool(getattr(settings, "CLOUDINARY_API_SECRET", ""))
+        storage_config = getattr(settings, "CLOUDINARY_STORAGE", {}) or {}
         log_media_upload(
             "MEDIA STORAGE",
             (
                 f"cloudinary_cloud={cloud_name} "
-                f"api_key_set={has_key} api_secret_set={has_secret}"
+                f"api_key_set={has_key} api_secret_set={has_secret} "
+                f"media_url={getattr(settings, 'MEDIA_URL', '')} "
+                f"prefix={storage_config.get('PREFIX', '(default)')!r}"
             ),
         )
         return
