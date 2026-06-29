@@ -58,16 +58,23 @@ def _first_env(*names: str, default: str = "") -> str:
     return default
 
 
-def _load_cloudinary_credentials() -> tuple[str, str, str]:
+def _load_cloudinary_credentials() -> tuple[str, str, str, dict[str, str]]:
     """
     Cloudinary 認証情報を読み込む。
-    正式名（CLOUDINARY_*）に加え、Render で誤設定されがちな短い名前にも対応する。
+    CLOUDINARY_* または CLOUDINARY_URL のみを参照する（汎用 API_KEY 等は誤検知の原因になるため使わない）。
     """
-    cloud_name = _first_env("CLOUDINARY_CLOUD_NAME", "CLOUD_NAME")
-    api_key = _first_env("CLOUDINARY_API_KEY", "API_KEY")
-    api_secret = _first_env("CLOUDINARY_API_SECRET", "API_SECRET")
+    sources: dict[str, str] = {}
+    cloud_name = _env("CLOUDINARY_CLOUD_NAME")
+    api_key = _env("CLOUDINARY_API_KEY")
+    api_secret = _env("CLOUDINARY_API_SECRET")
+    if cloud_name:
+        sources["cloud_name"] = "CLOUDINARY_CLOUD_NAME"
+    if api_key:
+        sources["api_key"] = "CLOUDINARY_API_KEY"
+    if api_secret:
+        sources["api_secret"] = "CLOUDINARY_API_SECRET"
 
-    cloudinary_url = _first_env("CLOUDINARY_URL")
+    cloudinary_url = _env("CLOUDINARY_URL")
     if cloudinary_url.startswith("cloudinary://"):
         without_scheme = cloudinary_url[len("cloudinary://") :]
         if "@" in without_scheme:
@@ -76,21 +83,38 @@ def _load_cloudinary_credentials() -> tuple[str, str, str]:
                 key_from_url, secret_from_url = creds.split(":", 1)
                 if not api_key:
                     api_key = key_from_url
+                    sources["api_key"] = "CLOUDINARY_URL"
                 if not api_secret:
                     api_secret = secret_from_url
+                    sources["api_secret"] = "CLOUDINARY_URL"
             if not cloud_name:
-                cloud_name = cloud_from_url
+                cloud_name = cloud_from_url.split("/")[0]
+                sources["cloud_name"] = "CLOUDINARY_URL"
 
-    return cloud_name, api_key, api_secret
+    return cloud_name, api_key, api_secret, sources
 
 
 def _log_media_storage_startup() -> None:
     """起動時にメディア保存先を Render ログへ出力する（秘密情報は出さない）。"""
     backend = STORAGES["default"]["BACKEND"]
+    creds_present = {
+        "CLOUDINARY_URL": bool(_env("CLOUDINARY_URL")),
+        "CLOUDINARY_CLOUD_NAME": bool(_env("CLOUDINARY_CLOUD_NAME")),
+        "CLOUDINARY_API_KEY": bool(_env("CLOUDINARY_API_KEY")),
+        "CLOUDINARY_API_SECRET": bool(_env("CLOUDINARY_API_SECRET")),
+    }
+    print(
+        f"[WASE] Cloudinary env present: {creds_present} "
+        f"sources={CLOUDINARY_CREDENTIAL_SOURCES} "
+        f"use_cloudinary={USE_CLOUDINARY} reason={USE_CLOUDINARY_REASON}",
+        file=sys.stderr,
+        flush=True,
+    )
     if USE_CLOUDINARY:
         print(
             f"[WASE] Media storage: Cloudinary "
-            f"(cloud={CLOUDINARY_CLOUD_NAME}, backend={backend})",
+            f"(cloud={CLOUDINARY_CLOUD_NAME}, backend={backend}, "
+            f"media_url={MEDIA_URL})",
             file=sys.stderr,
             flush=True,
         )
@@ -107,7 +131,7 @@ def _log_media_storage_startup() -> None:
             "[WASE WARNING] Render 上でローカルメディア保存です。"
             " 再起動で画像が消えます。USE_CLOUDINARY=True と "
             "CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
-            "（または CLOUD_NAME / API_KEY / API_SECRET）を設定してください。",
+            "（または CLOUDINARY_URL）を設定してください。",
             file=sys.stderr,
             flush=True,
         )
@@ -162,7 +186,7 @@ elif RENDER_EXTERNAL_HOSTNAME:
 # 入れると collectstatic が上書きされ WhiteNoise と衝突してビルドが落ちる。
 # メディア保存だけ STORAGES["default"] で MediaCloudinaryStorage を使う。
 # ---------------------------------------------------------------------------
-CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET = (
+CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CREDENTIAL_SOURCES = (
     _load_cloudinary_credentials()
 )
 _has_cloudinary_credentials = bool(
@@ -172,18 +196,22 @@ _has_cloudinary_credentials = bool(
 _use_cloudinary_raw = os.environ.get("USE_CLOUDINARY")
 if _use_cloudinary_raw is not None and str(_use_cloudinary_raw).strip() != "":
     USE_CLOUDINARY = env.bool("USE_CLOUDINARY", default=False)
+    USE_CLOUDINARY_REASON = "USE_CLOUDINARY env"
 elif _has_cloudinary_credentials and not DEBUG:
     USE_CLOUDINARY = True
+    USE_CLOUDINARY_REASON = "credentials present in production"
 else:
     USE_CLOUDINARY = False
+    USE_CLOUDINARY_REASON = "disabled (no credentials or DEBUG)"
+
+CLOUDINARY_STORAGE: dict[str, object] = {}
 
 if USE_CLOUDINARY:
     if not _has_cloudinary_credentials:
         raise ImproperlyConfigured(
             "USE_CLOUDINARY=True のときは Cloudinary 認証情報が必要です。"
             " CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
-            "（または CLOUD_NAME / API_KEY / API_SECRET、または CLOUDINARY_URL）"
-            " を設定してください。"
+            "（または CLOUDINARY_URL）を設定してください。"
         )
     import cloudinary
 
@@ -198,6 +226,8 @@ if USE_CLOUDINARY:
         "API_KEY": CLOUDINARY_API_KEY,
         "API_SECRET": CLOUDINARY_API_SECRET,
         "SECURE": True,
+        # upload_to="post_images/" と二重にならないよう PREFIX は空にする
+        "PREFIX": "",
     }
 
 
@@ -213,7 +243,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-    'app',
+    'app.apps.AppConfig',
 ]
 
 MIDDLEWARE = [
@@ -369,7 +399,7 @@ if USE_CLOUDINARY:
     STORAGES["default"] = {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     }
-    MEDIA_URL = "/media/"
+    MEDIA_URL = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD_NAME}/"
     SERVE_MEDIA = False
 else:
     MEDIA_URL = "/media/"
