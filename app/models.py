@@ -700,7 +700,7 @@ class TimelinePost(models.Model):
         null=True,
         verbose_name="画像",
     )
-    like_count = models.PositiveIntegerField(default=0)
+    like_count = models.PositiveIntegerField(default=0, db_default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     is_removed = models.BooleanField("運営削除", default=False, db_index=True)
     removed_at = models.DateTimeField("削除日時", null=True, blank=True)
