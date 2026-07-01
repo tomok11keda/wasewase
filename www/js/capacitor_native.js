@@ -785,5 +785,20 @@
     });
   }
 
+  window.addEventListener("pageshow", function () {
+    if (!isNativeApp()) {
+      return;
+    }
+    if (bannerTrackingReady) {
+      scheduleBannerReposition();
+      return;
+    }
+    if (getAdMobPlugin()) {
+      showBannerAd().catch(function (error) {
+        logNative("pageshow banner refresh failed", error);
+      });
+    }
+  });
+
   startWhenReady();
 })(window);

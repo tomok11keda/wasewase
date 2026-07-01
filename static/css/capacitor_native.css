@@ -34,8 +34,16 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 }
 
 /* 画面下部フォールバック時のみ余白を確保 */
-html.is-native-capacitor.has-native-bottom-banner body {
-  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+html.is-native-capacitor body.shell-desktop {
+  padding-bottom: calc(var(--nav-h, 56px) + env(safe-area-inset-bottom, 0px));
+}
+
+html.is-native-capacitor.has-native-bottom-banner body.shell-desktop {
+  padding-bottom: calc(var(--nav-h, 56px) + 60px + env(safe-area-inset-bottom, 0px));
+}
+
+html.is-native-capacitor.has-native-bottom-banner .bottom-nav {
+  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
 html.is-native-capacitor.has-native-bottom-banner .site-footer,

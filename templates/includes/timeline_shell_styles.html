@@ -6,6 +6,7 @@
   --feed-max-w: 600px;
   --shell-max-w: 1280px;
   --shell-border: #eff3f4;
+  --nav-h: 56px;
 }
 
 /* デフォルト: スマホ 1 カラム */
@@ -21,6 +22,53 @@
 .main-column {
   width: 100%;
   min-width: 0;
+}
+
+/* モバイル下部ナビ（app_shell / top / communities 共通） */
+.shell-hide-on-desktop {
+  display: block;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--card, #fff);
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  justify-content: space-around;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-top: 4px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.bottom-nav .nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 10px;
+  color: #666;
+  text-decoration: none;
+}
+
+.nav-item.is-active,
+.nav-item[aria-current="page"] {
+  color: var(--accent, #891e2b);
+}
+
+.nav-item svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+body.shell-desktop {
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
 }
 
 /* 左サイドバー — ナビ */
