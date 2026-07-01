@@ -7,7 +7,6 @@
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — {{ thread.title }}</title>
   {% include "includes/timeline_shell_styles.html" %}
-  {% include "includes/compose_modal_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -131,9 +130,17 @@
       gap: 6px;
       align-items: center;
     }
+    .thread-op__meta a,
     .thread-reply__author {
       font-weight: 700;
       color: var(--text);
+      text-decoration: none;
+    }
+    .thread-op__meta a:hover,
+    .thread-op__meta a:focus-visible,
+    .thread-reply__author:hover,
+    .thread-reply__author:focus-visible {
+      text-decoration: underline;
     }
     .thread-reply__body {
       margin: 0;
@@ -262,7 +269,7 @@
     }
   </style>
 </head>
-<body class="shell-desktop">
+<body class="shell-desktop page-communities">
   <div class="app-shell">
     <aside class="sidebar-left" aria-label="サイドナビ">
       {% include "includes/sidebar_nav.html" %}
@@ -296,7 +303,7 @@
         <article class="thread-op" id="thread-op">
           <h1 class="thread-op__title">{{ thread.title }}</h1>
           <p class="thread-op__meta">
-            <span>{{ thread.author|display_name }}</span>
+            <a href="{% url 'user_profile' thread.author.pk %}">{{ thread.author|display_name }}</a>
             <span aria-hidden="true">·</span>
             <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
           </p>
@@ -310,7 +317,7 @@
           {% for reply in replies %}
           <li class="thread-reply" id="reply-{{ reply.pk }}">
             <p class="thread-reply__meta">
-              <span class="thread-reply__author">{{ reply.author|display_name }}</span>
+              <a class="thread-reply__author" href="{% url 'user_profile' reply.author.pk %}">{{ reply.author|display_name }}</a>
               <span aria-hidden="true">·</span>
               <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
             </p>
@@ -370,8 +377,5 @@
     </form>
   </div>
   {% endif %}
-
-  {% include "includes/compose_modal.html" %}
-  {% include "includes/compose_modal_scripts.html" %}
 </body>
 </html>

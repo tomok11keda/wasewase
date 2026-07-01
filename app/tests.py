@@ -2276,6 +2276,41 @@ class CommunitiesTests(TestCase):
         )
         self.assertContains(response, "見つからないタイトル")
 
+    def test_communities_index_hides_timeline_compose_fab(self):
+        response = self.client.get(reverse("communities_index"))
+        self.assertContains(response, 'class="shell-desktop page-communities"')
+        self.assertNotContains(response, 'class="compose-fab')
+        self.assertNotContains(response, "data-compose-open")
+
+    def test_communities_index_author_links_to_profile(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "プロフィールリンク", "body": "本文", "tag": "商学部"},
+        )
+        response = self.client.get(reverse("communities_index"))
+        profile_url = reverse("user_profile", args=[self.user.pk])
+        self.assertContains(response, f'href="{profile_url}"')
+        self.assertContains(response, "community-thread-item__author")
+
+    def test_thread_detail_author_links_to_profile(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "著者リンク", "body": "本文", "tag": "商学部"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "返信本文"},
+        )
+        response = self.client.get(
+            reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        profile_url = reverse("user_profile", args=[self.user.pk])
+        self.assertContains(response, f'href="{profile_url}"')
+        self.assertNotContains(response, 'class="compose-fab')
+        self.assertNotContains(response, "data-compose-open")
+
 
 class BookmarkTests(TestCase):
     def setUp(self):
