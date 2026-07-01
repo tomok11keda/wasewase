@@ -1591,6 +1591,7 @@ class UserDirectMessageTests(TestCase):
         response = self.client.get(reverse("user_dm_inbox"))
         self.assertContains(response, reverse("user_dm_inbox"))
         self.assertContains(response, "sidebar-nav__item is-active")
+        self.assertContains(response, 'class="nav-item is-active"')
         self.assertContains(response, "メッセージ")
 
     def test_cannot_dm_self(self):
