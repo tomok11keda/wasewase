@@ -7,7 +7,6 @@
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — コミュニティ</title>
   {% include "includes/timeline_shell_styles.html" %}
-  {% include "includes/compose_modal_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -190,13 +189,20 @@
       display: block;
       padding: 14px 16px;
       border-bottom: 1px solid var(--shell-border);
-      text-decoration: none;
       color: inherit;
       transition: background 0.15s ease;
     }
-    .community-thread-item:last-child { border-bottom: none; }
+    .community-thread-item__link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .community-thread-item__link:hover,
+    .community-thread-item__link:focus-visible {
+      text-decoration: none;
+    }
     .community-thread-item:hover,
-    .community-thread-item:focus-visible {
+    .community-thread-item:focus-within {
       background: #f7f9f9;
     }
     .community-thread-item__title {
@@ -217,7 +223,7 @@
       overflow: hidden;
     }
     .community-thread-item__meta {
-      margin: 0;
+      margin: 8px 0 0;
       font-size: 12px;
       color: var(--muted);
       display: flex;
@@ -225,6 +231,16 @@
       gap: 6px;
       align-items: center;
     }
+    .community-thread-item__author {
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .community-thread-item__author:hover,
+    .community-thread-item__author:focus-visible {
+      text-decoration: underline;
+    }
+    .community-thread-item:last-child { border-bottom: none; }
     .community-badge {
       display: inline-block;
       margin-bottom: 6px;
@@ -256,33 +272,20 @@
       line-height: 1.5;
     }
     .community-login-hint a { color: var(--accent); font-weight: 700; }
-    .community-thread-fab {
-      position: fixed;
-      right: 16px;
-      bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
-      z-index: 250;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 56px;
-      height: 56px;
-      border: none;
-      border-radius: 50%;
-      background: #1d9bf0;
-      color: #fff;
-      font-size: 28px;
-      font-weight: 300;
+    .btn-new-thread--mobile {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 999px;
+      font-size: 22px;
       line-height: 1;
-      box-shadow: 0 4px 16px rgba(29, 155, 240, 0.45);
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
     }
     .messages { margin: 8px 12px 0; padding: 0; list-style: none; }
     .messages li { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
     @media (min-width: 1024px) {
       .main-inner { max-width: none; margin: 0; }
       .communities-header { top: 0; }
-      .community-thread-fab { display: none; }
     }
     @media (max-width: 1023px) {
       .communities-header h1 { display: none; }
@@ -290,7 +293,7 @@
     }
   </style>
 </head>
-<body class="shell-desktop">
+<body class="shell-desktop page-communities">
   <div class="app-shell">
     <aside class="sidebar-left" aria-label="サイドナビ">
       {% include "includes/sidebar_nav.html" %}
@@ -300,6 +303,9 @@
       <header class="site-header mobile-only">
         <div class="header-row">
           <h1 class="header-title">コミュニティ</h1>
+          {% if user.is_authenticated and thread_form %}
+          <button type="button" class="btn-new-thread btn-new-thread--mobile mobile-only" data-thread-open aria-label="新規スレッド">＋</button>
+          {% endif %}
           <a class="btn btn-ghost" href="{% url 'home' %}">ホーム</a>
         </div>
       </header>
@@ -400,12 +406,7 @@
     {% include "includes/bottom_nav.html" %}
   </div>
 
-  {% include "includes/compose_modal.html" %}
-  {% include "includes/compose_modal_scripts.html" %}
   {% include "includes/community_thread_modal.html" %}
   {% include "includes/community_thread_modal_scripts.html" %}
-  {% if user.is_authenticated and thread_form %}
-  <button type="button" class="community-thread-fab shell-hide-on-desktop" data-thread-open aria-label="新規スレッド">＋</button>
-  {% endif %}
 </body>
 </html>
