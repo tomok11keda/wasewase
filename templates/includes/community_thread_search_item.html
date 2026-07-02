@@ -4,7 +4,6 @@
     class="community-thread-item__link"
     href="{% url 'community_thread_detail' thread.community.slug thread.pk %}"
   >
-    <span class="community-badge">{{ thread.community.name }}</span>
     <h3 class="community-thread-item__title">{{ thread.title }}</h3>
     <p class="community-thread-item__preview">{{ thread.body|truncatechars:160 }}</p>
   </a>

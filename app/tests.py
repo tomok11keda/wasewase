@@ -2284,9 +2284,14 @@ class CommunitiesTests(TestCase):
 
     def test_thread_create_modal_hides_board_name(self):
         self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "バッジ確認", "body": "本文", "tag": "商学部"},
+        )
         response = self.client.get(reverse("communities_index"))
         self.assertContains(response, "community-thread-modal")
         self.assertContains(response, "新規スレッド")
+        self.assertNotContains(response, "community-badge")
         self.assertNotContains(response, "卒論・レポート相談板")
         self.assertNotContains(response, "にスレッドを作成します")
 

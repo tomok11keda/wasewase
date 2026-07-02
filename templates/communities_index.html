@@ -242,16 +242,6 @@
       text-decoration: underline;
     }
     .community-thread-item:last-child { border-bottom: none; }
-    .community-badge {
-      display: inline-block;
-      margin-bottom: 6px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #f7edf0;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 700;
-    }
     .community-empty {
       margin: 24px 16px;
       padding: 24px 16px;
@@ -291,6 +281,31 @@
     @media (max-width: 1023px) {
       .communities-header h1 { display: none; }
       .btn-new-thread.desktop-only { display: none; }
+    }
+    /* スレッド作成モーダル: 背面の一覧（赤い掲示板名バッジ等）が透けないよう全面表示 */
+    #community-thread-modal:not([hidden]) {
+      background: #fff;
+    }
+    #community-thread-modal .compose-modal__backdrop {
+      background: #fff;
+    }
+    body.community-thread-modal-open .app-shell,
+    body.community-thread-modal-open .bottom-nav {
+      visibility: hidden;
+    }
+    @media (max-width: 1023px) {
+      #community-thread-modal {
+        align-items: stretch;
+      }
+      #community-thread-modal .compose-modal__panel {
+        width: 100%;
+        max-width: none;
+        max-height: none;
+        height: 100%;
+        border-radius: 0;
+        box-shadow: none;
+        padding-top: max(16px, env(safe-area-inset-top, 0px));
+      }
     }
   </style>
 </head>
