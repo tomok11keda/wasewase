@@ -61,9 +61,7 @@
 {% endblock %}
 
 {% block mobile_header %}
-<header class="site-header mobile-only">
-  <h1>通知</h1>
-</header>
+{% include "includes/mobile_shell_header.html" with header_title="通知" %}
 {% endblock %}
 
 {% block main %}

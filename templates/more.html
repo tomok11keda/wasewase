@@ -1,0 +1,127 @@
+{% extends "app_shell.html" %}
+{% load wase_extras %}
+
+{% block title %}<title>わせわせ — その他</title>{% endblock %}
+
+{% block page_styles %}
+<style>
+  .more-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: var(--card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid #eff3f4;
+  }
+  .more-list li + li {
+    border-top: 1px solid #eff3f4;
+  }
+  .more-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .more-link:hover,
+  .more-link:focus-visible {
+    background: #f7f9fc;
+  }
+  .more-link small {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .more-section-title {
+    margin: 20px 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .page-title {
+    margin: 0 0 16px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  @media (max-width: 1023px) {
+    .page-title { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block mobile_header %}
+{% include "includes/mobile_shell_header.html" with header_title="その他" %}
+{% endblock %}
+
+{% block main %}
+<main class="main-inner">
+  <h1 class="page-title">その他</h1>
+
+  {% if user.is_authenticated %}
+  <p class="more-section-title">アカウント</p>
+  <ul class="more-list">
+    <li>
+      <a class="more-link" href="{% url 'mypage' %}">
+        マイページ
+        <small>@{{ user.username }}</small>
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'user_profile' user.pk %}?from=market">
+        公開プロフィール（フリマ）
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'mypage_edit' %}">
+        プロフィール・アカウント設定
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'exhibit' %}">
+        商品を出品
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'user_profile' user.pk %}?tab=bookmarks">
+        ブックマーク
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'logout' %}">
+        ログアウト
+      </a>
+    </li>
+  </ul>
+  {% else %}
+  <ul class="more-list">
+    <li>
+      <a class="more-link" href="{% url 'login' %}">ログイン</a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'signup' %}">新規登録</a>
+    </li>
+  </ul>
+  {% endif %}
+
+  <p class="more-section-title">サービス</p>
+  <ul class="more-list">
+    <li>
+      <a class="more-link" href="{% url 'home' %}">タイムライン（ホーム）</a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'communities_index' %}">コミュニティ</a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'flea_index' %}">フリマ</a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'search' %}">検索</a>
+    </li>
+  </ul>
+</main>
+{% endblock %}

@@ -306,10 +306,7 @@
 {% block flash_messages %}{% endblock %}
 
 {% block mobile_header %}
-<header class="site-header mobile-only">
-  <a class="back-link" href="{% url 'home' %}">← 一覧に戻る</a>
-  <h1 style="margin:0;font-size:18px">{{ profile.display_name }}</h1>
-</header>
+{% include "includes/mobile_shell_header.html" with header_title=profile.display_name header_back_url=header_back_url %}
 {% endblock %}
 
 {% block main %}
@@ -394,6 +391,14 @@
           <p class="stat-label">フォロー中</p>
         </div>
       </div>
+
+      <div class="mode-switch">
+        {% if from_source == "thread" %}
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">🛍️ この人の出品（フリマ）を見る</a>
+        {% else %}
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">📄 この人の投稿（スレッド）を見る</a>
+        {% endif %}
+      </div>
     </section>
 
     {% if is_own_profile %}
@@ -430,7 +435,34 @@
     </section>
     {% endif %}
 
-    {% if profile_tab == 'overview' %}
+    {% if profile_tab == 'overview' and from_source == 'market' %}
+    <section class="profile-products" aria-labelledby="profile-products-title">
+      <h2 class="section-title" id="profile-products-title">出品中の商品（{{ available_products|length }}）</h2>
+      {% if available_products %}
+      <div class="product-list">
+        {% for product in available_products %}
+        <a class="product-item" href="{% url 'product_detail' product.pk %}">
+          <div class="product-item-thumb">
+            {% if product.image %}
+            <img src="{{ product.image.url }}" alt="">
+            {% elif product.image_url %}
+            <img src="{{ product.image_url }}" alt="">
+            {% endif %}
+          </div>
+          <div>
+            <p class="product-item-name">{{ product.name }}</p>
+            <p class="product-item-price">¥{{ product.price|floatformat:0 }}</p>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-message">出品中の商品はありません</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if profile_tab == 'overview' and from_source == 'thread' %}
     <section class="profile-posts" aria-labelledby="profile-posts-title">
       <h2 class="section-title" id="profile-posts-title">投稿一覧</h2>
       <div class="timeline-list">

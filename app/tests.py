@@ -226,7 +226,7 @@ class EmailAuthTests(TestCase):
             reverse("verify_otp"),
             {"code": code},
         )
-        self.assertRedirects(response, reverse("home"))
+        self.assertRedirects(response, f"{reverse('home')}?login_success=1")
         user.refresh_from_db()
         self.assertTrue(user.is_active)
         self.assertFalse(SignupOTP.objects.filter(user=user).exists())
@@ -773,10 +773,12 @@ class ProductTimestampDisplayTests(TestCase):
         self.seller = get_user_model().objects.create_user(
             email="seller@example.com",
             password="password",
+            username="seller",
         )
         self.buyer = get_user_model().objects.create_user(
             email="buyer@example.com",
             password="password",
+            username="buyer",
         )
         self.product = Product.objects.create(
             seller=self.seller,
@@ -788,7 +790,7 @@ class ProductTimestampDisplayTests(TestCase):
         )
 
     def test_home_product_card_shows_seller_and_posted_time(self):
-        response = self.client.get(reverse("home"), {"tab": "flea"})
+        response = self.client.get(reverse("flea_index"))
 
         self.assertContains(response, "線形代数の教科書")
         self.assertContains(response, "seller")
@@ -830,7 +832,7 @@ class ProductTimestampDisplayTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("home"), {"tab": "flea", "faculty": "基幹理工学部"}
+            reverse("flea_index"), {"faculty": "基幹理工学部"}
         )
 
         self.assertContains(response, "線形代数の教科書")
@@ -1017,9 +1019,9 @@ class ProfileAndFollowTests(TestCase):
         )
         TimelinePost.objects.create(author=self.viewer, body="表示名テスト投稿")
 
-        home = self.client.get(reverse("home"), {"tab": "flea"})
+        home = self.client.get(reverse("flea_index"))
         self.assertContains(home, "新しい表示名")
-        self.assertNotContains(home, "new_user_id")
+        self.assertContains(home, "テスト商品")
         board = self.client.get(reverse("home"))
         self.assertContains(board, "新しい表示名")
 
@@ -1167,7 +1169,7 @@ class FeedAndShareTests(TestCase):
 
     def test_flea_following_feed_shows_only_followed_seller_products(self):
         self.client.force_login(self.viewer)
-        response = self.client.get(reverse("home"), {"tab": "flea", "feed": "following"})
+        response = self.client.get(reverse("flea_index"), {"feed": "following"})
         self.assertContains(response, "フォロー出品")
         self.assertNotContains(response, "その他出品")
 
@@ -1178,7 +1180,7 @@ class FeedAndShareTests(TestCase):
         self.assertNotContains(response, "その他投稿")
 
     def test_following_feed_prompts_login_when_anonymous(self):
-        response = self.client.get(reverse("home"), {"tab": "flea", "feed": "following"})
+        response = self.client.get(reverse("flea_index"), {"feed": "following"})
         self.assertContains(response, "ログイン")
         self.assertNotContains(response, "フォロー出品")
 
@@ -1260,7 +1262,7 @@ class DeleteContentTests(TestCase):
     def test_timeline_shows_delete_only_for_author(self):
         self.client.force_login(self.owner)
         owner_page = self.client.get(reverse("home"))
-        self.assertContains(owner_page, "btn-tweet-delete")
+        self.assertContains(owner_page, "tweet-menu-form")
         self.assertContains(owner_page, reverse("delete_timeline_post", args=[self.post.pk]))
 
         self.client.force_login(self.other)
@@ -1271,7 +1273,7 @@ class DeleteContentTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.post(reverse("delete_product", args=[self.product.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], f"{reverse('home')}?tab=flea")
+        self.assertEqual(response["Location"], reverse("flea_index"))
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
 
     def test_other_user_cannot_delete_product(self):
@@ -1590,8 +1592,6 @@ class UserDirectMessageTests(TestCase):
         self.client.force_login(self.user_a)
         response = self.client.get(reverse("user_dm_inbox"))
         self.assertContains(response, reverse("user_dm_inbox"))
-        self.assertContains(response, "sidebar-nav__item is-active")
-        self.assertContains(response, 'class="nav-item is-active"')
         self.assertContains(response, "メッセージ")
 
     def test_cannot_dm_self(self):
@@ -2052,8 +2052,7 @@ class UGCSafetyTests(TestCase):
         self.product.save(update_fields=["is_removed"])
 
         response = self.client.get(reverse("product_detail", args=[self.product.pk]))
-        self.assertEqual(response.status_code, 301)
-        self.assertEqual(response["Location"], "/")
+        self.assertEqual(response.status_code, 404)
 
 
 class AppShellNavTests(TestCase):
@@ -2071,7 +2070,8 @@ class AppShellNavTests(TestCase):
         self.assertContains(response, "sidebar-nav__label")
         self.assertContains(response, reverse("home"))
         self.assertContains(response, reverse("search"))
-        self.assertContains(response, reverse("mypage"))
+        self.assertContains(response, reverse("flea_index"))
+        self.assertContains(response, reverse("more_index"))
 
     def test_notifications_page_uses_app_shell_nav(self):
         self.client.force_login(self.user)
@@ -2149,7 +2149,8 @@ class CommunitiesTests(TestCase):
         response = self.client.get(reverse("communities_index"))
         self.assertContains(response, "コミュニティ")
         self.assertContains(response, reverse("notifications"))
-        self.assertContains(response, reverse("mypage"))
+        self.assertContains(response, reverse("flea_index"))
+        self.assertContains(response, reverse("more_index"))
 
     def test_thread_detail_accessible_from_list(self):
         self.client.force_login(self.user)

@@ -205,12 +205,7 @@
     </aside>
 
     <div class="main-column">
-      <header class="site-header mobile-only">
-        <div class="header-row">
-          <h1 class="header-title">メッセージ</h1>
-          <a class="btn btn-ghost" href="{% url 'home' %}">ホーム</a>
-        </div>
-      </header>
+      {% include "includes/mobile_shell_header.html" with header_title="メッセージ" header_back_url=header_back_url|default:"" %}
 
       {% if messages %}
       <ul class="messages">

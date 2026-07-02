@@ -83,9 +83,7 @@
 {% endblock %}
 
 {% block mobile_header %}
-<header class="site-header mobile-only">
-  <h1>マイページ</h1>
-</header>
+{% include "includes/mobile_shell_header.html" with header_title="マイページ" %}
 {% endblock %}
 
 {% block main %}

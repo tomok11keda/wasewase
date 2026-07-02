@@ -18,6 +18,26 @@
     </li>
     <li>
       <a
+        class="sidebar-nav__item{% if nav_active == 'communities' %} is-active{% endif %}"
+        href="{% url 'communities_index' %}"
+        {% if nav_active == 'communities' %}aria-current="page"{% endif %}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        <span class="sidebar-nav__label">コミュニティ</span>
+      </a>
+    </li>
+    <li>
+      <a
+        class="sidebar-nav__item{% if nav_active == 'flea' %} is-active{% endif %}"
+        href="{% url 'flea_index' %}"
+        {% if nav_active == 'flea' %}aria-current="page"{% endif %}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        <span class="sidebar-nav__label">フリマ</span>
+      </a>
+    </li>
+    <li>
+      <a
         class="sidebar-nav__item{% if nav_active == 'search' %} is-active{% endif %}"
         href="{% url 'search' %}"
         {% if nav_active == 'search' %}aria-current="page"{% endif %}
@@ -39,22 +59,12 @@
     </li>
     <li>
       <a
-        class="sidebar-nav__item{% if nav_active == 'communities' %} is-active{% endif %}"
-        href="{% url 'communities_index' %}"
-        {% if nav_active == 'communities' %}aria-current="page"{% endif %}
+        class="sidebar-nav__item{% if nav_active == 'more' %} is-active{% endif %}"
+        href="{% url 'more_index' %}"
+        {% if nav_active == 'more' %}aria-current="page"{% endif %}
       >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-        <span class="sidebar-nav__label">コミュニティ</span>
-      </a>
-    </li>
-    <li>
-      <a
-        class="sidebar-nav__item{% if nav_active == 'messages' %} is-active{% endif %}"
-        href="{% url 'user_dm_inbox' %}"
-        {% if nav_active == 'messages' %}aria-current="page"{% endif %}
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-        <span class="sidebar-nav__label">メッセージ</span>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        <span class="sidebar-nav__label">その他</span>
       </a>
     </li>
     <li>
@@ -67,36 +77,7 @@
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
         <span class="sidebar-nav__label">ブックマーク</span>
       </a>
-      {% else %}
-      <a
-        class="sidebar-nav__item"
-        href="{% url 'login' %}"
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
-        <span class="sidebar-nav__label">ブックマーク</span>
-      </a>
       {% endif %}
-    </li>
-    <li>
-      <a
-        class="sidebar-nav__item{% if nav_active == 'mypage' %} is-active{% endif %}"
-        href="{% url 'mypage' %}"
-        {% if nav_active == 'mypage' %}aria-current="page"{% endif %}
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-        <span class="sidebar-nav__label">マイページ</span>
-      </a>
-    </li>
-    <li>
-      <button
-        type="button"
-        class="sidebar-nav__item sidebar-nav__item--soon"
-        data-nav-soon
-        aria-label="その他（近日公開予定）"
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-        <span class="sidebar-nav__label">その他</span>
-      </button>
     </li>
   </ul>
 
@@ -115,6 +96,10 @@
         <span class="sidebar-user__name">{{ user|display_name }}</span>
         <span class="sidebar-user__handle">@{{ user.username }}</span>
       </span>
+    </a>
+    <a class="sidebar-nav__item sidebar-nav__item--compact" href="{% url 'user_dm_inbox' %}">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      <span class="sidebar-nav__label">メッセージ</span>
     </a>
   </div>
   {% else %}
