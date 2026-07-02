@@ -2282,6 +2282,14 @@ class CommunitiesTests(TestCase):
         self.assertNotContains(response, 'class="compose-fab')
         self.assertNotContains(response, "data-compose-open")
 
+    def test_thread_create_modal_hides_board_name(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("communities_index"))
+        self.assertContains(response, "community-thread-modal")
+        self.assertContains(response, "新規スレッド")
+        self.assertNotContains(response, "卒論・レポート相談板")
+        self.assertNotContains(response, "にスレッドを作成します")
+
     def test_communities_index_author_links_to_profile(self):
         self.client.force_login(self.user)
         self.client.post(
