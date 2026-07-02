@@ -6,6 +6,7 @@
   function openModal() {
     modal.hidden = false;
     modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("community-thread-modal-open");
     document.body.style.overflow = "hidden";
     var field = modal.querySelector("input[type='text'], textarea");
     if (field) field.focus();
@@ -14,6 +15,7 @@
   function closeModal() {
     modal.hidden = true;
     modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("community-thread-modal-open");
     document.body.style.overflow = "";
   }
 
