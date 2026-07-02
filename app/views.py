@@ -71,6 +71,7 @@ from .models import (
     ContentReport,
     Follow,
     Notification,
+    Product,
     TimelinePost,
     TimelineLike,
     UserDirectMessage,
@@ -103,12 +104,15 @@ from .services import (
     get_following_user_ids,
     get_profile_stats,
     get_user_faculty,
+    get_user_rating_stats,
     is_following,
+    search_products,
     search_timeline_posts,
     user_display_name,
 )
 from .ugc_services import (
     block_user,
+    filter_visible_products,
     filter_visible_timeline_posts,
     get_report_target,
     get_reported_user_id,
@@ -151,7 +155,16 @@ def _room_messages_json(request, message_queryset):
 
 
 def index(request):
-    if request.GET.get("tab"):
+    tab = request.GET.get("tab", "").strip().lower()
+    if tab == "flea":
+        params = request.GET.copy()
+        params.pop("tab", None)
+        url = reverse("flea_index")
+        encoded = params.urlencode()
+        if encoded:
+            url = f"{url}?{encoded}"
+        return redirect(url)
+    if tab:
         params = request.GET.copy()
         params.pop("tab", None)
         url = reverse("home")
@@ -272,10 +285,11 @@ def timeline_feed(request):
 
 
 def search(request):
-    """タイムライン投稿を検索。"""
+    """タイムライン投稿とフリマ商品を検索。"""
     query = request.GET.get("q", "").strip()
     viewer = request.user if request.user.is_authenticated else None
     timeline_posts = TimelinePost.objects.none()
+    products = Product.objects.none()
     if query:
         timeline_posts = (
             search_timeline_posts(query, viewer=viewer)
@@ -296,6 +310,7 @@ def search(request):
                     )
                 )
             )
+        products = search_products(query, viewer=viewer)
 
     timeline_posts = prepare_timeline_posts(timeline_posts, viewer)
 
@@ -306,8 +321,20 @@ def search(request):
             "query": query,
             "timeline_posts": timeline_posts,
             "timeline_count": len(timeline_posts),
+            "products": products,
+            "product_count": products.count() if query else 0,
             "search_url": build_search_url(query),
             "nav_active": "search",
+        },
+    )
+
+
+def more_index(request):
+    return render(
+        request,
+        "more.html",
+        {
+            "nav_active": "more",
         },
     )
 
@@ -525,13 +552,6 @@ def submit_report(request):
         return redirect(request.META.get("HTTP_REFERER", reverse("home")))
 
     target_type = form.cleaned_data["target_type"]
-    if target_type == ContentReport.TargetType.PRODUCT:
-        message = "この通報種別は利用できません。"
-        if _wants_json_response(request):
-            return JsonResponse({"ok": False, "message": message}, status=400)
-        messages.error(request, message)
-        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
-
     target_id = form.cleaned_data["target_id"]
     target = get_report_target(target_type, target_id)
     if target is None:
@@ -580,8 +600,8 @@ def mypage(request):
         "mypage.html",
         {
             "profile": profile,
-            "stats": get_profile_stats(request.user),
-            "nav_active": "mypage",
+            "stats": get_profile_stats(request.user, "market"),
+            "nav_active": "",
         },
     )
 
@@ -590,7 +610,18 @@ def user_profile(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
     profile, _ = UserProfile.objects.get_or_create(user=profile_user)
 
-    stats = get_profile_stats(profile_user)
+    from_source = request.GET.get("from", "thread").strip().lower()
+    if from_source not in ("market", "thread"):
+        from_source = "thread"
+
+    available_products = filter_visible_products(
+        Product.objects.filter(
+            seller=profile_user, status=Product.Status.AVAILABLE
+        ).select_related("seller", "seller__profile"),
+        request.user if request.user.is_authenticated else None,
+    )
+    rating_stats = get_user_rating_stats(profile_user)
+    stats = get_profile_stats(profile_user, from_source)
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
     user_is_following = (
         is_following(request.user, profile_user)
@@ -622,19 +653,23 @@ def user_profile(request, pk):
         )
 
     profile_posts = []
-    if profile_tab == "overview":
+    if profile_tab == "overview" and from_source == "thread":
         viewer = request.user if request.user.is_authenticated else None
         profile_posts = get_profile_timeline_posts(profile_user, viewer)
 
     nav_active = ""
     if is_own_profile:
-        nav_active = "bookmarks" if profile_tab == "bookmarks" else "mypage"
+        nav_active = "bookmarks" if profile_tab == "bookmarks" else ""
 
     return render(
         request,
         "user_profile.html",
         {
             "profile_user": profile_user,
+            "available_products": available_products,
+            "rating_stats": rating_stats,
+            "from_source": from_source,
+            "header_back_url": reverse("home"),
             "profile": profile,
             "stats": stats,
             "is_own_profile": is_own_profile,
@@ -646,7 +681,7 @@ def user_profile(request, pk):
             "bookmark_posts": bookmark_posts,
             "bookmark_meta": bookmark_meta,
             "profile_posts": profile_posts,
-            "nav_active": nav_active,
+            "nav_active": "",
         },
     )
 
@@ -658,7 +693,8 @@ def user_dm_inbox(request):
         "dm_inbox.html",
         {
             "conversations": build_dm_conversations(request.user),
-            "nav_active": "messages",
+            "nav_active": "",
+            "header_back_url": reverse("home"),
         },
     )
 
@@ -707,7 +743,7 @@ def user_dm_room(request, room_pk):
             "messages_poll_url": reverse(
                 "user_dm_room_messages", kwargs={"room_pk": room.pk}
             ),
-            "nav_active": "messages",
+            "nav_active": "",
         },
     )
 
@@ -1200,21 +1236,26 @@ def delete_timeline_post(request, pk):
 @require_POST
 def delete_comment(request, pk):
     comment = get_object_or_404(
-        Comment.objects.select_related("timeline_post"),
+        Comment.objects.select_related("product", "timeline_post"),
         pk=pk,
     )
+    product_id = comment.product_id
     timeline_post = comment.timeline_post
     tag = (timeline_post.course_name or "") if timeline_post else ""
     post_id = timeline_post.pk if timeline_post else None
 
     if comment.author_id != request.user.id:
         messages.error(request, "このコメントを削除する権限がありません。")
+        if product_id:
+            return redirect(reverse("product_detail", kwargs={"pk": product_id}))
         if post_id:
             return _board_redirect(request, tag=tag, post_id=post_id)
         return redirect(reverse("home"))
 
     comment.delete()
     messages.success(request, "コメントを削除しました。")
+    if product_id:
+        return redirect(reverse("product_detail", kwargs={"pk": product_id}))
     if post_id:
         return _board_redirect(request, tag=tag, post_id=post_id)
     return redirect(reverse("home"))

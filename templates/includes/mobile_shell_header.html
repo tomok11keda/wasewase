@@ -1,0 +1,113 @@
+{% load wase_extras %}
+<style>
+  .shell-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 40px;
+  }
+  .shell-header-start,
+  .shell-header-end {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    width: 40px;
+  }
+  .shell-header-end {
+    justify-content: flex-end;
+  }
+  .shell-header-profile,
+  .shell-header-back,
+  .shell-header-dm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    text-decoration: none;
+    color: #fff;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .shell-header-back {
+    width: auto;
+    min-width: 36px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0 8px;
+    white-space: nowrap;
+  }
+  .shell-header-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.65);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .shell-header-dm svg {
+    fill: currentColor;
+    display: block;
+  }
+  .shell-header-title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .shell-header-title--brand {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+</style>
+<header class="site-header mobile-only">
+  <div class="shell-header-row">
+    <div class="shell-header-start">
+      {% if header_back_url %}
+      <a class="shell-header-back" href="{{ header_back_url }}">← 戻る</a>
+      {% elif user.is_authenticated %}
+      <a class="shell-header-profile" href="{% url 'mypage' %}" aria-label="マイページ">
+        <span class="shell-header-avatar" aria-hidden="true">{{ user|display_name|truncatechars:1 }}</span>
+      </a>
+      {% else %}
+      <a class="shell-header-profile" href="{% url 'login' %}" aria-label="ログイン">
+        <span class="shell-header-avatar" aria-hidden="true">?</span>
+      </a>
+      {% endif %}
+    </div>
+    {% if header_title %}
+    <h1 class="shell-header-title">{{ header_title }}</h1>
+    {% else %}
+    <h1 class="shell-header-title shell-header-title--brand">わせわせ</h1>
+    {% endif %}
+    <div class="shell-header-end">
+      {% if user.is_authenticated %}
+      <a class="shell-header-dm" href="{% url 'user_dm_inbox' %}" aria-label="メッセージ">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      </a>
+      {% else %}
+      <a class="shell-header-dm" href="{% url 'login' %}" aria-label="ログインしてメッセージ">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</header>

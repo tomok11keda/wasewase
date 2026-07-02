@@ -137,20 +137,7 @@
     </aside>
 
     <div class="main-column">
-  <header class="site-header mobile-only">
-    <div class="header-row">
-      <h1 class="header-title">わせわせ</h1>
-      <div class="header-actions">
-        {% if user.is_authenticated %}
-        <span class="btn btn-ghost" style="cursor:default">{{ user|display_name }}</span>
-        <a class="btn btn-primary" href="{% url 'logout' %}">ログアウト</a>
-        {% else %}
-        <a class="btn btn-ghost" href="{% url 'login' %}">ログイン</a>
-        <a class="btn btn-primary" href="{% url 'signup' %}">新規登録</a>
-        {% endif %}
-      </div>
-    </div>
-  </header>
+  {% include "includes/mobile_shell_header.html" %}
 
   {% if messages %}
   <ul class="messages">

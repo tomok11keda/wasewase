@@ -40,10 +40,17 @@
     border-radius: var(--radius);
   }
 
-  .page-title {
-    margin: 0 0 16px;
-    font-size: 20px;
+  .search-section-title {
+    margin: 24px 0 12px;
+    font-size: 16px;
     font-weight: 700;
+  }
+
+  .product-search-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
   }
 
   @media (max-width: 1023px) {
@@ -56,23 +63,22 @@
 {% endblock %}
 
 {% block mobile_header %}
-<header class="site-header mobile-only">
-  <div class="header-row">
-    <form class="search-form" method="get" action="{% url 'search' %}" role="search">
-      <input class="search-bar" id="q" type="search" name="q" value="{{ query }}" placeholder="タイムラインを検索" autocomplete="off">
-    </form>
-  </div>
-</header>
+{% include "includes/mobile_shell_header.html" with header_title="検索" %}
 {% endblock %}
 
 {% block main %}
 <main class="main-inner">
   <h1 class="page-title">検索</h1>
   <form class="search-form desktop-only" method="get" action="{% url 'search' %}" role="search" style="margin-bottom:16px">
-    <input class="search-bar" type="search" name="q" value="{{ query }}" placeholder="タイムラインを検索" autocomplete="off">
+    <input class="search-bar" type="search" name="q" value="{{ query }}" placeholder="投稿・商品を検索" autocomplete="off">
+  </form>
+  <form class="search-form mobile-only" method="get" action="{% url 'search' %}" role="search" style="margin-bottom:16px">
+    <input class="search-bar" type="search" name="q" value="{{ query }}" placeholder="投稿・商品を検索" autocomplete="off">
   </form>
   {% if query %}
-  <p class="search-intro">「<strong>{{ query }}</strong>」の検索結果 — <strong>{{ timeline_count }}</strong> 件</p>
+  <p class="search-intro">「<strong>{{ query }}</strong>」の検索結果</p>
+
+  <h2 class="search-section-title">スレッドの検索結果（{{ timeline_count }}件）</h2>
   <div class="timeline-list">
     {% for post in timeline_posts %}
     {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
@@ -80,8 +86,27 @@
     <p class="empty-message">該当する投稿はありません。</p>
     {% endfor %}
   </div>
+
+  <h2 class="search-section-title">フリマの検索結果（{{ product_count }}件）</h2>
+  <div class="product-search-list">
+    {% for product in products %}
+    <a class="product-item" href="{% url 'product_detail' product.pk %}" style="display:flex;gap:12px;padding:12px;background:var(--card);border-radius:var(--radius);text-decoration:none;color:inherit;border:1px solid #eff3f4">
+      <div style="width:64px;height:64px;border-radius:8px;overflow:hidden;background:#eee;flex-shrink:0">
+        {% if product.image %}
+        <img src="{{ product.image.url }}" alt="" style="width:100%;height:100%;object-fit:cover">
+        {% endif %}
+      </div>
+      <div>
+        <p style="margin:0 0 4px;font-weight:700">{{ product.name }}</p>
+        <p style="margin:0;font-size:13px;color:var(--muted)">¥{{ product.price|floatformat:0 }} · {{ product.seller|display_name }}</p>
+      </div>
+    </a>
+    {% empty %}
+    <p class="empty-message">該当する商品はありません。</p>
+    {% endfor %}
+  </div>
   {% else %}
-  <p class="search-intro">キーワードでタイムライン投稿を検索できます。</p>
+  <p class="search-intro">キーワードでタイムライン投稿とフリマ商品を検索できます。</p>
   <p class="empty-message">上の検索バーにキーワードを入力してください。</p>
   {% endif %}
 </main>

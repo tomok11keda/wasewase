@@ -86,6 +86,25 @@ def build_home_url(
     return f"{reverse('home')}?{urlencode(params)}"
 
 
+def build_flea_url(
+    *,
+    feed_scope: str = "all",
+    query: str = "",
+    active_faculty: str = "",
+) -> str:
+    params: dict[str, str] = {}
+    if feed_scope == "following":
+        params["feed"] = "following"
+    if query:
+        params["q"] = query
+    if active_faculty:
+        params["faculty"] = active_faculty
+    base = reverse("flea_index")
+    if not params:
+        return base
+    return f"{base}?{urlencode(params)}"
+
+
 def build_product_share_timeline_body(product: Product, detail_url: str) -> str:
     prefix = "【出品シェア】"
     suffix = f" が出品されました！価格: {product.price}円。詳細はこちら：{detail_url}"
@@ -146,15 +165,24 @@ def is_following(follower: AbstractBaseUser, target: AbstractBaseUser) -> bool:
     return Follow.objects.filter(follower=follower, following=target).exists()
 
 
-def get_profile_stats(user: AbstractBaseUser) -> dict:
+def get_profile_stats(user: AbstractBaseUser, from_source: str = "thread") -> dict:
     """プロフィール画面上部の統計。"""
+    product_count = count_user_products(user)
     post_count = count_user_posts(user)
+    if from_source == "thread":
+        left_label = "投稿数"
+        left_count = post_count
+    else:
+        left_label = "出品数"
+        left_count = product_count
     return {
-        "left_label": "投稿数",
-        "left_count": post_count,
+        "left_label": left_label,
+        "left_count": left_count,
+        "product_count": product_count,
         "post_count": post_count,
         "follower_count": count_followers(user),
         "following_count": count_following(user),
+        "from_source": from_source if from_source in ("market", "thread") else "market",
     }
 
 

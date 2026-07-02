@@ -316,15 +316,7 @@
     </aside>
 
     <div class="main-column">
-      <header class="site-header mobile-only">
-        <div class="header-row">
-          <h1 class="header-title">コミュニティ</h1>
-          {% if user.is_authenticated and thread_form %}
-          <button type="button" class="btn-new-thread btn-new-thread--mobile mobile-only" data-thread-open aria-label="新規スレッド">＋</button>
-          {% endif %}
-          <a class="btn btn-ghost" href="{% url 'home' %}">ホーム</a>
-        </div>
-      </header>
+      {% include "includes/mobile_shell_header.html" with header_title="コミュニティ" %}
 
       {% if messages %}
       <ul class="messages">

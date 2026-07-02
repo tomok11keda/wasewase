@@ -1,0 +1,32 @@
+{% load wase_extras %}
+<div class="product-card-wrap">
+  <a
+    class="product-card{% if product.is_sold %} is-sold{% endif %}{% if product.is_trading %} is-trading{% endif %}"
+    href="{% url 'product_detail' product.pk %}"
+  >
+    <div class="product-card-media">
+      {% if product.image %}
+      <img src="{{ product.image.url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
+      {% elif product.image_url %}
+      <img src="{{ product.image_url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
+      {% else %}
+      <span class="product-card-placeholder">No Image</span>
+      {% endif %}
+      {% if product.is_sold or product.is_trading %}
+      <span class="product-card-mask" aria-hidden="true"></span>
+      {% endif %}
+      {% if product.is_sold %}
+      <p class="product-status-label">SOLD OUT</p>
+      {% elif product.is_trading %}
+      <p class="product-status-label">取引中</p>
+      {% else %}
+      <p class="product-price-badge">¥{{ product.price|floatformat:0 }}</p>
+      {% endif %}
+    </div>
+    <p class="product-card-title">{{ product.name }}</p>
+    <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前</p>
+  </a>
+  {% if ugc_report_enabled and user.is_authenticated and product.seller_id != user.id %}
+  {% include "includes/ugc_report_button.html" with report_type="product" report_id=product.pk %}
+  {% endif %}
+</div>
