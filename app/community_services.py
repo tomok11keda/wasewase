@@ -207,14 +207,6 @@ def get_community_thread(community, thread_pk):
     )
 
 
-def list_replies_for_thread(thread):
-    return (
-        thread.replies.filter(is_removed=False)
-        .select_related("author", "author__profile")
-        .order_by("created_at")
-    )
-
-
 def create_thread_reply(thread, user, body):
     with transaction.atomic():
         reply = CommunityThreadReply.objects.create(
@@ -238,3 +230,107 @@ def create_thread_reply(thread, user, body):
             ]
         )
     return reply
+
+
+def can_delete_community_content(user, author_id: int) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.pk == author_id:
+        return True
+    return bool(getattr(user, "is_staff", False) or getattr(user, "is_superuser", False))
+
+
+def can_edit_community_reply(user, reply: CommunityThreadReply) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if reply.is_removed:
+        return False
+    return user.pk == reply.author_id
+
+
+def _refresh_community_latest_activity(community: Community) -> None:
+    latest_thread = (
+        CommunityThread.objects.filter(community=community, is_removed=False)
+        .order_by("-created_at")
+        .first()
+    )
+    if latest_thread is None:
+        community.latest_thread_title = ""
+        community.latest_thread_preview = ""
+        community.latest_activity_at = timezone.now()
+        community.save(
+            update_fields=[
+                "latest_thread_title",
+                "latest_thread_preview",
+                "latest_activity_at",
+                "updated_at",
+            ]
+        )
+        return
+
+    latest_reply = (
+        CommunityThreadReply.objects.filter(
+            thread=latest_thread,
+            is_removed=False,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if latest_reply is not None:
+        preview = latest_reply.body[:200]
+        activity_at = latest_reply.created_at
+    else:
+        preview = latest_thread.body[:200]
+        activity_at = latest_thread.created_at
+
+    community.latest_thread_title = latest_thread.title[:120]
+    community.latest_thread_preview = preview
+    community.latest_activity_at = activity_at
+    community.save(
+        update_fields=[
+            "latest_thread_title",
+            "latest_thread_preview",
+            "latest_activity_at",
+            "updated_at",
+        ]
+    )
+
+
+def soft_remove_community_thread(thread: CommunityThread) -> None:
+    with transaction.atomic():
+        thread.is_removed = True
+        thread.save(update_fields=["is_removed", "updated_at"])
+        _refresh_community_latest_activity(thread.community)
+
+
+def soft_remove_community_reply(reply: CommunityThreadReply) -> None:
+    reply.is_removed = True
+    reply.save(update_fields=["is_removed"])
+
+
+def update_community_reply(reply: CommunityThreadReply, body: str) -> None:
+    reply.body = body
+    reply.save(update_fields=["body"])
+
+
+def get_community_reply(community, thread_pk, reply_pk):
+    thread = get_community_thread(community, thread_pk)
+    return get_object_or_404(
+        CommunityThreadReply.objects.select_related("author", "author__profile"),
+        pk=reply_pk,
+        thread=thread,
+    )
+
+
+def list_replies_for_thread(thread, *, include_removed=True):
+    queryset = thread.replies.select_related(
+        "author",
+        "author__profile",
+    ).order_by("created_at")
+    if not include_removed:
+        queryset = queryset.filter(is_removed=False)
+    return queryset
+
+
+def count_visible_replies_for_thread(thread) -> int:
+    return thread.replies.filter(is_removed=False).count()
