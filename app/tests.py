@@ -14,6 +14,8 @@ from .models import (
     ChatRoom,
     Comment,
     Community,
+    CommunityThread,
+    CommunityThreadReply,
     ContentReport,
     DevicePushToken,
     Follow,
@@ -2324,6 +2326,135 @@ class CommunitiesTests(TestCase):
         self.assertContains(response, f'href="{profile_url}"')
         self.assertNotContains(response, 'class="compose-fab')
         self.assertNotContains(response, "data-compose-open")
+
+    def test_author_can_delete_own_thread(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "削除対象", "body": "削除します", "tag": "商学部"},
+        )
+        response = self.client.post(
+            reverse("delete_community_thread", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertRedirects(
+            response,
+            f"{reverse('communities_index')}?tag={quote('商学部')}",
+        )
+        index = self.client.get(reverse("communities_index"))
+        self.assertNotContains(index, "削除対象")
+        self.assertFalse(CommunityThread.objects.filter(pk=1, is_removed=False).exists())
+
+    def test_other_user_cannot_delete_thread(self):
+        other = get_user_model().objects.create_user(
+            email="other@waseda.jp",
+            password="pass12345",
+            username="otheruser",
+        )
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "保護スレ", "body": "本文", "tag": "商学部"},
+        )
+        self.client.force_login(other)
+        response = self.client.post(
+            reverse("delete_community_thread", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(CommunityThread.objects.filter(pk=1, is_removed=False).exists())
+
+    def test_staff_can_delete_any_thread(self):
+        staff = get_user_model().objects.create_user(
+            email="staff@waseda.jp",
+            password="pass12345",
+            username="staffuser",
+            is_staff=True,
+        )
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "運営削除", "body": "本文", "tag": "商学部"},
+        )
+        self.client.force_login(staff)
+        response = self.client.post(
+            reverse("delete_community_thread", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(CommunityThread.objects.filter(pk=1, is_removed=False).exists())
+
+    def test_author_can_soft_delete_reply_and_show_placeholder(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "返信削除", "body": "本文", "tag": "商学部"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "削除する返信"},
+        )
+        response = self.client.post(
+            reverse(
+                "delete_community_thread_reply",
+                kwargs={"slug": "commerce", "thread_pk": 1, "reply_pk": 1},
+            )
+        )
+        self.assertEqual(response.status_code, 302)
+        detail = self.client.get(
+            reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertContains(detail, "この返信は削除されました")
+        self.assertNotContains(detail, "削除する返信")
+        self.assertContains(detail, "返信 0件")
+
+    def test_author_can_edit_own_reply(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "編集テスト", "body": "本文", "tag": "商学部"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "旧い返信"},
+        )
+        response = self.client.post(
+            reverse(
+                "edit_community_thread_reply",
+                kwargs={"slug": "commerce", "thread_pk": 1, "reply_pk": 1},
+            ),
+            {"body": "新しい返信"},
+        )
+        self.assertEqual(response.status_code, 302)
+        detail = self.client.get(
+            reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
+        )
+        self.assertContains(detail, "新しい返信")
+        self.assertNotContains(detail, "旧い返信")
+
+    def test_other_user_cannot_edit_reply(self):
+        other = get_user_model().objects.create_user(
+            email="editother@waseda.jp",
+            password="pass12345",
+            username="editother",
+        )
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("create_community_thread"),
+            {"title": "編集保護", "body": "本文", "tag": "商学部"},
+        )
+        self.client.post(
+            reverse("create_community_thread_reply", kwargs={"slug": "commerce", "thread_pk": 1}),
+            {"body": "変更不可"},
+        )
+        self.client.force_login(other)
+        response = self.client.post(
+            reverse(
+                "edit_community_thread_reply",
+                kwargs={"slug": "commerce", "thread_pk": 1, "reply_pk": 1},
+            ),
+            {"body": "改ざん"},
+        )
+        self.assertEqual(response.status_code, 302)
+        reply = CommunityThreadReply.objects.get(pk=1)
+        self.assertEqual(reply.body, "変更不可")
 
 
 class BookmarkTests(TestCase):

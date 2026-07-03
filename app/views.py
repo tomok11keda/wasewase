@@ -21,13 +21,20 @@ from django.urls import reverse
 
 from .community_services import (
     build_communities_index_url,
+    can_delete_community_content,
+    can_edit_community_reply,
+    count_visible_replies_for_thread,
     create_community_thread as save_community_thread,
     create_thread_reply as save_thread_reply,
     get_community_for_new_thread,
+    get_community_reply,
     get_community_thread,
     get_faculty_tag_choices,
     list_community_threads,
     list_replies_for_thread,
+    soft_remove_community_reply,
+    soft_remove_community_thread,
+    update_community_reply,
 )
 from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
@@ -399,7 +406,7 @@ def create_community_thread(request):
 def community_thread_detail(request, slug, thread_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
     thread = get_community_thread(community, thread_pk)
-    replies = list_replies_for_thread(thread)
+    replies = list(list_replies_for_thread(thread, include_removed=True))
     reply_form = CommunityThreadReplyForm() if request.user.is_authenticated else None
     return render(
         request,
@@ -408,9 +415,86 @@ def community_thread_detail(request, slug, thread_pk):
             "community": community,
             "thread": thread,
             "replies": replies,
+            "visible_reply_count": count_visible_replies_for_thread(thread),
             "reply_form": reply_form,
+            "can_delete_thread": can_delete_community_content(
+                request.user, thread.author_id
+            ),
             "nav_active": "communities",
         },
+    )
+
+
+@login_required
+@require_POST
+def delete_community_thread(request, slug, thread_pk):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    thread = get_community_thread(community, thread_pk)
+    if not can_delete_community_content(request.user, thread.author_id):
+        messages.error(request, "このスレッドを削除する権限がありません。")
+        return redirect(
+            reverse(
+                "community_thread_detail",
+                kwargs={"slug": community.slug, "thread_pk": thread.pk},
+            )
+        )
+
+    soft_remove_community_thread(thread)
+    messages.success(request, "スレッドを削除しました。")
+    return redirect(build_communities_index_url(tag=community.faculty or ""))
+
+
+@login_required
+@require_POST
+def delete_community_thread_reply(request, slug, thread_pk, reply_pk):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    reply = get_community_reply(community, thread_pk, reply_pk)
+    if reply.is_removed:
+        messages.info(request, "この返信はすでに削除されています。")
+    elif not can_delete_community_content(request.user, reply.author_id):
+        messages.error(request, "この返信を削除する権限がありません。")
+    else:
+        soft_remove_community_reply(reply)
+        messages.success(request, "返信を削除しました。")
+
+    return redirect(
+        reverse(
+            "community_thread_detail",
+            kwargs={"slug": community.slug, "thread_pk": thread_pk},
+        )
+        + f"#reply-{reply_pk}"
+    )
+
+
+@login_required
+@require_POST
+def edit_community_thread_reply(request, slug, thread_pk, reply_pk):
+    community = get_object_or_404(Community, slug=slug, is_active=True)
+    reply = get_community_reply(community, thread_pk, reply_pk)
+    if not can_edit_community_reply(request.user, reply):
+        messages.error(request, "この返信を編集する権限がありません。")
+        return redirect(
+            reverse(
+                "community_thread_detail",
+                kwargs={"slug": community.slug, "thread_pk": thread_pk},
+            )
+            + f"#reply-{reply_pk}"
+        )
+
+    form = CommunityThreadReplyForm(request.POST)
+    if form.is_valid():
+        update_community_reply(reply, form.cleaned_data["body"])
+        messages.success(request, "返信を更新しました。")
+    else:
+        error = next(iter(form.errors.values()))[0]
+        messages.error(request, error)
+
+    return redirect(
+        reverse(
+            "community_thread_detail",
+            kwargs={"slug": community.slug, "thread_pk": thread_pk},
+        )
+        + f"#reply-{reply_pk}"
     )
 
 

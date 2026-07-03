@@ -1,0 +1,126 @@
+<style>
+  .confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .confirm-modal[hidden] {
+    display: none;
+  }
+  .confirm-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 20, 25, 0.45);
+  }
+  .confirm-modal__panel {
+    position: relative;
+    width: min(100%, 360px);
+    padding: 20px;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  }
+  .confirm-modal__message {
+    margin: 0 0 18px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #0f1419;
+  }
+  .confirm-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .confirm-modal__btn {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid #cfd9de;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .confirm-modal__btn--danger {
+    border-color: #891e2b;
+    background: #891e2b;
+    color: #fff;
+  }
+</style>
+<div class="confirm-modal" id="confirm-action-modal" hidden>
+  <div class="confirm-modal__backdrop" data-confirm-cancel tabindex="-1" aria-hidden="true"></div>
+  <div class="confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="confirm-action-modal-title">
+    <p class="confirm-modal__message" id="confirm-action-modal-title">本当に削除しますか？</p>
+    <div class="confirm-modal__actions">
+      <button type="button" class="confirm-modal__btn" data-confirm-cancel>キャンセル</button>
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--danger" data-confirm-ok>削除する</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  if (window.__waseConfirmModalInit) return;
+  window.__waseConfirmModalInit = true;
+
+  var modal = document.getElementById("confirm-action-modal");
+  if (!modal) return;
+
+  var messageEl = document.getElementById("confirm-action-modal-title");
+  var okButton = modal.querySelector("[data-confirm-ok]");
+  var pendingForm = null;
+  var bypassConfirm = false;
+
+  function closeModal() {
+    modal.hidden = true;
+    pendingForm = null;
+    document.body.style.overflow = "";
+  }
+
+  function openModal(form, message) {
+    pendingForm = form;
+    if (messageEl) {
+      messageEl.textContent = message || "本当に削除しますか？";
+    }
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    if (okButton) okButton.focus();
+  }
+
+  modal.querySelectorAll("[data-confirm-cancel]").forEach(function (el) {
+    el.addEventListener("click", closeModal);
+  });
+
+  if (okButton) {
+    okButton.addEventListener("click", function () {
+      if (pendingForm) {
+        bypassConfirm = true;
+        pendingForm.submit();
+      }
+      closeModal();
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !modal.hidden) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener("submit", function (event) {
+    if (bypassConfirm) {
+      bypassConfirm = false;
+      return;
+    }
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (!form.classList.contains("js-confirm-submit")) return;
+    event.preventDefault();
+    openModal(form, form.getAttribute("data-confirm-message") || "本当に削除しますか？");
+  });
+})();
+</script>

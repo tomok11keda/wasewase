@@ -92,6 +92,68 @@
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+      justify-content: space-between;
+    }
+    .thread-op__meta-main {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+    }
+    .thread-post-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .thread-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-decoration: none;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .thread-action-btn:hover,
+    .thread-action-btn:focus-visible {
+      background: #f7f9fc;
+      color: var(--accent);
+    }
+    .thread-action-btn--danger:hover,
+    .thread-action-btn--danger:focus-visible {
+      color: #c62828;
+      background: #ffebee;
+    }
+    .thread-action-btn svg {
+      display: block;
+      fill: currentColor;
+    }
+    .thread-reply__meta {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .thread-reply__meta-main {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
     }
     .thread-op__body {
       margin: 0;
@@ -121,14 +183,8 @@
       border-bottom: 1px solid var(--shell-border);
     }
     .thread-reply:last-child { border-bottom: none; }
-    .thread-reply__meta {
-      margin: 0 0 6px;
-      font-size: 12px;
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
+    .thread-reply.is-removed {
+      background: #f7f9fc;
     }
     .thread-op__meta a,
     .thread-reply__author {
@@ -148,6 +204,45 @@
       line-height: 1.65;
       white-space: pre-wrap;
       word-break: break-word;
+    }
+    .thread-reply__body--removed {
+      color: var(--muted);
+      font-style: italic;
+    }
+    .thread-reply-edit {
+      margin-top: 8px;
+    }
+    .thread-reply-edit textarea {
+      width: 100%;
+      min-height: 88px;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      margin-bottom: 8px;
+    }
+    .thread-reply-edit__actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .thread-reply-edit__btn {
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid #cfd9de;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .thread-reply-edit__btn--primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
     }
     .thread-empty-replies {
       margin: 0;
@@ -303,25 +398,95 @@
         <article class="thread-op" id="thread-op">
           <h1 class="thread-op__title">{{ thread.title }}</h1>
           <p class="thread-op__meta">
-            <a href="{% url 'user_profile' thread.author.pk %}">{{ thread.author|display_name }}</a>
-            <span aria-hidden="true">·</span>
-            <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
+            <span class="thread-op__meta-main">
+              <a href="{% url 'user_profile' thread.author.pk %}">{{ thread.author|display_name }}</a>
+              <span aria-hidden="true">·</span>
+              <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
+            </span>
+            {% if can_delete_thread %}
+            <span class="thread-post-actions">
+              <form
+                class="thread-action-form js-confirm-submit"
+                method="post"
+                action="{% url 'delete_community_thread' community.slug thread.pk %}"
+                data-confirm-message="このスレッドを削除しますか？削除すると一覧から消え、返信も表示されなくなります。"
+              >
+                {% csrf_token %}
+                <button type="submit" class="thread-action-btn thread-action-btn--danger" aria-label="スレッドを削除">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+              </form>
+            </span>
+            {% endif %}
           </p>
           <p class="thread-op__body">{{ thread.body }}</p>
         </article>
 
-        <h2 class="thread-replies-header">返信 {{ replies|length }}件</h2>
+        <h2 class="thread-replies-header">返信 {{ visible_reply_count }}件</h2>
 
         {% if replies %}
         <ol class="thread-replies">
           {% for reply in replies %}
-          <li class="thread-reply" id="reply-{{ reply.pk }}">
+          <li class="thread-reply{% if reply.is_removed %} is-removed{% endif %}" id="reply-{{ reply.pk }}">
+            {% if reply.is_removed %}
+            <p class="thread-reply__body thread-reply__body--removed">この返信は削除されました</p>
+            {% else %}
             <p class="thread-reply__meta">
-              <a class="thread-reply__author" href="{% url 'user_profile' reply.author.pk %}">{{ reply.author|display_name }}</a>
-              <span aria-hidden="true">·</span>
-              <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
+              <span class="thread-reply__meta-main">
+                <a class="thread-reply__author" href="{% url 'user_profile' reply.author.pk %}">{{ reply.author|display_name }}</a>
+                <span aria-hidden="true">·</span>
+                <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
+              </span>
+              {% if user.is_authenticated %}
+                {% if reply.author_id == user.id or user.is_staff or user.is_superuser %}
+                <span class="thread-post-actions">
+                  {% if reply.author_id == user.id %}
+                  <button
+                    type="button"
+                    class="thread-action-btn js-reply-edit-open"
+                    aria-label="返信を編集"
+                    aria-controls="reply-edit-{{ reply.pk }}"
+                    aria-expanded="false"
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+                  </button>
+                  {% endif %}
+                  <form
+                    class="thread-action-form js-confirm-submit"
+                    method="post"
+                    action="{% url 'delete_community_thread_reply' community.slug thread.pk reply.pk %}"
+                    data-confirm-message="この返信を削除しますか？スレッド内には「削除されました」と表示されます。"
+                  >
+                    {% csrf_token %}
+                    <button type="submit" class="thread-action-btn thread-action-btn--danger" aria-label="返信を削除">
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                  </form>
+                </span>
+                {% endif %}
+              {% endif %}
             </p>
-            <p class="thread-reply__body">{{ reply.body }}</p>
+            <div class="thread-reply__view" id="reply-view-{{ reply.pk }}">
+              <p class="thread-reply__body">{{ reply.body }}</p>
+            </div>
+            {% if user.is_authenticated and reply.author_id == user.id %}
+            <form
+              class="thread-reply-edit"
+              id="reply-edit-{{ reply.pk }}"
+              method="post"
+              action="{% url 'edit_community_thread_reply' community.slug thread.pk reply.pk %}"
+              hidden
+            >
+              {% csrf_token %}
+              <label class="visually-hidden" for="reply-edit-body-{{ reply.pk }}">返信を編集</label>
+              <textarea id="reply-edit-body-{{ reply.pk }}" name="body" maxlength="2000" required>{{ reply.body }}</textarea>
+              <div class="thread-reply-edit__actions">
+                <button type="button" class="thread-reply-edit__btn js-reply-edit-cancel">キャンセル</button>
+                <button type="submit" class="thread-reply-edit__btn thread-reply-edit__btn--primary">保存する</button>
+              </div>
+            </form>
+            {% endif %}
+            {% endif %}
           </li>
           {% endfor %}
         </ol>
@@ -377,5 +542,50 @@
     </form>
   </div>
   {% endif %}
+
+  {% include "includes/confirm_action_modal.html" %}
+  <script>
+  (function () {
+    document.querySelectorAll(".js-reply-edit-open").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var targetId = button.getAttribute("aria-controls");
+        var form = targetId ? document.getElementById(targetId) : null;
+        var viewId = targetId ? targetId.replace("reply-edit-", "reply-view-") : "";
+        var view = viewId ? document.getElementById(viewId) : null;
+        if (!form) return;
+        var isOpen = !form.hidden;
+        document.querySelectorAll(".thread-reply-edit").forEach(function (el) {
+          el.hidden = true;
+        });
+        document.querySelectorAll(".js-reply-edit-open").forEach(function (el) {
+          el.setAttribute("aria-expanded", "false");
+        });
+        document.querySelectorAll(".thread-reply__view").forEach(function (el) {
+          el.hidden = false;
+        });
+        if (!isOpen) {
+          form.hidden = false;
+          if (view) view.hidden = true;
+          button.setAttribute("aria-expanded", "true");
+          var textarea = form.querySelector("textarea");
+          if (textarea) textarea.focus();
+        }
+      });
+    });
+
+    document.querySelectorAll(".js-reply-edit-cancel").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var form = button.closest(".thread-reply-edit");
+        if (!form) return;
+        form.hidden = true;
+        var replyId = form.id.replace("reply-edit-", "");
+        var view = document.getElementById("reply-view-" + replyId);
+        if (view) view.hidden = false;
+        var openBtn = document.querySelector('[aria-controls="' + form.id + '"]');
+        if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

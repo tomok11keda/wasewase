@@ -37,6 +37,21 @@ urlpatterns = [
         app_views.create_community_thread_reply,
         name="create_community_thread_reply",
     ),
+    path(
+        "communities/<slug:slug>/threads/<int:thread_pk>/delete/",
+        app_views.delete_community_thread,
+        name="delete_community_thread",
+    ),
+    path(
+        "communities/<slug:slug>/threads/<int:thread_pk>/replies/<int:reply_pk>/delete/",
+        app_views.delete_community_thread_reply,
+        name="delete_community_thread_reply",
+    ),
+    path(
+        "communities/<slug:slug>/threads/<int:thread_pk>/replies/<int:reply_pk>/edit/",
+        app_views.edit_community_thread_reply,
+        name="edit_community_thread_reply",
+    ),
     # フリマ機能
     path("exhibit/", flea_views.exhibit, name="exhibit"),
     path("product/<int:pk>/", flea_views.product_detail, name="product_detail"),
