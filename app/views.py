@@ -543,7 +543,10 @@ def mypage_edit(request):
 
     if request.method == "POST":
         form = AccountProfileForm(
-            request.POST, instance=profile, user=request.user
+            request.POST,
+            request.FILES,
+            instance=profile,
+            user=request.user,
         )
         if form.is_valid():
             with transaction.atomic():
@@ -552,7 +555,7 @@ def mypage_edit(request):
             profile = UserProfile.objects.get(pk=saved_profile.pk)
             messages.success(
                 request,
-                "ニックネーム・ユーザーID・プロフィールを更新しました。",
+                "ニックネーム・プロフィール画像・プロフィールを更新しました。",
             )
             return redirect(reverse("mypage"))
         messages.error(request, "保存に失敗しました。入力内容を確認してください。")

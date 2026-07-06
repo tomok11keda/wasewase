@@ -154,10 +154,11 @@ class AccountProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ("name", "bio", "department", "grade")
+        fields = ("name", "bio", "avatar", "department", "grade")
         labels = {
             "name": "ニックネーム（表示名）",
             "bio": "自己紹介",
+            "avatar": "プロフィール画像",
             "department": "学部",
             "grade": "学年",
         }
@@ -171,6 +172,7 @@ class AccountProfileForm(forms.ModelForm):
             "bio": forms.Textarea(
                 attrs={"rows": 4, "placeholder": "自己紹介や取引の希望など（任意）"}
             ),
+            "avatar": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -182,6 +184,15 @@ class AccountProfileForm(forms.ModelForm):
         )
         if user is not None:
             self.fields["user_id"].initial = user.username
+        self.fields["avatar"].required = False
+        self.fields["avatar"].help_text = (
+            "JPEG / PNG / GIF / WebP、5MB以下。未設定の場合は名前の頭文字が表示されます。"
+        )
+
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get("avatar")
+        validate_timeline_image_file(avatar)
+        return avatar
 
     def clean_user_id(self):
         return self.clean_username(self.cleaned_data.get("user_id"))

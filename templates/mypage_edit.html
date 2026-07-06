@@ -1,3 +1,4 @@
+{% load wase_extras static %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -65,6 +66,31 @@
       border-radius: 8px;
       font-family: inherit;
     }
+    .avatar-preview {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .avatar-preview__image {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #eee;
+    }
+    .avatar-preview__initial {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f7edf0, #e8c4ca);
+      color: var(--accent);
+      font-size: 24px;
+      font-weight: 800;
+    }
     .field-error {
       color: #c00;
       font-size: 12px;
@@ -120,12 +146,22 @@
     </ul>
     {% endif %}
 
-    <form class="form-card" method="post">
+    <form class="form-card" method="post" enctype="multipart/form-data">
       {% csrf_token %}
       <p class="form-intro">
         <strong>ニックネーム（表示名）</strong>は投稿名などに、
         <strong>ハンドル（@ID）</strong>はプロフィールの @ の後ろ（例：@wase_taro）に表示されます。英数字と _ のみ、3〜30文字です。
       </p>
+      <div class="field">
+        <label>現在のプロフィール画像</label>
+        <div class="avatar-preview">
+          {% if profile.avatar %}
+          <img class="avatar-preview__image" src="{{ profile.avatar.url }}" alt="">
+          {% else %}
+          <span class="avatar-preview__initial" aria-hidden="true">{{ user|display_name|truncatechars:1 }}</span>
+          {% endif %}
+        </div>
+      </div>
       {% for field in form %}
       <div class="field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>

@@ -1001,6 +1001,30 @@ class ProfileAndFollowTests(TestCase):
         self.assertEqual(profile.department, "商学部")
         self.assertEqual(profile.grade, "3年")
 
+    def test_mypage_edit_uploads_avatar(self):
+        self.client.force_login(self.viewer)
+        image = SimpleUploadedFile(
+            "avatar.gif",
+            BoardTimelineImageTests._MINIMAL_GIF,
+            content_type="image/gif",
+        )
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "アイコン太郎",
+                "user_id": self.viewer.username,
+                "bio": "よろしく",
+                "department": "",
+                "grade": "",
+                "avatar": image,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        profile = UserProfile.objects.get(user=self.viewer)
+        self.assertTrue(profile.avatar)
+        profile_page = self.client.get(reverse("user_profile", args=[self.viewer.pk]))
+        self.assertContains(profile_page, profile.avatar.url)
+
     def test_display_name_and_user_id_reflect_separately(self):
         self.client.force_login(self.viewer)
         self.client.post(

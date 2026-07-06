@@ -2,7 +2,7 @@
 <article id="post-{{ post.pk }}" class="tweet-card">
   <div class="tweet-layout">
     <a class="tweet-avatar" href="{% url 'user_profile' post.author.pk %}" aria-hidden="true">
-      {{ post.author|display_name|truncatechars:1 }}
+      {% render_user_avatar post.author size=40 extra_class="tweet-avatar__img" %}
     </a>
     <div class="tweet-main">
       <header class="tweet-header">
