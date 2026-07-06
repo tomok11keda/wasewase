@@ -1,0 +1,3 @@
+<p class="empty-message">
+  {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。最初のひとことをどうぞ。{% endif %}
+</p>

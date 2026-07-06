@@ -1,3 +1,7 @@
 {% for post in timeline_posts %}
+{% if show_ad_on_first %}
+{% include "includes/timeline_post_card.html" with post=post show_ad_slot=forloop.first %}
+{% else %}
 {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
+{% endif %}
 {% endfor %}

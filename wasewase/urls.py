@@ -94,6 +94,7 @@ urlpatterns = [
     path("board/compose/", app_views.board_compose, name="board_compose"),
     path("board/post/<int:pk>/quote/", app_views.board_quote, name="board_quote"),
     path("board/feed/", app_views.timeline_feed, name="timeline_feed"),
+    path("board/latest/", app_views.get_latest_posts, name="get_latest_posts"),
     path("board/post/<int:pk>/like/", app_views.board_timeline_like, name="board_timeline_like"),
     path(
         "board/post/<int:pk>/bookmark/",

@@ -291,6 +291,52 @@ def timeline_feed(request):
     )
 
 
+@require_GET
+def get_latest_posts(request):
+    """タイムライン先頭の最新投稿（プル・トゥ・リフレッシュ用）。"""
+    timeline_qs = build_timeline_posts_queryset(request)
+    total_count = timeline_qs.count()
+    posts = prepare_timeline_posts(
+        list(timeline_qs[:TIMELINE_INITIAL_SIZE]),
+        request.user,
+    )
+    next_offset = len(posts)
+    has_more = next_offset < total_count
+
+    if posts:
+        html = render_to_string(
+            "includes/timeline_posts_batch.html",
+            {
+                "timeline_posts": posts,
+                "query": request.GET.get("q", "").strip(),
+                "show_ad_on_first": True,
+            },
+            request=request,
+        )
+    else:
+        feed_scope = request.GET.get("feed", "all")
+        feed_following_unauthenticated = (
+            feed_scope == "following" and not request.user.is_authenticated
+        )
+        html = render_to_string(
+            "includes/timeline_empty_message.html",
+            {
+                "feed_following_unauthenticated": feed_following_unauthenticated,
+                "feed_scope": feed_scope,
+            },
+            request=request,
+        )
+
+    return JsonResponse(
+        {
+            "html": html,
+            "has_more": has_more,
+            "next_offset": next_offset,
+            "total_count": total_count,
+        }
+    )
+
+
 def search(request):
     """タイムライン投稿とフリマ商品を検索。"""
     query = request.GET.get("q", "").strip()

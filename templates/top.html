@@ -108,6 +108,42 @@
       }
     }
     .empty-message { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 14px; }
+    .timeline-ptr {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 13px;
+      transition: height 0.2s ease;
+    }
+    .timeline-ptr.is-visible {
+      height: calc(var(--ptr-pull, 0px) + 8px);
+    }
+    .timeline-ptr.is-loading::before {
+      content: "";
+      width: 18px;
+      height: 18px;
+      margin-right: 8px;
+      border: 2px solid #ddd;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: timeline-ptr-spin 0.7s linear infinite;
+    }
+    .timeline-ptr.is-loading::after {
+      content: "更新中...";
+    }
+    .timeline-ptr.is-error::after {
+      content: attr(data-error);
+      color: #c0392b;
+    }
+    @keyframes timeline-ptr-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (min-width: 900px) {
+      .timeline-ptr { display: none; }
+    }
     .faculty-hint {
       margin: 0 4px 10px; padding: 8px 12px; background: #f7edf0; border-radius: 8px;
       font-size: 12px; color: var(--accent);
@@ -195,19 +231,19 @@
     {% endif %}
 
     <h2 class="section-title">{% if active_tag %}{{ active_tag }}{% elif query %}「{{ query }}」{% else %}タイムライン{% endif %}</h2>
+    <div id="timeline-ptr" class="timeline-ptr" aria-hidden="true"></div>
     <div
       class="timeline-list"
       id="timeline-list"
       data-feed-url="{% url 'timeline_feed' %}{% if feed_scope == 'following' or query or active_faculty or active_tag %}?{% endif %}{% if feed_scope == 'following' %}feed=following{% if query or active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if query %}q={{ query|urlencode }}{% if active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if active_faculty %}faculty={{ active_faculty|urlencode }}{% if active_tag %}&amp;{% endif %}{% endif %}{% if active_tag %}tag={{ active_tag|urlencode }}{% endif %}"
+      data-refresh-url="{% url 'get_latest_posts' %}{% if feed_scope == 'following' or query or active_faculty or active_tag %}?{% endif %}{% if feed_scope == 'following' %}feed=following{% if query or active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if query %}q={{ query|urlencode }}{% if active_faculty or active_tag %}&amp;{% endif %}{% endif %}{% if active_faculty %}faculty={{ active_faculty|urlencode }}{% if active_tag %}&amp;{% endif %}{% endif %}{% if active_tag %}tag={{ active_tag|urlencode }}{% endif %}"
       data-has-more="{% if timeline_has_more %}true{% else %}false{% endif %}"
       data-next-offset="{{ timeline_next_offset }}"
     >
       {% for post in timeline_posts %}
       {% include "includes/timeline_post_card.html" with post=post show_ad_slot=forloop.first %}
       {% empty %}
-      <p class="empty-message">
-        {% if feed_following_unauthenticated %}ログインするとフォロー中の投稿が表示されます。{% elif feed_scope == 'following' %}フォロー中のユーザーの投稿はまだありません。{% else %}まだ投稿がありません。最初のひとことをどうぞ。{% endif %}
-      </p>
+      {% include "includes/timeline_empty_message.html" with feed_following_unauthenticated=feed_following_unauthenticated feed_scope=feed_scope %}
       {% endfor %}
       {% if timeline_has_more %}
       <div id="timeline-scroll-sentinel" class="timeline-scroll-sentinel" aria-hidden="true"></div>
@@ -240,9 +276,8 @@
     {% include "includes/bottom_nav.html" %}
   </div>
 
-  {% if timeline_has_more %}
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
-  {% endif %}
+  <script src="{% static 'js/timeline_pull_refresh.js' %}"></script>
   {% include "includes/timeline_feed_scripts.html" %}
   {% if ugc_report_enabled %}
   {% include "includes/ugc_report_modal.html" %}
