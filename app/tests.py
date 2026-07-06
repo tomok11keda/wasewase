@@ -1805,6 +1805,28 @@ class TimelineInfiniteScrollTests(TestCase):
         self.assertFalse(data["has_more"])
         self.assertEqual(data["html"].count('class="tweet-card"'), 5)
 
+    def test_get_latest_posts_returns_initial_batch(self):
+        response = self.client.get(reverse("get_latest_posts"))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["has_more"])
+        self.assertEqual(data["next_offset"], self.initial_size)
+        self.assertEqual(data["html"].count('class="tweet-card"'), self.initial_size)
+
+    def test_get_latest_posts_respects_filters(self):
+        other = get_user_model().objects.create_user(
+            email="other@waseda.jp",
+            password="password",
+        )
+        TimelinePost.objects.create(author=other, body="filtered-out")
+        TimelinePost.objects.create(author=self.author, body="filtered-in", course_name="MATH101")
+
+        response = self.client.get(reverse("get_latest_posts"), {"tag": "MATH101"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("filtered-in", data["html"])
+        self.assertNotIn("filtered-out", data["html"])
+
 
 class EnsureSuperuserCommandTests(TestCase):
     def test_promotes_existing_user_to_superuser(self):
