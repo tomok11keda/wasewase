@@ -39,6 +39,50 @@ def log_userprofile_db_schema() -> None:
     _log_model_db_schema("app", "UserProfile")
 
 
+def ensure_userprofile_avatar_column() -> None:
+    """本番 DB に avatar 列が無い場合に追加する（起動時のセーフティネット）。"""
+    from django.db import connection
+    from django.db.utils import OperationalError
+
+    table = "app_userprofile"
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, table
+                )
+            }
+            if "avatar" in columns:
+                return
+
+            if connection.vendor == "postgresql":
+                cursor.execute(
+                    "ALTER TABLE app_userprofile "
+                    "ADD COLUMN IF NOT EXISTS avatar varchar(100) NULL"
+                )
+            else:
+                cursor.execute(
+                    "ALTER TABLE app_userprofile ADD COLUMN avatar varchar(100) NULL"
+                )
+        log_media_upload("DB SCHEMA", "Added missing app_userprofile.avatar column")
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "duplicate column" in message or "already exists" in message:
+            return
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.avatar repair failed: {exc}",
+            exc=exc,
+        )
+    except Exception as exc:
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.avatar repair failed: {exc}",
+            exc=exc,
+        )
+
+
 def _log_model_db_schema(
     app_label: str,
     model_name: str,
