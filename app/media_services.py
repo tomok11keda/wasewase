@@ -31,12 +31,26 @@ ORPHAN_TIMELINEPOST_COLUMNS = frozenset(
 
 def log_timelinepost_db_schema() -> None:
     """本番 DB とモデル定義の差分をログに出す。"""
+    _log_model_db_schema("app", "TimelinePost", ORPHAN_TIMELINEPOST_COLUMNS)
+
+
+def log_userprofile_db_schema() -> None:
+    """UserProfile（avatar 等）の DB スキーマをログに出す。"""
+    _log_model_db_schema("app", "UserProfile")
+
+
+def _log_model_db_schema(
+    app_label: str,
+    model_name: str,
+    orphan_not_null_names: frozenset[str] | None = None,
+) -> None:
     from django.apps import apps
     from django.db import connection
 
-    model = apps.get_model("app", "TimelinePost")
+    model = apps.get_model(app_label, model_name)
     model_columns = {field.column for field in model._meta.local_fields}
     table = model._meta.db_table
+    orphan_not_null_names = orphan_not_null_names or frozenset()
 
     try:
         with connection.cursor() as cursor:
@@ -61,7 +75,7 @@ def log_timelinepost_db_schema() -> None:
     orphan_not_null = sorted(
         name
         for name in extra_in_db
-        if name in ORPHAN_TIMELINEPOST_COLUMNS and not db_columns[name].null_ok
+        if name in orphan_not_null_names and not db_columns[name].null_ok
     )
     if missing_in_db:
         log_media_upload("DB SCHEMA", f"missing_in_db={missing_in_db}")
