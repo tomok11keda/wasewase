@@ -50,7 +50,7 @@ def get_user_avatar_url(user: AbstractBaseUser | None) -> str | None:
         return None
     try:
         return profile.avatar.url
-    except (ValueError, AttributeError):
+    except Exception:
         return None
 
 

@@ -10,6 +10,7 @@ class AppConfig(AppConfig):
     def ready(self) -> None:
         if not os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
             return
-        from app.media_services import log_timelinepost_db_schema
+        from app.media_services import log_timelinepost_db_schema, log_userprofile_db_schema
 
         log_timelinepost_db_schema()
+        log_userprofile_db_schema()
