@@ -246,22 +246,10 @@
     try {
       await AdMob.initialize({
         initializeForTesting: testing,
-        requestTrackingAuthorization: true,
       });
     } catch (error) {
       logNativeError("AdMob.initialize failed", error);
       return false;
-    }
-
-    if (typeof AdMob.requestTrackingAuthorization === "function") {
-      try {
-        var tracking = await AdMob.trackingAuthorizationStatus();
-        if (tracking && tracking.status === "notDetermined") {
-          await AdMob.requestTrackingAuthorization();
-        }
-      } catch (error) {
-        logNative("ATT request skipped", error);
-      }
     }
 
     logNative("AdMob initialized", { testing: testing });
