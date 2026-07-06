@@ -1,4 +1,5 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+require 'fileutils'
 
 platform :ios, '14.0'
 use_frameworks!
@@ -15,6 +16,23 @@ def capacitor_pods
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
 end
 
+def apply_wasewase_ios_patches!
+  admob_dest = File.expand_path(
+    '../../node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift',
+    __dir__
+  )
+  admob_src = File.expand_path('patches/AdMobPlugin.no-att.swift', __dir__)
+  if File.exist?(admob_src) && File.exist?(File.dirname(admob_dest))
+    FileUtils.cp(admob_src, admob_dest)
+    puts '[WASE] Applied AdMob ATT removal patch'
+  end
+
+  info_plist = File.join(__dir__, 'App', 'Info.plist')
+  if File.exist?(info_plist)
+    system('plutil', '-remove', 'NSUserTrackingUsageDescription', info_plist)
+  end
+end
+
 target 'App' do
   capacitor_pods
   # Add your Pods here
@@ -22,4 +40,5 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  apply_wasewase_ios_patches!
 end
