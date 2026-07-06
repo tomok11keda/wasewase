@@ -1456,6 +1456,10 @@ def terms_of_service(request):
     return render(request, "terms.html")
 
 
+def support_page(request):
+    return render(request, "support.html")
+
+
 @require_GET
 @cache_control(max_age=0, no_cache=True, no_store=True, must_revalidate=True)
 def pwa_service_worker(request):

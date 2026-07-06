@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}<title>わせわせ — サポート・プライバシー情報</title>{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root {
+    --bg: #f7f9fc;
+    --card: #fff;
+    --text: #222;
+    --muted: #666;
+    --accent: #891E2B;
+    --accent-dark: #6f1722;
+    --accent-soft: #f7edf0;
+    --radius: 12px;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .legal-header {
+    background: var(--accent);
+    color: #fff;
+    padding: 14px 16px max(14px, env(safe-area-inset-top, 0px));
+    border-bottom: 1px solid var(--accent-dark);
+  }
+
+  .legal-header a {
+    color: #fff;
+    font-size: 14px;
+    text-decoration: none;
+    opacity: 0.95;
+  }
+
+  .legal-header h1 {
+    margin: 10px 0 0;
+    font-size: clamp(18px, 4.5vw, 22px);
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: 0.02em;
+  }
+
+  .legal-main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px 16px 32px;
+  }
+
+  .legal-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    line-height: 1.75;
+    font-size: 14px;
+    border: 1px solid #eee;
+  }
+
+  .legal-card + .legal-card {
+    margin-top: 16px;
+  }
+
+  .legal-card h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent-soft);
+  }
+
+  .legal-card p {
+    margin: 0 0 12px;
+  }
+
+  .legal-card p:last-child {
+    margin-bottom: 0;
+  }
+
+  .legal-card ul {
+    margin: 0 0 12px;
+    padding-left: 1.25em;
+  }
+
+  .legal-card li {
+    margin-bottom: 8px;
+  }
+
+  .legal-card a {
+    color: var(--accent);
+    word-break: break-all;
+    font-weight: 600;
+  }
+
+  .legal-card--en {
+    background: #fafbfc;
+    font-size: 13px;
+    color: #444;
+  }
+
+  .legal-card--en h2 {
+    color: #333;
+    border-bottom-color: #e8e8e8;
+  }
+
+  .contact-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--accent-soft);
+    border-radius: 10px;
+    border: 1px solid #e5d3d7;
+  }
+
+  .contact-box__label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .legal-links {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  .legal-copyright {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="legal-header">
+  <a href="{% url 'home' %}">← トップへ</a>
+  <h1>わせわせ サポート・プライバシー情報</h1>
+</header>
+
+<main class="legal-main">
+  <article class="legal-card">
+    <h2>お問い合わせ</h2>
+    <p>アプリの不具合、ご意見、アカウントに関するお問い合わせは、下記メールアドレスまでご連絡ください。</p>
+    <div class="contact-box">
+      <span class="contact-box__label">サポート連絡先</span>
+      <a href="mailto:wasewaseofficial@gmail.com">wasewaseofficial@gmail.com</a>
+    </div>
+  </article>
+
+  <article class="legal-card">
+    <h2>プライバシーポリシー（要約）</h2>
+    <p>「わせわせ」は、早稲田大学の在学生向けクローズドコミュニティです。個人情報の取り扱いについて、要点のみを掲載します。</p>
+    <ul>
+      <li><strong>収集する主な情報：</strong>大学発行メールアドレス（waseda.jp 等）による本人確認、およびサービス運営に必要なアカウント情報（表示名・プロフィール等）です。</li>
+      <li><strong>利用目的：</strong>学内メンバー限定の認証、タイムライン・コミュニティ・フリマ等の機能提供、お問い合わせ対応にのみ使用します。</li>
+      <li><strong>第三者への提供：</strong>法令に基づく場合を除き、個人を特定できる情報を外部に販売・共有することはありません。</li>
+    </ul>
+    <p class="legal-links">
+      全文は <a href="{% url 'privacy' %}">プライバシーポリシー</a> をご覧ください。
+      利用条件は <a href="{% url 'terms' %}">利用規約</a> をご確認ください。
+    </p>
+  </article>
+
+  <article class="legal-card">
+    <h2>アプリの概要</h2>
+    <p>「わせわせ」は、早稲田大学の在学生を対象としたクローズド・キャンパス・コミュニティ・アプリケーションです。本アプリケーションは、大学発行のメールアドレスによる厳格な認証プロセスを導入しており、高いセキュリティと信頼性を担保したコミュニケーション基盤を提供します。</p>
+
+    <p><strong>主な機能・特徴</strong></p>
+    <ul>
+      <li><strong>学内情報共有プラットフォーム：</strong>授業、サークル、大学公式イベント等の情報を統合的に管理・共有可能なタイムライン機能。</li>
+      <li><strong>コミュニティ形成：</strong>共通の学術的関心や趣味を持つ学生間での円滑な対話を実現するスレッド機能。</li>
+      <li><strong>学内限定マーケットプレイス：</strong>教科書や参考書等の学内受け渡しに特化したフリマ機能。学生間での直接手渡しを前提とすることで、送料や手数料を排除し、学生生活の経済的合理性を高めます。</li>
+    </ul>
+    <p>「わせわせ」は、安全かつ活発な学内ネットワークの構築を通じて、早稲田大学における学修環境および学生生活の質の向上を支援します。</p>
+  </article>
+
+  <article class="legal-card legal-card--en">
+    <h2>Application Overview (English)</h2>
+    <p>This application is designed specifically for students of Waseda University. To ensure a safe and academic-focused environment, registration is restricted to users with a university-issued email address. All features, including the marketplace, are intended to facilitate peer-to-peer exchange within the campus.</p>
+  </article>
+
+  <p class="legal-copyright">Copyright © 2026 WaseWase. All rights reserved.</p>
+</main>
+{% endblock %}
+
+{% block site_footer %}{% include "includes/site_footer.html" %}{% endblock %}

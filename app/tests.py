@@ -1764,9 +1764,17 @@ class PwaTests(TestCase):
         self.assertContains(terms, "利用規約")
         self.assertContains(terms, "第1条（利用資格）")
 
+        support = self.client.get(reverse("support"))
+        self.assertEqual(support.status_code, 200)
+        self.assertContains(support, "わせわせ サポート・プライバシー情報")
+        self.assertContains(support, "wasewaseofficial@gmail.com")
+        self.assertContains(support, "Copyright © 2026 WaseWase")
+        self.assertContains(support, "Waseda University")
+
         home = self.client.get(reverse("home"))
         self.assertContains(home, reverse("privacy"))
         self.assertContains(home, reverse("terms"))
+        self.assertContains(home, reverse("support"))
         self.assertContains(home, "運営：『わせわせ』運営事務局")
         self.assertContains(home, "wasewaseofficial@gmail.com")
 

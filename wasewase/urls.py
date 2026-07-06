@@ -15,6 +15,7 @@ urlpatterns = [
     path("ads.txt", app_views.ads_txt, name="ads_txt"),
     path("privacy/", app_views.privacy_policy, name="privacy"),
     path("terms/", app_views.terms_of_service, name="terms"),
+    path("support/", app_views.support_page, name="support"),
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
