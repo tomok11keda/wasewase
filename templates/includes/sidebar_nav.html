@@ -91,7 +91,7 @@
   {% if user.is_authenticated %}
   <div class="sidebar-user">
     <a class="sidebar-user__link" href="{% url 'mypage' %}">
-      <span class="sidebar-user__avatar" aria-hidden="true">{{ user|display_name|truncatechars:1 }}</span>
+      {% render_user_avatar user size=40 extra_class="sidebar-user__avatar" %}
       <span class="sidebar-user__meta">
         <span class="sidebar-user__name">{{ user|display_name }}</span>
         <span class="sidebar-user__handle">@{{ user.username }}</span>

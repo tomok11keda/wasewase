@@ -1,0 +1,13 @@
+{% load wase_extras %}
+{% if avatar_url %}
+<img
+  class="user-avatar user-avatar--image {{ extra_class }}"
+  src="{{ avatar_url }}"
+  alt="{{ alt_text }}"
+  width="{{ size }}"
+  height="{{ size }}"
+  loading="lazy"
+>
+{% else %}
+<span class="user-avatar user-avatar--initial {{ extra_class }}" aria-hidden="true">{{ initial }}</span>
+{% endif %}

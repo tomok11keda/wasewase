@@ -31,6 +31,29 @@ def user_display_name(user: AbstractBaseUser | None) -> str:
     return (username or getattr(user, "username", "") or "").strip() or "ユーザー"
 
 
+def user_avatar_initial(user: AbstractBaseUser | None) -> str:
+    """アバター未設定時に表示する頭文字。"""
+    name = user_display_name(user)
+    if not name or name == "ユーザー":
+        return "?"
+    return name[0].upper()
+
+
+def get_user_avatar_url(user: AbstractBaseUser | None) -> str | None:
+    """プロフィール画像のURL。未設定時は None。"""
+    if user is None or getattr(user, "is_authenticated", True) is False:
+        return None
+    profile = getattr(user, "profile", None)
+    if profile is None:
+        profile = UserProfile.objects.filter(user_id=user.pk).first()
+    if profile is None or not profile.avatar:
+        return None
+    try:
+        return profile.avatar.url
+    except (ValueError, AttributeError):
+        return None
+
+
 def get_following_user_ids(user: AbstractBaseUser) -> list[int]:
     if not user.is_authenticated:
         return []

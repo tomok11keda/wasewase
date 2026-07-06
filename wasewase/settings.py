@@ -406,6 +406,7 @@ else:
     _media_root = env("MEDIA_ROOT", default="")
     MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
     SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
+    # プロフィール画像（avatars/）・タイムライン画像（post_images/）などを保存
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'

@@ -100,6 +100,12 @@ class UserProfile(models.Model):
     )
     name = models.CharField("名前", max_length=80, blank=True)
     bio = models.TextField("概要", blank=True)
+    avatar = models.ImageField(
+        "プロフィール画像",
+        upload_to="avatars/",
+        blank=True,
+        null=True,
+    )
     department = models.CharField(
         "学部",
         max_length=50,

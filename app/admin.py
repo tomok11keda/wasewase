@@ -165,9 +165,13 @@ class ThreadTipAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "name", "department", "grade")
+    list_display = ("user", "name", "department", "grade", "has_avatar")
     list_filter = ("department", "grade")
     search_fields = ("user__username", "user__email", "name")
+
+    @admin.display(boolean=True, description="画像あり")
+    def has_avatar(self, obj):
+        return bool(obj.avatar)
 
 
 @admin.register(Follow)

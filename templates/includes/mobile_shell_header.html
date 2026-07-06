@@ -56,6 +56,11 @@
     font-weight: 800;
     line-height: 1;
     text-transform: uppercase;
+    overflow: hidden;
+  }
+  .shell-header-avatar.user-avatar--image {
+    object-fit: cover;
+    padding: 0;
   }
   .shell-header-dm svg {
     fill: currentColor;
@@ -85,7 +90,7 @@
       <a class="shell-header-back" href="{{ header_back_url }}">← 戻る</a>
       {% elif user.is_authenticated %}
       <a class="shell-header-profile" href="{% url 'mypage' %}" aria-label="マイページ">
-        <span class="shell-header-avatar" aria-hidden="true">{{ user|display_name|truncatechars:1 }}</span>
+        {% render_user_avatar user size=34 extra_class="shell-header-avatar" %}
       </a>
       {% else %}
       <a class="shell-header-profile" href="{% url 'login' %}" aria-label="ログイン">
