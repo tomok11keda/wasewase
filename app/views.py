@@ -45,6 +45,7 @@ from .dm_services import (
     dm_room_link,
     find_dm_room,
     get_or_create_dm_room,
+    list_dm_read_message_ids_for_sender,
     mark_dm_room_read,
 )
 from .board_services import (
@@ -149,10 +150,12 @@ def _serialize_room_message(message, current_user_id):
         "body": message.body,
         "created_at": created.strftime("%m/%d %H:%M"),
         "is_mine": message.sender_id == current_user_id,
+        "is_read": message.is_read,
     }
 
 
-def _room_messages_json(request, message_queryset):
+def _room_messages_json(request, room):
+    message_queryset = room.messages
     after = request.GET.get("after", "").strip()
     messages_qs = message_queryset.select_related("sender").order_by("created_at")
     if after.isdigit():
@@ -168,6 +171,9 @@ def _room_messages_json(request, message_queryset):
                 for message in messages_qs
             ],
             "latest_id": latest_id,
+            "read_message_ids": list_dm_read_message_ids_for_sender(
+                room, request.user
+            ),
         }
     )
 
@@ -991,7 +997,7 @@ def user_dm_room_messages(request, room_pk):
     if not can_access_dm_room(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    response = _room_messages_json(request, room.messages)
+    response = _room_messages_json(request, room)
     mark_dm_room_read(room, request.user)
     return response
 

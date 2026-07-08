@@ -634,6 +634,10 @@ class UserDirectMessage(models.Model):
         related_name="direct_messages_sent",
     )
     body = models.TextField(max_length=500)
+    is_read = models.BooleanField(
+        default=False,
+        help_text="1対1 DM では相手が既読にしたか。グループ化時は ReadReceipt 等へ移行予定。",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

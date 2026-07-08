@@ -311,6 +311,6 @@ class UserDirectMessageRoomAdmin(admin.ModelAdmin):
 
 @admin.register(UserDirectMessage)
 class UserDirectMessageAdmin(admin.ModelAdmin):
-    list_display = ("room", "sender", "body", "created_at")
-    list_filter = ("created_at",)
+    list_display = ("room", "sender", "body", "is_read", "created_at")
+    list_filter = ("is_read", "created_at")
     search_fields = ("body", "sender__username")

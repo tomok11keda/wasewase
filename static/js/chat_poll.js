@@ -70,13 +70,47 @@
     bubble.textContent = msg.body;
     main.appendChild(bubble);
 
+    var meta = document.createElement("div");
+    meta.className = "chat-row__meta";
+
+    if (msg.is_mine && msg.is_read) {
+      var readLabel = document.createElement("span");
+      readLabel.className = "chat-row__read";
+      readLabel.textContent = "既読";
+      meta.appendChild(readLabel);
+    }
+
     var time = document.createElement("time");
     time.className = "chat-row__time";
     time.textContent = msg.created_at;
-    main.appendChild(time);
+    meta.appendChild(time);
 
+    main.appendChild(meta);
     li.appendChild(main);
     return li;
+  }
+
+  function ensureReadLabel(row) {
+    var meta = row.querySelector(".chat-row__meta");
+    if (!meta || meta.querySelector(".chat-row__read")) {
+      return;
+    }
+    var readLabel = document.createElement("span");
+    readLabel.className = "chat-row__read";
+    readLabel.textContent = "既読";
+    meta.insertBefore(readLabel, meta.firstChild);
+  }
+
+  function applyReadReceipts(readMessageIds) {
+    if (!list || !Array.isArray(readMessageIds) || !readMessageIds.length) {
+      return;
+    }
+    readMessageIds.forEach(function (messageId) {
+      var row = list.querySelector('[data-message-id="' + messageId + '"]');
+      if (row && row.classList.contains("is-mine")) {
+        ensureReadLabel(row);
+      }
+    });
   }
 
   function isNearBottom(el) {
@@ -166,6 +200,9 @@
         }
         if (Array.isArray(data.messages) && data.messages.length) {
           appendMessages(data.messages);
+        }
+        if (Array.isArray(data.read_message_ids)) {
+          applyReadReceipts(data.read_message_ids);
         }
       })
       .catch(function () {})
