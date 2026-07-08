@@ -15,9 +15,10 @@ class AppConfig(AppConfig):
             log_timelinepost_db_schema,
             log_userprofile_db_schema,
         )
-        from app.dm_services import ensure_dm_read_state_table
+        from app.dm_services import ensure_dm_read_state_table, ensure_dm_message_is_read_column
 
         ensure_userprofile_avatar_column()
         ensure_dm_read_state_table()
+        ensure_dm_message_is_read_column()
         log_timelinepost_db_schema()
         log_userprofile_db_schema()

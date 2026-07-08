@@ -220,6 +220,25 @@
       padding-bottom: 2px;
     }
 
+    .chat-row__meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+      flex-shrink: 0;
+    }
+
+    .chat-row:not(.is-mine) .chat-row__meta {
+      align-items: flex-start;
+    }
+
+    .chat-row__read {
+      font-size: 9px;
+      line-height: 1;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
     .empty-message {
       flex: 1;
       display: flex;
@@ -317,9 +336,14 @@
             </div>
             <div class="chat-row__main">
               <div class="chat-row__bubble">{{ msg.body }}</div>
-              <time class="chat-row__time" datetime="{{ msg.created_at|date:'c' }}">
-                {{ msg.created_at|date:"m/d H:i" }}
-              </time>
+              <div class="chat-row__meta">
+                {% if msg.sender_id == user.id and msg.is_read %}
+                <span class="chat-row__read">既読</span>
+                {% endif %}
+                <time class="chat-row__time" datetime="{{ msg.created_at|date:'c' }}">
+                  {{ msg.created_at|date:"m/d H:i" }}
+                </time>
+              </div>
             </div>
           </li>
           {% endfor %}

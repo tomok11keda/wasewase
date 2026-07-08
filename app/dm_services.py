@@ -52,6 +52,63 @@ def dm_room_link(room: UserDirectMessageRoom) -> str:
     return reverse("user_dm_room", kwargs={"room_pk": room.pk})
 
 
+def ensure_dm_message_is_read_column() -> None:
+    """本番 DB に DM メッセージの is_read 列が無い場合に追加する。"""
+    table = UserDirectMessage._meta.db_table
+    column = "is_read"
+    try:
+        with connection.cursor() as cursor:
+            description = connection.introspection.get_table_description(cursor, table)
+            if any(col.name == column for col in description):
+                return
+        field = UserDirectMessage._meta.get_field(column)
+        with connection.schema_editor() as schema_editor:
+            schema_editor.add_field(UserDirectMessage, field)
+        logger.warning("Added missing %s.%s column on startup", table, column)
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message or "duplicate" in message:
+            return
+        logger.warning("DM message is_read column repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("DM message is_read column repair failed: %s", exc)
+
+
+def mark_dm_incoming_messages_read(
+    room: UserDirectMessageRoom, reader: AbstractBaseUser
+) -> int:
+    """1対1 DM: 閲覧者が受け取った未読メッセージに既読を付ける。
+
+    グループ拡張時はメッセージ単位の ReadReceipt モデルへ置き換え可能。
+    """
+    try:
+        return (
+            UserDirectMessage.objects.filter(room=room, is_read=False)
+            .exclude(sender_id=reader.pk)
+            .update(is_read=True)
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM incoming read update failed: %s", exc)
+        return 0
+
+
+def list_dm_read_message_ids_for_sender(
+    room: UserDirectMessageRoom, sender: AbstractBaseUser
+) -> list[int]:
+    """送信者のメッセージのうち相手が既読にした ID 一覧（ポーリング用）。"""
+    try:
+        return list(
+            UserDirectMessage.objects.filter(
+                room=room,
+                sender=sender,
+                is_read=True,
+            ).values_list("pk", flat=True)
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM read receipt lookup failed: %s", exc)
+        return []
+
+
 def ensure_dm_read_state_table() -> None:
     """本番 DB に DM 既読テーブルが無い場合に作成する（起動時のセーフティネット）。"""
     table = UserDirectMessageReadState._meta.db_table
@@ -119,6 +176,7 @@ def get_unread_dm_counts_for_rooms(
 def mark_dm_room_read(
     room: UserDirectMessageRoom, user: AbstractBaseUser
 ) -> int:
+    mark_dm_incoming_messages_read(room, user)
     latest_id = (
         UserDirectMessage.objects.filter(room=room)
         .order_by("-pk")

@@ -1743,6 +1743,62 @@ class UserDirectMessageTests(TestCase):
         self.assertEqual(data["messages"][0]["body"], "返信")
         self.assertTrue(data["messages"][0]["is_mine"] is False)
 
+    def test_dm_message_defaults_is_read_false(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        message = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_a,
+            body="未読のはず",
+        )
+        self.assertFalse(message.is_read)
+
+    def test_opening_dm_room_marks_incoming_messages_is_read(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        incoming = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="相手から",
+        )
+        own = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_a,
+            body="自分から",
+        )
+        self.client.force_login(self.user_a)
+        self.client.get(reverse("user_dm_room", args=[room.pk]))
+        incoming.refresh_from_db()
+        own.refresh_from_db()
+        self.assertTrue(incoming.is_read)
+        self.assertFalse(own.is_read)
+
+    def test_dm_room_shows_read_label_after_partner_opens(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_a,
+            body="読んでほしい",
+        )
+        self.client.force_login(self.user_b)
+        self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.client.force_login(self.user_a)
+        page = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertContains(page, "既読")
+        self.assertContains(page, "読んでほしい")
+
+    def test_dm_poll_returns_read_message_ids(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        message = UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_a,
+            body="既読確認",
+        )
+        self.client.force_login(self.user_b)
+        self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_room_messages", args=[room.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(message.pk, response.json()["read_message_ids"])
+
     def test_other_user_cannot_poll_dm_room_messages(self):
         room, _ = get_or_create_dm_room(self.user_a, self.user_b)
         self.client.force_login(self.other)
