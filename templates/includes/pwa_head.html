@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="{% static 'css/capacitor_native.css' %}">
 <script src="{% static 'js/admob_config.js' %}"></script>
 <script src="{% static 'js/capacitor_native.js' %}" defer></script>
+{% include "includes/compose_fab_visibility.html" %}
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {

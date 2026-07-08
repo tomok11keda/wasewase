@@ -1,0 +1,24 @@
+<script>
+(function () {
+  function isDmPath(pathname) {
+    return pathname === "/dm" || pathname === "/dm/" || pathname.indexOf("/dm/") === 0;
+  }
+
+  function syncComposeFabVisibility() {
+    var hide = isDmPath(window.location.pathname);
+    document.body.classList.toggle("page-dm", hide);
+    document.querySelectorAll(".compose-fab, .sidebar-nav__compose").forEach(function (btn) {
+      btn.style.display = hide ? "none" : "";
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncComposeFabVisibility);
+  } else {
+    syncComposeFabVisibility();
+  }
+
+  window.addEventListener("pageshow", syncComposeFabVisibility);
+  window.addEventListener("popstate", syncComposeFabVisibility);
+})();
+</script>

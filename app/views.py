@@ -826,7 +826,7 @@ def user_dm_inbox(request):
         "dm_inbox.html",
         {
             "conversations": build_dm_conversations(request.user),
-            "nav_active": "",
+            "nav_active": "dm",
             "header_back_url": reverse("home"),
         },
     )
@@ -876,7 +876,7 @@ def user_dm_room(request, room_pk):
             "messages_poll_url": reverse(
                 "user_dm_room_messages", kwargs={"room_pk": room.pk}
             ),
-            "nav_active": "",
+            "nav_active": "dm",
         },
     )
 

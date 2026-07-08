@@ -1620,6 +1620,20 @@ class UserDirectMessageTests(TestCase):
         self.assertContains(response, reverse("user_dm_inbox"))
         self.assertContains(response, "メッセージ")
 
+    def test_dm_inbox_hides_timeline_compose_fab(self):
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_inbox"))
+        self.assertContains(response, 'class="shell-desktop page-dm"')
+        self.assertNotContains(response, 'class="compose-fab')
+        self.assertNotContains(response, "data-compose-open")
+
+    def test_dm_room_hides_timeline_compose_fab(self):
+        self.client.force_login(self.user_a)
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        response = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertContains(response, 'class="page-dm"')
+        self.assertNotContains(response, 'class="compose-fab')
+
     def test_cannot_dm_self(self):
         self.client.force_login(self.user_a)
         response = self.client.post(reverse("start_user_dm", args=[self.user_a.pk]))
