@@ -1,10 +1,18 @@
 """ユーザー間 DM（UserDirectMessageRoom）のヘルパー。"""
 
+from __future__ import annotations
+
+import logging
+
 from django.contrib.auth.models import AbstractBaseUser
+from django.db import connection
 from django.db.models import Prefetch, Q
+from django.db.utils import OperationalError, ProgrammingError
 from django.urls import reverse
 
 from .models import UserDirectMessage, UserDirectMessageReadState, UserDirectMessageRoom
+
+logger = logging.getLogger(__name__)
 
 
 def ordered_user_pair(
@@ -44,18 +52,41 @@ def dm_room_link(room: UserDirectMessageRoom) -> str:
     return reverse("user_dm_room", kwargs={"room_pk": room.pk})
 
 
+def ensure_dm_read_state_table() -> None:
+    """本番 DB に DM 既読テーブルが無い場合に作成する（起動時のセーフティネット）。"""
+    table = UserDirectMessageReadState._meta.db_table
+    try:
+        with connection.cursor() as cursor:
+            if table in connection.introspection.table_names(cursor):
+                return
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(UserDirectMessageReadState)
+        logger.warning("Created missing %s table on startup", table)
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message or "duplicate" in message:
+            return
+        logger.warning("DM read state table repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("DM read state table repair failed: %s", exc)
+
+
 def get_dm_read_state_map(
     user: AbstractBaseUser, room_ids: list[int]
 ) -> dict[int, int]:
     if not room_ids:
         return {}
-    return {
-        room_id: last_read_id
-        for room_id, last_read_id in UserDirectMessageReadState.objects.filter(
-            user=user,
-            room_id__in=room_ids,
-        ).values_list("room_id", "last_read_message_id")
-    }
+    try:
+        return {
+            room_id: last_read_id
+            for room_id, last_read_id in UserDirectMessageReadState.objects.filter(
+                user=user,
+                room_id__in=room_ids,
+            ).values_list("room_id", "last_read_message_id")
+        }
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM read state lookup failed; treating as unread=0: %s", exc)
+        return {}
 
 
 def count_unread_dm_messages(
@@ -95,11 +126,14 @@ def mark_dm_room_read(
         .first()
         or 0
     )
-    UserDirectMessageReadState.objects.update_or_create(
-        room=room,
-        user=user,
-        defaults={"last_read_message_id": latest_id},
-    )
+    try:
+        UserDirectMessageReadState.objects.update_or_create(
+            room=room,
+            user=user,
+            defaults={"last_read_message_id": latest_id},
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM read state update failed: %s", exc)
     return latest_id
 
 
