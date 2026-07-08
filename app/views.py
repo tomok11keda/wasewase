@@ -40,10 +40,12 @@ from .constants import FACULTY_CHOICES
 from .mention_services import notify_mentions
 from .dm_services import (
     build_dm_conversations,
+    build_dm_unread_summary,
     can_access_dm_room,
     dm_room_link,
     find_dm_room,
     get_or_create_dm_room,
+    mark_dm_room_read,
 )
 from .board_services import (
     prepare_timeline_post_for_save,
@@ -884,6 +886,12 @@ def user_dm_inbox(request):
 
 
 @login_required
+@require_GET
+def dm_unread_summary(request):
+    return JsonResponse(build_dm_unread_summary(request.user))
+
+
+@login_required
 @require_POST
 def start_user_dm(request, pk):
     partner = get_object_or_404(User, pk=pk)
@@ -911,9 +919,7 @@ def user_dm_room(request, room_pk):
 
     partner = room.other_user(request.user)
     dm_messages = room.messages.select_related("sender")
-    latest_message_id = (
-        dm_messages.order_by("-pk").values_list("pk", flat=True).first() or 0
-    )
+    latest_message_id = mark_dm_room_read(room, request.user)
     back_url = reverse("user_dm_inbox")
     return render(
         request,
@@ -980,7 +986,9 @@ def user_dm_room_messages(request, room_pk):
     if not can_access_dm_room(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    return _room_messages_json(request, room.messages)
+    response = _room_messages_json(request, room.messages)
+    mark_dm_room_read(room, request.user)
+    return response
 
 
 class AppLoginView(LoginView):

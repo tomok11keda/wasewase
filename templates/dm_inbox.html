@@ -78,9 +78,9 @@
     }
     .dm-inbox-item {
       display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 14px 16px;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--shell-border);
       text-decoration: none;
       color: inherit;
@@ -94,12 +94,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 48px;
-      height: 48px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       background: linear-gradient(135deg, #f7edf0, #e8c4ca);
       color: var(--accent);
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 800;
       flex-shrink: 0;
       line-height: 1;
@@ -152,6 +152,26 @@
     .dm-inbox-preview-prefix {
       font-weight: 600;
       color: var(--text);
+    }
+    .dm-inbox-item.has-unread .dm-inbox-name {
+      font-weight: 800;
+    }
+    .dm-inbox-item.has-unread .dm-inbox-preview {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .dm-inbox-unread {
+      flex-shrink: 0;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      text-align: center;
     }
     .dm-inbox-empty {
       padding: 48px 20px;
@@ -214,7 +234,11 @@
       </ul>
       {% endif %}
 
-      <main class="main-inner">
+      <main
+        class="main-inner"
+        data-dm-inbox
+        data-dm-unread-url="{% url 'dm_unread_summary' %}"
+      >
         <header class="dm-inbox-header">
           <h1>メッセージ</h1>
           <p>1対1のプライベートなやり取りです。</p>
@@ -225,7 +249,11 @@
           {% for item in conversations %}
           {% if item.partner %}
           <li>
-            <a class="dm-inbox-item" href="{% url 'user_dm_room' item.room.pk %}">
+            <a
+              class="dm-inbox-item{% if item.unread_count %} has-unread{% endif %}"
+              href="{% url 'user_dm_room' item.room.pk %}"
+              data-dm-room-pk="{{ item.room.pk }}"
+            >
               <span class="dm-inbox-avatar" aria-hidden="true">{{ item.partner|display_name|truncatechars:1 }}</span>
               <span class="dm-inbox-body">
                 <span class="dm-inbox-top">
@@ -243,6 +271,12 @@
                 <p class="dm-inbox-preview">まだメッセージはありません</p>
                 {% endif %}
               </span>
+              <span
+                class="dm-inbox-unread"
+                data-dm-unread-badge
+                data-room-pk="{{ item.room.pk }}"
+                {% if item.unread_count <= 0 %}hidden{% endif %}
+              >{% if item.unread_count %}{{ item.unread_count }}{% endif %}</span>
             </a>
           </li>
           {% endif %}
@@ -265,5 +299,6 @@
   <div class="shell-hide-on-desktop">
     {% include "includes/bottom_nav.html" %}
   </div>
+  <script src="{% static 'js/dm_inbox_unread.js' %}" defer></script>
 </body>
 </html>

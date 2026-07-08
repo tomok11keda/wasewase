@@ -594,6 +594,34 @@ class UserDirectMessageRoom(models.Model):
         return None
 
 
+class UserDirectMessageReadState(models.Model):
+    """DMルームごとの既読位置（ユーザー単位）。"""
+
+    room = models.ForeignKey(
+        UserDirectMessageRoom,
+        on_delete=models.CASCADE,
+        related_name="read_states",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dm_read_states",
+    )
+    last_read_message_id = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "user"],
+                name="unique_dm_read_state_per_user_room",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"DM read {self.user_id} @ room {self.room_id}"
+
+
 class UserDirectMessage(models.Model):
     room = models.ForeignKey(
         UserDirectMessageRoom,

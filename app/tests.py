@@ -1615,6 +1615,51 @@ class UserDirectMessageTests(TestCase):
         content = response.content.decode()
         self.assertLess(content.index("dm_other"), content.index("dm_user_b"))
 
+    def test_dm_inbox_shows_unread_badge_for_partner_messages(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="新着メッセージです",
+        )
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_inbox"))
+        self.assertContains(response, "has-unread")
+        self.assertContains(response, 'data-dm-unread-badge')
+        self.assertContains(response, 'data-room-pk="' + str(room.pk) + '"')
+
+    def test_dm_unread_summary_api_returns_room_counts(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="1件目",
+        )
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="2件目",
+        )
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("dm_unread_summary"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total_unread"], 2)
+        self.assertEqual(payload["rooms"][0]["room_pk"], room.pk)
+        self.assertEqual(payload["rooms"][0]["unread_count"], 2)
+
+    def test_opening_dm_room_marks_messages_read(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="既読にしたい",
+        )
+        self.client.force_login(self.user_a)
+        self.client.get(reverse("user_dm_room", args=[room.pk]))
+        response = self.client.get(reverse("dm_unread_summary"))
+        self.assertEqual(response.json()["total_unread"], 0)
+
     def test_dm_inbox_shows_messages_nav_active(self):
         self.client.force_login(self.user_a)
         response = self.client.get(reverse("user_dm_inbox"))
