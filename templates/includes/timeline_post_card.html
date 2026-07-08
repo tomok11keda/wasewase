@@ -123,6 +123,8 @@
                 {% csrf_token %}
                 <button type="submit" class="btn-comment-delete" aria-label="コメントを削除">削除</button>
               </form>
+              {% elif ugc_report_enabled and comment.author_id != user.id %}
+              {% include "includes/ugc_report_button.html" with report_type="comment" report_id=comment.pk %}
               {% endif %}
             </p>
             <p class="comment-body">{{ comment.body|linkify_mentions }}</p>

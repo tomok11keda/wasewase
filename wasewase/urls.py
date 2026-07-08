@@ -89,6 +89,7 @@ urlpatterns = [
     path("notifications/", app_views.notifications, name="notifications"),
     path("mypage/", app_views.mypage, name="mypage"),
     path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),
+    path("account/delete/", app_views.delete_account, name="delete_account"),
     path("user/<int:pk>/follow/", app_views.toggle_follow, name="toggle_follow"),
     path("user/<int:pk>/block/", app_views.toggle_block, name="toggle_block"),
     path("report/", app_views.submit_report, name="submit_report"),

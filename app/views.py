@@ -667,6 +667,32 @@ def toggle_block(request, pk):
     return redirect(next_url)
 
 
+@login_required
+@require_POST
+def delete_account(request):
+    confirmation = (request.POST.get("confirm_delete") or "").strip().upper()
+    if confirmation != "DELETE":
+        messages.error(
+            request,
+            "アカウント削除を実行するには確認チェックが必要です。",
+        )
+        return redirect(reverse("more_index"))
+
+    user = request.user
+    with transaction.atomic():
+        TimelinePost.objects.filter(author=user).delete()
+        Comment.objects.filter(author=user).delete()
+        Product.objects.filter(seller=user).delete()
+        ContentReport.objects.filter(reporter=user).delete()
+        Notification.objects.filter(recipient=user).delete()
+        UserDirectMessageRoom.objects.filter(Q(user_a=user) | Q(user_b=user)).delete()
+        user.delete()
+
+    logout(request)
+    messages.success(request, "アカウントを完全に削除しました。ご利用ありがとうございました。")
+    return redirect(reverse("home"))
+
+
 def _wants_json_response(request) -> bool:
     accept = request.headers.get("Accept", "")
     if "application/json" in accept:
