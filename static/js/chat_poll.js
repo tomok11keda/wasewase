@@ -31,17 +31,51 @@
     return list;
   }
 
+  function createAvatar(msg) {
+    var avatar = document.createElement("div");
+    avatar.className = "chat-row__avatar";
+
+    if (msg.avatar_url) {
+      var img = document.createElement("img");
+      img.className = "user-avatar user-avatar--image";
+      img.src = msg.avatar_url;
+      img.alt = msg.sender_name || "";
+      img.width = 26;
+      img.height = 26;
+      img.loading = "lazy";
+      avatar.appendChild(img);
+      return avatar;
+    }
+
+    var initial = document.createElement("span");
+    initial.className = "user-avatar user-avatar--initial";
+    initial.setAttribute("aria-hidden", "true");
+    initial.textContent = msg.sender_initial || "?";
+    avatar.appendChild(initial);
+    return avatar;
+  }
+
   function createMessageItem(msg) {
     var li = document.createElement("li");
-    li.className = "chat-msg" + (msg.is_mine ? " is-mine" : "");
+    li.className = "chat-row" + (msg.is_mine ? " is-mine" : "");
     li.dataset.messageId = String(msg.id);
 
-    var meta = document.createElement("div");
-    meta.className = "chat-msg-meta";
-    meta.textContent = msg.sender_name + " \u00b7 " + msg.created_at;
-    li.appendChild(meta);
-    li.appendChild(document.createTextNode(msg.body));
+    li.appendChild(createAvatar(msg));
 
+    var main = document.createElement("div");
+    main.className = "chat-row__main";
+
+    var bubble = document.createElement("div");
+    bubble.className = "chat-row__bubble";
+    bubble.textContent = msg.body;
+    main.appendChild(bubble);
+
+    var time = document.createElement("time");
+    time.className = "chat-row__time";
+    time.textContent = msg.created_at;
+    main.appendChild(time);
+
+    li.appendChild(main);
     return li;
   }
 

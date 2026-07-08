@@ -116,11 +116,13 @@ from .services import (
     build_search_url,
     get_following_user_ids,
     get_profile_stats,
+    get_user_avatar_url,
     get_user_faculty,
     get_user_rating_stats,
     is_following,
     search_products,
     search_timeline_posts,
+    user_avatar_initial,
     user_display_name,
 )
 from .ugc_services import (
@@ -137,10 +139,13 @@ User = get_user_model()
 
 def _serialize_room_message(message, current_user_id):
     created = timezone.localtime(message.created_at)
+    avatar_url = get_user_avatar_url(message.sender)
     return {
         "id": message.pk,
         "sender_id": message.sender_id,
         "sender_name": user_display_name(message.sender),
+        "sender_initial": user_avatar_initial(message.sender),
+        "avatar_url": avatar_url or "",
         "body": message.body,
         "created_at": created.strftime("%m/%d %H:%M"),
         "is_mine": message.sender_id == current_user_id,
