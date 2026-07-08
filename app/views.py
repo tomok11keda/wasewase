@@ -96,6 +96,10 @@ from .media_services import (
     prepare_image_field_for_save,
     validate_timeline_image_file,
 )
+from .notification_services import (
+    get_unread_notification_count,
+    mark_all_notifications_read,
+)
 from .otp_services import (
     EmailConfigurationError,
     SIGNUP_PENDING_SESSION_KEY,
@@ -574,12 +578,33 @@ def create_community_thread_reply(request, slug, thread_pk):
 @login_required
 def notifications(request):
     items = Notification.objects.filter(recipient=request.user)
-    items.filter(is_read=False).update(is_read=True)
+    mark_all_notifications_read(request.user)
 
     return render(
         request,
         "notifications.html",
         {"notifications": items, "nav_active": "notifications"},
+    )
+
+
+@login_required
+@require_GET
+def notification_unread_count(request):
+    return JsonResponse(
+        {"unread_count": get_unread_notification_count(request.user)}
+    )
+
+
+@login_required
+@require_POST
+def notification_mark_read(request):
+    marked_count = mark_all_notifications_read(request.user)
+    return JsonResponse(
+        {
+            "ok": True,
+            "unread_count": 0,
+            "marked_count": marked_count,
+        }
     )
 
 

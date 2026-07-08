@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from urllib.parse import quote
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core import mail
@@ -2195,6 +2196,73 @@ class AccountDeletionTests(TestCase):
         )
         self.assertRedirects(response, reverse("more_index"))
         self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
+
+
+class NotificationBadgeApiTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="notify@example.com",
+            password="pass12345",
+            username="notify_user",
+        )
+        Notification.objects.create(
+            recipient=self.user,
+            message="未読1",
+            is_read=False,
+        )
+        Notification.objects.create(
+            recipient=self.user,
+            message="未読2",
+            is_read=False,
+        )
+        Notification.objects.create(
+            recipient=self.user,
+            message="既読",
+            is_read=True,
+        )
+
+    def test_unread_count_api_returns_count(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("notification_unread_count"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["unread_count"], 2)
+
+    def test_mark_read_api_clears_unread_count(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("notification_mark_read"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["unread_count"], 0)
+        self.assertEqual(payload["marked_count"], 2)
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user, is_read=False).count(),
+            0,
+        )
+
+    def test_home_includes_notification_badge_script(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "notification_badge.js")
+        self.assertContains(response, "data-notification-badge")
+
+    def test_notifications_page_sets_mark_read_flag(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("notifications"))
+        self.assertContains(response, "WASE_MARK_NOTIFICATIONS_READ = true")
+
+    def test_push_received_triggers_badge_refresh_hooks(self):
+        badge_js = (
+            settings.BASE_DIR / "static" / "js" / "notification_badge.js"
+        ).read_text(encoding="utf-8")
+        capacitor_js = (
+            settings.BASE_DIR / "static" / "js" / "capacitor_native.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("wase:push-received", badge_js)
+        self.assertIn("WaseNotifications", badge_js)
+        self.assertIn("wase:push-received", capacitor_js)
+        self.assertIn("dispatchPushReceivedEvent", capacitor_js)
 
 
 class AppShellNavTests(TestCase):

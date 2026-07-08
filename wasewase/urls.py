@@ -87,6 +87,16 @@ urlpatterns = [
         name="send_user_dm_message",
     ),
     path("notifications/", app_views.notifications, name="notifications"),
+    path(
+        "api/notifications/unread-count/",
+        app_views.notification_unread_count,
+        name="notification_unread_count",
+    ),
+    path(
+        "api/notifications/mark-read/",
+        app_views.notification_mark_read,
+        name="notification_mark_read",
+    ),
     path("mypage/", app_views.mypage, name="mypage"),
     path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),
     path("account/delete/", app_views.delete_account, name="delete_account"),
