@@ -75,6 +75,7 @@ urlpatterns = [
     path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
     path("user/<int:pk>/dm/start/", app_views.start_user_dm, name="start_user_dm"),
     path("dm/", app_views.user_dm_inbox, name="user_dm_inbox"),
+    path("api/dm/unread-summary/", app_views.dm_unread_summary, name="dm_unread_summary"),
     path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),
     path(
         "dm/<int:room_pk>/messages/",
