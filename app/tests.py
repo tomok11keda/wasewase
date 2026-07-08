@@ -1777,6 +1777,7 @@ class PwaTests(TestCase):
         self.assertEqual(terms.status_code, 200)
         self.assertContains(terms, "利用規約")
         self.assertContains(terms, "第1条（利用資格）")
+        self.assertContains(terms, "不適切なコンテンツ")
 
         support = self.client.get(reverse("support"))
         self.assertEqual(support.status_code, 200)
@@ -2123,6 +2124,77 @@ class UGCSafetyTests(TestCase):
 
         response = self.client.get(reverse("product_detail", args=[self.product.pk]))
         self.assertEqual(response.status_code, 404)
+
+    def test_timeline_comment_shows_report_button_for_other_user(self):
+        Comment.objects.create(
+            timeline_post=self.post,
+            author=self.author,
+            body="コメントです",
+        )
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'data-report-type="comment"')
+
+
+class AccountDeletionTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="delete_me@example.com",
+            password="pass12345",
+            username="delete_me",
+        )
+        self.other = User.objects.create_user(
+            email="other@example.com",
+            password="pass12345",
+            username="other_user",
+        )
+        self.post = TimelinePost.objects.create(
+            author=self.user,
+            body="削除予定の投稿",
+            course_name="統計学",
+        )
+        self.product = Product.objects.create(
+            seller=self.user,
+            name="削除予定の出品",
+            price=300,
+            category="本",
+        )
+        self.dm_room, _ = get_or_create_dm_room(self.user, self.other)
+        UserDirectMessage.objects.create(
+            room=self.dm_room,
+            sender=self.user,
+            body="削除予定のDM",
+        )
+
+    def test_more_page_has_delete_account_button(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("more_index"))
+        self.assertContains(response, reverse("delete_account"))
+        self.assertContains(response, "アカウントを完全に削除する")
+
+    def test_delete_account_removes_user_and_related_content(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("delete_account"),
+            {"confirm_delete": "DELETE"},
+            follow=True,
+        )
+        self.assertRedirects(response, reverse("home"))
+        self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(TimelinePost.objects.filter(pk=self.post.pk).exists())
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertFalse(UserDirectMessageRoom.objects.filter(pk=self.dm_room.pk).exists())
+
+    def test_delete_account_requires_confirmation_token(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("delete_account"),
+            {"confirm_delete": "nope"},
+            follow=True,
+        )
+        self.assertRedirects(response, reverse("more_index"))
+        self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
 
 
 class AppShellNavTests(TestCase):

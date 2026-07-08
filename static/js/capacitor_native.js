@@ -66,6 +66,100 @@
     return window.Capacitor.Plugins[name] || null;
   }
 
+  function showCameraAlert(message) {
+    if (typeof window.alert === "function") {
+      window.alert(message);
+    }
+  }
+
+  function isPermissionDeniedStatus(status) {
+    return status === "denied" || status === "prompt-with-rationale";
+  }
+
+  async function attachNativeCameraPhoto(input) {
+    var Camera = getPlugin("Camera");
+    if (!Camera || typeof Camera.getPhoto !== "function") {
+      return false;
+    }
+    if (input.disabled) {
+      return false;
+    }
+
+    try {
+      if (typeof Camera.checkPermissions === "function") {
+        var permission = await Camera.checkPermissions();
+        if (permission && isPermissionDeniedStatus(permission.camera)) {
+          if (typeof Camera.requestPermissions === "function") {
+            permission = await Camera.requestPermissions({ permissions: ["camera"] });
+          }
+        }
+        if (permission && isPermissionDeniedStatus(permission.camera)) {
+          showCameraAlert("カメラへのアクセスが許可されていません。設定アプリでカメラ権限を許可してください。");
+          return true;
+        }
+      }
+
+      var photo = await Camera.getPhoto({
+        quality: 85,
+        resultType: "uri",
+        source: "prompt",
+        saveToGallery: false,
+      });
+      if (!photo || !photo.webPath) {
+        showCameraAlert("カメラ画像を取得できませんでした。");
+        return true;
+      }
+
+      var response = await fetch(photo.webPath);
+      var blob = await response.blob();
+      var file = new File(
+        [blob],
+        "camera_" + Date.now() + ".jpg",
+        { type: blob.type || "image/jpeg" }
+      );
+      var dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      input.files = dataTransfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    } catch (error) {
+      var message = String(
+        (error && (error.message || error.localizedDescription)) || error || ""
+      ).toLowerCase();
+      if (message.indexOf("cancel") >= 0) {
+        return true;
+      }
+      logNativeError("Camera getPhoto failed", error);
+      showCameraAlert(
+        "カメラを起動できませんでした。カメラが利用可能か確認してから、もう一度お試しください。"
+      );
+      return true;
+    }
+  }
+
+  function setupNativeCameraInputGuard() {
+    if (!isNativeApp()) {
+      return;
+    }
+    if (!getPlugin("Camera")) {
+      return;
+    }
+    document.addEventListener("click", function (event) {
+      var input = event.target.closest('input[type="file"][accept*="image"]');
+      if (!input || input.dataset.nativeCameraGuarded === "1") {
+        return;
+      }
+      input.dataset.nativeCameraGuarded = "1";
+      input.addEventListener("click", function (innerEvent) {
+        innerEvent.preventDefault();
+        attachNativeCameraPhoto(input).catch(function (error) {
+          logNativeError("Camera guard failed", error);
+          showCameraAlert("カメラの起動に失敗しました。");
+        });
+      });
+    });
+  }
+
   function logNative(label, detail) {
     if (window.console && console.info) {
       console.info("[WaseCapacitor] " + label, detail || "");
@@ -715,6 +809,7 @@
     }
 
     document.documentElement.classList.add("is-native-capacitor");
+    setupNativeCameraInputGuard();
     logNative("bootstrap start", {
       href: window.location.href,
       hasAdMobConfig: Boolean(window.WASE_ADMOB_CONFIG),
