@@ -263,6 +263,18 @@
     window.history.replaceState({}, "", nextUrl);
   }
 
+  function dispatchPushReceivedEvent(notification) {
+    window.dispatchEvent(
+      new CustomEvent("wase:push-received", { detail: notification || null })
+    );
+    if (
+      window.WaseNotifications &&
+      typeof window.WaseNotifications.refresh === "function"
+    ) {
+      window.WaseNotifications.refresh();
+    }
+  }
+
   async function registerTokenWithBackend(token) {
     if (!token) {
       return;
@@ -315,10 +327,12 @@
 
     await PushNotifications.addListener("pushNotificationReceived", function (notification) {
       logNative("Push received (foreground)", notification);
+      dispatchPushReceivedEvent(notification);
     });
 
     await PushNotifications.addListener("pushNotificationActionPerformed", function (action) {
       logNative("Push action performed", action);
+      dispatchPushReceivedEvent(action && action.notification);
     });
 
     var permission = await PushNotifications.requestPermissions();

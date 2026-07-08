@@ -1,6 +1,7 @@
 from .board_services import get_quotable_post
 from .forms import TimelinePostForm
-from .models import ContentReport, Notification
+from .models import ContentReport
+from .notification_services import get_unread_notification_count
 
 
 def timeline_compose(request):
@@ -18,13 +19,9 @@ def timeline_compose(request):
 
 
 def notification_badge(request):
-    if request.user.is_authenticated:
-        unread = Notification.objects.filter(
-            recipient=request.user, is_read=False
-        ).count()
-    else:
-        unread = 0
-    return {"unread_notifications": unread}
+    return {
+        "unread_notifications": get_unread_notification_count(request.user),
+    }
 
 
 def ugc_safety(request):
