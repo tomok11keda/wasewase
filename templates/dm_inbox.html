@@ -299,7 +299,7 @@
                 <span class="dm-inbox-handle">{{ item.subtitle }}</span>
                 {% if item.latest_message %}
                 <p class="dm-inbox-preview{% if item.latest_message.sender_id == user.id %} is-mine{% endif %}">
-                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_message.sender|display_name }}: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
+                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
                 </p>
                 {% else %}
                 <p class="dm-inbox-preview">まだメッセージはありません</p>

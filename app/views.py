@@ -930,11 +930,20 @@ def user_profile(request, pk):
 
 @login_required
 def user_dm_inbox(request):
+    try:
+        conversations = build_inbox_conversations(request.user)
+    except Exception as exc:
+        logger.warning("user_dm_inbox failed to build conversations: %s", exc)
+        conversations = []
+        messages.error(
+            request,
+            "メッセージ一覧の取得中に一部データの問題が発生しました。再読み込みしてください。",
+        )
     return render(
         request,
         "dm_inbox.html",
         {
-            "conversations": build_inbox_conversations(request.user),
+            "conversations": conversations,
             "nav_active": "dm",
             "header_back_url": reverse("home"),
         },
@@ -944,7 +953,12 @@ def user_dm_inbox(request):
 @login_required
 @require_GET
 def dm_unread_summary(request):
-    return JsonResponse(build_inbox_unread_summary(request.user))
+    try:
+        payload = build_inbox_unread_summary(request.user)
+    except Exception as exc:
+        logger.warning("dm_unread_summary failed: %s", exc)
+        payload = {"total_unread": 0, "rooms": []}
+    return JsonResponse(payload)
 
 
 @login_required
