@@ -2519,6 +2519,82 @@ class AccountDeletionTests(TestCase):
         self.assertRedirects(response, reverse("account_settings"))
         self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
 
+    def test_delete_account_with_chat_and_community_data(self):
+        community = Community.objects.create(
+            slug="test-board",
+            name="テスト掲示板",
+        )
+        CommunityThread.objects.create(
+            community=community,
+            author=self.user,
+            title="退会テストスレ",
+            body="本文",
+        )
+        group_room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            name="テストグループ",
+            created_by=self.user,
+        )
+        ChatRoomMembership.objects.create(room=group_room, user=self.user)
+        ChatMessage.objects.create(
+            room=group_room,
+            sender=self.user,
+            body="グループメッセージ",
+        )
+        seller_product = Product.objects.create(
+            seller=self.other,
+            name="他者出品",
+            price=500,
+            category="本",
+        )
+        buyer_room = ChatRoom.objects.create(
+            product=seller_product,
+            buyer=self.user,
+        )
+        Message.objects.create(
+            chat_room=buyer_room,
+            sender=self.user,
+            body="取引チャット",
+        )
+        DevicePushToken.objects.create(
+            user=self.user,
+            token="test-device-token",
+            platform=DevicePushToken.Platform.IOS,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("delete_account"),
+            {"confirm_delete": "DELETE"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("home"))
+        self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(
+            CommunityThread.objects.filter(author_id=self.user.pk).exists()
+        )
+        self.assertFalse(
+            ChatRoomMembership.objects.filter(user_id=self.user.pk).exists()
+        )
+        self.assertFalse(ChatRoom.objects.filter(pk=buyer_room.pk).exists())
+        self.assertFalse(DevicePushToken.objects.filter(user_id=self.user.pk).exists())
+
+    @patch("app.views.delete_user_account", side_effect=RuntimeError("db error"))
+    def test_delete_account_survives_internal_error(self, _mock_delete):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("delete_account"),
+            {"confirm_delete": "DELETE"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("home"))
+        self.assertContains(response, "アカウントを削除しました")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
 
 class NotificationBadgeApiTests(TestCase):
     def setUp(self):

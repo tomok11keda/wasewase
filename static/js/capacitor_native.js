@@ -1,5 +1,5 @@
 /**
- * Capacitor ネイティブアプリ（iOS）向け: AdMob + プッシュ通知。
+ * Capacitor ネイティブアプリ（iOS）向け: AdMob + プッシュ通知 + Firebase Analytics。
  * Web ブラウザでは AdMob は動作しません。
  */
 (function (window) {
@@ -19,6 +19,7 @@
   var bannerRepositionTimer = null;
   var bannerRepositionInFlight = false;
   var bannerFailureListenersReady = false;
+  var lastTrackedAnalyticsScreen = "";
 
   var DEFAULT_ADMOB_IDS = {
     test: {
@@ -169,6 +170,51 @@
   function logNativeError(label, detail) {
     if (window.console && console.error) {
       console.error("[WaseCapacitor] " + label, detail || "");
+    }
+  }
+
+  function getAnalyticsScreenName() {
+    var path = window.location.pathname || "/";
+    var search = window.location.search || "";
+    return path + search;
+  }
+
+  async function trackPageView(reason) {
+    if (!isNativeApp()) {
+      return;
+    }
+
+    var Analytics = getPlugin("FirebaseAnalytics");
+    if (!Analytics) {
+      return;
+    }
+
+    var screenName = getAnalyticsScreenName();
+    if (screenName === lastTrackedAnalyticsScreen) {
+      return;
+    }
+
+    try {
+      if (typeof Analytics.setCurrentScreen === "function") {
+        await Analytics.setCurrentScreen({
+          screenName: screenName,
+          screenClassOverride: "WaseWebView",
+        });
+      }
+      if (typeof Analytics.logEvent === "function") {
+        await Analytics.logEvent({
+          name: "screen_view",
+          params: {
+            firebase_screen: screenName,
+            firebase_screen_class: "WaseWebView",
+            page_reason: reason || "navigation",
+          },
+        });
+      }
+      lastTrackedAnalyticsScreen = screenName;
+      logNative("Analytics page view", { screenName: screenName, reason: reason || "navigation" });
+    } catch (error) {
+      logNativeError("Analytics page view failed", error);
     }
   }
 
@@ -830,6 +876,8 @@
     });
 
     try {
+      await trackPageView("bootstrap");
+
       var adMobPlugin = await waitForAdMobPlugin(50);
       if (!adMobPlugin) {
         logNativeError("AdMob plugin not available", {
@@ -859,6 +907,7 @@
     isNativeApp: isNativeApp,
     isProductionAds: isProductionAds,
     getActiveAdIds: getActiveAdIds,
+    trackPageView: trackPageView,
     showInterstitialAd: showInterstitialAd,
     showBannerAd: showBannerAd,
     showAppOpenAd: showAppOpenAd,
@@ -886,6 +935,9 @@
     if (!isNativeApp()) {
       return;
     }
+    trackPageView("pageshow").catch(function (error) {
+      logNativeError("Analytics pageshow failed", error);
+    });
     if (bannerTrackingReady) {
       scheduleBannerReposition();
       return;
