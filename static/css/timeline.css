@@ -65,6 +65,20 @@
   line-height: 1;
   overflow: hidden;
 }
+.tweet-avatar--deleted {
+  background: #eff3f4;
+  color: var(--tweet-muted);
+  font-size: 15px;
+  cursor: default;
+}
+.tweet-author--deleted {
+  color: var(--tweet-muted);
+  font-weight: 700;
+}
+.quoted-post-author--deleted {
+  color: var(--tweet-muted);
+  font-weight: 700;
+}
 
 .tweet-main {
   min-width: 0;

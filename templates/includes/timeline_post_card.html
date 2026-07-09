@@ -1,22 +1,30 @@
 {% load wase_extras %}
 <article id="post-{{ post.pk }}" class="tweet-card">
   <div class="tweet-layout">
+    {% if post.author %}
     <a class="tweet-avatar" href="{% url 'user_profile' post.author.pk %}" aria-hidden="true">
       {% render_user_avatar post.author size=40 extra_class="tweet-avatar__img" %}
     </a>
+    {% else %}
+    <span class="tweet-avatar tweet-avatar--deleted" aria-hidden="true">退</span>
+    {% endif %}
     <div class="tweet-main">
       <header class="tweet-header">
         <div class="tweet-identity">
+          {% if post.author %}
           <a class="tweet-author" href="{% url 'user_profile' post.author.pk %}">{{ post.author|display_name }}</a>
           <a class="tweet-handle" href="{% url 'user_profile' post.author.pk %}">@{{ post.author.username }}</a>
+          {% else %}
+          <span class="tweet-author tweet-author--deleted">退会済みユーザー</span>
+          {% endif %}
           <span class="tweet-meta-dot" aria-hidden="true">·</span>
           <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}</time>
         </div>
         <div class="tweet-header-menu">
-          {% if ugc_report_enabled and post.author_id != user.id %}
+          {% if ugc_report_enabled and post.author_id and post.author_id != user.id %}
           {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk %}
           {% endif %}
-          {% if user.is_authenticated and post.author_id != user.id %}
+          {% if user.is_authenticated and post.author_id and post.author_id != user.id %}
           <form class="tweet-menu-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
             {% csrf_token %}
             <button type="submit" class="tweet-menu-btn" aria-label="{{ post.author|display_name }}にDM">DM</button>

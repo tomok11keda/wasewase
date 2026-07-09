@@ -1,0 +1,259 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {% include "includes/pwa_head.html" %}
+  <title>わせわせ — アカウント設定</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
+      --danger: #c62828;
+      --danger-bg: #fff5f5;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: 24px;
+    }
+    .site-header {
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 16px;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: #fff;
+      text-decoration: none;
+    }
+    .main-inner {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+    .settings-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      margin-bottom: 12px;
+    }
+    .settings-card h2 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+    .settings-card p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .settings-card--danger {
+      border: 1px solid #f5c6c6;
+      background: var(--danger-bg);
+    }
+    .settings-card--danger h2 {
+      color: var(--danger);
+    }
+    .btn-danger-outline {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--danger);
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-danger-outline:hover { background: #fff0f0; }
+    .messages { list-style: none; padding: 0; margin: 0 0 12px; }
+    .messages li {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+      background: #fff;
+    }
+    .messages .error { background: #fdecea; color: #b71c1c; }
+    .messages .success { background: #e8f5e9; color: #1b5e20; }
+    .delete-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .delete-modal[hidden] { display: none; }
+    .delete-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+    }
+    .delete-modal__panel {
+      position: relative;
+      width: min(100%, 420px);
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+    .delete-modal__panel h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: var(--danger);
+    }
+    .delete-modal__panel ul {
+      margin: 0 0 14px;
+      padding-left: 1.2em;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .delete-confirm-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .delete-confirm-check input { margin-top: 3px; }
+    .delete-modal__actions {
+      display: flex;
+      gap: 10px;
+    }
+    .delete-modal__actions button {
+      flex: 1;
+      padding: 11px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-cancel {
+      background: #eff3f4;
+      color: #0f1419;
+    }
+    .btn-delete {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-delete:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="back-link" href="{% url 'mypage_edit' %}">← プロフィール設定に戻る</a>
+    <h1 style="margin:0;font-size:18px;">アカウント設定</h1>
+  </header>
+
+  <main class="main-inner">
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <section class="settings-card">
+      <h2>ログイン中のアカウント</h2>
+      <p>@{{ user.username }}</p>
+    </section>
+
+    <section class="settings-card settings-card--danger">
+      <h2>アカウント削除（退会）</h2>
+      <p>
+        プロフィール・フォロー・DM などの個人データは削除されます。
+        タイムラインの投稿は「退会済みユーザー」として残ります。
+        この操作は取り消せません。
+      </p>
+      <button type="button" class="btn-danger-outline" id="open-delete-modal">
+        アカウントを削除する
+      </button>
+    </section>
+  </main>
+
+  <div id="delete-account-modal" class="delete-modal" hidden aria-hidden="true">
+    <div class="delete-modal__backdrop" data-delete-modal-close></div>
+    <div class="delete-modal__panel" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <h3 id="delete-modal-title">本当にアカウントを削除しますか？</h3>
+      <ul>
+        <li>プロフィール・フォロー・DM は削除されます</li>
+        <li>投稿は削除されず「退会済みユーザー」として残ります</li>
+        <li>削除後は自動的にログアウトされます</li>
+      </ul>
+      <form method="post" action="{% url 'delete_account' %}" id="delete-account-form">
+        {% csrf_token %}
+        <input type="hidden" name="confirm_delete" value="DELETE">
+        <label class="delete-confirm-check">
+          <input type="checkbox" id="delete-confirm-checkbox" required>
+          <span>上記の内容を理解し、アカウントを削除します</span>
+        </label>
+        <div class="delete-modal__actions">
+          <button type="button" class="btn-cancel" data-delete-modal-close>キャンセル</button>
+          <button type="submit" class="btn-delete" id="delete-submit-btn" disabled>削除する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var modal = document.getElementById("delete-account-modal");
+      var openBtn = document.getElementById("open-delete-modal");
+      var checkbox = document.getElementById("delete-confirm-checkbox");
+      var submitBtn = document.getElementById("delete-submit-btn");
+
+      function openModal() {
+        if (!modal) return;
+        modal.hidden = false;
+        modal.setAttribute("aria-hidden", "false");
+        if (checkbox) checkbox.checked = false;
+        if (submitBtn) submitBtn.disabled = true;
+      }
+
+      function closeModal() {
+        if (!modal) return;
+        modal.hidden = true;
+        modal.setAttribute("aria-hidden", "true");
+      }
+
+      if (openBtn) openBtn.addEventListener("click", openModal);
+      if (modal) {
+        modal.querySelectorAll("[data-delete-modal-close]").forEach(function (el) {
+          el.addEventListener("click", closeModal);
+        });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && modal && !modal.hidden) closeModal();
+        });
+      }
+      if (checkbox && submitBtn) {
+        checkbox.addEventListener("change", function () {
+          submitBtn.disabled = !checkbox.checked;
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

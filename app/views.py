@@ -19,6 +19,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from .account_deletion_services import delete_user_account
 from .community_services import (
     build_communities_index_url,
     can_delete_community_content,
@@ -703,6 +704,11 @@ def mypage_edit(request):
 
 
 @login_required
+def account_settings(request):
+    return render(request, "settings.html")
+
+
+@login_required
 @require_POST
 def toggle_follow(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
@@ -760,20 +766,13 @@ def delete_account(request):
             request,
             "アカウント削除を実行するには確認チェックが必要です。",
         )
-        return redirect(reverse("more_index"))
+        return redirect(reverse("account_settings"))
 
     user = request.user
-    with transaction.atomic():
-        TimelinePost.objects.filter(author=user).delete()
-        Comment.objects.filter(author=user).delete()
-        Product.objects.filter(seller=user).delete()
-        ContentReport.objects.filter(reporter=user).delete()
-        Notification.objects.filter(recipient=user).delete()
-        UserDirectMessageRoom.objects.filter(Q(user_a=user) | Q(user_b=user)).delete()
-        user.delete()
+    delete_user_account(user)
 
     logout(request)
-    messages.success(request, "アカウントを完全に削除しました。ご利用ありがとうございました。")
+    messages.success(request, "アカウントを削除しました。ご利用ありがとうございました。")
     return redirect(reverse("home"))
 
 

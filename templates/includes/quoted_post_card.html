@@ -6,8 +6,12 @@
 {% else %}
 <a class="quoted-post-card" href="{% url 'home' %}#post-{{ post.pk }}">
   <div class="quoted-post-header">
+    {% if post.author %}
     <span class="quoted-post-author">{{ post.author|display_name }}</span>
     <span class="quoted-post-handle">@{{ post.author.username }}</span>
+    {% else %}
+    <span class="quoted-post-author quoted-post-author--deleted">退会済みユーザー</span>
+    {% endif %}
   </div>
   {% if post.course_name %}
   <span class="quoted-post-tag">📘 {{ post.course_name }}</span>

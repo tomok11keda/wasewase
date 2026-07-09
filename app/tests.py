@@ -2453,13 +2453,13 @@ class AccountDeletionTests(TestCase):
             body="削除予定のDM",
         )
 
-    def test_more_page_has_delete_account_button(self):
+    def test_settings_page_has_delete_account_button(self):
         self.client.force_login(self.user)
-        response = self.client.get(reverse("more_index"))
+        response = self.client.get(reverse("account_settings"))
         self.assertContains(response, reverse("delete_account"))
-        self.assertContains(response, "アカウントを完全に削除する")
+        self.assertContains(response, "アカウントを削除する")
 
-    def test_delete_account_removes_user_and_related_content(self):
+    def test_delete_account_removes_user_and_anonymizes_posts(self):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("delete_account"),
@@ -2468,9 +2468,18 @@ class AccountDeletionTests(TestCase):
         )
         self.assertRedirects(response, reverse("home"))
         self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
-        self.assertFalse(TimelinePost.objects.filter(pk=self.post.pk).exists())
+        self.post.refresh_from_db()
+        self.assertTrue(TimelinePost.objects.filter(pk=self.post.pk).exists())
+        self.assertIsNone(self.post.author_id)
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
         self.assertFalse(UserDirectMessageRoom.objects.filter(pk=self.dm_room.pk).exists())
+
+    def test_deleted_user_post_shows_anonymous_label_on_home(self):
+        TimelinePost.objects.filter(pk=self.post.pk).update(author=None)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "退会済みユーザー")
+        self.assertContains(response, "削除予定の投稿")
 
     def test_delete_account_requires_confirmation_token(self):
         self.client.force_login(self.user)
@@ -2479,7 +2488,7 @@ class AccountDeletionTests(TestCase):
             {"confirm_delete": "nope"},
             follow=True,
         )
-        self.assertRedirects(response, reverse("more_index"))
+        self.assertRedirects(response, reverse("account_settings"))
         self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
 
 
