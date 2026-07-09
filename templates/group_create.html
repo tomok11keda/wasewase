@@ -1,0 +1,275 @@
+{% load wase_extras static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {% include "includes/pwa_head.html" %}
+  <title>わせわせ — グループ作成</title>
+
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
+      --radius: 12px;
+      --shell-border: #eff3f4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .main-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 640px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 8px;
+    }
+
+    .shell-desktop .main-inner {
+      padding: 0 8px;
+    }
+
+    .dm-group-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--shell-border);
+      padding: 12px 16px;
+      border-radius: 0;
+    }
+
+    .dm-group-header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .dm-group-header p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 12px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .search-input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      font-family: inherit;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .user-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 52vh;
+      overflow-y: auto;
+    }
+
+    .user-item {
+      padding: 10px 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .user-item label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .user-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .user-item .user-text {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .user-item .user-name {
+      font-size: 14px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-item .user-handle {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid #ddd;
+      color: var(--text);
+    }
+  </style>
+</head>
+
+<body class="shell-desktop page-dm">
+  <div class="app-shell">
+    <aside class="sidebar-left" aria-label="サイドナビ">
+      {% include "includes/sidebar_nav.html" %}
+    </aside>
+
+    <div class="main-column">
+      {% include "includes/mobile_shell_header.html" with header_title="グループ作成" header_back_url=header_back_url|default:"" %}
+
+      {% if messages %}
+      <ul class="messages" style="margin: 8px 12px 0; padding: 0; list-style: none;">
+        {% for message in messages %}
+        <li style="padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 8px;{% if message.tags == 'error' %} background: #ffebee; color: #c62828;{% else %} background: #e8f5e9; color: #2e7d32;{% endif %}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <main class="main-inner" aria-label="グループ作成">
+        <div class="dm-group-header">
+          <h1>フォロー中ユーザーから選択</h1>
+          <p>相手は複数選択できます。検索バーで絞り込んでください。</p>
+        </div>
+
+        <form method="post" action="{% url 'dm_group_create' %}">
+          {% csrf_token %}
+          <div class="card" style="margin-top: 10px;">
+            <input
+              class="search-input"
+              type="text"
+              name="name"
+              maxlength="120"
+              placeholder="グループ名（任意）"
+              autocomplete="off"
+            >
+            <input
+              class="search-input"
+              id="user-search"
+              type="search"
+              placeholder="ユーザー名で検索（表示名 / @username）"
+              autocomplete="off"
+            >
+
+            <ul class="user-list" id="user-list">
+              {% for user in following_users %}
+              <li class="user-item">
+                <label>
+                  <input type="checkbox" name="member_ids" value="{{ user.pk }}">
+                  <span class="user-text">
+                    <span
+                      class="user-name"
+                      data-search="{{ user|display_name|lower }} {{ user.username|lower }}"
+                    >
+                      {{ user|display_name }}
+                    </span>
+                    <span class="user-handle">@{{ user.username }}</span>
+                  </span>
+                </label>
+              </li>
+              {% empty %}
+              <li class="user-item" style="color: var(--muted);">
+                フォロー中のユーザーがいません。
+              </li>
+              {% endfor %}
+            </ul>
+
+            <div class="actions">
+              <a class="btn btn-ghost" href="{% url 'user_dm_inbox' %}">キャンセル</a>
+              <button class="btn btn-primary" type="submit">作成</button>
+            </div>
+          </div>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var input = document.getElementById("user-search");
+      var list = document.getElementById("user-list");
+      if (!input || !list) return;
+
+      var items = list.querySelectorAll("[data-search]");
+      input.addEventListener("input", function () {
+        var q = (input.value || "").trim().toLowerCase();
+        items.forEach(function (el) {
+          var li = el.closest("li");
+          if (!li) return;
+          var hay = el.dataset.search || "";
+          var ok = !q || hay.indexOf(q) >= 0;
+          li.style.display = ok ? "" : "none";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
+

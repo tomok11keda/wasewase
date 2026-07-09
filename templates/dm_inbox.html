@@ -186,6 +186,39 @@
       color: var(--text);
       font-size: 16px;
     }
+    .dm-inbox-avatar.is-group {
+      font-size: 18px;
+      letter-spacing: -0.04em;
+    }
+    .dm-create-fab {
+      position: fixed;
+      right: 16px;
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+      z-index: 120;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 300;
+      line-height: 1;
+      text-decoration: none;
+      box-shadow: 0 4px 14px rgba(137, 30, 43, 0.38);
+    }
+    .dm-create-fab:hover,
+    .dm-create-fab:focus-visible {
+      background: var(--accent-dark);
+    }
+    @media (min-width: 1024px) {
+      .dm-create-fab {
+        right: 24px;
+        bottom: 24px;
+      }
+    }
     .messages {
       margin: 8px 12px 0; padding: 0; list-style: none;
     }
@@ -241,31 +274,32 @@
       >
         <header class="dm-inbox-header">
           <h1>メッセージ</h1>
-          <p>1対1のプライベートなやり取りです。</p>
+          <p>1対1のDMとグループチャットの一覧です。</p>
         </header>
 
         {% if conversations %}
         <ul class="dm-inbox-list">
           {% for item in conversations %}
-          {% if item.partner %}
           <li>
             <a
               class="dm-inbox-item{% if item.unread_count %} has-unread{% endif %}"
-              href="{% url 'user_dm_room' item.room.pk %}"
-              data-dm-room-pk="{{ item.room.pk }}"
+              href="{% if item.kind == 'group' %}{% url 'dm_group_room' item.room.pk %}{% else %}{% url 'user_dm_room' item.room.pk %}{% endif %}"
+              {% if item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
             >
-              <span class="dm-inbox-avatar" aria-hidden="true">{{ item.partner|display_name|truncatechars:1 }}</span>
+              <span class="dm-inbox-avatar{% if item.kind == 'group' %} is-group{% endif %}" aria-hidden="true">
+                {% if item.kind == 'group' %}👥{% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
+              </span>
               <span class="dm-inbox-body">
                 <span class="dm-inbox-top">
-                  <span class="dm-inbox-name">{{ item.partner|display_name }}</span>
+                  <span class="dm-inbox-name">{{ item.display_name }}</span>
                   {% if item.latest_message %}
                   <time class="dm-inbox-time" datetime="{{ item.latest_message.created_at|date:'c' }}">{{ item.latest_message.created_at|timesince }}</time>
                   {% endif %}
                 </span>
-                <span class="dm-inbox-handle">@{{ item.partner.username }}</span>
+                <span class="dm-inbox-handle">{{ item.subtitle }}</span>
                 {% if item.latest_message %}
                 <p class="dm-inbox-preview{% if item.latest_message.sender_id == user.id %} is-mine{% endif %}">
-                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
+                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_message.sender|display_name }}: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
                 </p>
                 {% else %}
                 <p class="dm-inbox-preview">まだメッセージはありません</p>
@@ -274,21 +308,22 @@
               <span
                 class="dm-inbox-unread"
                 data-dm-unread-badge
-                data-room-pk="{{ item.room.pk }}"
+                {% if item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
                 {% if item.unread_count <= 0 %}hidden{% endif %}
               >{% if item.unread_count %}{{ item.unread_count }}{% endif %}</span>
             </a>
           </li>
-          {% endif %}
           {% endfor %}
         </ul>
         {% else %}
         <div class="dm-inbox-empty">
           <strong>まだ会話がありません</strong>
-          プロフィールやタイムラインの「DM」ボタンから、相手との会話を始められます。
+          プロフィールやタイムラインの「DM」ボタンから1対1の会話を始めるか、右下の＋からグループを作成できます。
         </div>
         {% endif %}
       </main>
+
+      <a class="dm-create-fab" href="{% url 'dm_group_create' %}" aria-label="グループを作成">+</a>
     </div>
 
     <aside class="sidebar-right" aria-label="サイド情報">

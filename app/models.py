@@ -504,15 +504,40 @@ class TradeMessage(models.Model):
 class ChatRoom(models.Model):
     """商品 × 購入希望者ごとのチャットルーム（ジモティー型）。"""
 
+    class Kind(models.TextChoices):
+        PRODUCT = "product", "商品チャット"
+        GROUP = "group", "グループチャット"
+
+    kind = models.CharField(
+        max_length=20,
+        choices=Kind.choices,
+        default=Kind.PRODUCT,
+        db_index=True,
+    )
+    # グループチャット時の表示名（任意）。既存の「商品チャット」では未使用。
+    name = models.CharField(max_length=120, blank=True, default="")
+    # グループ作成者（任意）。既存の「商品チャット」では未使用。
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chat_rooms_created_by",
+    )
+
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
         related_name="chat_rooms",
+        null=True,
+        blank=True,
     )
     buyer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="product_chat_rooms",
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -527,7 +552,11 @@ class ChatRoom(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.product.name} × {self.buyer.username}"
+        if self.kind == ChatRoom.Kind.GROUP:
+            return self.name or f"グループチャット #{self.pk}"
+        if self.product_id and self.buyer_id:
+            return f"{self.product.name} × {self.buyer.username}"
+        return f"チャットルーム #{self.pk}"
 
 
 class Message(models.Model):
@@ -549,6 +578,94 @@ class Message(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sender}: {self.body[:30]}"
+
+
+class ChatRoomMembership(models.Model):
+    """ChatRoom に参加しているユーザー（グループチャット用）。"""
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "管理者"
+        MEMBER = "member", "メンバー"
+
+    room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_memberships",
+    )
+    role = models.CharField(
+        max_length=10,
+        choices=Role.choices,
+        default=Role.MEMBER,
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "user"],
+                name="unique_chat_room_membership",
+            )
+        ]
+        ordering = ["-joined_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} in room {self.room_id} ({self.role})"
+
+
+class ChatMessage(models.Model):
+    """グループチャット用のメッセージ。"""
+
+    room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="chat_messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_messages_sent",
+    )
+    body = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.sender}: {self.body[:30]}"
+
+
+class ChatReadState(models.Model):
+    """グループチャットの既読位置（ユーザー単位）。"""
+
+    room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="chat_read_states",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_read_states",
+    )
+    last_read_message_id = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "user"],
+                name="unique_chat_read_state_per_user_room",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"ChatRead {self.user_id} @ room {self.room_id}"
 
 
 class UserDirectMessageRoom(models.Model):

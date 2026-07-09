@@ -48,6 +48,13 @@ from .dm_services import (
     list_dm_read_message_ids_for_sender,
     mark_dm_room_read,
 )
+from .group_chat_services import (
+    assign_default_group_name,
+    can_access_group_room,
+    group_room_link,
+    mark_group_room_read,
+)
+from .inbox_services import build_inbox_conversations, build_inbox_unread_summary
 from .board_services import (
     prepare_timeline_post_for_save,
     TIMELINE_INITIAL_SIZE,
@@ -78,6 +85,9 @@ from .forms import (
 from .models import (
     Comment,
     Community,
+    ChatMessage,
+    ChatRoom,
+    ChatRoomMembership,
     ContentReport,
     Follow,
     Notification,
@@ -174,6 +184,42 @@ def _room_messages_json(request, room):
             "read_message_ids": list_dm_read_message_ids_for_sender(
                 room, request.user
             ),
+        }
+    )
+
+
+def _serialize_group_message(message, current_user_id):
+    created = timezone.localtime(message.created_at)
+    avatar_url = get_user_avatar_url(message.sender)
+    return {
+        "id": message.pk,
+        "sender_id": message.sender_id,
+        "sender_name": user_display_name(message.sender),
+        "sender_initial": user_avatar_initial(message.sender),
+        "avatar_url": avatar_url or "",
+        "body": message.body,
+        "created_at": created.strftime("%m/%d %H:%M"),
+        "is_mine": message.sender_id == current_user_id,
+    }
+
+
+def _group_messages_json(request, room):
+    message_queryset = room.chat_messages
+    after = request.GET.get("after", "").strip()
+    messages_qs = message_queryset.select_related("sender").order_by("created_at")
+    if after.isdigit():
+        messages_qs = messages_qs.filter(pk__gt=int(after))
+
+    latest_id = (
+        message_queryset.order_by("-pk").values_list("pk", flat=True).first() or 0
+    )
+    return JsonResponse(
+        {
+            "messages": [
+                _serialize_group_message(message, request.user.id)
+                for message in messages_qs
+            ],
+            "latest_id": latest_id,
         }
     )
 
@@ -889,7 +935,7 @@ def user_dm_inbox(request):
         request,
         "dm_inbox.html",
         {
-            "conversations": build_dm_conversations(request.user),
+            "conversations": build_inbox_conversations(request.user),
             "nav_active": "dm",
             "header_back_url": reverse("home"),
         },
@@ -899,7 +945,161 @@ def user_dm_inbox(request):
 @login_required
 @require_GET
 def dm_unread_summary(request):
-    return JsonResponse(build_dm_unread_summary(request.user))
+    return JsonResponse(build_inbox_unread_summary(request.user))
+
+
+@login_required
+def dm_group_create(request):
+    """
+    1対1 DM（UserDirectMessage）とは独立した、グループチャット作成用エンドポイント。
+
+    最低限のグループ作成フロー（部屋作成・参加者追加）だけを実装し、
+    既存 DM のロジックは一切変更しません。
+    """
+
+    following_ids = set(get_following_user_ids(request.user))
+    following_ids.discard(request.user.id)
+
+    if request.method == "POST":
+        selected_raw = request.POST.getlist("member_ids")
+        selected_ids: set[int] = set()
+        for raw in selected_raw:
+            if str(raw).isdigit():
+                selected_ids.add(int(raw))
+
+        # フォロー中ユーザーだけ許可（自己除外）
+        selected_ids.discard(request.user.id)
+        if not selected_ids:
+            messages.error(request, "グループに追加するユーザーを選択してください。")
+            return redirect(reverse("dm_group_create"))
+
+        if not selected_ids.issubset(following_ids):
+            messages.error(request, "選択されたユーザーの一部が不正です。")
+            return redirect(reverse("dm_group_create"))
+
+        try:
+            with transaction.atomic():
+                group_name = request.POST.get("name", "").strip()[:120]
+                room = ChatRoom.objects.create(
+                    kind=ChatRoom.Kind.GROUP,
+                    created_by=request.user,
+                    name=group_name,
+                )
+                memberships = [
+                    ChatRoomMembership(
+                        room=room,
+                        user=request.user,
+                        role=ChatRoomMembership.Role.OWNER,
+                    )
+                ]
+                for user_id in selected_ids:
+                    memberships.append(
+                        ChatRoomMembership(
+                            room=room,
+                            user_id=user_id,
+                            role=ChatRoomMembership.Role.MEMBER,
+                        )
+                    )
+                ChatRoomMembership.objects.bulk_create(memberships)
+                if not group_name:
+                    assign_default_group_name(room)
+        except IntegrityError:
+            messages.error(request, "グループ作成に失敗しました（重複など）。")
+            return redirect(reverse("dm_group_create"))
+
+        messages.success(request, "グループチャットを作成しました。")
+        return redirect(group_room_link(room))
+
+    following_users = list(
+        User.objects.filter(id__in=following_ids).order_by("id")
+    )
+    return render(
+        request,
+        "group_create.html",
+        {
+            "following_users": following_users,
+            "nav_active": "dm",
+            "header_back_url": reverse("user_dm_inbox"),
+        },
+    )
+
+
+@login_required
+def dm_group_room(request, room_pk):
+    room = get_object_or_404(
+        ChatRoom.objects.prefetch_related(
+            "memberships__user__profile",
+            "chat_messages__sender",
+        ),
+        pk=room_pk,
+        kind=ChatRoom.Kind.GROUP,
+    )
+    if not can_access_group_room(room, request.user):
+        messages.error(request, "このグループチャットにはアクセスできません。")
+        return redirect(reverse("user_dm_inbox"))
+
+    members = [
+        membership.user
+        for membership in room.memberships.select_related("user", "user__profile")
+    ]
+    group_messages = room.chat_messages.select_related("sender")
+    latest_message_id = mark_group_room_read(room, request.user)
+    display_name = room.name or f"グループ #{room.pk}"
+
+    return render(
+        request,
+        "group_room.html",
+        {
+            "room": room,
+            "display_name": display_name,
+            "members": members,
+            "group_messages": group_messages,
+            "back_url": reverse("user_dm_inbox"),
+            "latest_message_id": latest_message_id,
+            "messages_poll_url": reverse(
+                "dm_group_room_messages", kwargs={"room_pk": room.pk}
+            ),
+            "nav_active": "dm",
+        },
+    )
+
+
+@login_required
+@require_POST
+def send_group_message(request, room_pk):
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    if not can_access_group_room(room, request.user):
+        messages.error(request, "このグループチャットにはアクセスできません。")
+        return redirect(reverse("user_dm_inbox"))
+
+    body = request.POST.get("body", "").strip()
+    if not body:
+        messages.error(request, "メッセージを入力してください。")
+        return redirect(group_room_link(room))
+
+    if len(body) > 500:
+        messages.error(request, "メッセージが長すぎます（500文字以内）。")
+        return redirect(group_room_link(room))
+
+    ChatMessage.objects.create(
+        room=room,
+        sender=request.user,
+        body=body,
+    )
+    room.save(update_fields=["updated_at"])
+    return redirect(group_room_link(room))
+
+
+@login_required
+@require_GET
+def dm_group_room_messages(request, room_pk):
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    if not can_access_group_room(room, request.user):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    response = _group_messages_json(request, room)
+    mark_group_room_read(room, request.user)
+    return response
 
 
 @login_required

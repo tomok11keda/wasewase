@@ -78,6 +78,26 @@ urlpatterns = [
     path("api/dm/unread-summary/", app_views.dm_unread_summary, name="dm_unread_summary"),
     path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),
     path(
+        "dm/groups/create/",
+        app_views.dm_group_create,
+        name="dm_group_create",
+    ),
+    path(
+        "dm/groups/<int:room_pk>/",
+        app_views.dm_group_room,
+        name="dm_group_room",
+    ),
+    path(
+        "dm/groups/<int:room_pk>/messages/",
+        app_views.dm_group_room_messages,
+        name="dm_group_room_messages",
+    ),
+    path(
+        "dm/groups/<int:room_pk>/message/",
+        app_views.send_group_message,
+        name="send_group_message",
+    ),
+    path(
         "dm/<int:room_pk>/messages/",
         app_views.user_dm_room_messages,
         name="user_dm_room_messages",

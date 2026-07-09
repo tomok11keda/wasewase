@@ -1,0 +1,364 @@
+{% load wase_extras static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {% include "includes/pwa_head.html" %}
+  <title>わせわせ — {{ display_name }}</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --accent: #891E2B;
+      --accent-dark: #6f1722;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--accent);
+      color: #fff;
+      border-bottom: 1px solid var(--accent-dark);
+      padding: 12px 16px;
+    }
+
+    .back-link {
+      color: #fff;
+      font-size: 14px;
+      text-decoration: none;
+    }
+
+    .header-title {
+      margin: 6px 0 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .main-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 640px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 8px;
+    }
+
+    .flash-messages {
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .flash-messages li {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: #f7edf0;
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .group-info-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .group-info-name {
+      margin: 0 0 4px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .group-info-meta {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      min-height: 320px;
+    }
+
+    .chat-panel h2 {
+      margin: 0 0 2px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .chat-hint {
+      margin: 0 0 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .message-list {
+      flex: 1;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: calc(100dvh - 260px);
+      min-height: 220px;
+    }
+
+    .chat-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      max-width: 88%;
+    }
+
+    .chat-row.is-mine {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .chat-row:not(.is-mine) {
+      align-self: flex-start;
+    }
+
+    .chat-row__avatar {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-row__avatar .user-avatar--image {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .chat-row__avatar .user-avatar--initial {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #f7edf0, #e8c4ca);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .chat-row__main {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .chat-row.is-mine .chat-row__main {
+      align-items: flex-end;
+    }
+
+    .chat-row__sender {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      line-height: 1.2;
+      padding: 0 2px;
+    }
+
+    .chat-row__bubble-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .chat-row.is-mine .chat-row__bubble-wrap {
+      flex-direction: row-reverse;
+    }
+
+    .chat-row__bubble {
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: #f0f0f0;
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .chat-row.is-mine .chat-row__bubble {
+      background: #f7edf0;
+      border: 1px solid #e8c4ca;
+    }
+
+    .chat-row__time {
+      flex-shrink: 0;
+      font-size: 10px;
+      line-height: 1;
+      color: var(--muted);
+      white-space: nowrap;
+      padding-bottom: 2px;
+    }
+
+    .empty-message {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      padding: 24px 0;
+    }
+
+    .chat-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #eee;
+    }
+
+    .chat-form input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .chat-form input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .chat-form button {
+      width: 72px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .chat-form button:hover {
+      background: var(--accent-dark);
+    }
+  </style>
+</head>
+<body class="page-dm">
+  <header class="site-header">
+    <a class="back-link" href="{{ back_url }}">← メッセージ一覧</a>
+    <p class="header-title">{{ display_name }}</p>
+  </header>
+
+  <main class="main-inner">
+    {% if messages %}
+    <ul class="flash-messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <section class="group-info-card">
+      <h1 class="group-info-name">{{ display_name }}</h1>
+      <p class="group-info-meta">{{ members|length }}人のメンバー</p>
+    </section>
+
+    <section class="chat-panel" aria-label="グループチャット">
+      <h2>メッセージ</h2>
+      <p class="chat-hint">グループのやり取りです（15秒ごとに自動更新）</p>
+
+      <div
+        id="message-area"
+        data-poll-url="{{ messages_poll_url }}"
+        data-latest-id="{{ latest_message_id }}"
+        data-show-sender-names="1"
+      >
+        {% if group_messages %}
+        <ul class="message-list" id="message-list">
+          {% for msg in group_messages %}
+          <li
+            class="chat-row{% if msg.sender_id == user.id %} is-mine{% endif %}"
+            data-message-id="{{ msg.pk }}"
+          >
+            <div class="chat-row__avatar">
+              {% render_user_avatar msg.sender size=26 %}
+            </div>
+            <div class="chat-row__main">
+              {% if msg.sender_id != user.id %}
+              <div class="chat-row__sender">{{ msg.sender|display_name }}</div>
+              {% endif %}
+              <div class="chat-row__bubble-wrap">
+                <div class="chat-row__bubble">{{ msg.body }}</div>
+                <time class="chat-row__time" datetime="{{ msg.created_at|date:'c' }}">
+                  {{ msg.created_at|date:"m/d H:i" }}
+                </time>
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-message" id="empty-message">まだメッセージはありません。最初の一言を送ってみましょう。</p>
+        {% endif %}
+      </div>
+
+      <form class="chat-form" method="post" action="{% url 'send_group_message' room.pk %}">
+        {% csrf_token %}
+        <input
+          type="text"
+          id="message-input"
+          name="body"
+          placeholder="メッセージを入力..."
+          maxlength="500"
+          required
+          autocomplete="off"
+        >
+        <button type="submit">送信</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="{% static 'js/group_chat_poll.js' %}"></script>
+</body>
+</html>
