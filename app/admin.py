@@ -5,7 +5,10 @@ from django.utils import timezone
 
 from .models import (
     User,
+    ChatMessage,
+    ChatReadState,
     ChatRoom,
+    ChatRoomMembership,
     Comment,
     Community,
     CommunityThread,
@@ -290,9 +293,29 @@ class TradeMessageAdmin(admin.ModelAdmin):
 
 @admin.register(ChatRoom)
 class ChatRoomAdmin(admin.ModelAdmin):
-    list_display = ("product", "buyer", "updated_at", "created_at")
-    list_filter = ("created_at", "updated_at")
-    search_fields = ("product__name", "buyer__username")
+    list_display = ("kind", "name", "product", "buyer", "created_by", "updated_at", "created_at")
+    list_filter = ("kind", "created_at", "updated_at")
+    search_fields = ("name", "product__name", "buyer__username")
+
+
+@admin.register(ChatRoomMembership)
+class ChatRoomMembershipAdmin(admin.ModelAdmin):
+    list_display = ("room", "user", "role", "joined_at")
+    list_filter = ("role", "joined_at")
+    search_fields = ("room__name", "user__username")
+
+
+@admin.register(ChatMessage)
+class GroupChatMessageAdmin(admin.ModelAdmin):
+    list_display = ("room", "sender", "body", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("body", "sender__username", "room__name")
+
+
+@admin.register(ChatReadState)
+class ChatReadStateAdmin(admin.ModelAdmin):
+    list_display = ("room", "user", "last_read_message_id", "updated_at")
+    list_filter = ("updated_at",)
 
 
 @admin.register(Message)

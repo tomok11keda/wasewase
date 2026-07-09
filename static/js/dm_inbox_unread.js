@@ -19,12 +19,7 @@
     return String(count);
   }
 
-  function updateRow(roomPk, unreadCount) {
-    var item = root.querySelector('[data-dm-room-pk="' + roomPk + '"]');
-    if (!item) {
-      return;
-    }
-
+  function updateBadge(item, unreadCount) {
     var badge = item.querySelector("[data-dm-unread-badge]");
     item.classList.toggle("has-unread", unreadCount > 0);
 
@@ -44,14 +39,29 @@
   }
 
   function applySummary(payload) {
-    var unreadByRoom = {};
+    var unreadDm = {};
+    var unreadGroup = {};
     (payload.rooms || []).forEach(function (room) {
-      unreadByRoom[String(room.room_pk)] = Number(room.unread_count) || 0;
+      var count = Number(room.unread_count) || 0;
+      if (room.kind === "group") {
+        unreadGroup[String(room.room_pk)] = count;
+      } else {
+        unreadDm[String(room.room_pk)] = count;
+      }
     });
 
-    root.querySelectorAll("[data-dm-room-pk]").forEach(function (item) {
+    root.querySelectorAll(".dm-inbox-item[data-dm-room-pk]").forEach(function (item) {
       var roomPk = item.getAttribute("data-dm-room-pk");
-      updateRow(roomPk, unreadByRoom[roomPk] || 0);
+      if (roomPk) {
+        updateBadge(item, unreadDm[roomPk] || 0);
+      }
+    });
+
+    root.querySelectorAll(".dm-inbox-item[data-group-room-pk]").forEach(function (item) {
+      var roomPk = item.getAttribute("data-group-room-pk");
+      if (roomPk) {
+        updateBadge(item, unreadGroup[roomPk] || 0);
+      }
     });
   }
 

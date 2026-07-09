@@ -12,7 +12,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
+    ChatMessage,
     ChatRoom,
+    ChatRoomMembership,
     Comment,
     Community,
     CommunityThread,
@@ -1626,7 +1628,7 @@ class UserDirectMessageTests(TestCase):
         response = self.client.get(reverse("user_dm_inbox"))
         self.assertContains(response, "has-unread")
         self.assertContains(response, 'data-dm-unread-badge')
-        self.assertContains(response, 'data-room-pk="' + str(room.pk) + '"')
+        self.assertContains(response, 'data-dm-room-pk="' + str(room.pk) + '"')
 
     def test_dm_unread_summary_api_returns_room_counts(self):
         room, _ = get_or_create_dm_room(self.user_a, self.user_b)
@@ -1838,6 +1840,156 @@ class UserDirectMessageTests(TestCase):
             0,
         )
         self.assertEqual(UserDirectMessageRoom.objects.filter(pk=room.pk).count(), 1)
+
+
+class GroupChatTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            email="group-owner@waseda.jp",
+            password="password",
+            username="group_owner",
+        )
+        self.member = get_user_model().objects.create_user(
+            email="group-member@waseda.jp",
+            password="password",
+            username="group_member",
+        )
+        self.other = get_user_model().objects.create_user(
+            email="group-other@waseda.jp",
+            password="password",
+            username="group_other",
+        )
+        Follow.objects.create(follower=self.owner, following=self.member)
+
+    def test_group_create_requires_following(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("dm_group_create"),
+            {"member_ids": [str(self.other.pk)]},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ChatRoom.objects.filter(kind=ChatRoom.Kind.GROUP).count(), 0)
+
+    def test_group_create_adds_owner_and_members(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("dm_group_create"),
+            {
+                "name": "テストグループ",
+                "member_ids": [str(self.member.pk)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        room = ChatRoom.objects.get(kind=ChatRoom.Kind.GROUP)
+        self.assertEqual(room.name, "テストグループ")
+        self.assertEqual(
+            ChatRoomMembership.objects.filter(room=room).count(),
+            2,
+        )
+        self.assertTrue(
+            ChatRoomMembership.objects.filter(
+                room=room,
+                user=self.owner,
+                role=ChatRoomMembership.Role.OWNER,
+            ).exists()
+        )
+
+    def test_group_room_shows_messages_and_allows_send(self):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            created_by=self.owner,
+            name="雑談",
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.owner,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.member,
+            role=ChatRoomMembership.Role.MEMBER,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "みなさんこんにちは"},
+        )
+        self.assertEqual(response.status_code, 302)
+        message = ChatMessage.objects.get(room=room)
+        self.assertEqual(message.body, "みなさんこんにちは")
+
+        self.client.force_login(self.member)
+        page = self.client.get(reverse("dm_group_room", args=[room.pk]))
+        self.assertContains(page, "みなさんこんにちは")
+        self.assertContains(page, "雑談")
+
+    def test_non_member_cannot_access_group_room(self):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            created_by=self.owner,
+            name="非公開",
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.owner,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        self.client.force_login(self.other)
+        response = self.client.get(reverse("dm_group_room", args=[room.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("user_dm_inbox"))
+
+    def test_inbox_lists_group_conversation(self):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            created_by=self.owner,
+            name="一覧テスト",
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.owner,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.member,
+            role=ChatRoomMembership.Role.MEMBER,
+        )
+        ChatMessage.objects.create(
+            room=room,
+            sender=self.owner,
+            body="グループ初投稿",
+        )
+        self.client.force_login(self.member)
+        page = self.client.get(reverse("user_dm_inbox"))
+        self.assertContains(page, "一覧テスト")
+        self.assertContains(page, reverse("dm_group_room", args=[room.pk]))
+        self.assertContains(page, reverse("dm_group_create"))
+
+    def test_group_unread_summary_after_opening_room(self):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            created_by=self.owner,
+            name="未読テスト",
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.owner,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=self.member,
+            role=ChatRoomMembership.Role.MEMBER,
+        )
+        ChatMessage.objects.create(room=room, sender=self.owner, body="未読になる")
+        self.client.force_login(self.member)
+        self.client.get(reverse("dm_group_room", args=[room.pk]))
+        response = self.client.get(reverse("dm_unread_summary"))
+        payload = response.json()
+        group_rooms = [r for r in payload["rooms"] if r.get("kind") == "group"]
+        self.assertEqual(group_rooms, [])
 
 
 class PwaTests(TestCase):
