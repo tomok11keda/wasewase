@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from .models import (
     ChatMessage,
+    ChatReadState,
     ChatRoom,
     ChatRoomMembership,
     Comment,
@@ -34,6 +35,11 @@ from .models import (
     UserProfile,
 )
 from .dm_services import get_or_create_dm_room, ordered_user_pair
+from .account_deletion_services import (
+    _safe_delete_step,
+    _table_exists,
+    delete_user_account,
+)
 from .bookmark_services import BookmarkServiceError
 from wasewase.email_env import (
     is_plausible_email,
@@ -2605,6 +2611,34 @@ class AccountDeletionTests(TestCase):
         self.assertContains(response, "アカウントの削除に失敗しました")
         self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
         self.assertIn("_auth_user_id", self.client.session)
+
+
+class AccountDeletionServiceTests(TestCase):
+    def test_safe_delete_step_skips_when_table_missing(self):
+        with patch("app.account_deletion_services._table_exists", return_value=False):
+            deleted = _safe_delete_step("chat_read_states", ChatReadState.objects.all())
+        self.assertEqual(deleted, 0)
+
+    def test_delete_account_when_chat_read_state_table_missing(self):
+        User = get_user_model()
+        user = User.objects.create_user(
+            email="missing_table@example.com",
+            password="pass12345",
+            username="missing_table",
+        )
+
+        def table_exists_side_effect(model):
+            if model is ChatReadState:
+                return False
+            return _table_exists(model)
+
+        with patch(
+            "app.account_deletion_services._table_exists",
+            side_effect=table_exists_side_effect,
+        ):
+            delete_user_account(user)
+
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())
 
 
 class NotificationBadgeApiTests(TestCase):
