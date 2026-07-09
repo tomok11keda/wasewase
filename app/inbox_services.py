@@ -62,6 +62,13 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
     }
 
 
+def get_unread_inbox_message_count(user: AbstractBaseUser | None) -> int:
+    """ログインユーザー宛の未読メッセージ総数（1対1 DM + グループ）。"""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return 0
+    return build_inbox_unread_summary(user)["total_unread"]
+
+
 def user_display_name_safe(user) -> str:
     from .services import user_display_name
 

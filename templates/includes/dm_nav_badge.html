@@ -1,0 +1,6 @@
+<span
+  class="dm-nav-badge"
+  data-dm-nav-badge
+  {% if not unread_dm_messages %}hidden{% endif %}
+  {% if unread_dm_messages %}aria-label="未読メッセージ {{ unread_dm_messages }}件"{% endif %}
+>{% if unread_dm_messages %}{% if unread_dm_messages > 99 %}99+{% else %}{{ unread_dm_messages }}{% endif %}{% endif %}</span>
