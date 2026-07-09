@@ -770,11 +770,19 @@ def delete_account(request):
 
     user = request.user
     user_id = user.pk
+    user_email = user.email
+    deletion_logger = logging.getLogger(__name__)
+
     try:
         delete_user_account(user)
-    except Exception:
-        logging.getLogger(__name__).exception(
-            "Account deletion failed for user_id=%s", user_id
+    except Exception as exc:
+        deletion_logger.error(
+            "Account deletion failed for user_id=%s email=%s: %s (%s)",
+            user_id,
+            user_email,
+            exc,
+            type(exc).__name__,
+            exc_info=True,
         )
         messages.error(
             request,
@@ -783,8 +791,10 @@ def delete_account(request):
         return redirect(reverse("account_settings"))
 
     if get_user_model().objects.filter(pk=user_id).exists():
-        logging.getLogger(__name__).error(
-            "Account deletion incomplete for user_id=%s", user_id
+        deletion_logger.error(
+            "Account deletion incomplete for user_id=%s email=%s: user row still exists",
+            user_id,
+            user_email,
         )
         messages.error(
             request,
@@ -793,6 +803,11 @@ def delete_account(request):
         return redirect(reverse("account_settings"))
 
     logout(request)
+    deletion_logger.info(
+        "Account deletion completed and session cleared for user_id=%s email=%s",
+        user_id,
+        user_email,
+    )
     messages.success(request, "アカウントを削除しました。ご利用ありがとうございました。")
     return redirect(reverse("login"))
 
