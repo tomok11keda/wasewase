@@ -83,6 +83,100 @@ def ensure_userprofile_avatar_column() -> None:
         )
 
 
+def ensure_userprofile_terms_accepted_column() -> None:
+    """本番 DB に terms_accepted 列が無い場合に追加する。"""
+    from django.db import connection
+    from django.db.utils import OperationalError
+
+    table = "app_userprofile"
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, table
+                )
+            }
+            if "terms_accepted" in columns:
+                return
+
+            if connection.vendor == "postgresql":
+                cursor.execute(
+                    "ALTER TABLE app_userprofile "
+                    "ADD COLUMN IF NOT EXISTS terms_accepted boolean NOT NULL DEFAULT false"
+                )
+            else:
+                cursor.execute(
+                    "ALTER TABLE app_userprofile "
+                    "ADD COLUMN terms_accepted bool NOT NULL DEFAULT 0"
+                )
+        log_media_upload(
+            "DB SCHEMA", "Added missing app_userprofile.terms_accepted column"
+        )
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "duplicate column" in message or "already exists" in message:
+            return
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.terms_accepted repair failed: {exc}",
+            exc=exc,
+        )
+    except Exception as exc:
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.terms_accepted repair failed: {exc}",
+            exc=exc,
+        )
+
+
+def ensure_timelinepost_author_nullable() -> None:
+    """本番 DB で timelinepost.author_id が NOT NULL のままなら NULL 許可にする。"""
+    from django.db import connection
+    from django.db.utils import OperationalError
+
+    table = "app_timelinepost"
+    column_name = "author_id"
+    try:
+        with connection.cursor() as cursor:
+            author_column = None
+            for column in connection.introspection.get_table_description(
+                cursor, table
+            ):
+                if column.name == column_name:
+                    author_column = column
+                    break
+            if author_column is None or author_column.null_ok:
+                return
+
+            if connection.vendor == "postgresql":
+                cursor.execute(
+                    f"ALTER TABLE {table} ALTER COLUMN {column_name} DROP NOT NULL"
+                )
+            elif connection.vendor == "sqlite":
+                return
+            else:
+                cursor.execute(
+                    f"ALTER TABLE {table} MODIFY {column_name} bigint NULL"
+                )
+        log_media_upload("DB SCHEMA", "Made app_timelinepost.author_id nullable")
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "duplicate column" in message or "already exists" in message:
+            return
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_timelinepost.author_id nullable repair failed: {exc}",
+            exc=exc,
+        )
+    except Exception as exc:
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_timelinepost.author_id nullable repair failed: {exc}",
+            exc=exc,
+        )
+
+
 def _log_model_db_schema(
     app_label: str,
     model_name: str,

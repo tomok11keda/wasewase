@@ -3,6 +3,9 @@ from django import template
 from app.mention_services import linkify_mentions as render_mentions_html
 from app.services import get_user_avatar_url, user_avatar_initial, user_display_name
 
+DELETED_TIMELINE_AUTHOR_LABEL = "退会済みユーザー"
+
+
 register = template.Library()
 
 
@@ -10,6 +13,19 @@ register = template.Library()
 def display_name(user):
     """ユーザーのアプリ内表示名（ニックネーム）。"""
     return user_display_name(user)
+
+
+@register.filter
+def timeline_author_label(author):
+    """タイムライン投稿者の表示名。退会済みは専用ラベル。"""
+    if author is None:
+        return DELETED_TIMELINE_AUTHOR_LABEL
+    return user_display_name(author)
+
+
+@register.simple_tag
+def deleted_timeline_author_label():
+    return DELETED_TIMELINE_AUTHOR_LABEL
 
 
 @register.inclusion_tag("includes/user_avatar.html")
