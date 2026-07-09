@@ -106,6 +106,7 @@ class EmailAuthTests(TestCase):
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
+                    "accept_terms": "on",
                 },
             )
         self.assertRedirects(response, reverse("verify_otp"))
@@ -178,6 +179,7 @@ class EmailAuthTests(TestCase):
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
+                    "accept_terms": "on",
                 },
             )
         self.assertRedirects(response, reverse("verify_otp"))
@@ -198,6 +200,7 @@ class EmailAuthTests(TestCase):
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "法学部",
+                "accept_terms": "on",
             },
         )
         self.assertRedirects(response, reverse("verify_otp"))
@@ -207,6 +210,7 @@ class EmailAuthTests(TestCase):
         profile = UserProfile.objects.get(user=user)
         self.assertEqual(profile.name, "wase_taro")
         self.assertEqual(profile.department, "法学部")
+        self.assertTrue(profile.terms_accepted)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("認証コード", mail.outbox[0].subject)
         self.assertTrue(SignupOTP.objects.filter(user=user).exists())
@@ -291,6 +295,7 @@ class EmailAuthTests(TestCase):
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
+                "accept_terms": "on",
             },
         )
         self.assertRedirects(response, reverse("verify_otp"))
@@ -331,6 +336,32 @@ class EmailAuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "パスワード")
+
+    def test_signup_requires_terms_acceptance(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "terms@waseda.jp",
+                "nickname": "terms_user",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "同意が必要")
+        self.assertFalse(
+            get_user_model().objects.filter(email="terms@waseda.jp").exists()
+        )
+
+    def test_signup_page_shows_terms_links_and_disabled_submit(self):
+        response = self.client.get(reverse("signup"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("terms"))
+        self.assertContains(response, reverse("privacy"))
+        self.assertContains(response, "利用規約")
+        self.assertContains(response, "プライバシーポリシー")
+        self.assertContains(response, 'id="signup-submit" disabled')
 
 
 class GlobalSearchTests(TestCase):
@@ -750,6 +781,7 @@ class SocialFeaturesTests(TestCase):
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
+                    "accept_terms": "on",
                 },
             )
         self.assertRedirects(response, reverse("verify_otp"))

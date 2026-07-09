@@ -118,6 +118,11 @@ class UserProfile(models.Model):
         choices=GRADE_CHOICES,
         blank=True,
     )
+    terms_accepted = models.BooleanField(
+        "利用規約への同意",
+        default=False,
+        help_text="新規登録時に利用規約・プライバシーポリシーへ同意したか。",
+    )
 
     def __str__(self) -> str:
         label = self.name or self.user.username

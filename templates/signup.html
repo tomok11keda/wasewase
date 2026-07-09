@@ -43,6 +43,30 @@
       cursor: pointer;
     }
     .btn:hover { background: var(--accent-dark); }
+    .btn:disabled {
+      background: #c9a0a6;
+      cursor: not-allowed;
+    }
+    .terms-agree {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 4px 0 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .terms-agree input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 2px 0 0;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+    .terms-agree a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: underline;
+    }
     .field-error { color: var(--accent); font-size: 13px; margin: -8px 0 12px; }
     .footer-link { display: block; margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
     .footer-link a { color: var(--accent); }
@@ -97,11 +121,32 @@
         {{ form.password2 }}
         {% for error in form.password2.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
 
-        <button type="submit" class="btn">登録して認証メールを送信</button>
+        <label class="terms-agree" for="{{ form.accept_terms.id_for_label }}">
+          {{ form.accept_terms }}
+          <span>
+            <a href="{% url 'terms' %}" target="_blank" rel="noopener noreferrer">利用規約</a>と
+            <a href="{% url 'privacy' %}" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>に同意する
+          </span>
+        </label>
+        {% for error in form.accept_terms.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+        <button type="submit" class="btn" id="signup-submit" disabled>登録して認証メールを送信</button>
       </form>
       <p class="footer-link">すでにアカウントをお持ちの方は <a href="{% url 'login' %}">ログイン</a></p>
       <p class="footer-link"><a href="{% url 'home' %}">トップへ戻る</a></p>
     </div>
   </main>
+  <script>
+    (function () {
+      var accept = document.getElementById("id_accept_terms");
+      var submit = document.getElementById("signup-submit");
+      if (!accept || !submit) return;
+      function syncSubmit() {
+        submit.disabled = !accept.checked;
+      }
+      accept.addEventListener("change", syncSubmit);
+      syncSubmit();
+    })();
+  </script>
 </body>
 </html>
