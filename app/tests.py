@@ -1662,6 +1662,28 @@ class UserDirectMessageTests(TestCase):
         self.assertContains(response, 'data-dm-unread-badge')
         self.assertContains(response, 'data-dm-room-pk="' + str(room.pk) + '"')
 
+    def test_home_shows_dm_nav_badge_when_unread(self):
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="未読バッジテスト",
+        )
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-dm-nav-badge")
+        self.assertContains(response, "dm_badge.js")
+        self.assertNotContains(response, "data-dm-nav-badge\n  hidden")
+        self.assertContains(response, ">1<")
+
+    def test_home_hides_dm_nav_badge_when_no_unread(self):
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-dm-nav-badge")
+        self.assertContains(response, "data-dm-nav-badge\n  hidden")
+
     def test_dm_unread_summary_api_returns_room_counts(self):
         room, _ = get_or_create_dm_room(self.user_a, self.user_b)
         UserDirectMessage.objects.create(

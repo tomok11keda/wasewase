@@ -14,6 +14,7 @@
 {% include "includes/compose_fab_visibility.html" %}
 {% if user.is_authenticated %}
 <script src="{% static 'js/notification_badge.js' %}" defer></script>
+<script src="{% static 'js/dm_badge.js' %}" defer></script>
 {% endif %}
 <script>
   if ("serviceWorker" in navigator) {
