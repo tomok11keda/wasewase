@@ -760,8 +760,22 @@ def toggle_block(request, pk):
 @login_required
 @require_POST
 def delete_account(request):
+    print("DEBUG: Delete account view triggered", flush=True)
+    print(
+        "DEBUG: delete_account request "
+        f"method={request.method} "
+        f"user_id={getattr(request.user, 'pk', None)} "
+        f"confirm_delete={request.POST.get('confirm_delete')!r}",
+        flush=True,
+    )
+
     confirmation = (request.POST.get("confirm_delete") or "").strip().upper()
     if confirmation != "DELETE":
+        print(
+            "DEBUG: delete_account rejected invalid confirmation "
+            f"value={request.POST.get('confirm_delete')!r}",
+            flush=True,
+        )
         messages.error(
             request,
             "アカウント削除を実行するには確認チェックが必要です。",
@@ -773,9 +787,22 @@ def delete_account(request):
     user_email = user.email
     deletion_logger = logging.getLogger(__name__)
 
+    print(
+        f"DEBUG: delete_account starting deletion user_id={user_id} email={user_email}",
+        flush=True,
+    )
+
     try:
         delete_user_account(user)
     except Exception as exc:
+        print(
+            f"DEBUG: delete_account exception user_id={user_id} "
+            f"type={type(exc).__name__} error={exc}",
+            flush=True,
+        )
+        traceback.print_exc()
+        sys.stdout.flush()
+        sys.stderr.flush()
         deletion_logger.error(
             "Account deletion failed for user_id=%s email=%s: %s (%s)",
             user_id,
@@ -790,7 +817,21 @@ def delete_account(request):
         )
         return redirect(reverse("account_settings"))
 
-    if get_user_model().objects.filter(pk=user_id).exists():
+    user_still_exists = get_user_model().objects.filter(pk=user_id).exists()
+    print(
+        f"DEBUG: delete_account post-delete check user_id={user_id} "
+        f"still_exists={user_still_exists}",
+        flush=True,
+    )
+    if user_still_exists:
+        print(
+            f"DEBUG: delete_account completed without exception but user_id={user_id} "
+            "still exists in database",
+            flush=True,
+        )
+        traceback.print_stack(file=sys.stderr)
+        sys.stdout.flush()
+        sys.stderr.flush()
         deletion_logger.error(
             "Account deletion incomplete for user_id=%s email=%s: user row still exists",
             user_id,
@@ -803,6 +844,11 @@ def delete_account(request):
         return redirect(reverse("account_settings"))
 
     logout(request)
+    print(
+        f"DEBUG: delete_account success user_id={user_id} email={user_email} "
+        "redirecting to login",
+        flush=True,
+    )
     deletion_logger.info(
         "Account deletion completed and session cleared for user_id=%s email=%s",
         user_id,
