@@ -18,11 +18,13 @@ class AppConfig(AppConfig):
             log_userprofile_db_schema,
         )
         from app.dm_services import ensure_dm_read_state_table, ensure_dm_message_is_read_column
+        from app.chat_schema_services import ensure_chatroom_group_chat_schema
 
         ensure_userprofile_avatar_column()
         ensure_userprofile_terms_accepted_column()
         ensure_timelinepost_author_nullable()
         ensure_dm_read_state_table()
         ensure_dm_message_is_read_column()
+        ensure_chatroom_group_chat_schema()
         log_timelinepost_db_schema()
         log_userprofile_db_schema()
