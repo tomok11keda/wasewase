@@ -59,6 +59,13 @@ class SignUpForm(UserCreationForm):
         required=True,
         widget=forms.Select(attrs={"id": "id_faculty"}),
     )
+    accept_terms = forms.BooleanField(
+        label="利用規約とプライバシーポリシーに同意する",
+        required=True,
+        error_messages={
+            "required": "利用規約とプライバシーポリシーへの同意が必要です。",
+        },
+    )
 
     class Meta(UserCreationForm.Meta):
         model = User

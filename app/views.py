@@ -1311,7 +1311,11 @@ def _persist_signup_user(form):
 
     UserProfile.objects.update_or_create(
         user=user,
-        defaults={"department": faculty, "name": nickname},
+        defaults={
+            "department": faculty,
+            "name": nickname,
+            "terms_accepted": True,
+        },
     )
     return user
 
