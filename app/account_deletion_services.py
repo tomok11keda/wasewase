@@ -7,6 +7,7 @@ from django.db.models.deletion import ProtectedError
 from django.db.utils import OperationalError, ProgrammingError
 
 from app.dm_services import ensure_dm_message_is_read_column, ensure_dm_read_state_table
+from app.chat_schema_services import ensure_chatroom_group_chat_schema
 from app.media_services import ensure_timelinepost_author_nullable
 
 from .models import (
@@ -97,6 +98,7 @@ def _ensure_deletion_schema() -> None:
     ensure_timelinepost_author_nullable()
     ensure_dm_read_state_table()
     ensure_dm_message_is_read_column()
+    ensure_chatroom_group_chat_schema()
     for model in OPTIONAL_DELETION_MODELS:
         _ensure_model_table(model)
 
