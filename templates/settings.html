@@ -184,8 +184,7 @@
     <section class="settings-card settings-card--danger">
       <h2>アカウント削除（退会）</h2>
       <p>
-        プロフィール・フォロー・DM などの個人データは削除されます。
-        タイムラインの投稿は「退会済みユーザー」として残ります。
+        プロフィール・フォロー・DM・投稿などの個人データは削除されます。
         この操作は取り消せません。
       </p>
       <button type="button" class="btn-danger-outline" id="open-delete-modal">
@@ -199,9 +198,8 @@
     <div class="delete-modal__panel" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
       <h3 id="delete-modal-title">本当にアカウントを削除しますか？</h3>
       <ul>
-        <li>プロフィール・フォロー・DM は削除されます</li>
-        <li>投稿は削除されず「退会済みユーザー」として残ります</li>
-        <li>削除後は自動的にログアウトされます</li>
+        <li>プロフィール・フォロー・DM・投稿は削除されます</li>
+        <li>削除後は自動的にログアウトされ、ログイン画面へ移動します</li>
       </ul>
       <form method="post" action="{% url 'delete_account' %}" id="delete-account-form">
         {% csrf_token %}
