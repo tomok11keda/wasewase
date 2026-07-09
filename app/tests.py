@@ -29,6 +29,7 @@ from .models import (
     TimelinePost,
     TradeMessage,
     UserDirectMessage,
+    UserDirectMessageReadState,
     UserDirectMessageRoom,
     UserProfile,
 )
@@ -2473,6 +2474,16 @@ class AccountDeletionTests(TestCase):
             room=self.dm_room,
             sender=self.user,
             body="削除予定のDM",
+        )
+        UserDirectMessageReadState.objects.create(
+            room=self.dm_room,
+            user=self.user,
+            last_read_message_id=1,
+        )
+        UserDirectMessageReadState.objects.create(
+            room=self.dm_room,
+            user=self.other,
+            last_read_message_id=1,
         )
 
     def test_settings_page_has_delete_account_button(self):
