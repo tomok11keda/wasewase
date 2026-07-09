@@ -4,17 +4,20 @@
   "private": true,
   "description": "わせわせ — 早稲田大学キャンパスフリマ（Capacitor iOS ラッパー）",
   "scripts": {
-    "cap:sync": "npx cap sync",
+    "cap:sync": "node scripts/copy-google-service-info.js && npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:copy": "npx cap copy",
     "cap:copy:www-ads": "node -e \"const fs=require('fs');fs.copyFileSync('static/js/admob_config.js','www/js/admob_config.js');fs.copyFileSync('static/js/capacitor_native.js','www/js/capacitor_native.js');\"",
-    "cap:patch:ios": "node scripts/apply-admob-att-patch.js"
+    "cap:patch:ios": "node scripts/apply-admob-att-patch.js",
+    "cap:firebase:plist": "node scripts/copy-google-service-info.js"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",
+    "@capacitor-firebase/analytics": "^7.3.0",
     "@capacitor/core": "^7.6.7",
     "@capacitor/ios": "^7.6.7",
-    "@capacitor/push-notifications": "^7.0.6"
+    "@capacitor/push-notifications": "^7.0.6",
+    "firebase": "^11.10.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.7"

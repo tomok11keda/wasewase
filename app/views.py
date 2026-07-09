@@ -769,9 +769,16 @@ def delete_account(request):
         return redirect(reverse("account_settings"))
 
     user = request.user
-    delete_user_account(user)
+    user_id = user.pk
+    try:
+        delete_user_account(user)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Account deletion failed for user_id=%s", user_id
+        )
+    finally:
+        logout(request)
 
-    logout(request)
     messages.success(request, "アカウントを削除しました。ご利用ありがとうございました。")
     return redirect(reverse("home"))
 
