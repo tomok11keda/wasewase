@@ -835,8 +835,10 @@ class ThreadTip(models.Model):
 class TimelinePost(models.Model):
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="timeline_posts",
+        null=True,
+        blank=True,
     )
     quoted_post = models.ForeignKey(
         "self",

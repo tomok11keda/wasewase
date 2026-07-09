@@ -98,7 +98,12 @@
     </li>
     <li>
       <a class="more-link" href="{% url 'mypage_edit' %}">
-        プロフィール・アカウント設定
+        プロフィール設定
+      </a>
+    </li>
+    <li>
+      <a class="more-link" href="{% url 'account_settings' %}">
+        アカウント設定（退会）
       </a>
     </li>
     <li>
@@ -115,21 +120,6 @@
       <a class="more-link" href="{% url 'logout' %}">
         ログアウト
       </a>
-    </li>
-  </ul>
-
-  <p class="more-section-title">危険操作</p>
-  <ul class="more-list more-danger">
-    <li>
-      <form method="post" action="{% url 'delete_account' %}" onsubmit="return confirm('本当にアカウントを完全に削除しますか？この操作は取り消せません。');">
-        {% csrf_token %}
-        <input type="hidden" name="confirm_delete" value="DELETE">
-        <button type="submit" class="more-link more-danger-btn">
-          アカウントを完全に削除する
-          <small>元に戻せません</small>
-        </button>
-      </form>
-      <p class="more-danger-note">投稿・プロフィール情報・DMなど、関連するデータを削除します。</p>
     </li>
   </ul>
   {% else %}
