@@ -776,11 +776,25 @@ def delete_account(request):
         logging.getLogger(__name__).exception(
             "Account deletion failed for user_id=%s", user_id
         )
-    finally:
-        logout(request)
+        messages.error(
+            request,
+            "アカウントの削除に失敗しました。しばらくしてからもう一度お試しください。",
+        )
+        return redirect(reverse("account_settings"))
 
+    if get_user_model().objects.filter(pk=user_id).exists():
+        logging.getLogger(__name__).error(
+            "Account deletion incomplete for user_id=%s", user_id
+        )
+        messages.error(
+            request,
+            "アカウントの削除に失敗しました。しばらくしてからもう一度お試しください。",
+        )
+        return redirect(reverse("account_settings"))
+
+    logout(request)
     messages.success(request, "アカウントを削除しました。ご利用ありがとうございました。")
-    return redirect(reverse("home"))
+    return redirect(reverse("login"))
 
 
 def _wants_json_response(request) -> bool:

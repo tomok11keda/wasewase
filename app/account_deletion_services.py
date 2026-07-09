@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 
@@ -28,23 +29,25 @@ from .models import (
     TimelinePost,
     TradeMessage,
     UserBlock,
+    UserDirectMessage,
     UserDirectMessageRoom,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def delete_user_account(user):
-    """退会処理: 投稿は匿名化し、プライベートデータは物理削除する。"""
+def delete_user_account(user) -> None:
+    """退会処理: ユーザーと関連データをデータベースから物理削除する。"""
     ensure_timelinepost_author_nullable()
     user_id = user.pk
 
     with transaction.atomic():
-        TimelinePost.objects.filter(author=user).update(author=None)
-        Comment.objects.filter(author=user).update(author=None)
+        TimelinePost.objects.filter(author=user).delete()
+        Comment.objects.filter(author=user).delete()
 
         Product.objects.filter(seller=user).delete()
 
+        UserDirectMessage.objects.filter(sender=user).delete()
         UserDirectMessageRoom.objects.filter(
             Q(user_a=user) | Q(user_b=user)
         ).delete()
@@ -71,6 +74,11 @@ def delete_user_account(user):
         CommunityThreadReply.objects.filter(author=user).delete()
         SignupOTP.objects.filter(user=user).delete()
 
-        user.delete()
+        deleted_count, _ = user.delete()
+        if deleted_count == 0:
+            raise RuntimeError(f"user.delete() removed 0 rows for user_id={user_id}")
 
-    logger.info("Account deleted for user_id=%s", user_id)
+    if get_user_model().objects.filter(pk=user_id).exists():
+        raise RuntimeError(f"User record still exists after delete for user_id={user_id}")
+
+    logger.info("Account physically deleted for user_id=%s", user_id)

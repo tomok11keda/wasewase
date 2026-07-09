@@ -2481,20 +2481,19 @@ class AccountDeletionTests(TestCase):
         self.assertContains(response, reverse("delete_account"))
         self.assertContains(response, "アカウントを削除する")
 
-    def test_delete_account_removes_user_and_anonymizes_posts(self):
+    def test_delete_account_removes_user_and_deletes_posts(self):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("delete_account"),
             {"confirm_delete": "DELETE"},
             follow=True,
         )
-        self.assertRedirects(response, reverse("home"))
+        self.assertRedirects(response, reverse("login"))
         self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
-        self.post.refresh_from_db()
-        self.assertTrue(TimelinePost.objects.filter(pk=self.post.pk).exists())
-        self.assertIsNone(self.post.author_id)
+        self.assertFalse(TimelinePost.objects.filter(pk=self.post.pk).exists())
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
         self.assertFalse(UserDirectMessageRoom.objects.filter(pk=self.dm_room.pk).exists())
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_deleted_user_post_shows_anonymous_label_on_home(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(author=None)
@@ -2570,7 +2569,7 @@ class AccountDeletionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertRedirects(response, reverse("home"))
+        self.assertRedirects(response, reverse("login"))
         self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
         self.assertFalse(
             CommunityThread.objects.filter(author_id=self.user.pk).exists()
@@ -2582,7 +2581,7 @@ class AccountDeletionTests(TestCase):
         self.assertFalse(DevicePushToken.objects.filter(user_id=self.user.pk).exists())
 
     @patch("app.views.delete_user_account", side_effect=RuntimeError("db error"))
-    def test_delete_account_survives_internal_error(self, _mock_delete):
+    def test_delete_account_shows_error_when_deletion_fails(self, _mock_delete):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("delete_account"),
@@ -2591,9 +2590,10 @@ class AccountDeletionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertRedirects(response, reverse("home"))
-        self.assertContains(response, "アカウントを削除しました")
-        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertRedirects(response, reverse("account_settings"))
+        self.assertContains(response, "アカウントの削除に失敗しました")
+        self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
+        self.assertIn("_auth_user_id", self.client.session)
 
 
 class NotificationBadgeApiTests(TestCase):
