@@ -2481,6 +2481,12 @@ class AccountDeletionTests(TestCase):
         self.assertContains(response, "退会済みユーザー")
         self.assertContains(response, "削除予定の投稿")
 
+    def test_home_loads_with_anonymized_posts_for_guest(self):
+        TimelinePost.objects.filter(pk=self.post.pk).update(author=None)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "退会済みユーザー")
+
     def test_delete_account_requires_confirmation_token(self):
         self.client.force_login(self.user)
         response = self.client.post(

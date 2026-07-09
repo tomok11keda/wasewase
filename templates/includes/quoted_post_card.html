@@ -10,7 +10,7 @@
     <span class="quoted-post-author">{{ post.author|display_name }}</span>
     <span class="quoted-post-handle">@{{ post.author.username }}</span>
     {% else %}
-    <span class="quoted-post-author quoted-post-author--deleted">退会済みユーザー</span>
+    <span class="quoted-post-author quoted-post-author--deleted">{{ post.author|timeline_author_label }}</span>
     {% endif %}
   </div>
   {% if post.course_name %}

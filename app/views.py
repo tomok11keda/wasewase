@@ -1628,7 +1628,7 @@ def board_timeline_comment(request, pk):
 @require_POST
 def delete_timeline_post(request, pk):
     post = get_object_or_404(TimelinePost, pk=pk)
-    if post.author_id != request.user.id:
+    if post.author_id is not None and post.author_id != request.user.id:
         messages.error(request, "この投稿を削除する権限がありません。")
         return _board_redirect(request, tag=post.course_name or "")
 
