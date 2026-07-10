@@ -2744,6 +2744,9 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("WaseNotifications", badge_js)
         self.assertIn("wase:push-received", capacitor_js)
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
+        self.assertIn("ensureCameraAccess", capacitor_js)
+        self.assertIn("CameraPermission", capacitor_js)
+        self.assertIn("カメラへのアクセス権限が必要です", capacitor_js)
 
 
 class AppShellNavTests(TestCase):
