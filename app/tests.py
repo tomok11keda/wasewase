@@ -2402,6 +2402,31 @@ class UGCSafetyTests(TestCase):
             ).exists()
         )
 
+    @patch("app.report_notification_services.send_mail")
+    def test_submit_report_sends_moderation_email(self, mock_send_mail):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("submit_report"),
+            {
+                "target_type": ContentReport.TargetType.POST,
+                "target_id": self.post.pk,
+                "reason": ContentReport.Reason.SPAM,
+                "detail": "宣伝です",
+            },
+            HTTP_ACCEPT="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_send_mail.assert_called_once()
+        _, kwargs = mock_send_mail.call_args
+        self.assertEqual(
+            kwargs["recipient_list"],
+            ["wasewaseofficial@gmail.com"],
+        )
+        self.assertIn(str(self.post.pk), kwargs["message"])
+        self.assertIn(str(self.viewer.pk), kwargs["message"])
+        self.assertIn("宣伝です", kwargs["message"])
+
     def test_submit_report_rejects_self_report(self):
         self.client.force_login(self.author)
         response = self.client.post(
