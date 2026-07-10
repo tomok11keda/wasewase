@@ -2427,6 +2427,23 @@ class UGCSafetyTests(TestCase):
         self.assertIn(str(self.viewer.pk), kwargs["message"])
         self.assertIn("宣伝です", kwargs["message"])
 
+    @patch("app.report_notification_services.send_mail")
+    def test_submit_report_redirects_with_flash_message(self, mock_send_mail):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("submit_report"),
+            {
+                "target_type": ContentReport.TargetType.POST,
+                "target_id": self.post.pk,
+                "reason": ContentReport.Reason.SPAM,
+                "next": reverse("home"),
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "通報を受け付けました")
+        mock_send_mail.assert_called_once()
+
     def test_submit_report_rejects_self_report(self):
         self.client.force_login(self.author)
         response = self.client.post(
