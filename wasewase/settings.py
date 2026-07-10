@@ -516,6 +516,11 @@ def _warn_email_startup() -> None:
 
 _warn_email_startup()
 
+# 通報受理時の運営通知先（Apple Guideline 1.2 モデレーション用）
+MODERATION_NOTIFICATION_EMAIL = (
+    _env("WASE_MODERATION_NOTIFICATION_EMAIL") or "wasewaseofficial@gmail.com"
+)
+
 # Django 6 + 旧ライブラリ互換（サードパーティが参照する場合に備える）
 STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
 DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]

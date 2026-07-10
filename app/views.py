@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from .account_deletion_services import delete_user_account
+from .report_notification_services import notify_moderation_team_of_report
 from .community_services import (
     build_communities_index_url,
     can_delete_community_content,
@@ -894,7 +895,7 @@ def submit_report(request):
         return redirect(request.META.get("HTTP_REFERER", reverse("home")))
 
     try:
-        ContentReport.objects.create(
+        report = ContentReport.objects.create(
             reporter=request.user,
             target_type=target_type,
             target_id=target_id,
@@ -907,6 +908,17 @@ def submit_report(request):
             return JsonResponse({"ok": True, "message": message})
         messages.info(request, message)
         return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+
+    try:
+        notify_moderation_team_of_report(
+            report,
+            target=target,
+            reported_user_id=reported_user_id,
+        )
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Failed to send moderation email for report_id=%s", report.pk
+        )
 
     message = "通報を受け付けました。内容を確認し、必要に応じて対応します。"
     if _wants_json_response(request):
