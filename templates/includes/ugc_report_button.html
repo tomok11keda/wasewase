@@ -1,9 +1,14 @@
-<button
-  type="button"
-  class="btn-ugc-report"
-  data-ugc-report
-  data-report-type="{{ report_type }}"
-  data-report-id="{{ report_id }}"
-  aria-label="通報"
-  title="通報"
->🚩</button>
+<form
+  method="post"
+  action="{% url 'submit_report' report_type report_id %}"
+  class="ugc-report-form"
+>
+  {% csrf_token %}
+  <input type="hidden" name="reason" value="other">
+  <button
+    type="submit"
+    class="btn-ugc-report"
+    aria-label="通報"
+    title="通報"
+  >🚩</button>
+</form>

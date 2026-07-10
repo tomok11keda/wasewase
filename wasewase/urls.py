@@ -124,7 +124,11 @@ urlpatterns = [
     path("account/delete/", app_views.delete_account, name="delete_account"),
     path("user/<int:pk>/follow/", app_views.toggle_follow, name="toggle_follow"),
     path("user/<int:pk>/block/", app_views.toggle_block, name="toggle_block"),
-    path("report/", app_views.submit_report, name="submit_report"),
+    path(
+        "report/<str:target_type>/<int:target_id>/",
+        app_views.submit_report,
+        name="submit_report",
+    ),
     path("board/compose/", app_views.board_compose, name="board_compose"),
     path("board/post/<int:pk>/quote/", app_views.board_quote, name="board_quote"),
     path("board/feed/", app_views.timeline_feed, name="timeline_feed"),

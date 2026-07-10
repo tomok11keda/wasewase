@@ -8,6 +8,7 @@
   <title>わせわせ — タイムライン</title>
   {% include "includes/timeline_feed_styles.html" %}
   {% include "includes/timeline_shell_styles.html" %}
+  {% include "includes/ugc_safety_styles.html" %}
   {% include "includes/compose_modal_styles.html" %}
   <style>
     :root {
@@ -279,9 +280,6 @@
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
   <script src="{% static 'js/timeline_pull_refresh.js' %}"></script>
   {% include "includes/timeline_feed_scripts.html" %}
-  {% if ugc_report_enabled %}
-  {% include "includes/ugc_report_modal.html" %}
-  {% endif %}
   {% include "includes/compose_modal.html" %}
   {% if user.is_authenticated and timeline_form %}
   <button type="button" class="compose-fab shell-hide-on-desktop" data-compose-open aria-label="投稿する">＋</button>

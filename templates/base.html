@@ -12,9 +12,6 @@
 </head>
 <body{% block body_attrs %}{% endblock %}>
   {% block content %}{% endblock %}
-  {% if ugc_report_enabled %}
-  {% include "includes/ugc_report_modal.html" %}
-  {% endif %}
   {% block site_footer %}{% include "includes/site_footer.html" %}{% endblock %}
 </body>
 </html>

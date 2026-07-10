@@ -7,6 +7,7 @@
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — フリマ</title>
   {% include "includes/timeline_shell_styles.html" %}
+  {% include "includes/ugc_safety_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -209,8 +210,5 @@
   <div class="shell-hide-on-desktop">
     {% include "includes/bottom_nav.html" %}
   </div>
-  {% if ugc_report_enabled %}
-  {% include "includes/ugc_report_modal.html" %}
-  {% endif %}
 </body>
 </html>

@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
+  {% include "includes/ugc_safety_styles.html" %}
   <title>わせわせ — {{ product.name }}</title>
   <style>
     :root {
@@ -926,8 +927,5 @@
       });
     })();
   </script>
-  {% if ugc_report_enabled %}
-  {% include "includes/ugc_report_modal.html" %}
-  {% endif %}
 </body>
 </html>

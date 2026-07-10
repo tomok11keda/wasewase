@@ -1,3 +1,9 @@
+.ugc-report-form {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}
+
 .btn-ugc-report {
   border: none;
   background: transparent;
