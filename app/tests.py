@@ -2380,13 +2380,17 @@ class UGCSafetyTests(TestCase):
             category="本",
         )
 
+    def _report_url(self, target_type, target_id):
+        return reverse(
+            "submit_report",
+            kwargs={"target_type": target_type, "target_id": target_id},
+        )
+
     def test_submit_report_creates_record(self):
         self.client.force_login(self.viewer)
         response = self.client.post(
-            reverse("submit_report"),
+            self._report_url(ContentReport.TargetType.POST, self.post.pk),
             {
-                "target_type": ContentReport.TargetType.POST,
-                "target_id": self.post.pk,
                 "reason": ContentReport.Reason.SPAM,
                 "detail": "宣伝です",
             },
@@ -2406,10 +2410,8 @@ class UGCSafetyTests(TestCase):
     def test_submit_report_sends_moderation_email(self, mock_send_mail):
         self.client.force_login(self.viewer)
         response = self.client.post(
-            reverse("submit_report"),
+            self._report_url(ContentReport.TargetType.POST, self.post.pk),
             {
-                "target_type": ContentReport.TargetType.POST,
-                "target_id": self.post.pk,
                 "reason": ContentReport.Reason.SPAM,
                 "detail": "宣伝です",
             },
@@ -2431,10 +2433,8 @@ class UGCSafetyTests(TestCase):
     def test_submit_report_redirects_with_flash_message(self, mock_send_mail):
         self.client.force_login(self.viewer)
         response = self.client.post(
-            reverse("submit_report"),
+            self._report_url(ContentReport.TargetType.POST, self.post.pk),
             {
-                "target_type": ContentReport.TargetType.POST,
-                "target_id": self.post.pk,
                 "reason": ContentReport.Reason.SPAM,
                 "next": reverse("home"),
             },
@@ -2447,12 +2447,8 @@ class UGCSafetyTests(TestCase):
     def test_submit_report_rejects_self_report(self):
         self.client.force_login(self.author)
         response = self.client.post(
-            reverse("submit_report"),
-            {
-                "target_type": ContentReport.TargetType.POST,
-                "target_id": self.post.pk,
-                "reason": ContentReport.Reason.OTHER,
-            },
+            self._report_url(ContentReport.TargetType.POST, self.post.pk),
+            {"reason": ContentReport.Reason.OTHER},
             HTTP_ACCEPT="application/json",
         )
         self.assertEqual(response.status_code, 400)
@@ -2490,7 +2486,7 @@ class UGCSafetyTests(TestCase):
         )
         self.client.force_login(self.viewer)
         response = self.client.get(reverse("home"))
-        self.assertContains(response, 'data-report-type="comment"')
+        self.assertContains(response, 'action="/report/comment/')
 
 
 class AccountDeletionTests(TestCase):

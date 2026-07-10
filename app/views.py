@@ -896,8 +896,22 @@ REPORT_SUCCESS_MESSAGE = "通報を受け付けました。"
 
 @login_required
 @require_POST
-def submit_report(request):
-    form = ContentReportForm(request.POST)
+def submit_report(request, target_type: str, target_id: int):
+    valid_target_types = {choice[0] for choice in ContentReport.TargetType.choices}
+    if target_type not in valid_target_types:
+        message = "通報対象の種別が不正です。"
+        if _wants_json_response(request):
+            return JsonResponse({"ok": False, "message": message}, status=400)
+        messages.error(request, message)
+        return _redirect_after_action(request)
+
+    post_data = request.POST.copy()
+    post_data["target_type"] = target_type
+    post_data["target_id"] = str(target_id)
+    if not post_data.get("reason"):
+        post_data["reason"] = ContentReport.Reason.OTHER
+
+    form = ContentReportForm(post_data)
     if not form.is_valid():
         if _wants_json_response(request):
             return JsonResponse({"ok": False, "errors": form.errors}, status=400)
