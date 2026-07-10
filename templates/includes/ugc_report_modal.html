@@ -8,6 +8,7 @@
     <p class="ugc-modal__lead">不適切な内容を運営に報告します。虚偽の通報は利用規約違反となる場合があります。</p>
     <form id="ugc-report-form" method="post" action="{% url 'submit_report' %}">
       {% csrf_token %}
+      <input type="hidden" name="next" id="ugc-report-next" value="">
       <input type="hidden" name="target_type" id="ugc-report-target-type" value="">
       <input type="hidden" name="target_id" id="ugc-report-target-id" value="">
       <fieldset class="ugc-report-reasons">

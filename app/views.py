@@ -12,6 +12,7 @@ from django.contrib.auth.views import LoginView
 from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET, require_POST
 from django.http import HttpResponse, JsonResponse
@@ -866,6 +867,33 @@ def _wants_json_response(request) -> bool:
     return request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
+def _redirect_after_action(request, fallback_name: str = "home"):
+    """POST の next または Referer へ戻す（なければ fallback）。"""
+    allowed_hosts = {request.get_host()}
+    require_https = request.is_secure()
+
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts=allowed_hosts,
+        require_https=require_https,
+    ):
+        return redirect(next_url)
+
+    referer = (request.META.get("HTTP_REFERER") or "").strip()
+    if referer and url_has_allowed_host_and_scheme(
+        referer,
+        allowed_hosts=allowed_hosts,
+        require_https=require_https,
+    ):
+        return redirect(referer)
+
+    return redirect(reverse(fallback_name))
+
+
+REPORT_SUCCESS_MESSAGE = "通報を受け付けました。"
+
+
 @login_required
 @require_POST
 def submit_report(request):
@@ -874,7 +902,7 @@ def submit_report(request):
         if _wants_json_response(request):
             return JsonResponse({"ok": False, "errors": form.errors}, status=400)
         messages.error(request, "通報内容を確認してください。")
-        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+        return _redirect_after_action(request)
 
     target_type = form.cleaned_data["target_type"]
     target_id = form.cleaned_data["target_id"]
@@ -884,7 +912,7 @@ def submit_report(request):
         if _wants_json_response(request):
             return JsonResponse({"ok": False, "message": message}, status=404)
         messages.error(request, message)
-        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+        return _redirect_after_action(request)
 
     reported_user_id = get_reported_user_id(target_type, target)
     if reported_user_id == request.user.pk:
@@ -892,7 +920,7 @@ def submit_report(request):
         if _wants_json_response(request):
             return JsonResponse({"ok": False, "message": message}, status=400)
         messages.error(request, message)
-        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+        return _redirect_after_action(request)
 
     try:
         report = ContentReport.objects.create(
@@ -907,7 +935,7 @@ def submit_report(request):
         if _wants_json_response(request):
             return JsonResponse({"ok": True, "message": message})
         messages.info(request, message)
-        return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+        return _redirect_after_action(request)
 
     try:
         notify_moderation_team_of_report(
@@ -920,11 +948,10 @@ def submit_report(request):
             "Failed to send moderation email for report_id=%s", report.pk
         )
 
-    message = "通報を受け付けました。内容を確認し、必要に応じて対応します。"
     if _wants_json_response(request):
-        return JsonResponse({"ok": True, "message": message})
-    messages.success(request, message)
-    return redirect(request.META.get("HTTP_REFERER", reverse("home")))
+        return JsonResponse({"ok": True, "message": REPORT_SUCCESS_MESSAGE})
+    messages.success(request, REPORT_SUCCESS_MESSAGE)
+    return _redirect_after_action(request)
 
 
 @login_required
