@@ -67,39 +67,116 @@
     return window.Capacitor.Plugins[name] || null;
   }
 
+  var CAMERA_PERMISSION_REQUIRED_MESSAGE =
+    "カメラへのアクセス権限が必要です。設定アプリでカメラを許可してください。";
+
   function showCameraAlert(message) {
     if (typeof window.alert === "function") {
       window.alert(message);
     }
   }
 
-  function isPermissionDeniedStatus(status) {
-    return status === "denied" || status === "prompt-with-rationale";
+  function isCameraAuthorizationGranted(status) {
+    return status === "authorized" || status === "granted" || status === "limited";
+  }
+
+  function isCameraAuthorizationBlocked(status) {
+    return status === "denied" || status === "restricted";
+  }
+
+  function mapCapacitorCameraPermission(status) {
+    if (status === "granted" || status === "limited") {
+      return "authorized";
+    }
+    if (status === "denied") {
+      return "denied";
+    }
+    if (status === "prompt") {
+      return "notDetermined";
+    }
+    return status || "unknown";
+  }
+
+  async function checkNativeCameraAuthorization() {
+    var NativePermission = getPlugin("CameraPermission");
+    if (
+      NativePermission &&
+      typeof NativePermission.checkAuthorization === "function"
+    ) {
+      var nativeResult = await NativePermission.checkAuthorization();
+      return (nativeResult && nativeResult.status) || "unknown";
+    }
+
+    var Camera = getPlugin("Camera");
+    if (Camera && typeof Camera.checkPermissions === "function") {
+      var permission = await Camera.checkPermissions();
+      return mapCapacitorCameraPermission(permission && permission.camera);
+    }
+
+    return "unknown";
+  }
+
+  async function requestNativeCameraAuthorization() {
+    var NativePermission = getPlugin("CameraPermission");
+    if (
+      NativePermission &&
+      typeof NativePermission.requestAuthorization === "function"
+    ) {
+      var nativeResult = await NativePermission.requestAuthorization();
+      return (nativeResult && nativeResult.status) || "unknown";
+    }
+
+    var Camera = getPlugin("Camera");
+    if (Camera && typeof Camera.requestPermissions === "function") {
+      var permission = await Camera.requestPermissions({
+        permissions: ["camera", "photos"],
+      });
+      return mapCapacitorCameraPermission(permission && permission.camera);
+    }
+
+    return "unknown";
+  }
+
+  async function ensureCameraAccess() {
+    var status = await checkNativeCameraAuthorization();
+    if (isCameraAuthorizationGranted(status)) {
+      return true;
+    }
+
+    if (status === "notDetermined" || status === "prompt") {
+      status = await requestNativeCameraAuthorization();
+      if (isCameraAuthorizationGranted(status)) {
+        return true;
+      }
+    }
+
+    if (isCameraAuthorizationBlocked(status)) {
+      showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+      return false;
+    }
+
+    showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+    return false;
   }
 
   async function attachNativeCameraPhoto(input) {
+    if (input.disabled) {
+      return true;
+    }
+
+    if (!(await ensureCameraAccess())) {
+      return true;
+    }
+
     var Camera = getPlugin("Camera");
     if (!Camera || typeof Camera.getPhoto !== "function") {
-      return false;
-    }
-    if (input.disabled) {
-      return false;
+      showCameraAlert(
+        "カメラ機能を利用できません。アプリを最新版に更新してください。"
+      );
+      return true;
     }
 
     try {
-      if (typeof Camera.checkPermissions === "function") {
-        var permission = await Camera.checkPermissions();
-        if (permission && isPermissionDeniedStatus(permission.camera)) {
-          if (typeof Camera.requestPermissions === "function") {
-            permission = await Camera.requestPermissions({ permissions: ["camera"] });
-          }
-        }
-        if (permission && isPermissionDeniedStatus(permission.camera)) {
-          showCameraAlert("カメラへのアクセスが許可されていません。設定アプリでカメラ権限を許可してください。");
-          return true;
-        }
-      }
-
       var photo = await Camera.getPhoto({
         quality: 85,
         resultType: "uri",
@@ -131,9 +208,7 @@
         return true;
       }
       logNativeError("Camera getPhoto failed", error);
-      showCameraAlert(
-        "カメラを起動できませんでした。カメラが利用可能か確認してから、もう一度お試しください。"
-      );
+      showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
       return true;
     }
   }
@@ -142,23 +217,25 @@
     if (!isNativeApp()) {
       return;
     }
-    if (!getPlugin("Camera")) {
-      return;
-    }
-    document.addEventListener("click", function (event) {
-      var input = event.target.closest('input[type="file"][accept*="image"]');
-      if (!input || input.dataset.nativeCameraGuarded === "1") {
-        return;
-      }
-      input.dataset.nativeCameraGuarded = "1";
-      input.addEventListener("click", function (innerEvent) {
-        innerEvent.preventDefault();
+
+    document.addEventListener(
+      "click",
+      function (event) {
+        var input = event.target.closest('input[type="file"][accept*="image"]');
+        if (!input || input.disabled) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
         attachNativeCameraPhoto(input).catch(function (error) {
           logNativeError("Camera guard failed", error);
-          showCameraAlert("カメラの起動に失敗しました。");
+          showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
         });
-      });
-    });
+      },
+      true
+    );
   }
 
   function logNative(label, detail) {
