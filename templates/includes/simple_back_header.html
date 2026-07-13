@@ -1,0 +1,71 @@
+{# 審査・ネイティブ向け: ステータスバー下でも確実に押せる戻るボタン付きヘッダー #}
+{# 必須: back_url, page_title / 任意: back_aria #}
+<style>
+  .simple-back-header {
+    position: sticky;
+    top: 0;
+    z-index: 300;
+    background: var(--accent, #891E2B);
+    color: #fff;
+    border-bottom: 1px solid var(--accent-dark, #6f1722);
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .simple-back-header__row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+  }
+  .simple-back-header__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    margin: 0;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    position: relative;
+    z-index: 2;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .simple-back-header__back:active {
+    background: rgba(255, 255, 255, 0.22);
+  }
+  .simple-back-header__title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding-right: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
+<header class="site-header simple-back-header">
+  <div class="simple-back-header__row">
+    <a
+      class="simple-back-header__back"
+      href="{{ back_url }}"
+      aria-label="{{ back_aria|default:'戻る' }}"
+      data-testid="header-back"
+    >←</a>
+    <h1 class="simple-back-header__title">{{ page_title }}</h1>
+  </div>
+</header>

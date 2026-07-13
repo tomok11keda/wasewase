@@ -24,19 +24,6 @@
       color: var(--text);
       padding-bottom: 24px;
     }
-    .site-header {
-      background: var(--accent);
-      color: #fff;
-      padding-right: 16px;
-      padding-left: 16px;
-    }
-    .back-link {
-      display: inline-block;
-      margin-bottom: 6px;
-      font-size: 14px;
-      color: #fff;
-      text-decoration: none;
-    }
     .main-inner {
       max-width: 560px;
       margin: 0 auto;
@@ -111,6 +98,7 @@
     }
     .btn-unblock {
       flex-shrink: 0;
+      min-height: 44px;
       padding: 8px 14px;
       border: 1px solid var(--accent);
       border-radius: 8px;
@@ -120,6 +108,7 @@
       font-weight: 700;
       cursor: pointer;
       font-family: inherit;
+      touch-action: manipulation;
     }
     .btn-unblock:hover {
       background: #f7edf0;
@@ -133,13 +122,30 @@
       border-radius: var(--radius);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
+    .page-back-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .page-back-cta:active {
+      background: var(--accent-dark);
+    }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <a class="back-link" href="{% url 'account_settings' %}">← アカウント設定に戻る</a>
-    <h1 style="margin:0;font-size:18px;">ブロック中のユーザー</h1>
-  </header>
+  {% url 'account_settings' as settings_url %}
+  {% include "includes/simple_back_header.html" with back_url=settings_url page_title="ブロック中のユーザー" back_aria="アカウント設定に戻る" %}
 
   <main class="main-inner">
     {% if messages %}
@@ -178,6 +184,10 @@
     {% else %}
     <p class="empty-message">ブロック中のユーザーはいません。</p>
     {% endif %}
+
+    <a class="page-back-cta" href="{% url 'account_settings' %}" data-testid="footer-back">
+      アカウント設定に戻る
+    </a>
   </main>
 </body>
 </html>

@@ -826,7 +826,7 @@ def delete_account(request):
         )
         messages.error(
             request,
-            "アカウント削除を実行するには確認チェックが必要です。",
+            "アカウント削除を実行するには確認ダイアログで「はい」を選択してください。",
         )
         return redirect(reverse("account_settings"))
 
