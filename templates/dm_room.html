@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {% include "includes/pwa_head.html" %}
-  <title>わせわせ — DM{% if partner %} @{{ partner|display_name }}{% endif %}</title>
+  <title>わせわせ — DM{% if is_blocked %}（ブロック中）{% elif partner %} @{{ partner|display_name }}{% endif %}</title>
   <style>
     :root {
       --bg: #f5f5f5;
@@ -287,12 +287,74 @@
     .chat-form button:hover {
       background: var(--accent-dark);
     }
+
+    .chat-form input:disabled,
+    .chat-form button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .chat-form--blocked {
+      background: #fafafa;
+    }
+
+    .chat-form--blocked button {
+      display: none;
+    }
+
+    .dm-partner-card--blocked .dm-partner-name {
+      color: var(--muted);
+    }
+
+    .dm-partner-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #f0f0f0, #e0e0e0);
+      color: #888;
+      font-size: 16px;
+      font-weight: 800;
+      overflow: hidden;
+    }
+
+    .dm-partner-avatar .user-avatar--image {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+    }
+
+    .dm-partner-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .dm-partner-text {
+      min-width: 0;
+    }
+
+    .block-banner {
+      margin: 0 0 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fff8e6;
+      border: 1px solid #f0e0a8;
+      color: #8a7000;
+      font-size: 13px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body class="page-dm">
   <header class="site-header">
     <a class="back-link" href="{{ back_url }}">← メッセージ一覧</a>
-    {% if partner %}
+    {% if is_blocked %}
+    <p class="header-title">不明なユーザー との DM</p>
+    {% elif partner %}
     <p class="header-title">@{{ partner|display_name }} との DM</p>
     {% endif %}
   </header>
@@ -307,22 +369,49 @@
     {% endif %}
 
     {% if partner %}
-    <section class="dm-partner-card">
-      <h1 class="dm-partner-name">{{ partner|display_name }}</h1>
-      <p class="dm-partner-meta">
-        <a href="{% url 'user_profile' partner.pk %}?from=thread">プロフィールを見る</a>
-      </p>
+    <section class="dm-partner-card{% if is_blocked %} dm-partner-card--blocked{% endif %}">
+      <div class="dm-partner-row">
+        <span class="dm-partner-avatar" aria-hidden="true">
+          {% if is_blocked %}
+          <span class="user-avatar user-avatar--initial">?</span>
+          {% else %}
+          {% render_user_avatar partner size=40 %}
+          {% endif %}
+        </span>
+        <div class="dm-partner-text">
+          {% if is_blocked %}
+          <h1 class="dm-partner-name">不明なユーザー</h1>
+          <p class="dm-partner-meta">ブロック中のためプロフィールは表示できません</p>
+          {% else %}
+          <h1 class="dm-partner-name">{{ partner|display_name }}</h1>
+          <p class="dm-partner-meta">
+            <a href="{% url 'user_profile' partner.pk %}?from=thread">プロフィールを見る</a>
+          </p>
+          {% endif %}
+        </div>
+      </div>
     </section>
     {% endif %}
 
     <section class="chat-panel" aria-label="ダイレクトメッセージ">
       <h2>メッセージ</h2>
+      {% if is_blocked or not can_send_message %}
+      <p class="block-banner">
+        {% if is_blocked %}
+        このユーザーをブロック中です。メッセージの送信はできません。
+        {% else %}
+        このユーザーとはメッセージの送受信が制限されています。
+        {% endif %}
+      </p>
+      {% else %}
       <p class="chat-hint">1対1のやり取りです（15秒ごとに自動更新）</p>
+      {% endif %}
 
       <div
         id="message-area"
         data-poll-url="{{ messages_poll_url }}"
         data-latest-id="{{ latest_message_id }}"
+        {% if is_blocked %}data-is-blocked="1"{% endif %}
       >
         {% if dm_messages %}
         <ul class="message-list" id="message-list">
@@ -332,7 +421,11 @@
             data-message-id="{{ msg.pk }}"
           >
             <div class="chat-row__avatar">
+              {% if is_blocked and msg.sender_id != user.id %}
+              <span class="user-avatar user-avatar--initial" aria-hidden="true">?</span>
+              {% else %}
               {% render_user_avatar msg.sender size=26 %}
+              {% endif %}
             </div>
             <div class="chat-row__main">
               <div class="chat-row__bubble">{{ msg.body }}</div>
@@ -353,18 +446,27 @@
         {% endif %}
       </div>
 
-      <form class="chat-form" method="post" action="{% url 'send_user_dm_message' room.pk %}">
+      <form
+        class="chat-form{% if not can_send_message %} chat-form--blocked{% endif %}"
+        method="post"
+        action="{% url 'send_user_dm_message' room.pk %}"
+        {% if not can_send_message %}aria-disabled="true"{% endif %}
+      >
         {% csrf_token %}
         <input
           type="text"
           id="message-input"
           name="body"
-          placeholder="メッセージを入力..."
+          placeholder="{% if is_blocked %}このユーザーはブロック中です{% elif not can_send_message %}メッセージを送信できません{% else %}メッセージを入力...{% endif %}"
           maxlength="500"
-          required
+          {% if can_send_message %}required{% else %}disabled{% endif %}
           autocomplete="off"
         >
+        {% if can_send_message %}
         <button type="submit">送信</button>
+        {% else %}
+        <button type="button" disabled>送信</button>
+        {% endif %}
       </form>
     </section>
   </main>

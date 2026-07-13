@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from .models import Comment, ContentReport, Follow, Product, TimelinePost, UserBlock
@@ -26,6 +26,24 @@ def is_user_blocked(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> boo
     if not blocker.is_authenticated or blocker.pk == blocked.pk:
         return False
     return UserBlock.objects.filter(blocker=blocker, blocked=blocked).exists()
+
+
+def is_either_blocked(
+    user_a: AbstractBaseUser | None,
+    user_b: AbstractBaseUser | None,
+) -> bool:
+    """双方向のいずれかでブロックされていれば True。"""
+    if (
+        user_a is None
+        or user_b is None
+        or not getattr(user_a, "is_authenticated", False)
+        or not getattr(user_b, "is_authenticated", False)
+        or user_a.pk == user_b.pk
+    ):
+        return False
+    return UserBlock.objects.filter(
+        Q(blocker=user_a, blocked=user_b) | Q(blocker=user_b, blocked=user_a)
+    ).exists()
 
 
 def block_user(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> UserBlock:

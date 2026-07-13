@@ -32,6 +32,7 @@ from .models import (
     UserDirectMessage,
     UserDirectMessageReadState,
     UserDirectMessageRoom,
+    UserBlock,
     UserProfile,
 )
 from .dm_services import get_or_create_dm_room, ordered_user_pair
@@ -1771,6 +1772,85 @@ class UserDirectMessageTests(TestCase):
         self.client.force_login(self.user_b)
         page = self.client.get(reverse("user_dm_room", args=[room.pk]))
         self.assertContains(page, "こんにちは！")
+
+    def test_dm_room_masks_blocked_partner_and_disables_input(self):
+        from .ugc_services import block_user
+
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="ブロック前のメッセージ",
+        )
+        block_user(self.user_a, self.user_b)
+
+        self.client.force_login(self.user_a)
+        page = self.client.get(reverse("user_dm_room", args=[room.pk]))
+        self.assertContains(page, "不明なユーザー")
+        self.assertContains(page, "このユーザーはブロック中です")
+        self.assertContains(page, "disabled")
+        self.assertNotContains(page, "プロフィールを見る")
+        self.assertContains(page, "ブロック前のメッセージ")
+
+    def test_send_dm_rejected_when_blocked(self):
+        from .ugc_services import block_user
+
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        block_user(self.user_a, self.user_b)
+
+        self.client.force_login(self.user_a)
+        response = self.client.post(
+            reverse("send_user_dm_message", args=[room.pk]),
+            {"body": "送れないはず"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            UserDirectMessage.objects.filter(room=room, body="送れないはず").exists()
+        )
+
+        self.client.force_login(self.user_b)
+        response = self.client.post(
+            reverse("send_user_dm_message", args=[room.pk]),
+            {"body": "相手からも送れない"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            UserDirectMessage.objects.filter(
+                room=room, body="相手からも送れない"
+            ).exists()
+        )
+
+    def test_dm_messages_api_anonymizes_partner_when_blocked(self):
+        from .ugc_services import block_user
+
+        room, _ = get_or_create_dm_room(self.user_a, self.user_b)
+        UserDirectMessage.objects.create(
+            room=room,
+            sender=self.user_b,
+            body="相手の発言",
+        )
+        block_user(self.user_a, self.user_b)
+
+        self.client.force_login(self.user_a)
+        response = self.client.get(reverse("user_dm_room_messages", args=[room.pk]))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["is_blocked"])
+        self.assertFalse(data["can_send"])
+        partner_msgs = [m for m in data["messages"] if not m["is_mine"]]
+        self.assertEqual(partner_msgs[0]["sender_name"], "不明なユーザー")
+        self.assertEqual(partner_msgs[0]["avatar_url"], "")
+
+    def test_start_dm_rejected_when_blocked(self):
+        from .ugc_services import block_user
+
+        block_user(self.user_a, self.user_b)
+        self.client.force_login(self.user_a)
+        response = self.client.post(reverse("start_user_dm", args=[self.user_b.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"], reverse("user_profile", args=[self.user_b.pk])
+        )
 
     def test_dm_room_uses_partial_poll_instead_of_meta_refresh(self):
         room, _ = get_or_create_dm_room(self.user_a, self.user_b)
