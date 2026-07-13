@@ -146,14 +146,29 @@ from .ugc_services import (
     get_blocked_users,
     get_report_target,
     get_reported_user_id,
+    is_either_blocked,
     is_user_blocked,
     unblock_user,
 )
 User = get_user_model()
 
 
-def _serialize_room_message(message, current_user_id):
+def _serialize_room_message(message, current_user_id, *, anonymize_partner: bool = False):
     created = timezone.localtime(message.created_at)
+    is_mine = message.sender_id == current_user_id
+    if anonymize_partner and not is_mine:
+        return {
+            "id": message.pk,
+            "sender_id": message.sender_id,
+            "sender_name": "不明なユーザー",
+            "sender_initial": "?",
+            "avatar_url": "",
+            "body": message.body,
+            "created_at": created.strftime("%m/%d %H:%M"),
+            "is_mine": False,
+            "is_read": message.is_read,
+        }
+
     avatar_url = get_user_avatar_url(message.sender)
     return {
         "id": message.pk,
@@ -163,9 +178,18 @@ def _serialize_room_message(message, current_user_id):
         "avatar_url": avatar_url or "",
         "body": message.body,
         "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
+        "is_mine": is_mine,
         "is_read": message.is_read,
     }
+
+
+def _dm_block_flags(viewer, partner) -> tuple[bool, bool]:
+    """(自分が相手をブロックしているか, 双方向いずれかで送信不可か)。"""
+    if partner is None:
+        return False, False
+    is_blocked = is_user_blocked(viewer, partner)
+    messaging_blocked = is_either_blocked(viewer, partner)
+    return is_blocked, messaging_blocked
 
 
 def _room_messages_json(request, room):
@@ -178,16 +202,24 @@ def _room_messages_json(request, room):
     latest_id = (
         message_queryset.order_by("-pk").values_list("pk", flat=True).first() or 0
     )
+    partner = room.other_user(request.user)
+    is_blocked, messaging_blocked = _dm_block_flags(request.user, partner)
     return JsonResponse(
         {
             "messages": [
-                _serialize_room_message(message, request.user.id)
+                _serialize_room_message(
+                    message,
+                    request.user.id,
+                    anonymize_partner=is_blocked,
+                )
                 for message in messages_qs
             ],
             "latest_id": latest_id,
             "read_message_ids": list_dm_read_message_ids_for_sender(
                 room, request.user
             ),
+            "is_blocked": is_blocked,
+            "can_send": not messaging_blocked,
         }
     )
 
@@ -1027,7 +1059,7 @@ def user_profile(request, pk):
     user_dm_room = None
     can_send_dm = False
     if request.user.is_authenticated and not is_own_profile:
-        can_send_dm = True
+        can_send_dm = not is_either_blocked(request.user, profile_user)
         user_dm_room = find_dm_room(request.user, profile_user)
 
     profile_tab = request.GET.get("tab", "overview").strip()
@@ -1272,6 +1304,10 @@ def start_user_dm(request, pk):
         messages.error(request, "自分自身に DM は送れません。")
         return redirect(reverse("mypage"))
 
+    if is_either_blocked(request.user, partner):
+        messages.error(request, "ブロック中のユーザーとは DM を開始できません。")
+        return redirect(reverse("user_profile", kwargs={"pk": pk}))
+
     room, created = get_or_create_dm_room(request.user, partner)
     if created:
         messages.success(request, f"{partner.username} さんとの DM を開始しました。")
@@ -1291,6 +1327,7 @@ def user_dm_room(request, room_pk):
         return redirect(reverse("home"))
 
     partner = room.other_user(request.user)
+    is_blocked, messaging_blocked = _dm_block_flags(request.user, partner)
     dm_messages = room.messages.select_related("sender")
     latest_message_id = mark_dm_room_read(room, request.user)
     back_url = reverse("user_dm_inbox")
@@ -1306,6 +1343,8 @@ def user_dm_room(request, room_pk):
             "messages_poll_url": reverse(
                 "user_dm_room_messages", kwargs={"room_pk": room.pk}
             ),
+            "is_blocked": is_blocked,
+            "can_send_message": not messaging_blocked,
             "nav_active": "dm",
         },
     )
@@ -1321,6 +1360,11 @@ def send_user_dm_message(request, room_pk):
     if not can_access_dm_room(room, request.user):
         messages.error(request, "この DM ルームにはアクセスできません。")
         return redirect(reverse("home"))
+
+    partner = room.other_user(request.user)
+    if is_either_blocked(request.user, partner):
+        messages.error(request, "ブロック中のユーザーにはメッセージを送信できません。")
+        return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 
     body = request.POST.get("body", "").strip()
     if not body:
@@ -1339,7 +1383,7 @@ def send_user_dm_message(request, room_pk):
     room.save(update_fields=["updated_at"])
 
     recipient = room.other_user(request.user)
-    if recipient:
+    if recipient and not is_user_blocked(recipient, request.user):
         Notification.objects.create(
             recipient=recipient,
             message=f"{request.user.username} さんから DM: {body[:40]}",

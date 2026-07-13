@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractBaseUser
 
 from .dm_services import build_dm_conversations, build_dm_unread_summary
 from .group_chat_services import build_group_conversations, build_group_unread_summary
+from .ugc_services import is_user_blocked
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +32,29 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
             if room is None:
                 continue
             username = (getattr(partner, "username", "") or "").strip()
-            subtitle = f"@{username}" if username else "@(不明ユーザー)"
+            partner_blocked = is_user_blocked(user, partner)
+            if partner_blocked:
+                display_name = "不明なユーザー"
+                subtitle = "ブロック中"
+                latest_sender_name = "不明なユーザー" if latest else ""
+            else:
+                display_name = user_display_name_safe(partner)
+                subtitle = f"@{username}" if username else "@(不明ユーザー)"
+                latest_sender_name = (
+                    user_display_name_safe(getattr(latest, "sender", None))
+                    if latest
+                    else ""
+                )
             items.append(
                 {
                     "kind": "dm",
                     "room": room,
                     "partner": partner,
-                    "display_name": user_display_name_safe(partner),
+                    "display_name": display_name,
                     "subtitle": subtitle,
                     "latest_message": latest,
-                    "latest_sender_display_name": user_display_name_safe(
-                        getattr(latest, "sender", None)
-                    )
-                    if latest
-                    else "",
+                    "latest_sender_display_name": latest_sender_name,
+                    "is_blocked": partner_blocked,
                     "unread_count": int(dm.get("unread_count") or 0),
                     "updated_at": latest.created_at if latest else room.updated_at,
                 }

@@ -287,7 +287,7 @@
               {% if item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
             >
               <span class="dm-inbox-avatar{% if item.kind == 'group' %} is-group{% endif %}" aria-hidden="true">
-                {% if item.kind == 'group' %}👥{% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
+                {% if item.kind == 'group' %}👥{% elif item.is_blocked %}?{% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
               </span>
               <span class="dm-inbox-body">
                 <span class="dm-inbox-top">
