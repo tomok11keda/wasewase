@@ -32,7 +32,10 @@
     background: var(--accent);
     color: #fff;
     border-bottom: 1px solid var(--accent-dark);
-    padding: 12px 16px;
+    padding-top: max(4px, env(safe-area-inset-top, 0px));
+    padding-right: 16px;
+    padding-bottom: 8px;
+    padding-left: 16px;
   }
 
   .site-header h1 {

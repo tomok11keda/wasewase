@@ -1,11 +1,24 @@
 {% load wase_extras %}
 <style>
+  /* sticky ヘッダー: safe-area は「上」のみ（3値 shorthand の誤用で下に余白が付いていた） */
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--accent, #891E2B);
+    color: #fff;
+    border-bottom: 1px solid var(--accent-dark, #6f1722);
+    padding-top: max(4px, env(safe-area-inset-top, 0px));
+    padding-right: 12px;
+    padding-bottom: 4px;
+    padding-left: 12px;
+  }
   .shell-header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 40px;
+    min-height: 36px;
   }
   .shell-header-start,
   .shell-header-end {
