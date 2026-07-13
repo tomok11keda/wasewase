@@ -26,19 +26,6 @@
       color: var(--text);
       padding-bottom: 24px;
     }
-    .site-header {
-      background: var(--accent);
-      color: #fff;
-      padding-right: 16px;
-      padding-left: 16px;
-    }
-    .back-link {
-      display: inline-block;
-      margin-bottom: 6px;
-      font-size: 14px;
-      color: #fff;
-      text-decoration: none;
-    }
     .main-inner {
       max-width: 560px;
       margin: 0 auto;
@@ -62,7 +49,10 @@
       line-height: 1.6;
     }
     .settings-link {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
       margin-top: 12px;
       padding: 10px 14px;
       border-radius: 8px;
@@ -71,6 +61,7 @@
       font-size: 14px;
       font-weight: 700;
       text-decoration: none;
+      touch-action: manipulation;
     }
     .settings-link:hover { background: var(--accent-dark); }
     .settings-card--danger {
@@ -83,6 +74,7 @@
     .btn-danger-outline {
       margin-top: 14px;
       width: 100%;
+      min-height: 48px;
       padding: 12px;
       border: 1px solid var(--danger);
       border-radius: 8px;
@@ -91,6 +83,7 @@
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
+      touch-action: manipulation;
     }
     .btn-danger-outline:hover { background: #fff0f0; }
     .messages { list-style: none; padding: 0; margin: 0 0 12px; }
@@ -127,38 +120,31 @@
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
     }
     .delete-modal__panel h3 {
-      margin: 0 0 10px;
+      margin: 0 0 12px;
       font-size: 18px;
       color: var(--danger);
+      line-height: 1.45;
     }
-    .delete-modal__panel ul {
-      margin: 0 0 14px;
-      padding-left: 1.2em;
+    .delete-modal__panel p {
+      margin: 0 0 18px;
       font-size: 14px;
       line-height: 1.6;
       color: var(--text);
     }
-    .delete-confirm-check {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    .delete-confirm-check input { margin-top: 3px; }
     .delete-modal__actions {
       display: flex;
       gap: 10px;
     }
     .delete-modal__actions button {
       flex: 1;
+      min-height: 48px;
       padding: 11px;
       border-radius: 8px;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
       border: none;
+      touch-action: manipulation;
     }
     .btn-cancel {
       background: #eff3f4;
@@ -169,16 +155,14 @@
       color: #fff;
     }
     .btn-delete:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
+      opacity: 0.6;
+      cursor: wait;
     }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <a class="back-link" href="{% url 'mypage_edit' %}">← プロフィール設定に戻る</a>
-    <h1 style="margin:0;font-size:18px;">アカウント設定</h1>
-  </header>
+  {% url 'mypage_edit' as mypage_edit_url %}
+  {% include "includes/simple_back_header.html" with back_url=mypage_edit_url page_title="アカウント設定" back_aria="プロフィール設定に戻る" %}
 
   <main class="main-inner">
     {% if messages %}
@@ -215,21 +199,14 @@
   <div id="delete-account-modal" class="delete-modal" hidden aria-hidden="true">
     <div class="delete-modal__backdrop" data-delete-modal-close></div>
     <div class="delete-modal__panel" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
-      <h3 id="delete-modal-title">本当にアカウントを削除しますか？</h3>
-      <ul>
-        <li>プロフィール・フォロー・DM・投稿は削除されます</li>
-        <li>削除後は自動的にログアウトされ、ログイン画面へ移動します</li>
-      </ul>
+      <h3 id="delete-modal-title">アカウントを完全に削除しますか？この操作は取り消せません。</h3>
+      <p>「はい」を選ぶとすぐに削除処理が実行され、ログアウトしてログイン画面へ移動します。</p>
       <form method="post" action="{% url 'delete_account' %}" id="delete-account-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_delete" value="DELETE">
-        <label class="delete-confirm-check">
-          <input type="checkbox" id="delete-confirm-checkbox" required>
-          <span>上記の内容を理解し、アカウントを削除します</span>
-        </label>
         <div class="delete-modal__actions">
-          <button type="button" class="btn-cancel" data-delete-modal-close>キャンセル</button>
-          <button type="submit" class="btn-delete" id="delete-submit-btn" disabled>削除する</button>
+          <button type="button" class="btn-cancel" data-delete-modal-close>いいえ</button>
+          <button type="submit" class="btn-delete" id="delete-submit-btn">はい</button>
         </div>
       </form>
     </div>
@@ -239,19 +216,23 @@
     (function () {
       var modal = document.getElementById("delete-account-modal");
       var openBtn = document.getElementById("open-delete-modal");
-      var checkbox = document.getElementById("delete-confirm-checkbox");
+      var form = document.getElementById("delete-account-form");
       var submitBtn = document.getElementById("delete-submit-btn");
+      var submitting = false;
 
       function openModal() {
         if (!modal) return;
         modal.hidden = false;
         modal.setAttribute("aria-hidden", "false");
-        if (checkbox) checkbox.checked = false;
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "はい";
+        }
+        submitting = false;
       }
 
       function closeModal() {
-        if (!modal) return;
+        if (!modal || submitting) return;
         modal.hidden = true;
         modal.setAttribute("aria-hidden", "true");
       }
@@ -265,9 +246,13 @@
           if (event.key === "Escape" && modal && !modal.hidden) closeModal();
         });
       }
-      if (checkbox && submitBtn) {
-        checkbox.addEventListener("change", function () {
-          submitBtn.disabled = !checkbox.checked;
+      if (form) {
+        form.addEventListener("submit", function () {
+          submitting = true;
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "削除中…";
+          }
         });
       }
     })();

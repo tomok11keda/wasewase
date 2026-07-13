@@ -62,6 +62,23 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   box-sizing: border-box;
 }
 
+/* 戻るリンクがステータスバー下でも押しやすいよう最小タップ領域を確保 */
+.site-header .back-link,
+.site-header .shell-header-back,
+.site-header .simple-back-header__back {
+  position: relative;
+  z-index: 2;
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.site-header .back-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 4px;
+}
+
 /* 画面下部フォールバック時のみ余白を確保 */
 html.is-native-capacitor body.shell-desktop {
   padding-bottom: calc(var(--nav-h, 56px) + env(safe-area-inset-bottom, 0px));

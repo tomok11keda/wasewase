@@ -165,25 +165,26 @@
   }
 
   async function ensureCameraAccess() {
-    var status = await checkNativeCameraAuthorization();
-    if (isCameraAuthorizationGranted(status)) {
-      return true;
-    }
-
-    if (status === "notDetermined" || status === "prompt") {
-      status = await requestNativeCameraAuthorization();
+    try {
+      var status = await checkNativeCameraAuthorization();
       if (isCameraAuthorizationGranted(status)) {
         return true;
       }
-    }
 
-    if (isCameraAuthorizationBlocked(status)) {
+      if (status === "notDetermined" || status === "prompt" || status === "unknown") {
+        status = await requestNativeCameraAuthorization();
+        if (isCameraAuthorizationGranted(status)) {
+          return true;
+        }
+      }
+
+      showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+      return false;
+    } catch (error) {
+      logNativeError("Camera permission check failed", error);
       showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
       return false;
     }
-
-    showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
-    return false;
   }
 
   async function attachNativeCameraPhoto(input) {
@@ -209,6 +210,7 @@
         resultType: "uri",
         source: "prompt",
         saveToGallery: false,
+        correctOrientation: true,
       });
       if (!photo || !photo.webPath) {
         showCameraAlert("カメラ画像を取得できませんでした。");
@@ -216,7 +218,17 @@
       }
 
       var response = await fetch(photo.webPath);
+      if (!response || !response.ok) {
+        throw new Error("failed to fetch camera photo");
+      }
       var blob = await response.blob();
+      if (!blob || !blob.size) {
+        throw new Error("empty camera photo");
+      }
+      if (typeof File === "undefined" || typeof DataTransfer === "undefined") {
+        showCameraAlert("この端末では画像の取り込みに対応していません。");
+        return true;
+      }
       var file = new File(
         [blob],
         "camera_" + Date.now() + ".jpg",
@@ -231,7 +243,7 @@
       var message = String(
         (error && (error.message || error.localizedDescription)) || error || ""
       ).toLowerCase();
-      if (message.indexOf("cancel") >= 0) {
+      if (message.indexOf("cancel") >= 0 || message.indexOf("user cancelled") >= 0) {
         return true;
       }
       logNativeError("Camera getPhoto failed", error);
@@ -253,6 +265,7 @@
           return;
         }
 
+        // ネイティブカメラ経路でクラッシュしないよう、まず既定の file picker を止める
         event.preventDefault();
         event.stopPropagation();
 

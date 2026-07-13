@@ -59,7 +59,7 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>プロフィール画像や投稿画像を撮影してアップロードするためにカメラを使用します。</string>
+	<string>投稿用の写真を撮影するためにカメラを使用します</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>プロフィール画像や投稿画像をライブラリから選択してアップロードするために使用します。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

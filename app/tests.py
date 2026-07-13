@@ -2552,6 +2552,9 @@ class UGCSafetyTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "@author")
         self.assertContains(response, "解除")
+        self.assertContains(response, reverse("account_settings"))
+        self.assertContains(response, 'data-testid="header-back"')
+        self.assertContains(response, 'data-testid="footer-back"')
 
     def test_blocked_users_list_unblock_removes_record(self):
         from app.models import UserBlock
@@ -2573,6 +2576,17 @@ class UGCSafetyTests(TestCase):
         )
         self.assertContains(response, "ブロックを解除しました")
         self.assertContains(response, "ブロック中のユーザーはいません")
+        self.assertContains(response, 'data-testid="header-back"')
+        self.assertContains(response, reverse("account_settings"))
+
+    def test_blocked_users_empty_state_has_back_navigation(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("blocked_users"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ブロック中のユーザーはいません")
+        self.assertContains(response, 'data-testid="header-back"')
+        self.assertContains(response, 'data-testid="footer-back"')
+        self.assertContains(response, reverse("account_settings"))
 
     def test_settings_links_to_blocked_users(self):
         self.client.force_login(self.viewer)
@@ -2650,6 +2664,13 @@ class AccountDeletionTests(TestCase):
         response = self.client.get(reverse("account_settings"))
         self.assertContains(response, reverse("delete_account"))
         self.assertContains(response, "アカウントを削除する")
+        self.assertContains(
+            response,
+            "アカウントを完全に削除しますか？この操作は取り消せません。",
+        )
+        self.assertContains(response, ">はい<")
+        self.assertContains(response, ">いいえ<")
+        self.assertContains(response, 'name="confirm_delete" value="DELETE"')
 
     def test_delete_account_removes_user_and_deletes_posts(self):
         self.client.force_login(self.user)
@@ -2861,6 +2882,14 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
         self.assertIn("ensureCameraAccess", capacitor_js)
         self.assertIn("CameraPermission", capacitor_js)
+        info_plist = (
+            settings.BASE_DIR / "ios" / "App" / "App" / "Info.plist"
+        ).read_text(encoding="utf-8")
+        self.assertIn("NSCameraUsageDescription", info_plist)
+        self.assertIn(
+            "投稿用の写真を撮影するためにカメラを使用します",
+            info_plist,
+        )
         self.assertIn("カメラへのアクセス権限が必要です", capacitor_js)
 
 
