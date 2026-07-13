@@ -60,6 +60,33 @@
     );
   }
 
+  /**
+   * WKWebView で env(safe-area-inset-top) が 0 になる場合のフォールバック。
+   * ヘッダーの戻るボタンがステータスバーと重ならないように CSS 変数を補完する。
+   */
+  function ensureSafeAreaTopCssVar() {
+    try {
+      var probe = document.createElement("div");
+      probe.style.cssText =
+        "position:absolute;visibility:hidden;pointer-events:none;" +
+        "padding-top:env(safe-area-inset-top, 0px);";
+      document.documentElement.appendChild(probe);
+      var measured = window.getComputedStyle(probe).paddingTop;
+      document.documentElement.removeChild(probe);
+      var pixels = parseFloat(measured) || 0;
+      if (pixels < 1) {
+        var fallback = 47;
+        if (window.screen && window.screen.height >= 852) {
+          fallback = 59;
+        }
+        document.documentElement.style.setProperty("--wase-sat", fallback + "px");
+        logNative("safe-area-top fallback applied", fallback + "px");
+      }
+    } catch (error) {
+      logNativeError("safe-area-top probe failed", error);
+    }
+  }
+
   function getPlugin(name) {
     if (!window.Capacitor || !window.Capacitor.Plugins) {
       return null;
@@ -946,6 +973,7 @@
     }
 
     document.documentElement.classList.add("is-native-capacitor");
+    ensureSafeAreaTopCssVar();
     setupNativeCameraInputGuard();
     logNative("bootstrap start", {
       href: window.location.href,
