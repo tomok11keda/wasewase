@@ -2464,6 +2464,41 @@ class UGCSafetyTests(TestCase):
         response = self.client.get(reverse("home"))
         self.assertContains(response, "テスト投稿")
 
+    def test_blocked_users_list_shows_blocked_user(self):
+        self.client.force_login(self.viewer)
+        self.client.post(reverse("toggle_block", args=[self.author.pk]))
+
+        response = self.client.get(reverse("blocked_users"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "@author")
+        self.assertContains(response, "解除")
+
+    def test_blocked_users_list_unblock_removes_record(self):
+        from app.models import UserBlock
+
+        self.client.force_login(self.viewer)
+        self.client.post(reverse("toggle_block", args=[self.author.pk]))
+        self.assertTrue(
+            UserBlock.objects.filter(blocker=self.viewer, blocked=self.author).exists()
+        )
+
+        response = self.client.post(
+            reverse("toggle_block", args=[self.author.pk]),
+            {"next": reverse("blocked_users")},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            UserBlock.objects.filter(blocker=self.viewer, blocked=self.author).exists()
+        )
+        self.assertContains(response, "ブロックを解除しました")
+        self.assertContains(response, "ブロック中のユーザーはいません")
+
+    def test_settings_links_to_blocked_users(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("account_settings"))
+        self.assertContains(response, reverse("blocked_users"))
+
     def test_soft_removed_post_hidden_from_feed(self):
         self.post.is_removed = True
         self.post.save(update_fields=["is_removed"])

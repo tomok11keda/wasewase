@@ -60,6 +60,18 @@
       color: var(--muted);
       line-height: 1.6;
     }
+    .settings-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .settings-link:hover { background: var(--accent-dark); }
     .settings-card--danger {
       border: 1px solid #f5c6c6;
       background: var(--danger-bg);
@@ -179,6 +191,12 @@
     <section class="settings-card">
       <h2>ログイン中のアカウント</h2>
       <p>@{{ user.username }}</p>
+    </section>
+
+    <section class="settings-card">
+      <h2>ブロック中のユーザー</h2>
+      <p>ブロックしたユーザーの一覧を確認し、必要に応じて解除できます。</p>
+      <a class="settings-link" href="{% url 'blocked_users' %}">ブロック中のユーザーを見る</a>
     </section>
 
     <section class="settings-card settings-card--danger">
