@@ -1,6 +1,6 @@
 {% load wase_extras %}
 <style>
-  /* sticky ヘッダー: safe-area は「上」のみ（3値 shorthand の誤用で下に余白が付いていた） */
+  /* sticky ヘッダー本体。上余白は capacitor_native.css の safe-area ルールが担当 */
   .site-header {
     position: sticky;
     top: 0;
@@ -8,9 +8,7 @@
     background: var(--accent, #891E2B);
     color: #fff;
     border-bottom: 1px solid var(--accent-dark, #6f1722);
-    padding-top: max(4px, env(safe-area-inset-top, 0px));
     padding-right: 12px;
-    padding-bottom: 4px;
     padding-left: 12px;
   }
   .shell-header-row {
