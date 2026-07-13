@@ -3,7 +3,7 @@
   "appName": "わせわせ",
   "webDir": "www",
   "ios": {
-    "contentInset": "automatic",
+    "contentInset": "never",
     "allowsLinkPreview": false
   },
   "plugins": {
