@@ -121,6 +121,11 @@ urlpatterns = [
     path("mypage/", app_views.mypage, name="mypage"),
     path("mypage/edit/", app_views.mypage_edit, name="mypage_edit"),
     path("mypage/settings/", app_views.account_settings, name="account_settings"),
+    path(
+        "mypage/settings/blocked/",
+        app_views.blocked_users,
+        name="blocked_users",
+    ),
     path("account/delete/", app_views.delete_account, name="delete_account"),
     path("user/<int:pk>/follow/", app_views.toggle_follow, name="toggle_follow"),
     path("user/<int:pk>/block/", app_views.toggle_block, name="toggle_block"),

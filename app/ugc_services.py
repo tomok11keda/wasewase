@@ -44,6 +44,17 @@ def unblock_user(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> None:
     UserBlock.objects.filter(blocker=blocker, blocked=blocked).delete()
 
 
+def get_blocked_users(blocker: AbstractBaseUser) -> QuerySet[UserBlock]:
+    """自分がブロックしているユーザー一覧（新しい順）。"""
+    if blocker is None or not blocker.is_authenticated:
+        return UserBlock.objects.none()
+    return (
+        UserBlock.objects.filter(blocker=blocker)
+        .select_related("blocked", "blocked__profile")
+        .order_by("-created_at")
+    )
+
+
 def filter_visible_timeline_posts(
     qs: QuerySet[TimelinePost],
     viewer: AbstractBaseUser | None,

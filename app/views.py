@@ -143,6 +143,7 @@ from .ugc_services import (
     block_user,
     filter_visible_products,
     filter_visible_timeline_posts,
+    get_blocked_users,
     get_report_target,
     get_reported_user_id,
     is_user_blocked,
@@ -708,6 +709,19 @@ def mypage_edit(request):
 @login_required
 def account_settings(request):
     return render(request, "settings.html")
+
+
+@login_required
+def blocked_users(request):
+    blocks = get_blocked_users(request.user)
+    return render(
+        request,
+        "blocked_users.html",
+        {
+            "blocks": blocks,
+            "nav_active": "",
+        },
+    )
 
 
 @login_required
