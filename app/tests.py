@@ -2946,6 +2946,8 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
         self.assertIn("ensureCameraAccess", capacitor_js)
         self.assertIn("CameraPermission", capacitor_js)
+        self.assertIn("getNativeSafeAreaTopMinimum", capacitor_js)
+        self.assertIn("ensureSafeAreaTopCssVar", capacitor_js)
         info_plist = (
             settings.BASE_DIR / "ios" / "App" / "App" / "Info.plist"
         ).read_text(encoding="utf-8")
@@ -2954,6 +2956,11 @@ class NotificationBadgeApiTests(TestCase):
             "投稿用の写真を撮影するためにカメラを使用します",
             info_plist,
         )
+        capacitor_css = (
+            settings.BASE_DIR / "static" / "css" / "capacitor_native.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("--wase-header-content-min-h", capacitor_css)
+        self.assertIn("height: auto !important", capacitor_css)
         self.assertIn("カメラへのアクセス権限が必要です", capacitor_js)
 
 
