@@ -1,13 +1,13 @@
 <div class="sidebar-right-inner">
   <form class="sidebar-search" method="get" action="{% url 'search' %}" role="search">
-    <label class="visually-hidden" for="sidebar-q">投稿を検索</label>
+    <label class="visually-hidden" for="sidebar-q">投稿・ユーザーを検索</label>
     <input
       class="sidebar-search__input"
       id="sidebar-q"
       type="search"
       name="q"
       value="{{ query|default:'' }}"
-      placeholder="タイムラインを検索"
+      placeholder="投稿・ユーザーを検索"
       autocomplete="off"
     >
   </form>

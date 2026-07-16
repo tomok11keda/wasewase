@@ -126,6 +126,9 @@ from .otp_services import (
 
 logger = logging.getLogger(__name__)
 from .services import (
+    SEARCH_TAB_ALL,
+    SEARCH_TAB_LATEST,
+    SEARCH_TAB_USERS,
     build_home_url,
     build_search_url,
     get_following_user_ids,
@@ -134,8 +137,9 @@ from .services import (
     get_user_faculty,
     get_user_rating_stats,
     is_following,
-    search_products,
+    normalize_search_tab,
     search_timeline_posts,
+    search_users,
     user_avatar_initial,
     user_display_name,
 )
@@ -437,45 +441,59 @@ def get_latest_posts(request):
 
 
 def search(request):
-    """タイムライン投稿とフリマ商品を検索。"""
+    """投稿（すべて／最新）とユーザーをタブで検索。"""
     query = request.GET.get("q", "").strip()
+    active_tab = normalize_search_tab(request.GET.get("tab"))
     viewer = request.user if request.user.is_authenticated else None
-    timeline_posts = TimelinePost.objects.none()
-    products = Product.objects.none()
+    timeline_posts = []
+    users = []
+    timeline_count = 0
+    user_count = 0
+
     if query:
-        timeline_posts = (
-            search_timeline_posts(query, viewer=viewer)
-            .select_related(
-                "author",
-                "author__profile",
-                "quoted_post",
-                "quoted_post__author",
+        if active_tab in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST):
+            sort = "popular" if active_tab == SEARCH_TAB_ALL else "latest"
+            timeline_qs = (
+                search_timeline_posts(query, viewer=viewer, sort=sort)
+                .select_related(
+                    "author",
+                    "author__profile",
+                    "quoted_post",
+                    "quoted_post__author",
+                )
+                .prefetch_related("comments__author")
             )
-            .prefetch_related("comments__author")
-        )
-        if request.user.is_authenticated:
-            timeline_posts = timeline_posts.annotate(
-                user_has_liked=Exists(
-                    TimelineLike.objects.filter(
-                        timeline_post_id=OuterRef("pk"),
-                        user_id=request.user.id,
+            if request.user.is_authenticated:
+                timeline_qs = timeline_qs.annotate(
+                    user_has_liked=Exists(
+                        TimelineLike.objects.filter(
+                            timeline_post_id=OuterRef("pk"),
+                            user_id=request.user.id,
+                        )
                     )
                 )
-            )
-        products = search_products(query, viewer=viewer)
-
-    timeline_posts = prepare_timeline_posts(timeline_posts, viewer)
+            timeline_posts = prepare_timeline_posts(timeline_qs, viewer)
+            timeline_count = len(timeline_posts)
+        elif active_tab == SEARCH_TAB_USERS:
+            users = list(search_users(query, viewer=viewer)[:50])
+            user_count = len(users)
 
     return render(
         request,
         "search.html",
         {
             "query": query,
+            "active_tab": active_tab,
             "timeline_posts": timeline_posts,
-            "timeline_count": len(timeline_posts),
-            "products": products,
-            "product_count": products.count() if query else 0,
-            "search_url": build_search_url(query),
+            "timeline_count": timeline_count,
+            "users": users,
+            "user_count": user_count,
+            "tab_urls": {
+                SEARCH_TAB_ALL: build_search_url(query, SEARCH_TAB_ALL),
+                SEARCH_TAB_LATEST: build_search_url(query, SEARCH_TAB_LATEST),
+                SEARCH_TAB_USERS: build_search_url(query, SEARCH_TAB_USERS),
+            },
+            "search_url": build_search_url(query, active_tab),
             "nav_active": "search",
         },
     )

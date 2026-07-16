@@ -374,37 +374,34 @@ class EmailAuthTests(TestCase):
 
 class GlobalSearchTests(TestCase):
     def setUp(self):
-        self.seller = get_user_model().objects.create_user(
+        User = get_user_model()
+        self.seller = User.objects.create_user(
             email="seller@example.com",
             password="password",
             username="seller",
         )
-        self.poster = get_user_model().objects.create_user(
+        self.poster = User.objects.create_user(
             email="poster@example.com",
             password="password",
             username="poster",
         )
-
-    def test_search_finds_product_by_name_and_description(self):
-        Product.objects.create(
-            seller=self.seller,
-            name="古着デニム",
-            description="サイズMのジャケット",
-            price=3000,
-            category="服",
+        self.viewer = User.objects.create_user(
+            email="viewer@example.com",
+            password="password",
+            username="viewer",
         )
-        Product.objects.create(
-            seller=self.seller,
-            name="別商品",
-            description="関係なし",
-            price=100,
-            category="本",
+        UserProfile.objects.update_or_create(
+            user=self.poster,
+            defaults={"name": "ポスタ太郎"},
         )
 
-        response = self.client.get(reverse("search"), {"q": "デニム"})
-        self.assertContains(response, "古着デニム")
-        self.assertNotContains(response, "別商品")
-        self.assertContains(response, "フリマの検索結果")
+    def test_search_tabs_are_rendered(self):
+        response = self.client.get(reverse("search"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "search-tabs")
+        self.assertContains(response, ">すべて<")
+        self.assertContains(response, ">最新<")
+        self.assertContains(response, ">ユーザー<")
 
     def test_search_finds_timeline_by_body(self):
         TimelinePost.objects.create(
@@ -419,24 +416,69 @@ class GlobalSearchTests(TestCase):
         response = self.client.get(reverse("search"), {"q": "ゼミ"})
         self.assertContains(response, "明日のゼミの予習は第3章まで")
         self.assertNotContains(response, "今日は晴れ")
-        self.assertContains(response, "スレッドの検索結果")
+        self.assertContains(response, "いいねが多い順")
 
-    def test_search_shows_both_sections(self):
-        Product.objects.create(
-            seller=self.seller,
-            name="教科書セット",
-            description="線形代数の参考書",
-            price=2000,
-            category="本",
-        )
-        TimelinePost.objects.create(
+    def test_search_all_tab_orders_by_like_count(self):
+        low = TimelinePost.objects.create(
             author=self.poster,
-            body="線形代数の過去問を共有します",
+            body="ゼミ低いいね",
+            like_count=1,
+        )
+        high = TimelinePost.objects.create(
+            author=self.poster,
+            body="ゼミ高いいね",
+            like_count=9,
         )
 
-        response = self.client.get(reverse("search"), {"q": "線形代数"})
-        self.assertContains(response, "教科書セット")
-        self.assertContains(response, "過去問を共有します")
+        response = self.client.get(reverse("search"), {"q": "ゼミ", "tab": "all"})
+        content = response.content.decode()
+        self.assertLess(content.index("ゼミ高いいね"), content.index("ゼミ低いいね"))
+        self.assertEqual(response.context["timeline_posts"][0].pk, high.pk)
+        self.assertEqual(response.context["timeline_posts"][1].pk, low.pk)
+
+    def test_search_latest_tab_orders_by_created_at(self):
+        older = TimelinePost.objects.create(
+            author=self.poster,
+            body="ゼミ古い投稿",
+            like_count=99,
+        )
+        newer = TimelinePost.objects.create(
+            author=self.poster,
+            body="ゼミ新しい投稿",
+            like_count=0,
+        )
+
+        response = self.client.get(reverse("search"), {"q": "ゼミ", "tab": "latest"})
+        self.assertContains(response, "新しい順")
+        self.assertEqual(response.context["timeline_posts"][0].pk, newer.pk)
+        self.assertEqual(response.context["timeline_posts"][1].pk, older.pk)
+
+    def test_search_users_tab_matches_username_and_display_name(self):
+        other = get_user_model().objects.create_user(
+            email="other@example.com",
+            password="password",
+            username="linear_user",
+        )
+        UserProfile.objects.update_or_create(
+            user=other,
+            defaults={"name": "線形太郎"},
+        )
+
+        by_username = self.client.get(
+            reverse("search"),
+            {"q": "poster", "tab": "users"},
+        )
+        self.assertContains(by_username, "@poster")
+        self.assertContains(by_username, "ポスタ太郎")
+        self.assertContains(by_username, "search-user-card")
+
+        by_name = self.client.get(
+            reverse("search"),
+            {"q": "線形", "tab": "users"},
+        )
+        self.assertContains(by_name, "@linear_user")
+        self.assertContains(by_name, "線形太郎")
+        self.assertNotContains(by_name, "@poster")
 
     def test_search_empty_query_shows_prompt(self):
         response = self.client.get(reverse("search"))
