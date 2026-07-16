@@ -8,6 +8,15 @@
   height="{{ size }}"
   loading="lazy"
 >
+{% elif fallback == "person" %}
+<span
+  class="user-avatar user-avatar--icon {{ extra_class }}"
+  style="width:{{ size }}px;height:{{ size }}px"
+  role="img"
+  aria-label="{{ alt_text }}"
+>
+  {% include "includes/sf_symbol_icon.html" with name="person_fill" %}
+</span>
 {% else %}
 <span class="user-avatar user-avatar--initial {{ extra_class }}" aria-hidden="true">{{ initial }}</span>
 {% endif %}

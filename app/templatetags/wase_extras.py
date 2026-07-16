@@ -29,8 +29,8 @@ def deleted_timeline_author_label():
 
 
 @register.inclusion_tag("includes/user_avatar.html")
-def render_user_avatar(user, size=36, extra_class=""):
-    """プロフィール画像、または頭文字アバターを表示。"""
+def render_user_avatar(user, size=36, extra_class="", fallback="initial"):
+    """プロフィール画像、またはフォールバック（頭文字 / person アイコン）を表示。"""
     avatar_url = get_user_avatar_url(user)
     return {
         "avatar_url": avatar_url,
@@ -38,6 +38,7 @@ def render_user_avatar(user, size=36, extra_class=""):
         "alt_text": user_display_name(user),
         "size": size,
         "extra_class": extra_class,
+        "fallback": fallback or "initial",
     }
 
 
