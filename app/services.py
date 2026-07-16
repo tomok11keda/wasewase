@@ -62,10 +62,29 @@ def get_following_user_ids(user: AbstractBaseUser) -> list[int]:
     )
 
 
-def build_search_url(query: str = "") -> str:
+SEARCH_TAB_ALL = "all"
+SEARCH_TAB_LATEST = "latest"
+SEARCH_TAB_USERS = "users"
+SEARCH_TABS = (SEARCH_TAB_ALL, SEARCH_TAB_LATEST, SEARCH_TAB_USERS)
+
+
+def normalize_search_tab(tab: str | None) -> str:
+    value = (tab or SEARCH_TAB_ALL).strip().lower()
+    if value in SEARCH_TABS:
+        return value
+    return SEARCH_TAB_ALL
+
+
+def build_search_url(query: str = "", tab: str = SEARCH_TAB_ALL) -> str:
+    params: dict[str, str] = {}
     if query:
-        return f"{reverse('search')}?{urlencode({'q': query})}"
-    return reverse("search")
+        params["q"] = query
+    normalized = normalize_search_tab(tab)
+    if normalized != SEARCH_TAB_ALL:
+        params["tab"] = normalized
+    if not params:
+        return reverse("search")
+    return f"{reverse('search')}?{urlencode(params)}"
 
 
 def search_products(query: str, viewer=None):
@@ -79,13 +98,44 @@ def search_products(query: str, viewer=None):
     return filter_visible_products(qs, viewer)
 
 
-def search_timeline_posts(query: str, viewer=None):
-    """タイムライン投稿を本文で検索。"""
+def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
+    """タイムライン投稿を本文で検索。
+
+    sort:
+      - \"latest\": 投稿日時の新しい順
+      - \"popular\": いいね数が多い順（同点は新しい順）
+    """
     qs = TimelinePost.objects.select_related("author", "author__profile")
     if not query:
         return qs.none()
-    qs = qs.filter(Q(body__icontains=query)).order_by("-created_at")
+    qs = qs.filter(Q(body__icontains=query))
+    if sort == "popular":
+        qs = qs.order_by("-like_count", "-created_at")
+    else:
+        qs = qs.order_by("-created_at")
     return filter_visible_timeline_posts(qs, viewer)
+
+
+def search_users(query: str, viewer=None):
+    """ユーザー名（@ID）と表示名でユーザーを検索。"""
+    from django.contrib.auth import get_user_model
+
+    from .ugc_services import get_blocked_user_ids
+
+    User = get_user_model()
+    if not query:
+        return User.objects.none()
+
+    qs = (
+        User.objects.filter(is_active=True)
+        .select_related("profile")
+        .filter(Q(username__icontains=query) | Q(profile__name__icontains=query))
+        .order_by("username")
+    )
+    blocked_ids = get_blocked_user_ids(viewer)
+    if blocked_ids:
+        qs = qs.exclude(pk__in=blocked_ids)
+    return qs
 
 
 def build_home_url(

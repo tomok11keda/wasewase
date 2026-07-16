@@ -1,0 +1,11 @@
+{% load wase_extras %}
+<a class="search-user-card" href="{% url 'user_profile' profile_user.pk %}">
+  <span class="search-user-card__avatar" aria-hidden="true">
+    {% render_user_avatar profile_user size=48 %}
+  </span>
+  <span class="search-user-card__meta">
+    <span class="search-user-card__name">{{ profile_user|display_name }}</span>
+    <span class="search-user-card__handle">@{{ profile_user.username }}</span>
+  </span>
+  <span class="search-user-card__chevron" aria-hidden="true">›</span>
+</a>

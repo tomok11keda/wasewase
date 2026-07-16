@@ -6,57 +6,190 @@
 {% block page_styles %}
 {% include "includes/timeline_feed_styles.html" %}
 <style>
-  .header-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .search-hero {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: -12px -12px 0;
+    padding: 12px 12px 0;
+    background: rgba(247, 249, 252, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .search-form {
-    flex: 1;
+    margin: 0;
+  }
+
+  .search-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #eff3f4;
+    border: 1px solid transparent;
+  }
+
+  .search-bar-wrap:focus-within {
+    background: #fff;
+    border-color: #891E2B;
+    box-shadow: 0 0 0 3px rgba(137, 30, 43, 0.12);
+  }
+
+  .search-bar-wrap .sf-icon {
+    color: #536471;
+    flex-shrink: 0;
   }
 
   .search-bar {
-    width: 100%;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 20px;
-    border: 1px solid #ddd;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    font-family: inherit;
+    color: #0f1419;
+    outline: none;
   }
 
-  .search-intro {
-    margin: 0 0 16px;
-    padding: 12px 14px;
-    background: var(--card);
-    border-radius: var(--radius);
-    font-size: 14px;
+  .search-bar::placeholder {
+    color: #8b98a5;
+  }
+
+  .search-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin: 12px 0 0;
+    padding: 4px;
+    border-radius: 12px;
+    background: #eff3f4;
+  }
+
+  .search-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 6px;
+    border-radius: 10px;
+    color: #536471;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .search-tab .sf-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .search-tab.is-active {
+    background: #fff;
+    color: #891E2B;
+    box-shadow: 0 1px 3px rgba(15, 20, 25, 0.08);
+  }
+
+  .search-results-meta {
+    margin: 14px 0 10px;
+    font-size: 13px;
+    color: #536471;
   }
 
   .empty-message {
-    padding: 24px;
+    padding: 28px 20px;
     text-align: center;
-    color: var(--muted);
-    background: var(--card);
-    border-radius: var(--radius);
+    color: #536471;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #eff3f4;
+    font-size: 14px;
+    line-height: 1.6;
   }
 
-  .search-section-title {
-    margin: 24px 0 12px;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .product-search-list {
+  .search-user-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
+    background: #fff;
+    border: 1px solid #eff3f4;
+    border-radius: 0;
+    overflow: hidden;
   }
 
-  @media (max-width: 1023px) {
-    .page-title,
-    .back-link {
-      display: none;
+  .search-user-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 72px;
+    padding: 12px 16px;
+    text-decoration: none;
+    color: inherit;
+    border-bottom: 1px solid #eff3f4;
+    touch-action: manipulation;
+  }
+
+  .search-user-card:last-child {
+    border-bottom: none;
+  }
+
+  .search-user-card:active {
+    background: #f7f9f9;
+  }
+
+  .search-user-card__avatar {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+
+  .search-user-card__meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .search-user-card__name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f1419;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .search-user-card__handle {
+    font-size: 14px;
+    color: #536471;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .search-user-card__chevron {
+    flex-shrink: 0;
+    color: #cfd9de;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  @media (min-width: 1024px) {
+    .search-hero {
+      margin: 0 0 8px;
+      padding: 0;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      position: static;
     }
   }
 </style>
@@ -68,17 +201,73 @@
 
 {% block main %}
 <main class="main-inner">
-  <h1 class="page-title">検索</h1>
-  <form class="search-form desktop-only" method="get" action="{% url 'search' %}" role="search" style="margin-bottom:16px">
-    <input class="search-bar" type="search" name="q" value="{{ query }}" placeholder="投稿・商品を検索" autocomplete="off">
-  </form>
-  <form class="search-form mobile-only" method="get" action="{% url 'search' %}" role="search" style="margin-bottom:16px">
-    <input class="search-bar" type="search" name="q" value="{{ query }}" placeholder="投稿・商品を検索" autocomplete="off">
-  </form>
-  {% if query %}
-  <p class="search-intro">「<strong>{{ query }}</strong>」の検索結果</p>
+  <div class="search-hero">
+    <form class="search-form" method="get" action="{% url 'search' %}" role="search">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <label class="search-bar-wrap">
+        {% include "includes/sf_symbol_icon.html" with name="magnifyingglass" %}
+        <input
+          class="search-bar"
+          type="search"
+          name="q"
+          value="{{ query }}"
+          placeholder="投稿・ユーザーを検索"
+          autocomplete="off"
+          enterkeyhint="search"
+        >
+      </label>
+    </form>
 
-  <h2 class="search-section-title">スレッドの検索結果（{{ timeline_count }}件）</h2>
+    <nav class="search-tabs" role="tablist" aria-label="検索タブ">
+      <a
+        class="search-tab{% if active_tab == 'all' %} is-active{% endif %}"
+        href="{{ tab_urls.all }}"
+        role="tab"
+        aria-selected="{% if active_tab == 'all' %}true{% else %}false{% endif %}"
+      >
+        {% include "includes/sf_symbol_icon.html" with name="flame" %}
+        <span>すべて</span>
+      </a>
+      <a
+        class="search-tab{% if active_tab == 'latest' %} is-active{% endif %}"
+        href="{{ tab_urls.latest }}"
+        role="tab"
+        aria-selected="{% if active_tab == 'latest' %}true{% else %}false{% endif %}"
+      >
+        {% include "includes/sf_symbol_icon.html" with name="clock" %}
+        <span>最新</span>
+      </a>
+      <a
+        class="search-tab{% if active_tab == 'users' %} is-active{% endif %}"
+        href="{{ tab_urls.users }}"
+        role="tab"
+        aria-selected="{% if active_tab == 'users' %}true{% else %}false{% endif %}"
+      >
+        {% include "includes/sf_symbol_icon.html" with name="person" %}
+        <span>ユーザー</span>
+      </a>
+    </nav>
+  </div>
+
+  {% if query %}
+  {% if active_tab == 'users' %}
+  <p class="search-results-meta">「{{ query }}」のユーザー · {{ user_count }}件</p>
+  {% if users %}
+  <div class="search-user-list" role="list">
+    {% for profile_user in users %}
+    <div role="listitem">
+      {% include "includes/search_user_card.html" with profile_user=profile_user %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-message">該当するユーザーはいません。</p>
+  {% endif %}
+  {% else %}
+  <p class="search-results-meta">
+    「{{ query }}」の投稿 · {{ timeline_count }}件
+    · {% if active_tab == 'latest' %}新しい順{% else %}いいねが多い順{% endif %}
+  </p>
   <div class="timeline-list">
     {% for post in timeline_posts %}
     {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
@@ -86,28 +275,12 @@
     <p class="empty-message">該当する投稿はありません。</p>
     {% endfor %}
   </div>
-
-  <h2 class="search-section-title">フリマの検索結果（{{ product_count }}件）</h2>
-  <div class="product-search-list">
-    {% for product in products %}
-    <a class="product-item" href="{% url 'product_detail' product.pk %}" style="display:flex;gap:12px;padding:12px;background:var(--card);border-radius:var(--radius);text-decoration:none;color:inherit;border:1px solid #eff3f4">
-      <div style="width:64px;height:64px;border-radius:8px;overflow:hidden;background:#eee;flex-shrink:0">
-        {% if product.image %}
-        <img src="{{ product.image.url }}" alt="" style="width:100%;height:100%;object-fit:cover">
-        {% endif %}
-      </div>
-      <div>
-        <p style="margin:0 0 4px;font-weight:700">{{ product.name }}</p>
-        <p style="margin:0;font-size:13px;color:var(--muted)">¥{{ product.price|floatformat:0 }} · {{ product.seller|display_name }}</p>
-      </div>
-    </a>
-    {% empty %}
-    <p class="empty-message">該当する商品はありません。</p>
-    {% endfor %}
-  </div>
+  {% endif %}
   {% else %}
-  <p class="search-intro">キーワードでタイムライン投稿とフリマ商品を検索できます。</p>
-  <p class="empty-message">上の検索バーにキーワードを入力してください。</p>
+  <p class="empty-message" style="margin-top:16px">
+    キーワードを入力してください。<br>
+    「すべて」は人気順、「最新」は新しい順、「ユーザー」は名前検索です。
+  </p>
   {% endif %}
 </main>
 {% endblock %}
