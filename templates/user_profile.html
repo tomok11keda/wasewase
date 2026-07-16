@@ -30,73 +30,146 @@
     }
 
     .profile-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: start;
+      margin-bottom: 14px;
     }
 
     .profile-avatar {
       width: 72px;
       height: 72px;
       flex-shrink: 0;
-      font-size: 28px;
+      border-radius: 50%;
     }
 
     .profile-avatar.user-avatar--image {
-      border: 2px solid #f0f0f0;
+      border: 2px solid #eff3f4;
+      object-fit: cover;
+    }
+
+    .profile-avatar.user-avatar--icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #eff3f4;
+      color: #8b98a5;
+      overflow: hidden;
+    }
+
+    .profile-avatar.user-avatar--icon .sf-icon {
+      width: 38px;
+      height: 38px;
+    }
+
+    .profile-identity {
+      min-width: 0;
+      padding-top: 6px;
     }
 
     .profile-name {
       margin: 0 0 4px;
       font-size: 22px;
-      font-weight: 700;
+      font-weight: 800;
+      line-height: 1.25;
+      color: var(--text);
+      word-break: break-word;
     }
 
     .profile-username {
-      margin: 0 0 8px;
-      font-size: 13px;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 500;
       color: var(--muted);
+      line-height: 1.3;
+    }
+
+    .profile-more {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .profile-more__trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: #536471;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .profile-more__trigger:hover,
+    .profile-more__trigger[aria-expanded="true"] {
+      background: rgba(15, 20, 25, 0.06);
+      color: var(--text);
     }
 
     .profile-bio {
       margin: 0 0 12px;
-      font-size: 14px;
-      line-height: 1.6;
-      color: #444;
+      font-size: 15px;
+      line-height: 1.55;
+      color: #0f1419;
       white-space: pre-wrap;
     }
 
     .profile-meta {
       margin: 0 0 16px;
       font-size: 14px;
-      color: #555;
-    }
-
-    .profile-rating {
-      margin: 0 0 12px;
-      font-size: 14px;
-      color: #444;
+      color: #536471;
     }
 
     .profile-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
       margin-bottom: 16px;
     }
 
+    .profile-actions--own,
+    .profile-actions--guest {
+      grid-template-columns: 1fr;
+    }
+
+    .profile-actions form {
+      margin: 0;
+      display: flex;
+      min-width: 0;
+    }
+
     .btn {
-      display: inline-block;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 15px;
       font-weight: 700;
       text-decoration: none;
       border: none;
       cursor: pointer;
       font-family: inherit;
+      line-height: 1.2;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+
+    .btn .sf-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
     }
 
     .btn-follow {
@@ -104,32 +177,120 @@
       color: #fff;
     }
 
+    .btn-follow:active {
+      background: var(--accent-dark);
+    }
+
     .btn-follow--following {
-      background: #eee;
-      color: #444;
-      border: 1px solid #ccc;
+      background: #fff;
+      color: #0f1419;
+      border: 1px solid #cfd9de;
     }
 
     .btn-outline {
       background: #fff;
       color: var(--accent);
-      border: 1px solid var(--accent);
+      border: 1.5px solid var(--accent);
     }
 
     .btn-dm {
       background: #fff;
       color: var(--accent);
-      border: 1px solid #d4a0a8;
+      border: 1.5px solid var(--accent);
     }
 
-    .btn-dm:hover {
+    .btn-dm:active {
       background: #f7edf0;
     }
 
-    .btn-dm-open {
-      background: var(--accent);
-      color: #fff;
-      border: 1px solid var(--accent);
+    .profile-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 600;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 12px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .profile-sheet[hidden] {
+      display: none;
+    }
+
+    .profile-sheet__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .profile-sheet__panel {
+      position: relative;
+      width: min(100%, 420px);
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .profile-sheet__title {
+      margin: 0;
+      padding: 14px 16px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #536471;
+      text-align: center;
+      border-bottom: 1px solid #eff3f4;
+    }
+
+    .profile-sheet__action {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 52px;
+      margin: 0;
+      padding: 12px 16px;
+      border: none;
+      border-bottom: 1px solid #eff3f4;
+      background: #fff;
+      color: #0f1419;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .profile-sheet__action--danger {
+      color: #f4212e;
+    }
+
+    .profile-sheet__action .sf-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .profile-sheet__cancel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 52px;
+      margin: 0;
+      padding: 12px 16px;
+      border: none;
+      background: #f7f9f9;
+      color: #0f1419;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .profile-sheet form {
+      margin: 0;
     }
 
     .stats-row {
@@ -167,10 +328,13 @@
     }
 
     .btn-mode-switch {
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 100%;
+      min-height: 44px;
       padding: 12px 16px;
-      border-radius: 8px;
+      border-radius: 999px;
       background: #f8f4f5;
       color: var(--accent);
       border: 1px solid #e8d4d8;
@@ -180,6 +344,8 @@
       text-decoration: none;
       line-height: 1.4;
       transition: background 0.15s, border-color 0.15s;
+      touch-action: manipulation;
+      box-sizing: border-box;
     }
 
     .btn-mode-switch:hover {
@@ -333,11 +499,26 @@
 
     <section class="profile-card">
       <div class="profile-header">
-        {% render_user_avatar profile_user size=72 extra_class="profile-avatar" %}
-        <div>
+        {% render_user_avatar profile_user size=72 extra_class="profile-avatar" fallback="person" %}
+        <div class="profile-identity">
           <h2 class="profile-name">{{ profile.display_name }}</h2>
           <p class="profile-username">@{{ profile_user.username }}</p>
         </div>
+        {% if not is_own_profile and user.is_authenticated %}
+        <div class="profile-more">
+          <button
+            type="button"
+            class="profile-more__trigger"
+            id="profile-more-trigger"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="profile-action-sheet"
+            aria-label="その他の操作"
+          >
+            {% include "includes/sf_symbol_icon.html" with name="ellipsis" %}
+          </button>
+        </div>
+        {% endif %}
       </div>
 
       {% if profile.bio %}
@@ -348,12 +529,12 @@
       <p class="profile-meta">{{ profile.department_grade_display }}</p>
       {% endif %}
 
-      <div class="profile-actions">
+      <div class="profile-actions{% if is_own_profile %} profile-actions--own{% elif not user.is_authenticated %} profile-actions--guest{% endif %}">
         {% if is_own_profile %}
         <a class="btn btn-outline" href="{% url 'mypage_edit' %}">プロフィール・アカウント設定</a>
         <a class="btn btn-outline" href="{% url 'mypage' %}">マイページ</a>
         {% elif user.is_authenticated %}
-        <form method="post" action="{% url 'toggle_follow' profile_user.pk %}">
+        <form class="profile-actionsform" method="post" action="{% url 'toggle_follow' profile_user.pk %}">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
           {% if user_is_following %}
@@ -364,28 +545,24 @@
         </form>
         {% if can_send_dm %}
           {% if user_dm_room %}
-          <a class="btn btn-dm-open" href="{% url 'user_dm_room' user_dm_room.pk %}">💬 DMを開く</a>
+          <a class="btn btn-dm" href="{% url 'user_dm_room' user_dm_room.pk %}">
+            {% include "includes/sf_symbol_icon.html" with name="paperplane" %}
+            <span>DMを開く</span>
+          </a>
           {% else %}
-          <form method="post" action="{% url 'start_user_dm' profile_user.pk %}">
+          <form class="profile-actionsform" method="post" action="{% url 'start_user_dm' profile_user.pk %}">
             {% csrf_token %}
-            <button type="submit" class="btn btn-dm">💬 DMを送る</button>
+            <button type="submit" class="btn btn-dm">
+              {% include "includes/sf_symbol_icon.html" with name="paperplane" %}
+              <span>DMを送る</span>
+            </button>
           </form>
           {% endif %}
-        {% endif %}
-        <form method="post" action="{% url 'toggle_block' profile_user.pk %}">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          {% if user_is_blocked %}
-          <button type="submit" class="btn-ugc-block btn-ugc-block--active">ブロック解除</button>
-          {% else %}
-          <button type="submit" class="btn-ugc-block" onclick="return confirm('このユーザーをブロックしますか？投稿が表示されなくなります。');">ブロックする</button>
-          {% endif %}
-        </form>
-        {% if ugc_report_enabled %}
-        {% include "includes/ugc_report_button.html" with report_type="user" report_id=profile_user.pk %}
+        {% else %}
+        <button type="button" class="btn btn-dm" disabled aria-disabled="true">DM不可</button>
         {% endif %}
         {% else %}
-        <a class="btn btn-outline" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログインしてフォロー</a>
+        <a class="btn btn-follow" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログインしてフォロー</a>
         {% endif %}
       </div>
 
@@ -406,12 +583,45 @@
 
       <div class="mode-switch">
         {% if from_source == "thread" %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">🛍️ この人の出品（フリマ）を見る</a>
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">この人の出品（フリマ）を見る</a>
         {% else %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">📄 この人の投稿（スレッド）を見る</a>
+        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">この人の投稿（スレッド）を見る</a>
         {% endif %}
       </div>
     </section>
+
+    {% if not is_own_profile and user.is_authenticated %}
+    <div id="profile-action-sheet" class="profile-sheet" hidden aria-hidden="true">
+      <div class="profile-sheet__backdrop" data-profile-sheet-close></div>
+      <div class="profile-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="profile-sheet-title">
+        <p class="profile-sheet__title" id="profile-sheet-title">@{{ profile_user.username }} の操作</p>
+        <form method="post" action="{% url 'toggle_block' profile_user.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% if user_is_blocked %}
+          <button type="submit" class="profile-sheet__action">ブロック解除</button>
+          {% else %}
+          <button
+            type="submit"
+            class="profile-sheet__action profile-sheet__action--danger"
+            onclick="return confirm('このユーザーをブロックしますか？投稿が表示されなくなります。');"
+          >ブロックする</button>
+          {% endif %}
+        </form>
+        {% if ugc_report_enabled %}
+        <form method="post" action="{% url 'submit_report' 'user' profile_user.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="reason" value="other">
+          <button type="submit" class="profile-sheet__action profile-sheet__action--danger">
+            {% include "includes/sf_symbol_icon.html" with name="flag" %}
+            <span>通報</span>
+          </button>
+        </form>
+        {% endif %}
+        <button type="button" class="profile-sheet__cancel" data-profile-sheet-close>キャンセル</button>
+      </div>
+    </div>
+    {% endif %}
 
     {% if is_own_profile %}
     <nav class="profile-tabs" aria-label="プロフィール表示">
@@ -440,7 +650,7 @@
         {% elif bookmark_meta.firestore_count > 0 %}
         <p class="empty-message">ブックマークは {{ bookmark_meta.firestore_count }} 件ありますが、表示できる投稿がありません（削除済み、非公開、またはブロック中のユーザーの投稿の可能性があります）。</p>
         {% else %}
-        <p class="empty-message">ブックマークした投稿はまだありません。タイムラインの 🔖 から保存できます。</p>
+        <p class="empty-message">ブックマークした投稿はまだありません。タイムラインのブックマークから保存できます。</p>
         {% endif %}
         {% endfor %}
       </div>
@@ -493,4 +703,36 @@
 
 {% block shell_scripts %}
 {% include "includes/timeline_feed_scripts.html" %}
+<script>
+(function () {
+  var trigger = document.getElementById("profile-more-trigger");
+  var sheet = document.getElementById("profile-action-sheet");
+  if (!trigger || !sheet) return;
+
+  function openSheet() {
+    sheet.hidden = false;
+    sheet.setAttribute("aria-hidden", "false");
+    trigger.setAttribute("aria-expanded", "true");
+  }
+
+  function closeSheet() {
+    sheet.hidden = true;
+    sheet.setAttribute("aria-hidden", "true");
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  trigger.addEventListener("click", function () {
+    if (sheet.hidden) openSheet();
+    else closeSheet();
+  });
+
+  sheet.querySelectorAll("[data-profile-sheet-close]").forEach(function (el) {
+    el.addEventListener("click", closeSheet);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !sheet.hidden) closeSheet();
+  });
+})();
+</script>
 {% endblock %}

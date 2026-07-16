@@ -1998,6 +1998,11 @@ class UserDirectMessageTests(TestCase):
         )
         self.assertContains(page, "DMを送る")
         self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
+        self.assertContains(page, "profile-more-trigger")
+        self.assertContains(page, "ブロックする")
+        self.assertContains(page, "通報")
+        self.assertContains(page, "btn-follow")
+        self.assertNotContains(page, "💬")
 
     def test_timeline_shows_dm_button_for_other_author(self):
         post = TimelinePost.objects.create(
