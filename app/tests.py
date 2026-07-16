@@ -2617,6 +2617,23 @@ class UGCSafetyTests(TestCase):
         response = self.client.get(reverse("home"))
         self.assertContains(response, 'action="/report/comment/')
 
+    def test_timeline_post_actionbar_uses_labeled_sf_style_actions(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "tweet-action--comment")
+        self.assertContains(response, "tweet-action--quote")
+        self.assertContains(response, "tweet-action--like")
+        self.assertContains(response, "tweet-action--report")
+        self.assertContains(response, ">コメント<")
+        self.assertContains(response, ">リツイート<")
+        self.assertContains(response, ">いいね<")
+        self.assertContains(response, ">通報<")
+        self.assertContains(response, 'action="/report/post/')
+        self.assertNotContains(response, "💬")
+        self.assertNotContains(response, "🔁")
+        self.assertNotContains(response, "❤️")
+        self.assertNotContains(response, "🚩")
+
 
 class AccountDeletionTests(TestCase):
     def setUp(self):

@@ -21,9 +21,6 @@
           <time class="tweet-time" datetime="{{ post.created_at|date:'c' }}" title="{{ post.created_at|date:'Y/m/d H:i' }}">{{ post.created_at|timesince }}</time>
         </div>
         <div class="tweet-header-menu">
-          {% if ugc_report_enabled and post.author_id != user.id %}
-          {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk %}
-          {% endif %}
           {% if user.is_authenticated and post.author_id and post.author_id != user.id %}
           <form class="tweet-menu-form" method="post" action="{% url 'start_user_dm' post.author.pk %}">
             {% csrf_token %}
@@ -35,13 +32,28 @@
             <button type="submit" class="tweet-menu-btn tweet-menu-btn--danger" aria-label="投稿を削除">削除</button>
           </form>
           {% endif %}
+          {% if user.is_authenticated %}
+          <form class="tweet-menu-form" method="post" action="{% url 'board_timeline_bookmark' post.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button
+              type="submit"
+              class="tweet-menu-btn tweet-menu-btn--icon{% if post.user_has_bookmarked %} is-bookmarked{% endif %}"
+              aria-pressed="{% if post.user_has_bookmarked %}true{% else %}false{% endif %}"
+              aria-label="{% if post.user_has_bookmarked %}ブックマーク解除{% else %}ブックマーク{% endif %}"
+              title="ブックマーク"
+            >
+              {% include "includes/sf_symbol_icon.html" with name="bookmark" %}
+            </button>
+          </form>
+          {% endif %}
         </div>
       </header>
 
       {% if post.course_name or post.faculty or post.professor_name %}
       <div class="tweet-tags">
         {% if post.course_name %}
-        <a class="course-tag" href="{% url 'home' %}?tag={{ post.course_name|urlencode }}">📘 {{ post.course_name }}</a>
+        <a class="course-tag" href="{% url 'home' %}?tag={{ post.course_name|urlencode }}">{{ post.course_name }}</a>
         {% endif %}
         {% if post.faculty %}<span class="tag tag-faculty">{{ post.faculty }}</span>{% endif %}
         {% if post.professor_name %}
@@ -70,13 +82,19 @@
           aria-expanded="false"
           aria-controls="comments-post-{{ post.pk }}"
         >
-          <span class="tweet-action-emoji" aria-hidden="true">💬</span>
-          <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
+          {% include "includes/sf_symbol_icon.html" with name="bubble_left" %}
+          <span class="tweet-action-meta">
+            <span class="tweet-action-label">コメント</span>
+            <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
+          </span>
         </button>
 
         {% if user.is_authenticated %}
-        <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}" aria-label="引用">
-          <span class="tweet-action-emoji" aria-hidden="true">🔁</span>
+        <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}">
+          {% include "includes/sf_symbol_icon.html" with name="arrow_2_squarepath" %}
+          <span class="tweet-action-meta">
+            <span class="tweet-action-label">リツイート</span>
+          </span>
         </a>
 
         <form class="tweet-action-form" method="post" action="{% url 'board_timeline_like' post.pk %}">
@@ -87,34 +105,43 @@
             aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}"
             aria-label="いいね"
           >
-            <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
-            <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+            {% if post.user_has_liked %}
+            {% include "includes/sf_symbol_icon.html" with name="heart_fill" %}
+            {% else %}
+            {% include "includes/sf_symbol_icon.html" with name="heart" %}
+            {% endif %}
+            <span class="tweet-action-meta">
+              <span class="tweet-action-label">いいね</span>
+              <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+            </span>
           </button>
         </form>
 
-        <form class="tweet-action-form" method="post" action="{% url 'board_timeline_bookmark' post.pk %}">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button
-            type="submit"
-            class="tweet-action tweet-action--bookmark{% if post.user_has_bookmarked %} is-bookmarked{% endif %}"
-            aria-pressed="{% if post.user_has_bookmarked %}true{% else %}false{% endif %}"
-            aria-label="{% if post.user_has_bookmarked %}ブックマーク解除{% else %}ブックマーク{% endif %}"
-          >
-            <span class="tweet-action-emoji" aria-hidden="true">🔖</span>
-          </button>
-        </form>
+        {% if ugc_report_enabled and post.author_id and post.author_id != user.id %}
+        {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk variant="action" %}
         {% else %}
-        <span class="tweet-action tweet-action--quote tweet-action--static" aria-hidden="true">
-          <span class="tweet-action-emoji">🔁</span>
+        <span class="tweet-action tweet-action--spacer" aria-hidden="true"></span>
+        {% endif %}
+        {% else %}
+        <span class="tweet-action tweet-action--quote tweet-action--static">
+          {% include "includes/sf_symbol_icon.html" with name="arrow_2_squarepath" %}
+          <span class="tweet-action-meta">
+            <span class="tweet-action-label">リツイート</span>
+          </span>
         </span>
         <span class="tweet-action tweet-action--like tweet-action--static">
-          <span class="tweet-action-emoji" aria-hidden="true">❤️</span>
-          <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+          {% include "includes/sf_symbol_icon.html" with name="heart" %}
+          <span class="tweet-action-meta">
+            <span class="tweet-action-label">いいね</span>
+            <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
+          </span>
         </span>
-        <span class="tweet-action tweet-action--bookmark tweet-action--static" aria-hidden="true">
-          <span class="tweet-action-emoji">🔖</span>
-        </span>
+        <a class="tweet-action tweet-action--report" href="{% url 'login' %}?next={{ request.path|urlencode }}">
+          {% include "includes/sf_symbol_icon.html" with name="flag" %}
+          <span class="tweet-action-meta">
+            <span class="tweet-action-label">通報</span>
+          </span>
+        </a>
         {% endif %}
       </div>
 

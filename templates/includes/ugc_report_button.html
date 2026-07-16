@@ -1,14 +1,34 @@
+{% comment %}
+  report_type / report_id 必須
+  variant: "icon"（既定・ヘッダー等）| "action"（タイムラインアクションバー・ラベル付き）
+{% endcomment %}
 <form
   method="post"
   action="{% url 'submit_report' report_type report_id %}"
-  class="ugc-report-form"
+  class="ugc-report-form{% if variant == 'action' %} ugc-report-form--action tweet-action-form{% endif %}"
 >
   {% csrf_token %}
   <input type="hidden" name="reason" value="other">
+  {% if variant == "action" %}
+  <button
+    type="submit"
+    class="tweet-action tweet-action--report"
+    aria-label="この投稿を通報"
+  >
+    {% include "includes/sf_symbol_icon.html" with name="flag" %}
+    <span class="tweet-action-meta">
+      <span class="tweet-action-label">通報</span>
+    </span>
+  </button>
+  {% else %}
   <button
     type="submit"
     class="btn-ugc-report"
     aria-label="通報"
     title="通報"
-  >🚩</button>
+  >
+    {% include "includes/sf_symbol_icon.html" with name="flag" %}
+    <span class="btn-ugc-report__label">通報</span>
+  </button>
+  {% endif %}
 </form>
