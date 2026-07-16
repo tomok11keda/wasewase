@@ -1,6 +1,6 @@
 {% load wase_extras %}
 <style>
-  /* sticky ヘッダー本体。上余白は capacitor_native.css の safe-area ルールが担当 */
+  /* sticky ヘッダー。上余白は capacitor_native.css の可変 safe-area が担当 */
   .site-header {
     position: sticky;
     top: 0;
@@ -16,14 +16,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 36px;
+    min-height: var(--wase-header-content-min-h, 44px);
+    width: 100%;
   }
   .shell-header-start,
   .shell-header-end {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    width: 40px;
+    min-width: 44px;
   }
   .shell-header-end {
     justify-content: flex-end;
@@ -34,8 +35,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     text-decoration: none;
     color: #fff;
@@ -44,14 +47,15 @@
     padding: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .shell-header-back {
     width: auto;
-    min-width: 36px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 0 8px;
+    min-width: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 0 10px;
     white-space: nowrap;
   }
   .shell-header-avatar {
@@ -95,19 +99,21 @@
     pointer-events: none;
   }
   .shell-header-dm .dm-nav-badge {
-    top: -2px;
-    right: -4px;
+    top: 2px;
+    right: 2px;
   }
   .shell-header-title {
     flex: 1;
     min-width: 0;
     margin: 0;
+    padding: 0 4px;
     font-size: 17px;
     font-weight: 700;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.25;
   }
   .shell-header-title--brand {
     font-size: 18px;
@@ -138,12 +144,12 @@
     <div class="shell-header-end">
       {% if user.is_authenticated %}
       <a class="shell-header-dm" href="{% url 'user_dm_inbox' %}" aria-label="メッセージ">
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
         {% include "includes/dm_nav_badge.html" %}
       </a>
       {% else %}
       <a class="shell-header-dm" href="{% url 'login' %}" aria-label="ログインしてメッセージ">
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
       </a>
       {% endif %}
     </div>

@@ -61,10 +61,27 @@
   }
 
   /**
-   * WKWebView で env(safe-area-inset-top) が 0 になる場合のフォールバック。
-   * ヘッダーの戻るボタンがステータスバーと重ならないように CSS 変数を補完する。
+   * WKWebView で env(safe-area-inset-top) が 0 / 過小になる場合の補完。
+   * Dynamic Island 機では最低 59px を確保し、計測値との大きい方を採用する。
    */
-  function ensureSafeAreaTopCssVar() {
+  function getNativeSafeAreaTopMinimum() {
+    var screenHeight = window.screen ? window.screen.height || 0 : 0;
+    var screenWidth = window.screen ? window.screen.width || 0 : 0;
+    var longSide = Math.max(screenHeight, screenWidth);
+    var shortSide = Math.min(screenHeight, screenWidth);
+
+    // iPhone 14 Pro / 15 / 16 系（Dynamic Island）
+    if (longSide >= 852 && shortSide >= 390) {
+      return 59;
+    }
+    // Face ID ノッチ機
+    if (longSide >= 812) {
+      return 47;
+    }
+    return 20;
+  }
+
+  function measureEnvSafeAreaTop() {
     try {
       var probe = document.createElement("div");
       probe.style.cssText =
@@ -73,17 +90,45 @@
       document.documentElement.appendChild(probe);
       var measured = window.getComputedStyle(probe).paddingTop;
       document.documentElement.removeChild(probe);
-      var pixels = parseFloat(measured) || 0;
-      if (pixels < 1) {
-        var fallback = 47;
-        if (window.screen && window.screen.height >= 852) {
-          fallback = 59;
-        }
-        document.documentElement.style.setProperty("--wase-sat", fallback + "px");
-        logNative("safe-area-top fallback applied", fallback + "px");
-      }
+      return parseFloat(measured) || 0;
     } catch (error) {
       logNativeError("safe-area-top probe failed", error);
+      return 0;
+    }
+  }
+
+  function ensureSafeAreaTopCssVar() {
+    try {
+      var measured = measureEnvSafeAreaTop();
+      var minimum = isNativeApp() ? getNativeSafeAreaTopMinimum() : 0;
+      var value = Math.max(measured, minimum);
+      var root = document.documentElement;
+      root.style.setProperty("--wase-sat-fallback", minimum + "px");
+      root.style.setProperty("--wase-sat", value + "px");
+      if (value > measured) {
+        logNative("safe-area-top raised to device minimum", {
+          measured: measured,
+          minimum: minimum,
+          applied: value,
+        });
+      }
+    } catch (error) {
+      logNativeError("safe-area-top update failed", error);
+    }
+  }
+
+  function bindSafeAreaTopListeners() {
+    if (!isNativeApp() || window.__waseSafeAreaBound) {
+      return;
+    }
+    window.__waseSafeAreaBound = true;
+    var refresh = function () {
+      ensureSafeAreaTopCssVar();
+    };
+    window.addEventListener("orientationchange", refresh);
+    window.addEventListener("resize", refresh);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", refresh);
     }
   }
 
@@ -987,6 +1032,7 @@
 
     document.documentElement.classList.add("is-native-capacitor");
     ensureSafeAreaTopCssVar();
+    bindSafeAreaTopListeners();
     setupNativeCameraInputGuard();
     logNative("bootstrap start", {
       href: window.location.href,

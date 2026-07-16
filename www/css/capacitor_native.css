@@ -34,37 +34,57 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 }
 
 /*
- * 全ページ共通: sticky/固定ヘッダーの safe-area。
- * contentInset=never 時に戻るボタンがステータスバーと重ならないようにする。
- * 下余白はページ側の指定を活かし、上だけ上書きする。
+ * 全ページ共通ヘッダー: Dynamic Island / ノッチ向け可変 safe-area。
+ * contentInset=never 時も、固定高さではなく inset + コンテンツ行で伸縮する。
  */
 :root {
   --wase-sat: 0px;
-  --wase-header-pad-y: 8px;
+  --wase-sat-fallback: 0px;
+  --wase-header-pad-y: 10px;
+  --wase-header-content-min-h: 44px;
 }
 
 @supports (top: constant(safe-area-inset-top)) {
   :root {
-    --wase-sat: constant(safe-area-inset-top);
+    --wase-sat: max(constant(safe-area-inset-top), var(--wase-sat-fallback));
   }
 }
 
 @supports (top: env(safe-area-inset-top)) {
   :root {
-    --wase-sat: env(safe-area-inset-top, 0px);
+    --wase-sat: max(env(safe-area-inset-top, 0px), var(--wase-sat-fallback));
   }
 }
 
 .site-header,
 .legal-header {
+  /* 固定 height を禁止し、safe-area + コンテンツ行で可変にする */
+  height: auto !important;
+  max-height: none !important;
+  min-height: calc(
+    var(--wase-sat) + var(--wase-header-content-min-h) + var(--wase-header-pad-y)
+  ) !important;
   padding-top: calc(var(--wase-sat) + var(--wase-header-pad-y)) !important;
-  padding-bottom: var(--wase-header-pad-y);
+  padding-bottom: var(--wase-header-pad-y) !important;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
-/* 戻るリンクがステータスバー下でも押しやすいよう最小タップ領域を確保 */
+.site-header .shell-header-row,
+.site-header .simple-back-header__row,
+.site-header .header-row {
+  flex: 0 0 auto;
+  min-height: var(--wase-header-content-min-h);
+  align-items: center;
+}
+
+/* 戻る・プロフィール等がステータスバー下でも押しやすいよう最小タップ領域を確保 */
 .site-header .back-link,
 .site-header .shell-header-back,
+.site-header .shell-header-profile,
+.site-header .shell-header-dm,
 .site-header .simple-back-header__back {
   position: relative;
   z-index: 2;
@@ -77,6 +97,15 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   display: inline-flex;
   align-items: center;
   padding: 8px 4px;
+}
+
+.site-header .shell-header-title,
+.site-header .simple-back-header__title,
+.site-header .header-title,
+.site-header h1 {
+  position: relative;
+  z-index: 1;
+  line-height: 1.25;
 }
 
 /* 画面下部フォールバック時のみ余白を確保 */
