@@ -1,2 +1,5 @@
 {% load static %}
 <link rel="stylesheet" href="{% static 'css/ugc_safety.css' %}">
+{% if user.is_authenticated %}
+<script src="{% static 'js/ugc_report.js' %}" defer></script>
+{% endif %}
