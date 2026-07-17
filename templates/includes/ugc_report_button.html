@@ -19,7 +19,7 @@
     <span class="tweet-action-label">通報</span>
   </span>
 </button>
-{% elif variant == "sheet" %}
+  {% elif variant == "sheet" %}
 <button
   type="button"
   class="profile-sheet__action profile-sheet__action--danger"
@@ -28,12 +28,12 @@
   data-report-id="{{ report_id }}"
   data-report-url="{{ report_submit_url }}"
   aria-haspopup="dialog"
-  aria-label="通報"
+  aria-label="ユーザーを報告する"
 >
   {% include "includes/sf_symbol_icon.html" with name="flag" %}
-  <span>通報</span>
+  <span>ユーザーを報告する</span>
 </button>
-{% else %}
+  {% else %}
 <button
   type="button"
   class="btn-ugc-report"

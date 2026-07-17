@@ -182,8 +182,9 @@
       if (profileSheet && !profileSheet.hidden) {
         profileSheet.hidden = true;
         profileSheet.setAttribute("aria-hidden", "true");
-        var moreTrigger = document.getElementById("profile-more-trigger");
-        if (moreTrigger) moreTrigger.setAttribute("aria-expanded", "false");
+        document.querySelectorAll("[data-profile-more-open]").forEach(function (el) {
+          el.setAttribute("aria-expanded", "false");
+        });
       }
 
       openSheet(trigger);

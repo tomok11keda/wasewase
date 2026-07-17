@@ -90,6 +90,12 @@
       flex-shrink: 0;
     }
 
+    @media (max-width: 1023px) {
+      .profile-more--in-card {
+        display: none;
+      }
+    }
+
     .profile-more__trigger {
       display: inline-flex;
       align-items: center;
@@ -111,6 +117,18 @@
     .profile-more__trigger[aria-expanded="true"] {
       background: rgba(15, 20, 25, 0.06);
       color: var(--text);
+    }
+
+    .page-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .page-title-row .page-title {
+      margin: 0;
     }
 
     .profile-bio {
@@ -246,8 +264,8 @@
     .profile-sheet__action {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
+      justify-content: flex-start;
+      gap: 10px;
       width: 100%;
       min-height: 52px;
       margin: 0;
@@ -261,6 +279,7 @@
       font-family: inherit;
       cursor: pointer;
       touch-action: manipulation;
+      text-align: left;
     }
 
     .profile-sheet__action--danger {
@@ -483,12 +502,29 @@
 {% block flash_messages %}{% endblock %}
 
 {% block mobile_header %}
-{% include "includes/mobile_shell_header.html" with header_title=profile.display_name header_back_url=header_back_url %}
+{% include "includes/mobile_shell_header.html" with header_title=profile.display_name header_back_url=header_back_url header_show_profile_more=show_profile_safety_menu %}
 {% endblock %}
 
 {% block main %}
 <main class="main-inner">
-  <h1 class="page-title desktop-only" style="margin-bottom:16px">{{ profile.display_name }}</h1>
+  <div class="page-title-row desktop-only">
+    <h1 class="page-title">{{ profile.display_name }}</h1>
+    {% if show_profile_safety_menu %}
+    <div class="profile-more">
+      <button
+        type="button"
+        class="profile-more__trigger"
+        data-profile-more-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="profile-action-sheet"
+        aria-label="通報・ブロックなどの操作"
+      >
+        {% include "includes/sf_symbol_icon.html" with name="ellipsis" %}
+      </button>
+    </div>
+    {% endif %}
+  </div>
     {% if messages %}
     <ul class="messages">
       {% for message in messages %}
@@ -504,16 +540,16 @@
           <h2 class="profile-name">{{ profile.display_name }}</h2>
           <p class="profile-username">@{{ profile_user.username }}</p>
         </div>
-        {% if not is_own_profile and user.is_authenticated %}
-        <div class="profile-more">
+        {% if show_profile_safety_menu %}
+        <div class="profile-more profile-more--in-card">
           <button
             type="button"
             class="profile-more__trigger"
-            id="profile-more-trigger"
+            data-profile-more-open
             aria-haspopup="dialog"
             aria-expanded="false"
             aria-controls="profile-action-sheet"
-            aria-label="その他の操作"
+            aria-label="通報・ブロックなどの操作"
           >
             {% include "includes/sf_symbol_icon.html" with name="ellipsis" %}
           </button>
@@ -590,27 +626,33 @@
       </div>
     </section>
 
-    {% if not is_own_profile and user.is_authenticated %}
+    {% if show_profile_safety_menu %}
     <div id="profile-action-sheet" class="profile-sheet" hidden aria-hidden="true">
       <div class="profile-sheet__backdrop" data-profile-sheet-close></div>
       <div class="profile-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="profile-sheet-title">
-        <p class="profile-sheet__title" id="profile-sheet-title">@{{ profile_user.username }} の操作</p>
+        <p class="profile-sheet__title" id="profile-sheet-title">安全のための操作</p>
+        {% if ugc_report_enabled %}
+        {% include "includes/ugc_report_button.html" with report_type="user" report_id=profile_user.pk variant="sheet" %}
+        {% endif %}
         <form method="post" action="{% url 'toggle_block' profile_user.pk %}">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
           {% if user_is_blocked %}
-          <button type="submit" class="profile-sheet__action">ブロック解除</button>
+          <button type="submit" class="profile-sheet__action">
+            {% include "includes/sf_symbol_icon.html" with name="person_slash" %}
+            <span>ブロック解除</span>
+          </button>
           {% else %}
           <button
             type="submit"
             class="profile-sheet__action profile-sheet__action--danger"
-            onclick="return confirm('このユーザーをブロックしますか？投稿が表示されなくなります。');"
-          >ブロックする</button>
+            onclick="return confirm('このユーザーをブロックしますか？\nブロックすると、相手の投稿が表示されなくなります。');"
+          >
+            {% include "includes/sf_symbol_icon.html" with name="person_slash" %}
+            <span>ブロックする</span>
+          </button>
           {% endif %}
         </form>
-        {% if ugc_report_enabled %}
-        {% include "includes/ugc_report_button.html" with report_type="user" report_id=profile_user.pk variant="sheet" %}
-        {% endif %}
         <button type="button" class="profile-sheet__cancel" data-profile-sheet-close>キャンセル</button>
       </div>
     </div>
@@ -698,25 +740,33 @@
 {% include "includes/timeline_feed_scripts.html" %}
 <script>
 (function () {
-  var trigger = document.getElementById("profile-more-trigger");
   var sheet = document.getElementById("profile-action-sheet");
-  if (!trigger || !sheet) return;
+  var triggers = document.querySelectorAll("[data-profile-more-open]");
+  if (!sheet || !triggers.length) return;
+
+  function setExpanded(expanded) {
+    triggers.forEach(function (trigger) {
+      trigger.setAttribute("aria-expanded", expanded ? "true" : "false");
+    });
+  }
 
   function openSheet() {
     sheet.hidden = false;
     sheet.setAttribute("aria-hidden", "false");
-    trigger.setAttribute("aria-expanded", "true");
+    setExpanded(true);
   }
 
   function closeSheet() {
     sheet.hidden = true;
     sheet.setAttribute("aria-hidden", "true");
-    trigger.setAttribute("aria-expanded", "false");
+    setExpanded(false);
   }
 
-  trigger.addEventListener("click", function () {
-    if (sheet.hidden) openSheet();
-    else closeSheet();
+  triggers.forEach(function (trigger) {
+    trigger.addEventListener("click", function () {
+      if (sheet.hidden) openSheet();
+      else closeSheet();
+    });
   });
 
   sheet.querySelectorAll("[data-profile-sheet-close]").forEach(function (el) {

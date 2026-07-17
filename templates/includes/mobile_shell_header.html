@@ -27,11 +27,17 @@
     min-width: 44px;
   }
   .shell-header-end {
+    display: flex;
+    align-items: center;
     justify-content: flex-end;
+    flex-shrink: 0;
+    min-width: 44px;
+    gap: 2px;
   }
   .shell-header-profile,
   .shell-header-back,
-  .shell-header-dm {
+  .shell-header-dm,
+  .shell-header-more {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -48,6 +54,16 @@
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+  }
+  .shell-header-more {
+    color: #fff;
+  }
+  .shell-header-more[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .shell-header-more .sf-icon {
+    width: 22px;
+    height: 22px;
   }
   .shell-header-back {
     width: auto;
@@ -142,6 +158,19 @@
     <h1 class="shell-header-title shell-header-title--brand">わせわせ</h1>
     {% endif %}
     <div class="shell-header-end">
+      {% if header_show_profile_more %}
+      <button
+        type="button"
+        class="shell-header-more"
+        data-profile-more-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="profile-action-sheet"
+        aria-label="通報・ブロックなどの操作"
+      >
+        {% include "includes/sf_symbol_icon.html" with name="ellipsis" %}
+      </button>
+      {% endif %}
       {% if user.is_authenticated %}
       <a class="shell-header-dm" href="{% url 'user_dm_inbox' %}" aria-label="メッセージ">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
