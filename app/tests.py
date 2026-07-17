@@ -1998,9 +1998,10 @@ class UserDirectMessageTests(TestCase):
         )
         self.assertContains(page, "DMを送る")
         self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
-        self.assertContains(page, "profile-more-trigger")
+        self.assertContains(page, "data-profile-more-open")
+        self.assertContains(page, "shell-header-more")
         self.assertContains(page, "ブロックする")
-        self.assertContains(page, "通報")
+        self.assertContains(page, "ユーザーを報告する")
         self.assertContains(page, "btn-follow")
         self.assertNotContains(page, "💬")
 

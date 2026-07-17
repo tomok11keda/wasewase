@@ -1064,6 +1064,9 @@ def user_profile(request, pk):
     rating_stats = get_user_rating_stats(profile_user)
     stats = get_profile_stats(profile_user, from_source)
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
+    show_profile_safety_menu = (
+        request.user.is_authenticated and not is_own_profile
+    )
     user_is_following = (
         is_following(request.user, profile_user)
         if request.user.is_authenticated and not is_own_profile
@@ -1114,6 +1117,7 @@ def user_profile(request, pk):
             "profile": profile,
             "stats": stats,
             "is_own_profile": is_own_profile,
+            "show_profile_safety_menu": show_profile_safety_menu,
             "user_is_following": user_is_following,
             "user_is_blocked": user_is_blocked,
             "can_send_dm": can_send_dm,
