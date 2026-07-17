@@ -609,14 +609,7 @@
           {% endif %}
         </form>
         {% if ugc_report_enabled %}
-        <form method="post" action="{% url 'submit_report' 'user' profile_user.pk %}">
-          {% csrf_token %}
-          <input type="hidden" name="reason" value="other">
-          <button type="submit" class="profile-sheet__action profile-sheet__action--danger">
-            {% include "includes/sf_symbol_icon.html" with name="flag" %}
-            <span>通報</span>
-          </button>
-        </form>
+        {% include "includes/ugc_report_button.html" with report_type="user" report_id=profile_user.pk variant="sheet" %}
         {% endif %}
         <button type="button" class="profile-sheet__cancel" data-profile-sheet-close>キャンセル</button>
       </div>

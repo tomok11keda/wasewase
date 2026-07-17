@@ -1,34 +1,51 @@
 {% comment %}
   report_type / report_id 必須
-  variant: "icon"（既定・ヘッダー等）| "action"（タイムラインアクションバー・ラベル付き）
+  variant: "icon"（既定）| "action"（タイムラインアクションバー）| "sheet"（プロフィール等のメニュー内）
 {% endcomment %}
-<form
-  method="post"
-  action="{% url 'submit_report' report_type report_id %}"
-  class="ugc-report-form{% if variant == 'action' %} ugc-report-form--action tweet-action-form{% endif %}"
+{% url 'submit_report' report_type report_id as report_submit_url %}
+{% if variant == "action" %}
+<button
+  type="button"
+  class="tweet-action tweet-action--report"
+  data-report-open
+  data-report-type="{{ report_type }}"
+  data-report-id="{{ report_id }}"
+  data-report-url="{{ report_submit_url }}"
+  aria-haspopup="dialog"
+  aria-label="この投稿を通報"
 >
-  {% csrf_token %}
-  <input type="hidden" name="reason" value="other">
-  {% if variant == "action" %}
-  <button
-    type="submit"
-    class="tweet-action tweet-action--report"
-    aria-label="この投稿を通報"
-  >
-    {% include "includes/sf_symbol_icon.html" with name="flag" %}
-    <span class="tweet-action-meta">
-      <span class="tweet-action-label">通報</span>
-    </span>
-  </button>
-  {% else %}
-  <button
-    type="submit"
-    class="btn-ugc-report"
-    aria-label="通報"
-    title="通報"
-  >
-    {% include "includes/sf_symbol_icon.html" with name="flag" %}
-    <span class="btn-ugc-report__label">通報</span>
-  </button>
-  {% endif %}
-</form>
+  {% include "includes/sf_symbol_icon.html" with name="flag" %}
+  <span class="tweet-action-meta">
+    <span class="tweet-action-label">通報</span>
+  </span>
+</button>
+{% elif variant == "sheet" %}
+<button
+  type="button"
+  class="profile-sheet__action profile-sheet__action--danger"
+  data-report-open
+  data-report-type="{{ report_type }}"
+  data-report-id="{{ report_id }}"
+  data-report-url="{{ report_submit_url }}"
+  aria-haspopup="dialog"
+  aria-label="通報"
+>
+  {% include "includes/sf_symbol_icon.html" with name="flag" %}
+  <span>通報</span>
+</button>
+{% else %}
+<button
+  type="button"
+  class="btn-ugc-report"
+  data-report-open
+  data-report-type="{{ report_type }}"
+  data-report-id="{{ report_id }}"
+  data-report-url="{{ report_submit_url }}"
+  aria-haspopup="dialog"
+  aria-label="通報"
+  title="通報"
+>
+  {% include "includes/sf_symbol_icon.html" with name="flag" %}
+  <span class="btn-ugc-report__label">通報</span>
+</button>
+{% endif %}

@@ -955,7 +955,7 @@ def _redirect_after_action(request, fallback_name: str = "home"):
     return redirect(reverse(fallback_name))
 
 
-REPORT_SUCCESS_MESSAGE = "通報を受け付けました。"
+REPORT_SUCCESS_MESSAGE = "ご報告ありがとうございました"
 
 
 @login_required

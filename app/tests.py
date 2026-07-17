@@ -2568,8 +2568,25 @@ class UGCSafetyTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "通報を受け付けました")
+        self.assertContains(response, "ご報告ありがとうございました")
         mock_send_mail.assert_called_once()
+
+    def test_timeline_report_button_opens_reason_chooser(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'data-report-open')
+        self.assertContains(response, 'data-report-type="post"')
+        self.assertContains(response, reverse("submit_report", args=["post", self.post.pk]))
+        self.assertContains(response, "ugc_report.js")
+        self.assertNotContains(response, 'name="reason" value="other"')
+        report_js = (settings.BASE_DIR / "static" / "js" / "ugc_report.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("不適切なコンテンツ", report_js)
+        self.assertIn("嫌がらせ", report_js)
+        self.assertIn("スパム", report_js)
+        self.assertIn("ご報告ありがとうございました", report_js)
+        self.assertIn("キャンセル", report_js)
 
     def test_submit_report_rejects_self_report(self):
         self.client.force_login(self.author)
@@ -2662,7 +2679,8 @@ class UGCSafetyTests(TestCase):
         )
         self.client.force_login(self.viewer)
         response = self.client.get(reverse("home"))
-        self.assertContains(response, 'action="/report/comment/')
+        self.assertContains(response, 'data-report-type="comment"')
+        self.assertContains(response, reverse("submit_report", args=["comment", Comment.objects.get().pk]))
 
     def test_timeline_post_actionbar_uses_labeled_sf_style_actions(self):
         self.client.force_login(self.viewer)
@@ -2675,7 +2693,8 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, ">リツイート<")
         self.assertContains(response, ">いいね<")
         self.assertContains(response, ">通報<")
-        self.assertContains(response, 'action="/report/post/')
+        self.assertContains(response, 'data-report-open')
+        self.assertContains(response, reverse("submit_report", args=["post", self.post.pk]))
         self.assertNotContains(response, "💬")
         self.assertNotContains(response, "🔁")
         self.assertNotContains(response, "❤️")
