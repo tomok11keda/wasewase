@@ -1999,10 +1999,12 @@ class UserDirectMessageTests(TestCase):
         self.assertContains(page, "DMを送る")
         self.assertContains(page, reverse("start_user_dm", args=[self.user_b.pk]))
         self.assertContains(page, "data-profile-more-open")
-        self.assertContains(page, "shell-header-more")
         self.assertContains(page, "ブロックする")
         self.assertContains(page, "ユーザーを報告する")
         self.assertContains(page, "btn-follow")
+        self.assertNotContains(page, "shell-header-more")
+        # Trigger button only (JS also mentions the attribute name as a selector).
+        self.assertContains(page, 'class="profile-more__trigger"', count=1)
         self.assertNotContains(page, "💬")
 
     def test_timeline_shows_dm_button_for_other_author(self):
