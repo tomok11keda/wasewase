@@ -22,18 +22,20 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     flex-shrink: 0;
     min-width: 44px;
     min-height: 44px;
-    padding: 0 10px;
+    padding: 0 12px;
     margin: 0;
     border: none;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
-    font-size: 22px;
+    font-size: 15px;
     font-weight: 700;
     line-height: 1;
+    white-space: nowrap;
     text-decoration: none;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -66,7 +68,7 @@
       href="{{ back_url }}"
       aria-label="{{ back_aria|default:'戻る' }}"
       data-testid="header-back"
-    >←</a>
+    >← 戻る</a>
     <h1 class="simple-back-header__title">{{ page_title }}</h1>
   </div>
 </header>
