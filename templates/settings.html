@@ -158,11 +158,30 @@
       opacity: 0.6;
       cursor: wait;
     }
+    .page-back-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .page-back-cta:active {
+      background: var(--accent-dark);
+    }
   </style>
 </head>
 <body>
-  {% url 'mypage_edit' as mypage_edit_url %}
-  {% include "includes/simple_back_header.html" with back_url=mypage_edit_url page_title="アカウント設定" back_aria="プロフィール設定に戻る" %}
+  {% url 'more_index' as more_url %}
+  {% include "includes/simple_back_header.html" with back_url=more_url page_title="アカウント設定" back_aria="その他に戻る" %}
 
   <main class="main-inner">
     {% if messages %}
@@ -194,6 +213,10 @@
         アカウントを削除する
       </button>
     </section>
+
+    <a class="page-back-cta" href="{% url 'more_index' %}" data-testid="footer-back">
+      その他に戻る
+    </a>
   </main>
 
   <div id="delete-account-modal" class="delete-modal" hidden aria-hidden="true">

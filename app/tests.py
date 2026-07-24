@@ -2659,6 +2659,12 @@ class UGCSafetyTests(TestCase):
         self.client.force_login(self.viewer)
         response = self.client.get(reverse("account_settings"))
         self.assertContains(response, reverse("blocked_users"))
+        self.assertContains(response, 'data-testid="header-back"')
+        self.assertContains(response, 'data-testid="footer-back"')
+        self.assertContains(response, reverse("more_index"))
+        self.assertContains(response, "← 戻る")
+        self.assertContains(response, "その他に戻る")
+        self.assertNotContains(response, reverse("mypage_edit"))
 
     def test_soft_removed_post_hidden_from_feed(self):
         self.post.is_removed = True
