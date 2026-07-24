@@ -141,11 +141,31 @@
     .page-back-cta:active {
       background: var(--accent-dark);
     }
+    .blocked-users-header {
+      position: sticky;
+      top: 0;
+      z-index: 300;
+      background: var(--accent);
+      color: #fff;
+      border-bottom: 1px solid var(--accent-dark);
+      padding-right: 16px;
+      padding-left: 16px;
+    }
+    .blocked-users-header__title {
+      margin: 0;
+      min-height: var(--wase-header-content-min-h, 44px);
+      display: flex;
+      align-items: center;
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
   </style>
 </head>
 <body>
-  {% url 'account_settings' as settings_url %}
-  {% include "includes/simple_back_header.html" with back_url=settings_url page_title="ブロック中のユーザー" back_aria="アカウント設定に戻る" %}
+  <header class="site-header blocked-users-header">
+    <h1 class="blocked-users-header__title">ブロック中のユーザー</h1>
+  </header>
 
   <main class="main-inner">
     {% if messages %}

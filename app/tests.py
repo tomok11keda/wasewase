@@ -2620,8 +2620,10 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, "@author")
         self.assertContains(response, "解除")
         self.assertContains(response, reverse("account_settings"))
-        self.assertContains(response, 'data-testid="header-back"')
+        self.assertNotContains(response, 'data-testid="header-back"')
         self.assertContains(response, 'data-testid="footer-back"')
+        self.assertContains(response, "アカウント設定に戻る")
+        self.assertNotContains(response, "← 戻る")
 
     def test_blocked_users_list_unblock_removes_record(self):
         from app.models import UserBlock
@@ -2643,7 +2645,8 @@ class UGCSafetyTests(TestCase):
         )
         self.assertContains(response, "ブロックを解除しました")
         self.assertContains(response, "ブロック中のユーザーはいません")
-        self.assertContains(response, 'data-testid="header-back"')
+        self.assertNotContains(response, 'data-testid="header-back"')
+        self.assertContains(response, 'data-testid="footer-back"')
         self.assertContains(response, reverse("account_settings"))
 
     def test_blocked_users_empty_state_has_back_navigation(self):
@@ -2651,9 +2654,11 @@ class UGCSafetyTests(TestCase):
         response = self.client.get(reverse("blocked_users"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "ブロック中のユーザーはいません")
-        self.assertContains(response, 'data-testid="header-back"')
+        self.assertNotContains(response, 'data-testid="header-back"')
         self.assertContains(response, 'data-testid="footer-back"')
         self.assertContains(response, reverse("account_settings"))
+        self.assertContains(response, "アカウント設定に戻る")
+        self.assertNotContains(response, "← 戻る")
 
     def test_settings_links_to_blocked_users(self):
         self.client.force_login(self.viewer)
