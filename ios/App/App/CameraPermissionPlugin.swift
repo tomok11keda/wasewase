@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import AVFoundation
+import UIKit
 
 @objc(CameraPermissionPlugin)
 public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -9,6 +10,7 @@ public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "checkAuthorization", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestAuthorization", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isCameraAvailable", returnType: CAPPluginReturnPromise),
     ]
 
     @objc func checkAuthorization(_ call: CAPPluginCall) {
@@ -16,6 +18,7 @@ public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve([
             "status": Self.stringify(status),
             "granted": status == .authorized,
+            "cameraAvailable": Self.isCameraHardwareAvailable(),
         ])
     }
 
@@ -26,6 +29,7 @@ public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve([
                 "status": Self.stringify(currentStatus),
                 "granted": true,
+                "cameraAvailable": Self.isCameraHardwareAvailable(),
             ])
             return
         }
@@ -34,6 +38,7 @@ public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve([
                 "status": Self.stringify(currentStatus),
                 "granted": false,
+                "cameraAvailable": Self.isCameraHardwareAvailable(),
             ])
             return
         }
@@ -44,9 +49,26 @@ public class CameraPermissionPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve([
                     "status": Self.stringify(status),
                     "granted": granted && status == .authorized,
+                    "cameraAvailable": Self.isCameraHardwareAvailable(),
                 ])
             }
         }
+    }
+
+    /// UIImagePickerController でカメラを開く前に必須の利用可否チェック。
+    /// シミュレーターやカメラ非搭載端末では false を返し、クラッシュを防ぐ。
+    @objc func isCameraAvailable(_ call: CAPPluginCall) {
+        let cameraAvailable = Self.isCameraHardwareAvailable()
+        let photoLibraryAvailable = UIImagePickerController.isSourceTypeAvailable(.photoLibrary)
+        call.resolve([
+            "available": cameraAvailable,
+            "camera": cameraAvailable,
+            "photoLibrary": photoLibraryAvailable,
+        ])
+    }
+
+    private static func isCameraHardwareAvailable() -> Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
     private static func stringify(_ status: AVAuthorizationStatus) -> String {

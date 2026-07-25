@@ -2571,7 +2571,7 @@ class UGCSafetyTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "ご報告ありがとうございました")
+        self.assertContains(response, "通報しました")
         mock_send_mail.assert_called_once()
 
     def test_timeline_report_button_opens_reason_chooser(self):
@@ -2581,6 +2581,7 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, 'data-report-type="post"')
         self.assertContains(response, reverse("submit_report", args=["post", self.post.pk]))
         self.assertContains(response, "ugc_report.js")
+        self.assertContains(response, 'name="csrf-token"')
         self.assertNotContains(response, 'name="reason" value="other"')
         report_js = (settings.BASE_DIR / "static" / "js" / "ugc_report.js").read_text(
             encoding="utf-8"
@@ -2588,7 +2589,9 @@ class UGCSafetyTests(TestCase):
         self.assertIn("不適切なコンテンツ", report_js)
         self.assertIn("嫌がらせ", report_js)
         self.assertIn("スパム", report_js)
-        self.assertIn("ご報告ありがとうございました", report_js)
+        self.assertIn("通報しました", report_js)
+        self.assertIn("ugc-report-toast", report_js)
+        self.assertIn("X-CSRFToken", report_js)
         self.assertIn("キャンセル", report_js)
 
     def test_submit_report_rejects_self_report(self):
@@ -2979,6 +2982,9 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
         self.assertIn("ensureCameraAccess", capacitor_js)
         self.assertIn("CameraPermission", capacitor_js)
+        self.assertIn("isCameraAvailable", capacitor_js)
+        self.assertIn("isNativeCameraHardwareAvailable", capacitor_js)
+        self.assertIn("この環境ではカメラを利用できません", capacitor_js)
         self.assertIn("getNativeSafeAreaTopMinimum", capacitor_js)
         self.assertIn("ensureSafeAreaTopCssVar", capacitor_js)
         info_plist = (
@@ -2989,6 +2995,11 @@ class NotificationBadgeApiTests(TestCase):
             "投稿用の写真を撮影するためにカメラを使用します",
             info_plist,
         )
+        camera_plugin = (
+            settings.BASE_DIR / "ios" / "App" / "App" / "CameraPermissionPlugin.swift"
+        ).read_text(encoding="utf-8")
+        self.assertIn("UIImagePickerController.isSourceTypeAvailable(.camera)", camera_plugin)
+        self.assertIn("isCameraAvailable", camera_plugin)
         capacitor_css = (
             settings.BASE_DIR / "static" / "css" / "capacitor_native.css"
         ).read_text(encoding="utf-8")

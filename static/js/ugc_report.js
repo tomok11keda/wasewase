@@ -1,10 +1,12 @@
 /**
- * UGC 通報: 即時送信せず、理由選択の ActionSheet を表示してから POST する。
+ * UGC 通報: 理由選択 ActionSheet → POST → 成功フィードバック。
+ * 投稿・プロフィール・コメント・出品の [data-report-open] を委譲で処理する。
  */
 (function (window, document) {
   "use strict";
 
-  var SUCCESS_MESSAGE = "ご報告ありがとうございました";
+  var SUCCESS_MESSAGE = "通報しました";
+  var SUCCESS_DETAIL = "ご報告ありがとうございました。運営が内容を確認します。";
   var REASONS = [
     { value: "inappropriate", label: "不適切なコンテンツ" },
     { value: "harassment", label: "嫌がらせ" },
@@ -16,11 +18,22 @@
   var reasonInput = null;
   var statusEl = null;
   var actionsEl = null;
+  var cancelBtn = null;
   var submitting = false;
+  var bound = false;
+  var toastTimer = null;
 
-  function getCookie(name) {
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.getAttribute("content")) {
+      return meta.getAttribute("content");
+    }
+    var input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (input && input.value) {
+      return input.value;
+    }
     var match = document.cookie.match(
-      new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)")
+      /(?:^|; )csrftoken=([^;]*)/
     );
     return match ? decodeURIComponent(match[1]) : "";
   }
@@ -53,6 +66,7 @@
     reasonInput = sheet.querySelector("#ugc-report-sheet-reason");
     statusEl = sheet.querySelector("#ugc-report-sheet-status");
     actionsEl = sheet.querySelector("#ugc-report-sheet-actions");
+    cancelBtn = sheet.querySelector(".ugc-report-sheet__cancel");
 
     REASONS.forEach(function (reason) {
       var button = document.createElement("button");
@@ -65,18 +79,20 @@
 
     sheet.addEventListener("click", function (event) {
       if (event.target.closest("[data-report-close]")) {
-        closeSheet();
+        event.preventDefault();
+        closeSheet(true);
         return;
       }
       var reasonBtn = event.target.closest("[data-report-reason]");
       if (reasonBtn && !submitting) {
+        event.preventDefault();
         submitReason(reasonBtn.getAttribute("data-report-reason"));
       }
     });
 
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && sheet && !sheet.hidden) {
-        closeSheet();
+        closeSheet(true);
       }
     });
 
@@ -84,18 +100,34 @@
   }
 
   function setCsrfToken() {
-    var token = getCookie("csrftoken");
+    var token = getCsrfToken();
     var input = form && form.querySelector('input[name="csrfmiddlewaretoken"]');
     if (input && token) {
       input.value = token;
     }
+    return token;
+  }
+
+  function closeProfileSheetIfOpen() {
+    var profileSheet = document.getElementById("profile-action-sheet");
+    if (!profileSheet || profileSheet.hidden) return;
+    profileSheet.hidden = true;
+    profileSheet.setAttribute("aria-hidden", "true");
+    document.querySelectorAll("[data-profile-more-open]").forEach(function (el) {
+      el.setAttribute("aria-expanded", "false");
+    });
   }
 
   function openSheet(trigger) {
     ensureSheet();
     submitting = false;
+    var url = trigger.getAttribute("data-report-url") || "";
+    if (!url) {
+      showToast("通報先を取得できませんでした。ページを再読み込みしてください。", true);
+      return;
+    }
     setCsrfToken();
-    form.action = trigger.getAttribute("data-report-url") || "";
+    form.action = url;
     reasonInput.value = "";
     var nextInput = sheet.querySelector("#ugc-report-sheet-next");
     if (nextInput) {
@@ -105,15 +137,22 @@
     statusEl.textContent = "";
     statusEl.className = "ugc-report-sheet__status";
     actionsEl.hidden = false;
-    sheet.querySelector(".ugc-report-sheet__cancel").hidden = false;
+    if (cancelBtn) {
+      cancelBtn.hidden = false;
+      cancelBtn.textContent = "キャンセル";
+    }
     sheet.hidden = false;
+    sheet.classList.add("is-open");
     sheet.setAttribute("aria-hidden", "false");
     document.documentElement.classList.add("ugc-report-sheet-open");
   }
 
-  function closeSheet() {
-    if (!sheet || submitting) return;
+  function closeSheet(force) {
+    if (!sheet) return;
+    if (submitting && !force) return;
+    submitting = false;
     sheet.hidden = true;
+    sheet.classList.remove("is-open");
     sheet.setAttribute("aria-hidden", "true");
     document.documentElement.classList.remove("ugc-report-sheet-open");
   }
@@ -124,71 +163,141 @@
     statusEl.className =
       "ugc-report-sheet__status" + (isError ? " is-error" : " is-success");
     actionsEl.hidden = true;
-    sheet.querySelector(".ugc-report-sheet__cancel").textContent = "閉じる";
+    if (cancelBtn) {
+      cancelBtn.textContent = "閉じる";
+    }
+  }
+
+  function ensureToast() {
+    var el = document.getElementById("ugc-report-toast");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "ugc-report-toast";
+    el.className = "ugc-report-toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    el.hidden = true;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function showToast(message, isError) {
+    var el = ensureToast();
+    el.textContent = message;
+    el.classList.toggle("is-error", !!isError);
+    el.hidden = false;
+    el.classList.add("is-visible");
+    if (toastTimer) {
+      window.clearTimeout(toastTimer);
+    }
+    toastTimer = window.setTimeout(function () {
+      el.classList.remove("is-visible");
+      el.hidden = true;
+    }, 2800);
+  }
+
+  function parseResponse(response) {
+    var contentType = (response.headers.get("content-type") || "").toLowerCase();
+    if (contentType.indexOf("application/json") >= 0) {
+      return response.json().then(function (data) {
+        return { ok: response.ok, status: response.status, data: data || {} };
+      });
+    }
+    return response.text().then(function () {
+      // HTML リダイレクト等でも 2xx なら成功扱い
+      return {
+        ok: response.ok,
+        status: response.status,
+        data: {
+          message: response.ok ? SUCCESS_MESSAGE : "通報に失敗しました。もう一度お試しください。",
+        },
+      };
+    });
   }
 
   function submitReason(reason) {
     if (!form || !form.action || submitting) return;
     submitting = true;
-    reasonInput.value = reason;
-    setCsrfToken();
+    reasonInput.value = reason || "";
+    var token = setCsrfToken();
+    if (!token) {
+      submitting = false;
+      showStatus("セキュリティトークンを取得できませんでした。再読み込みしてください。", true);
+      return;
+    }
 
     var body = new FormData(form);
+    var headers = {
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      "X-CSRFToken": token,
+    };
+
     fetch(form.action, {
       method: "POST",
       body: body,
       credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-      },
+      headers: headers,
     })
-      .then(function (response) {
-        return response.json().then(function (data) {
-          return { ok: response.ok, status: response.status, data: data || {} };
-        });
-      })
+      .then(parseResponse)
       .then(function (result) {
         submitting = false;
         var message =
           (result.data && result.data.message) ||
-          (result.ok ? SUCCESS_MESSAGE : "通報に失敗しました。もう一度お試しください。");
+          (result.ok
+            ? SUCCESS_MESSAGE
+            : "通報に失敗しました。もう一度お試しください。");
         if (result.ok) {
-          showStatus(SUCCESS_MESSAGE, false);
+          showStatus(SUCCESS_MESSAGE + "\n" + SUCCESS_DETAIL, false);
+          showToast(SUCCESS_MESSAGE, false);
           window.setTimeout(function () {
-            submitting = false;
-            closeSheet();
-          }, 1400);
+            closeSheet(true);
+          }, 1200);
         } else {
           showStatus(message, true);
+          showToast(message, true);
         }
       })
       .catch(function () {
         submitting = false;
-        showStatus("通報に失敗しました。通信環境をご確認ください。", true);
+        var message = "通報に失敗しました。通信環境をご確認ください。";
+        showStatus(message, true);
+        showToast(message, true);
       });
   }
 
-  document.addEventListener(
-    "click",
-    function (event) {
-      var trigger = event.target.closest("[data-report-open]");
-      if (!trigger) return;
-      event.preventDefault();
-      event.stopPropagation();
+  function onReportTriggerClick(event) {
+    var trigger = event.target.closest("[data-report-open]");
+    if (!trigger) return;
 
-      // プロフィールの「…」シートが開いていれば先に閉じる
-      var profileSheet = document.getElementById("profile-action-sheet");
-      if (profileSheet && !profileSheet.hidden) {
-        profileSheet.hidden = true;
-        profileSheet.setAttribute("aria-hidden", "true");
-        document.querySelectorAll("[data-profile-more-open]").forEach(function (el) {
-          el.setAttribute("aria-expanded", "false");
-        });
-      }
+    // プロフィール「…」メニュー内の通報でも確実に拾う
+    event.preventDefault();
+    event.stopPropagation();
 
+    closeProfileSheetIfOpen();
+
+    // プロフィールシート非表示後に描画する（WKWebView のフォーカス競合回避）
+    window.setTimeout(function () {
       openSheet(trigger);
-    },
-    true
-  );
+    }, 0);
+  }
+
+  function bind() {
+    if (bound) return;
+    bound = true;
+    // capture: 他ハンドラより先に確実に拾う
+    document.addEventListener("click", onReportTriggerClick, true);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
+
+  // 外部から再バインド可能に（動的 HTML 差し替え後など）
+  window.WaseUgcReport = {
+    open: openSheet,
+    bind: bind,
+  };
 })(window, document);
