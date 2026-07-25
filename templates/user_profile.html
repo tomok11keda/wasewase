@@ -215,7 +215,7 @@
     }
 
     .profile-sheet[hidden] {
-      display: none;
+      display: none !important;
     }
 
     .profile-sheet__backdrop {
@@ -226,6 +226,7 @@
 
     .profile-sheet__panel {
       position: relative;
+      z-index: 1;
       width: min(100%, 420px);
       background: #fff;
       border-radius: 16px;

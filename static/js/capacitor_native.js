@@ -141,6 +141,10 @@
 
   var CAMERA_PERMISSION_REQUIRED_MESSAGE =
     "カメラへのアクセス権限が必要です。設定アプリでカメラを許可してください。";
+  var CAMERA_UNAVAILABLE_MESSAGE =
+    "この環境ではカメラを利用できません。フォトライブラリから画像を選択できます。";
+  var CAMERA_UNAVAILABLE_NO_FALLBACK_MESSAGE =
+    "この環境ではカメラを利用できません。実機でカメラ権限を有効にしてお試しください。";
 
   function showCameraAlert(message) {
     if (typeof window.alert === "function") {
@@ -209,26 +213,58 @@
     return "unknown";
   }
 
+  /**
+   * UIImagePickerController.isSourceTypeAvailable(.camera) 相当のチェック。
+   * シミュレーターやカメラ非搭載端末では false。
+   */
+  async function isNativeCameraHardwareAvailable() {
+    try {
+      var NativePermission = getPlugin("CameraPermission");
+      if (
+        NativePermission &&
+        typeof NativePermission.isCameraAvailable === "function"
+      ) {
+        var result = await NativePermission.isCameraAvailable();
+        if (result && typeof result.available === "boolean") {
+          return result.available;
+        }
+        if (result && typeof result.camera === "boolean") {
+          return result.camera;
+        }
+      }
+    } catch (error) {
+      logNativeError("Camera availability check failed", error);
+    }
+    // ネイティブ API が無い古いビルドでは安全側に倒す
+    return false;
+  }
+
   async function ensureCameraAccess() {
     try {
+      var cameraAvailable = await isNativeCameraHardwareAvailable();
+      if (!cameraAvailable) {
+        // 権限ダイアログ前にハード可否を判定し、未対応環境での起動クラッシュを防ぐ
+        return { ok: false, reason: "unavailable" };
+      }
+
       var status = await checkNativeCameraAuthorization();
       if (isCameraAuthorizationGranted(status)) {
-        return true;
+        return { ok: true, reason: "authorized" };
       }
 
       if (status === "notDetermined" || status === "prompt" || status === "unknown") {
         status = await requestNativeCameraAuthorization();
         if (isCameraAuthorizationGranted(status)) {
-          return true;
+          return { ok: true, reason: "authorized" };
         }
       }
 
       showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
-      return false;
+      return { ok: false, reason: "permission" };
     } catch (error) {
       logNativeError("Camera permission check failed", error);
       showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
-      return false;
+      return { ok: false, reason: "error" };
     }
   }
 
@@ -237,8 +273,17 @@
       return true;
     }
 
-    if (!(await ensureCameraAccess())) {
-      return true;
+    var access = await ensureCameraAccess();
+    var photoSource = "prompt";
+
+    if (!access.ok) {
+      if (access.reason === "unavailable") {
+        // カメラ不可時はフォトライブラリへフォールバック（クラッシュ回避）
+        showCameraAlert(CAMERA_UNAVAILABLE_MESSAGE);
+        photoSource = "photos";
+      } else {
+        return true;
+      }
     }
 
     var Camera = getPlugin("Camera");
@@ -253,7 +298,8 @@
       var photo = await Camera.getPhoto({
         quality: 85,
         resultType: "uri",
-        source: "prompt",
+        // ハード確認済みなら prompt。カメラ不可時は photos のみ（カメラ起動クラッシュ防止）。
+        source: photoSource,
         saveToGallery: false,
         correctOrientation: true,
       });
@@ -292,7 +338,11 @@
         return true;
       }
       logNativeError("Camera getPhoto failed", error);
-      showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+      if (photoSource === "photos") {
+        showCameraAlert(CAMERA_UNAVAILABLE_NO_FALLBACK_MESSAGE);
+      } else {
+        showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+      }
       return true;
     }
   }

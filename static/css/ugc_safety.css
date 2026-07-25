@@ -46,16 +46,21 @@
 .ugc-modal {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  display: flex;
+  z-index: 4000;
+  display: none;
   align-items: flex-end;
   justify-content: center;
   padding: 12px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
+.ugc-modal.is-open,
+.ugc-modal:not([hidden]) {
+  display: flex;
+}
+
 .ugc-modal[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .ugc-modal__backdrop {
@@ -173,6 +178,36 @@
 
 html.ugc-report-sheet-open {
   overflow: hidden;
+}
+
+.ugc-report-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 4500;
+  max-width: min(90vw, 360px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(15, 20, 25, 0.92);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ugc-report-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.ugc-report-toast.is-error {
+  background: rgba(183, 28, 28, 0.95);
 }
 
 .product-card-wrap {
