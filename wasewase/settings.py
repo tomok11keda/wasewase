@@ -393,8 +393,10 @@ STORAGES = {
 }
 
 # 本番: build.sh の collectstatic 後は staticfiles/ のみから配信（開発時は自動探索）
-WHITENOISE_USE_FINDERS = DEBUG
+# collectstatic 成果物が欠けると全 CSS/JS が 404 になるため、finders を常時フォールバックとして有効化。
+WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = DEBUG
+WHITENOISE_MANIFEST_STRICT = False
 
 if USE_CLOUDINARY:
     STORAGES["default"] = {
