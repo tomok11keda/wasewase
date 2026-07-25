@@ -2992,6 +2992,8 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("thread_success", capacitor_js)
         self.assertIn("thread_reply_success", capacitor_js)
         self.assertIn("creation:", capacitor_js)
+        self.assertIn("Bottom banner fallback disabled", capacitor_js)
+        self.assertIn("in-feed only", capacitor_js)
         self.assertNotIn("tab_switch:", capacitor_js)
         self.assertNotIn('triggers.push("login_success")', capacitor_js)
         admob_config = (
@@ -3568,3 +3570,57 @@ class BookmarkTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "ブックマーク一覧")
 
+
+class TimelineInfeedAdTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="adinfeed@waseda.jp",
+            password="pass12345",
+            username="adinfeed",
+        )
+        for i in range(6):
+            TimelinePost.objects.create(
+                author=self.user,
+                body=f"インフィード広告テスト投稿 {i}",
+            )
+
+    def test_web_home_does_not_render_infeed_ad_dom(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["show_timeline_infeed_ads"])
+        self.assertNotContains(response, 'data-wase-admob-anchor="timeline-infeed"')
+
+    def test_app_home_renders_infeed_every_three_posts(self):
+        self.client.force_login(self.user)
+        self.client.cookies["wase_is_app"] = "1"
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_timeline_infeed_ads"])
+        self.assertContains(response, 'data-wase-admob-anchor="timeline-infeed"')
+        # 6投稿 → 3件ごとなので広告DOMは2件
+        self.assertEqual(
+            response.content.decode().count('data-wase-admob-anchor="timeline-infeed"'),
+            2,
+        )
+
+    def test_disable_ads_removes_infeed_dom_even_for_app(self):
+        self.client.force_login(self.user)
+        self.client.cookies["wase_is_app"] = "1"
+        with self.settings(WASE_DISABLE_ADS=True):
+            response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["ads_disabled"])
+        self.assertFalse(response.context["show_timeline_infeed_ads"])
+        self.assertNotContains(response, 'data-wase-admob-anchor="timeline-infeed"')
+
+    def test_feed_batch_uses_offset_for_ad_interval(self):
+        self.client.force_login(self.user)
+        self.client.cookies["wase_is_app"] = "1"
+        response = self.client.get(reverse("timeline_feed"), {"offset": "1"})
+        self.assertEqual(response.status_code, 200)
+        html = response.json()["html"]
+        # offset=1 なら absolute 3,6,... で広告。バッチ先頭が absolute 2 なので
+        # counter 2 → abs 3 で1件目の広告が入る。
+        self.assertIn('data-wase-admob-anchor="timeline-infeed"', html)

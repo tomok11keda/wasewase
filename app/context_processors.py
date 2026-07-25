@@ -51,3 +51,24 @@ def ugc_safety(request):
         "report_reason_choices": ContentReport.Reason.choices,
         "ugc_report_enabled": request.user.is_authenticated,
     }
+
+
+def ads_config(request):
+    from .ads_services import (
+        detect_is_native_app,
+        get_infeed_ad_interval,
+        is_ads_disabled,
+        should_show_timeline_infeed_ads,
+    )
+
+    ads_disabled = is_ads_disabled()
+    is_app = detect_is_native_app(request)
+    return {
+        "ads_disabled": ads_disabled,
+        "is_native_app": is_app,
+        # 将来 Web でも出す場合の出し分け用（現状アプリのみ True）
+        "IS_APP": is_app,
+        "infeed_ad_interval": get_infeed_ad_interval(),
+        "show_timeline_infeed_ads": should_show_timeline_infeed_ads(request),
+        "timeline_ad_offset": 0,
+    }

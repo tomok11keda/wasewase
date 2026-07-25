@@ -1,0 +1,26 @@
+{#
+  タイムライン・インフィード広告カード（投稿カード風）。
+  DISABLE_ADS 時は呼び出し元で include しないこと（ここでも二重ガード）。
+#}
+{% if show_timeline_infeed_ads and not ads_disabled %}
+<article class="tweet-card tweet-card--ad" aria-label="スポンサー">
+  <div class="tweet-layout tweet-layout--ad">
+    <div class="tweet-avatar tweet-avatar--ad" aria-hidden="true">Ad</div>
+    <div class="tweet-main">
+      <header class="tweet-header">
+        <div class="tweet-identity">
+          <span class="tweet-author">スポンサー</span>
+          <span class="tweet-meta-dot" aria-hidden="true">·</span>
+          <span class="tweet-time">広告</span>
+        </div>
+      </header>
+      <div
+        class="timeline-ad-slot wase-admob-anchor tweet-ad-slot"
+        data-wase-admob-anchor="timeline-infeed"
+        role="complementary"
+        aria-label="スポンサーリンク"
+      ></div>
+    </div>
+  </div>
+</article>
+{% endif %}
