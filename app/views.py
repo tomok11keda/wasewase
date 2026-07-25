@@ -560,9 +560,12 @@ def create_community_thread(request):
             form.cleaned_data["body"],
         )
         messages.success(request, "スレッドを作成しました。")
-    else:
-        error = next(iter(form.errors.values()))[0]
-        messages.error(request, error)
+        url = build_communities_index_url(tag=active_tag)
+        separator = "&" if "?" in url else "?"
+        return redirect(f"{url}{separator}thread_success=1")
+
+    error = next(iter(form.errors.values()))[0]
+    messages.error(request, error)
     return redirect(build_communities_index_url(tag=active_tag))
 
 
@@ -675,7 +678,7 @@ def create_community_thread_reply(request, slug, thread_pk):
                 "community_thread_detail",
                 kwargs={"slug": community.slug, "thread_pk": thread.pk},
             )
-            + f"#reply-{reply.pk}"
+            + f"?thread_reply_success=1#reply-{reply.pk}"
         )
     else:
         error = next(iter(form.errors.values()))[0]
@@ -1707,8 +1710,13 @@ def verify_otp_resend(request):
     return redirect(reverse("verify_otp"))
 
 
-def _board_redirect(request, *, tag="", post_id=None):
+def _board_redirect(request, *, tag="", post_id=None, extra_query=None):
     url = build_home_url(active_tag=tag)
+    if extra_query:
+        from urllib.parse import urlencode
+
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}{urlencode(extra_query)}"
     if post_id:
         url += f"#post-{post_id}"
     return redirect(url)
@@ -1745,7 +1753,9 @@ def board_compose(request):
             messages.success(request, "引用投稿しました。")
         else:
             messages.success(request, "つぶやきを投稿しました。")
-        return _board_redirect(request, post_id=post.pk)
+        return _board_redirect(
+            request, post_id=post.pk, extra_query={"post_success": "1"}
+        )
     else:
         _log_auth_debug("BOARD COMPOSE", f"errors={form.errors.as_json()}")
         log_media_upload(

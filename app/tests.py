@@ -2985,6 +2985,19 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("isCameraAvailable", capacitor_js)
         self.assertIn("isNativeCameraHardwareAvailable", capacitor_js)
         self.assertIn("この環境ではカメラを利用できません", capacitor_js)
+        self.assertIn("DISABLE_ADS", capacitor_js)
+        self.assertIn("areAdsDisabled", capacitor_js)
+        self.assertIn("canShowAppOpenAdToday", capacitor_js)
+        self.assertIn("post_success", capacitor_js)
+        self.assertIn("thread_success", capacitor_js)
+        self.assertIn("thread_reply_success", capacitor_js)
+        self.assertIn("creation:", capacitor_js)
+        self.assertNotIn("tab_switch:", capacitor_js)
+        self.assertNotIn('triggers.push("login_success")', capacitor_js)
+        admob_config = (
+            settings.BASE_DIR / "static" / "js" / "admob_config.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("DISABLE_ADS", admob_config)
         self.assertIn("getNativeSafeAreaTopMinimum", capacitor_js)
         self.assertIn("ensureSafeAreaTopCssVar", capacitor_js)
         info_plist = (
