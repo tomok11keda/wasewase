@@ -243,7 +243,14 @@
       data-next-offset="{{ timeline_next_offset }}"
     >
       {% for post in timeline_posts %}
-      {% include "includes/timeline_post_card.html" with post=post show_ad_slot=forloop.first %}
+      {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
+      {% if show_timeline_infeed_ads and not ads_disabled %}
+      {% with abs_index=forloop.counter|add:timeline_ad_offset %}
+      {% if abs_index|divisibleby:infeed_ad_interval %}
+      {% include "components/timeline_infeed_ad_card.html" %}
+      {% endif %}
+      {% endwith %}
+      {% endif %}
       {% empty %}
       {% include "includes/timeline_empty_message.html" with feed_following_unauthenticated=feed_following_unauthenticated feed_scope=feed_scope %}
       {% endfor %}

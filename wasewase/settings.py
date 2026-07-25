@@ -273,6 +273,7 @@ TEMPLATES = [
                 'app.context_processors.dm_badge',
                 'app.context_processors.timeline_compose',
                 'app.context_processors.ugc_safety',
+                'app.context_processors.ads_config',
             ],
         },
     },
@@ -522,6 +523,16 @@ _warn_email_startup()
 MODERATION_NOTIFICATION_EMAIL = (
     _env("WASE_MODERATION_NOTIFICATION_EMAIL") or "wasewaseofficial@gmail.com"
 )
+
+# ---------------------------------------------------------------------------
+# 広告（AdMob / インフィード）
+# App Store 審査提出時は WASE_DISABLE_ADS=True（または環境変数）にして全停止。
+# static/js/admob_config.js の DISABLE_ADS もテンプレート経由で同期される。
+# ---------------------------------------------------------------------------
+WASE_DISABLE_ADS = env.bool("WASE_DISABLE_ADS", default=False)
+WASE_INFEED_AD_INTERVAL = env.int("WASE_INFEED_AD_INTERVAL", default=3)
+# True: インフィード HTML はアプリ（IS_APP）のみ。Web は将来用にフラグだけ用意。
+WASE_INFEED_ADS_APP_ONLY = env.bool("WASE_INFEED_ADS_APP_ONLY", default=True)
 
 # Django 6 + 旧ライブラリ互換（サードパーティが参照する場合に備える）
 STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]

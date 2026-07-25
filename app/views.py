@@ -381,6 +381,7 @@ def timeline_feed(request):
         {
             "timeline_posts": posts,
             "query": request.GET.get("q", "").strip(),
+            "timeline_ad_offset": offset,
         },
         request=request,
     )
@@ -412,7 +413,7 @@ def get_latest_posts(request):
             {
                 "timeline_posts": posts,
                 "query": request.GET.get("q", "").strip(),
-                "show_ad_on_first": True,
+                "timeline_ad_offset": 0,
             },
             request=request,
         )

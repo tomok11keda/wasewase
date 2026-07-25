@@ -2,8 +2,9 @@
  * AdMob 広告ユニット設定。
  *
  * 【審査・緊急停止用】
- * DISABLE_ADS を true にすると、バナー / インタースティシャル / 起動時広告を
- * 一切表示しません（ネイティブ Capacitor 側の広告ロジックがすべて no-op）。
+ * DISABLE_ADS を true にすると広告を完全停止します。
+ * 本番 HTML では Django の WASE_DISABLE_ADS がこの値を上書き同期します。
+ * （テンプレート側も DOM を一切レンダリングしません）
  *
  * テスト時は useProductionAds: false（Google 公式テスト ID）。
  * ストア申請・本番リリース前に true に切り替えてください。
@@ -12,8 +13,11 @@
   "use strict";
 
   window.WASE_ADMOB_CONFIG = {
-    // ★ App Store 審査提出時は true にして広告を完全停止できます
+    // ★ App Store 審査提出時は true（または Django の WASE_DISABLE_ADS=True）
     DISABLE_ADS: false,
+
+    // Django 側 IS_APP と同期（インフィード出し分けの参考値）
+    IS_APP: false,
 
     useProductionAds: false,
     test: {

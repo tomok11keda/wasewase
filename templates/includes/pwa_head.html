@@ -9,6 +9,15 @@
 <link rel="icon" type="image/png" sizes="192x192" href="{% static 'pwa/icon-192.png' %}">
 {% include "includes/adsense_head.html" %}
 <link rel="stylesheet" href="{% static 'css/capacitor_native.css' %}">
+<script src="{% static 'js/admob_config.js' %}"></script>
+<script>
+  /* Django 側 WASE_DISABLE_ADS / IS_APP を JS 設定へ同期 */
+  (function () {
+    window.WASE_ADMOB_CONFIG = window.WASE_ADMOB_CONFIG || {};
+    window.WASE_ADMOB_CONFIG.DISABLE_ADS = {{ ads_disabled|yesno:"true,false" }};
+    window.WASE_ADMOB_CONFIG.IS_APP = {{ is_native_app|yesno:"true,false" }};
+  })();
+</script>
 <script>
   /* 初回描画前に Dynamic Island / ノッチ分の上余白を仮置き（詳細は capacitor_native.js） */
   (function () {
@@ -18,6 +27,7 @@
         typeof window.Capacitor.isNativePlatform === "function" &&
         window.Capacitor.isNativePlatform();
       if (!isNative) return;
+      document.cookie = "wase_is_app=1; path=/; Max-Age=31536000; SameSite=Lax";
       var h = Math.max(screen.height || 0, screen.width || 0);
       var w = Math.min(screen.height || 0, screen.width || 0);
       var min = h >= 852 && w >= 390 ? 59 : h >= 812 ? 47 : 20;
@@ -27,7 +37,6 @@
     } catch (e) {}
   })();
 </script>
-<script src="{% static 'js/admob_config.js' %}"></script>
 <script src="{% static 'js/capacitor_native.js' %}" defer></script>
 {% include "includes/compose_fab_visibility.html" %}
 {% if user.is_authenticated %}

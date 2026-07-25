@@ -676,11 +676,9 @@
 
     AdMob.addListener("bannerAdFailedToLoad", function (error) {
       logNativeError("bannerAdFailedToLoad", error);
-      if (bannerMode === "inline") {
-        showBottomFallbackBanner().catch(function (fallbackError) {
-          logNativeError("Bottom fallback after banner load fail", fallbackError);
-        });
-      }
+      hideBannerAd().catch(function (hideError) {
+        logNativeError("Banner hide after load fail", hideError);
+      });
     });
 
     AdMob.addListener("bannerAdLoaded", function () {
@@ -818,34 +816,23 @@
   }
 
   async function showBottomFallbackBanner() {
-    var ids = getActiveAdIds();
-    var testing = !isProductionAds();
-    if (currentBannerAnchor) {
-      currentBannerAnchor.classList.remove("is-admob-anchor-active");
-      currentBannerAnchor = null;
-    }
-    await renderBanner({
-      adId: ids.banner,
-      adSize: "ADAPTIVE_BANNER",
-      position: "BOTTOM_CENTER",
-      margin: 0,
-      isTesting: testing,
-    });
-    bannerMode = "bottom";
-    setBannerLayoutClass("bottom");
+    // 下部固定バナーは廃止。インフィード枠が無い場合は広告を出さない。
+    logNative("Bottom banner fallback disabled (in-feed only)");
+    await hideBannerAd();
   }
 
   async function positionBannerAtAnchor(anchor) {
     if (!anchor) {
-      await showBottomFallbackBanner();
+      logNative("No in-feed ad anchor; skip banner");
+      await hideBannerAd();
       return;
     }
 
     var margin = computeBannerTopMargin(anchor, currentBannerHeight);
     var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     if (margin > viewportHeight - 32) {
-      logNative("Banner anchor off-screen; using bottom fallback", { margin: margin });
-      await showBottomFallbackBanner();
+      logNative("Banner anchor off-screen; hide until visible", { margin: margin });
+      await hideBannerAd();
       return;
     }
 
@@ -870,8 +857,8 @@
         isTesting: testing,
       });
     } catch (error) {
-      logNativeError("Inline banner render failed; using bottom fallback", error);
-      await showBottomFallbackBanner();
+      logNativeError("Inline banner render failed", error);
+      await hideBannerAd();
       return;
     }
     bannerMode = "inline";
@@ -968,7 +955,8 @@
       return;
     }
 
-    await showBottomFallbackBanner();
+    // インフィード枠が無い（DISABLE_ADS / Web 等）ときは下部バナーも出さない
+    await hideBannerAd();
   }
 
   async function prepareInterstitialAd() {
@@ -1136,11 +1124,11 @@
     try {
       await showBannerAd();
     } catch (error) {
-      logNativeError("Banner bootstrap failed; trying bottom fallback", error);
+      logNativeError("Banner bootstrap failed", error);
       try {
-        await showBottomFallbackBanner();
-      } catch (fallbackError) {
-        logNativeError("Bottom banner fallback failed", fallbackError);
+        await hideBannerAd();
+      } catch (hideError) {
+        logNativeError("Banner hide after fail", hideError);
       }
     }
 
@@ -1155,6 +1143,11 @@
     }
 
     document.documentElement.classList.add("is-native-capacitor");
+    try {
+      document.cookie = "wase_is_app=1; path=/; Max-Age=31536000; SameSite=Lax";
+    } catch (cookieError) {
+      // ignore
+    }
     ensureSafeAreaTopCssVar();
     bindSafeAreaTopListeners();
     setupNativeCameraInputGuard();
