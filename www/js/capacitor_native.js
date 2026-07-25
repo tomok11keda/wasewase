@@ -8,6 +8,13 @@
   var MIN_INTERSTITIAL_INTERVAL_MS = 90000;
   var BANNER_REPOSITION_DEBOUNCE_MS = 100;
   var BANNER_MARGIN_EPSILON = 4;
+  var APP_OPEN_STORAGE_KEY = "wase_app_open_ad_day";
+  var CREATION_AD_PARAMS = [
+    "post_success",
+    "exhibit_success",
+    "thread_success",
+    "thread_reply_success",
+  ];
   var bannerVisible = false;
   var bannerMode = "none";
   var interstitialPrepared = false;
@@ -38,6 +45,10 @@
 
   function getAdMobConfig() {
     return window.WASE_ADMOB_CONFIG || {};
+  }
+
+  function areAdsDisabled() {
+    return Boolean(getAdMobConfig().DISABLE_ADS);
   }
 
   function isProductionAds() {
@@ -503,15 +514,44 @@
     sessionStorage.setItem("wase_last_interstitial_at", String(Date.now()));
   }
 
+  function getLocalDateKey() {
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = String(now.getMonth() + 1).padStart(2, "0");
+    var d = String(now.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + d;
+  }
+
+  function canShowAppOpenAdToday() {
+    try {
+      return localStorage.getItem(APP_OPEN_STORAGE_KEY) !== getLocalDateKey();
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function markAppOpenAdShownToday() {
+    try {
+      localStorage.setItem(APP_OPEN_STORAGE_KEY, getLocalDateKey());
+    } catch (error) {
+      // ignore quota / private mode
+    }
+  }
+
   function cleanAdTriggerParams() {
     var params = new URLSearchParams(window.location.search);
     var changed = false;
-    ["login_success", "exhibit_success"].forEach(function (key) {
+    CREATION_AD_PARAMS.forEach(function (key) {
       if (params.has(key)) {
         params.delete(key);
         changed = true;
       }
     });
+    // 旧トリガー（ログイン成功）も URL から掃除
+    if (params.has("login_success")) {
+      params.delete("login_success");
+      changed = true;
+    }
     if (!changed) {
       return;
     }
@@ -602,6 +642,11 @@
   }
 
   async function initializeAdMob() {
+    if (areAdsDisabled()) {
+      logNative("AdMob skipped (DISABLE_ADS=true)");
+      return false;
+    }
+
     var AdMob = getAdMobPlugin();
     if (!AdMob) {
       logNativeError("AdMob plugin not found during initialize");
@@ -903,6 +948,10 @@
   }
 
   async function showBannerAd() {
+    if (areAdsDisabled()) {
+      logNative("showBannerAd skipped (DISABLE_ADS=true)");
+      return;
+    }
     if (!getAdMobPlugin()) {
       logNativeError("showBannerAd skipped: plugin missing");
       return;
@@ -923,6 +972,9 @@
   }
 
   async function prepareInterstitialAd() {
+    if (areAdsDisabled()) {
+      return false;
+    }
     var AdMob = getAdMobPlugin();
     if (!AdMob) {
       return false;
@@ -938,6 +990,10 @@
   }
 
   async function showInterstitialAd(reason) {
+    if (areAdsDisabled()) {
+      logNative("Interstitial skipped (DISABLE_ADS=true)", reason || "");
+      return false;
+    }
     if (!canShowInterstitialNow()) {
       logNative("Interstitial skipped (cooldown)", reason || "");
       return false;
@@ -968,10 +1024,19 @@
   }
 
   async function showAppOpenAd() {
+    if (areAdsDisabled()) {
+      logNative("App open ad skipped (DISABLE_ADS=true)");
+      return;
+    }
     if (appOpenHandled) {
       return;
     }
     appOpenHandled = true;
+
+    if (!canShowAppOpenAdToday()) {
+      logNative("App open ad skipped (already shown today)");
+      return;
+    }
 
     var AdMob = getAdMobPlugin();
     if (!AdMob) {
@@ -991,6 +1056,7 @@
         var loaded = await AdMob.isAppOpenLoaded();
         if (loaded && loaded.value) {
           await AdMob.showAppOpen();
+          markAppOpenAdShownToday();
           logNative("App open ad shown", { testing: testing });
           return;
         }
@@ -1006,37 +1072,40 @@
       await AdMob.showInterstitial();
       interstitialPrepared = false;
       markInterstitialShown();
+      markAppOpenAdShownToday();
       logNative("Launch interstitial fallback shown", { testing: testing });
     } catch (error) {
       logNativeError("App open ad failed", error);
     }
   }
 
+  /**
+   * 生成完了時のみインタースティシャルを表示する。
+   * タブ切替・通常ナビ・ログイン成功では表示しない。
+   */
   function handlePageTriggers() {
-    var params = new URLSearchParams(window.location.search);
-    var triggers = [];
-
-    if (params.get("login_success") === "1") {
-      triggers.push("login_success");
-    }
-    if (params.get("exhibit_success") === "1") {
-      triggers.push("exhibit_success");
-    }
-
-    var tab = params.get("tab") || "board";
-    var lastTab = sessionStorage.getItem("wase_last_tab");
-    if (lastTab && lastTab !== tab && triggers.length === 0) {
-      triggers.push("tab_switch:" + lastTab + "->" + tab);
-    }
-    sessionStorage.setItem("wase_last_tab", tab);
-
-    if (triggers.length === 0) {
+    if (areAdsDisabled()) {
+      cleanAdTriggerParams();
       return;
     }
 
-    showInterstitialAd(triggers.join(","))
+    var params = new URLSearchParams(window.location.search);
+    var triggers = [];
+
+    CREATION_AD_PARAMS.forEach(function (key) {
+      if (params.get(key) === "1") {
+        triggers.push(key);
+      }
+    });
+
+    if (triggers.length === 0) {
+      cleanAdTriggerParams();
+      return;
+    }
+
+    showInterstitialAd("creation:" + triggers.join(","))
       .catch(function (error) {
-        logNative("Page trigger interstitial failed", error);
+        logNative("Creation interstitial failed", error);
       })
       .finally(function () {
         cleanAdTriggerParams();
@@ -1044,6 +1113,11 @@
   }
 
   async function runAdMobBootstrap() {
+    if (areAdsDisabled()) {
+      logNative("AdMob bootstrap skipped (DISABLE_ADS=true)");
+      return;
+    }
+
     var adsReady = await initializeAdMob();
     if (!adsReady) {
       return;
@@ -1119,6 +1193,7 @@
 
   window.WaseCapacitor = {
     isNativeApp: isNativeApp,
+    areAdsDisabled: areAdsDisabled,
     isProductionAds: isProductionAds,
     getActiveAdIds: getActiveAdIds,
     trackPageView: trackPageView,
