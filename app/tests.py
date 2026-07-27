@@ -3251,6 +3251,17 @@ class CommunitiesTests(TestCase):
         self.assertNotContains(response, 'class="compose-fab')
         self.assertNotContains(response, "data-compose-open")
 
+    def test_communities_index_shows_mobile_thread_create_fab(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("communities_index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "thread-create-fab")
+        self.assertContains(response, "data-thread-open")
+        self.assertContains(response, 'aria-label="新規スレッドを作成"')
+        # タイムライン投稿用 FAB とは別物のまま
+        self.assertNotContains(response, 'class="compose-fab')
+        self.assertNotContains(response, "data-compose-open")
+
     def test_thread_create_modal_hides_board_name(self):
         self.client.force_login(self.user)
         self.client.post(

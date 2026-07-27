@@ -264,20 +264,43 @@
       line-height: 1.5;
     }
     .community-login-hint a { color: var(--accent); font-weight: 700; }
-    .btn-new-thread--mobile {
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
+    /* モバイル: 右下固定の新規スレッド FAB（PC ヘッダーボタンは desktop-only） */
+    .thread-create-fab {
+      position: fixed;
+      right: 16px;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
+      z-index: 250;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      min-width: 48px;
+      min-height: 48px;
       padding: 0;
-      border-radius: 999px;
-      font-size: 22px;
+      border: none;
+      border-radius: 50%;
+      background: var(--accent, #891e2b);
+      color: #fff;
+      font-size: 32px;
+      font-weight: 300;
       line-height: 1;
+      box-shadow: 0 4px 16px rgba(137, 30, 43, 0.42);
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .thread-create-fab:hover,
+    .thread-create-fab:focus-visible {
+      background: var(--accent-dark, #6f1722);
     }
     .messages { margin: 8px 12px 0; padding: 0; list-style: none; }
     .messages li { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
     @media (min-width: 1024px) {
       .main-inner { max-width: none; margin: 0; }
       .communities-header { top: 0; }
+      .thread-create-fab { display: none; }
     }
     @media (max-width: 1023px) {
       .communities-header h1 { display: none; }
@@ -414,6 +437,15 @@
   <div class="shell-hide-on-desktop">
     {% include "includes/bottom_nav.html" %}
   </div>
+
+  {% if user.is_authenticated and thread_form %}
+  <button
+    type="button"
+    class="thread-create-fab shell-hide-on-desktop"
+    data-thread-open
+    aria-label="新規スレッドを作成"
+  >＋</button>
+  {% endif %}
 
   {% include "includes/community_thread_modal.html" %}
   {% include "includes/community_thread_modal_scripts.html" %}
