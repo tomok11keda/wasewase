@@ -1,0 +1,193 @@
+{# 必須: timetable_days (月〜金), timetable_rows (period + cells) #}
+<style>
+  .timetable-board {
+    --tt-period-w: 58px;
+    --tt-border: #e1e8ef;
+    --tt-head-bg: #f7f9fc;
+    --tt-period-bg: #fafbfc;
+    --tt-cell-min-h: 72px;
+    margin: 0 -4px;
+    border: 1px solid var(--tt-border);
+    border-radius: 12px;
+    background: var(--card, #fff);
+    overflow: hidden;
+  }
+
+  .timetable-scroll {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .timetable-grid {
+    width: 100%;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: 12px;
+  }
+
+  .timetable-grid th,
+  .timetable-grid td {
+    border-right: 1px solid var(--tt-border);
+    border-bottom: 1px solid var(--tt-border);
+    vertical-align: top;
+  }
+
+  .timetable-grid tr > *:last-child {
+    border-right: none;
+  }
+
+  .timetable-grid tbody tr:last-child > * {
+    border-bottom: none;
+  }
+
+  .timetable-corner,
+  .timetable-day {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--tt-head-bg);
+    text-align: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text, #0f1419);
+    padding: 10px 4px;
+    box-shadow: 0 1px 0 var(--tt-border);
+  }
+
+  .timetable-corner {
+    left: 0;
+    z-index: 4;
+    width: var(--tt-period-w);
+    min-width: var(--tt-period-w);
+    max-width: var(--tt-period-w);
+    box-shadow: 1px 1px 0 var(--tt-border);
+  }
+
+  .timetable-day {
+    width: calc((100% - var(--tt-period-w)) / 5);
+  }
+
+  .timetable-period {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    width: var(--tt-period-w);
+    min-width: var(--tt-period-w);
+    max-width: var(--tt-period-w);
+    background: var(--tt-period-bg);
+    text-align: center;
+    padding: 8px 4px;
+    box-shadow: 1px 0 0 var(--tt-border);
+  }
+
+  .timetable-period__label {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text, #0f1419);
+    line-height: 1.2;
+  }
+
+  .timetable-period__time {
+    display: block;
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--muted, #536471);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+
+  .timetable-cell {
+    min-height: var(--tt-cell-min-h);
+    height: var(--tt-cell-min-h);
+    padding: 6px 5px;
+    background: #fff;
+  }
+
+  .timetable-cell.is-empty {
+    background: #fff;
+  }
+
+  .timetable-class {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: calc(var(--tt-cell-min-h) - 12px);
+  }
+
+  .timetable-class__name {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--text, #0f1419);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .timetable-class__room {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted, #536471);
+    line-height: 1.2;
+  }
+
+  @media (min-width: 600px) {
+    .timetable-board {
+      --tt-period-w: 72px;
+      --tt-cell-min-h: 84px;
+      margin: 0;
+    }
+    .timetable-period__time {
+      font-size: 10px;
+    }
+    .timetable-class__name {
+      font-size: 12px;
+    }
+    .timetable-class__room {
+      font-size: 11px;
+    }
+  }
+</style>
+
+<section class="timetable-board" aria-label="週間時間割">
+  <div class="timetable-scroll">
+    <table class="timetable-grid">
+      <thead>
+        <tr>
+          <th scope="col" class="timetable-corner" aria-label="時限"></th>
+          {% for day in timetable_days %}
+          <th scope="col" class="timetable-day">{{ day }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in timetable_rows %}
+        <tr>
+          <th scope="row" class="timetable-period">
+            <span class="timetable-period__label">{{ row.period.label }}</span>
+            <span class="timetable-period__time">{{ row.period.time }}</span>
+          </th>
+          {% for cell in row.cells %}
+          <td class="timetable-cell{% if not cell or not cell.name %} is-empty{% endif %}">
+            {% if cell and cell.name %}
+            <div class="timetable-class">
+              <p class="timetable-class__name">{{ cell.name }}</p>
+              {% if cell.room %}
+              <p class="timetable-class__room">{{ cell.room }}</p>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

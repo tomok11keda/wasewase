@@ -116,6 +116,7 @@ from .notification_services import (
     get_unread_notification_count,
     mark_all_notifications_read,
 )
+from .timetable_services import build_timetable_grid
 from .otp_services import (
     EmailConfigurationError,
     SIGNUP_PENDING_SESSION_KEY,
@@ -516,6 +517,7 @@ def timetable_index(request):
         "timetable.html",
         {
             "nav_active": "timetable",
+            "timetable": build_timetable_grid(),
         },
     )
 
