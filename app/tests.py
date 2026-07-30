@@ -3065,6 +3065,15 @@ class AppShellNavTests(TestCase):
         self._assert_app_shell_nav(response)
         self.assertContains(response, "時間割")
         self.assertContains(response, 'aria-current="page"')
+        self.assertContains(response, "timetable-grid")
+        self.assertContains(response, "月")
+        self.assertContains(response, "金")
+        self.assertContains(response, "1限")
+        self.assertContains(response, "5限")
+        self.assertContains(response, "8:50-10:30")
+        self.assertContains(response, "17:00-18:40")
+        self.assertContains(response, "timetable-period")
+        self.assertContains(response, "timetable-day")
 
     def test_home_header_has_notification_bell_left_of_dm(self):
         self.client.force_login(self.user)

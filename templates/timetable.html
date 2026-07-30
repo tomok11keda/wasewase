@@ -5,29 +5,28 @@
 {% block page_styles %}
 <style>
   .page-title {
-    margin: 0 0 16px;
+    margin: 0 0 12px;
     font-size: 20px;
     font-weight: 700;
   }
-  .timetable-empty {
-    margin: 24px 0;
-    padding: 32px 20px;
-    border-radius: var(--radius);
-    background: var(--card);
-    border: 1px dashed #d0dae8;
-    text-align: center;
+  .timetable-note {
+    margin: 12px 2px 0;
+    font-size: 12px;
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.7;
+    line-height: 1.5;
   }
-  .timetable-empty strong {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--text);
-    font-size: 16px;
+  .main-inner--timetable {
+    padding-left: 8px;
+    padding-right: 8px;
   }
   @media (max-width: 1023px) {
     .page-title { display: none; }
+  }
+  @media (min-width: 1024px) {
+    .main-inner--timetable {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
   }
 </style>
 {% endblock %}
@@ -37,11 +36,9 @@
 {% endblock %}
 
 {% block main %}
-<main class="main-inner">
+<main class="main-inner main-inner--timetable">
   <h1 class="page-title">時間割</h1>
-  <div class="timetable-empty">
-    <strong>時間割</strong>
-    授業の追加・編集機能は近日公開予定です。
-  </div>
+  {% include "includes/timetable_grid.html" with timetable_days=timetable.days timetable_rows=timetable.rows %}
+  <p class="timetable-note">セルには授業名と教室のみを表示します。授業の追加・編集は近日対応予定です。</p>
 </main>
 {% endblock %}
