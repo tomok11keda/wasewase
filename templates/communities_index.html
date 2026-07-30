@@ -374,24 +374,10 @@
           </div>
         </section>
 
-        <section class="communities-search-section" aria-label="スレッド検索">
-          <form class="communities-search" method="get" action="{% url 'communities_index' %}" role="search">
-            {% if active_tag %}
-            <input type="hidden" name="tag" value="{{ active_tag }}">
-            {% endif %}
-            <label class="visually-hidden" for="community-q">スレッドを検索</label>
-            <input
-              id="community-q"
-              type="search"
-              name="q"
-              value="{{ query }}"
-              placeholder="スレッドのタイトル・返信を検索"
-              autocomplete="off"
-            >
-            <button type="submit">検索</button>
-          </form>
-        </section>
+        <div data-search-root>
+          {% include "includes/search_bar.html" with search_scope="communities" search_placeholder="スレッドのタイトル・返信を検索" search_query=query search_faculty=active_tag search_input_id="community-search-q" %}
 
+          <div data-search-default-content>
         {% if active_tag %}
         <div class="tag-filter-bar">
           <span>🏷 {{ active_tag }}</span>
@@ -426,6 +412,8 @@
           {% endif %}
         </div>
         {% endif %}
+          </div>
+        </div>
       </main>
     </div>
 
@@ -449,5 +437,6 @@
 
   {% include "includes/community_thread_modal.html" %}
   {% include "includes/community_thread_modal_scripts.html" %}
+  <script src="{% static 'js/search_bar.js' %}"></script>
 </body>
 </html>

@@ -491,6 +491,71 @@ class GlobalSearchTests(TestCase):
         self.assertContains(response, "0")
         self.assertContains(response, "該当する投稿はありません")
 
+    def test_api_search_home_partial_match_and_empty_list(self):
+        TimelinePost.objects.create(
+            author=self.poster,
+            body="明日のゼミの予習は第3章まで",
+        )
+        TimelinePost.objects.create(
+            author=self.poster,
+            body="今日は晴れ",
+        )
+        hit = self.client.get(reverse("api_search"), {"q": "ゼミ", "scope": "home"})
+        self.assertEqual(hit.status_code, 200)
+        payload = hit.json()
+        self.assertEqual(payload["scope"], "home")
+        self.assertEqual(payload["q"], "ゼミ")
+        self.assertGreaterEqual(payload["count"], 1)
+        titles = [item["title"] for item in payload["results"]]
+        self.assertTrue(any("ゼミ" in title for title in titles))
+        self.assertFalse(any("今日は晴れ" in title for title in titles))
+
+        miss = self.client.get(
+            reverse("api_search"),
+            {"q": "存在しないキーワードXYZ123", "scope": "home"},
+        )
+        self.assertEqual(miss.status_code, 200)
+        miss_payload = miss.json()
+        self.assertEqual(miss_payload["results"], [])
+        self.assertEqual(miss_payload["count"], 0)
+
+    def test_api_search_flea_and_communities_scopes(self):
+        community = Community.objects.filter(slug="commerce").first()
+        self.assertIsNotNone(community)
+        CommunityThread.objects.create(
+            community=community,
+            author=self.poster,
+            title="API検索用スレ",
+            body="本文テスト",
+        )
+        Product.objects.create(
+            seller=self.poster,
+            name="線形代数の教科書",
+            description="ほぼ新品",
+            price=1200,
+        )
+
+        communities = self.client.get(
+            reverse("api_search"),
+            {"q": "API検索", "scope": "communities"},
+        )
+        self.assertEqual(communities.status_code, 200)
+        self.assertGreaterEqual(communities.json()["count"], 1)
+
+        flea = self.client.get(
+            reverse("api_search"),
+            {"q": "線形代数", "scope": "flea"},
+        )
+        self.assertEqual(flea.status_code, 200)
+        self.assertGreaterEqual(flea.json()["count"], 1)
+
+    def test_home_includes_shared_search_bar(self):
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "data-search-bar")
+        self.assertContains(response, 'data-search-scope="home"')
+        self.assertContains(response, "search_bar.js")
+        self.assertContains(response, reverse("api_search"))
+
 
 class BoardTimelineSearchTests(TestCase):
     def test_board_search_matches_professor_name(self):
@@ -3227,6 +3292,8 @@ class CommunitiesTests(TestCase):
         response = self.client.get(reverse("communities_index"))
         self.assertContains(response, 'name="q"')
         self.assertContains(response, "スレッドのタイトル・返信を検索")
+        self.assertContains(response, 'data-search-scope="communities"')
+        self.assertContains(response, "search_bar.js")
 
     def test_search_threads_by_title(self):
         self.client.force_login(self.user)
@@ -3275,8 +3342,8 @@ class CommunitiesTests(TestCase):
             reverse("communities_index"),
             {"tag": "商学部", "q": "テスト"},
         )
-        self.assertContains(response, 'name="tag"')
-        self.assertContains(response, 'value="商学部"')
+        self.assertContains(response, 'data-search-faculty="商学部"')
+        self.assertContains(response, 'value="テスト"')
 
     def test_communities_index_search_by_reply(self):
         self.client.force_login(self.user)
