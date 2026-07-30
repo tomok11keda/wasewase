@@ -3068,12 +3068,22 @@ class AppShellNavTests(TestCase):
         self.assertContains(response, "timetable-grid")
         self.assertContains(response, "月")
         self.assertContains(response, "金")
+        self.assertContains(response, "土")
         self.assertContains(response, "1限")
         self.assertContains(response, "5限")
         self.assertContains(response, "8:50-10:30")
         self.assertContains(response, "17:00-18:40")
+        self.assertContains(response, "OD1")
+        self.assertContains(response, "OD2")
+        self.assertContains(response, "オンデマンド")
         self.assertContains(response, "timetable-period")
         self.assertContains(response, "timetable-day")
+        self.assertContains(response, "timetable-cell is-od")
+        self.assertContains(response, "timetable-slot-modal")
+        self.assertContains(response, "進捗・課題メモ")
+        self.assertContains(response, 'data-slot-kind="od"')
+        # 月〜土 × (5限 + OD2) = 各曜日に OD 枠が2つ
+        self.assertEqual(response.content.decode().count('data-slot-kind="od"'), 12)
 
     def test_home_header_has_notification_bell_left_of_dm(self):
         self.client.force_login(self.user)

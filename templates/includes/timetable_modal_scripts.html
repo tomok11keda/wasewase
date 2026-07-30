@@ -1,0 +1,230 @@
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_PREFIX = "wase_timetable_v1_";
+  var modal = document.getElementById("timetable-slot-modal");
+  var form = document.getElementById("timetable-slot-form");
+  if (!modal || !form) {
+    return;
+  }
+
+  var titleEl = document.getElementById("timetable-slot-modal-title");
+  var subtitleEl = document.getElementById("timetable-slot-modal-subtitle");
+  var keyInput = document.getElementById("timetable-slot-key");
+  var kindInput = document.getElementById("timetable-slot-kind");
+  var nameInput = document.getElementById("timetable-slot-name");
+  var roomInput = document.getElementById("timetable-slot-room");
+  var roomField = document.getElementById("timetable-room-field");
+  var creditsInput = document.getElementById("timetable-slot-credits");
+  var memoInput = document.getElementById("timetable-slot-memo");
+  var clearBtn = document.getElementById("timetable-slot-clear");
+  var storageKey =
+    STORAGE_PREFIX +
+    (document.body.getAttribute("data-timetable-user") || "guest");
+
+  function emptyEntry() {
+    return { name: "", room: "", credits: "", memo: "" };
+  }
+
+  function loadStore() {
+    try {
+      var raw = window.localStorage.getItem(storageKey);
+      if (!raw) {
+        return {};
+      }
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function saveStore(store) {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(store));
+    } catch (error) {
+      // quota / private mode
+    }
+  }
+
+  function getEntry(slotKey) {
+    var store = loadStore();
+    var entry = store[slotKey];
+    if (!entry || typeof entry !== "object") {
+      return emptyEntry();
+    }
+    return {
+      name: String(entry.name || "").trim(),
+      room: String(entry.room || "").trim(),
+      credits: String(entry.credits || "").trim(),
+      memo: String(entry.memo || "").trim(),
+    };
+  }
+
+  function setEntry(slotKey, entry) {
+    var store = loadStore();
+    var normalized = {
+      name: String(entry.name || "").trim(),
+      room: String(entry.room || "").trim(),
+      credits: String(entry.credits || "").trim(),
+      memo: String(entry.memo || "").trim(),
+    };
+    if (!normalized.name && !normalized.room && !normalized.credits && !normalized.memo) {
+      delete store[slotKey];
+    } else {
+      store[slotKey] = normalized;
+    }
+    saveStore(store);
+    return normalized;
+  }
+
+  function metaText(entry, kind) {
+    if (kind === "od") {
+      if (entry.credits) {
+        return entry.credits + "単位";
+      }
+      return entry.name ? "OD" : "";
+    }
+    if (entry.room) {
+      return entry.room;
+    }
+    if (entry.credits) {
+      return entry.credits + "単位";
+    }
+    return "";
+  }
+
+  function renderSlot(button, entry) {
+    if (!button) {
+      return;
+    }
+    var kind = button.getAttribute("data-slot-kind") || "period";
+    var name = entry.name || "";
+    var meta = metaText(entry, kind);
+    button.innerHTML = "";
+    if (name) {
+      var nameEl = document.createElement("p");
+      nameEl.className = "timetable-class__name";
+      nameEl.setAttribute("data-slot-name", "");
+      nameEl.textContent = name;
+      button.appendChild(nameEl);
+      if (meta) {
+        var metaEl = document.createElement("p");
+        metaEl.className = "timetable-class__meta";
+        metaEl.setAttribute("data-slot-meta", "");
+        metaEl.textContent = meta;
+        button.appendChild(metaEl);
+      }
+    } else {
+      var placeholder = document.createElement("p");
+      placeholder.className = "timetable-slot__placeholder";
+      placeholder.setAttribute("data-slot-placeholder", "");
+      placeholder.textContent = kind === "od" ? "OD" : "＋";
+      button.appendChild(placeholder);
+    }
+  }
+
+  function hydrateAllSlots() {
+    document.querySelectorAll("[data-timetable-slot]").forEach(function (button) {
+      var slotKey = button.getAttribute("data-slot-key");
+      if (!slotKey) {
+        return;
+      }
+      renderSlot(button, getEntry(slotKey));
+    });
+  }
+
+  function openModal(button) {
+    var slotKey = button.getAttribute("data-slot-key");
+    var kind = button.getAttribute("data-slot-kind") || "period";
+    var dayLabel = button.getAttribute("data-day-label") || "";
+    var periodLabel = button.getAttribute("data-period-label") || "";
+    var entry = getEntry(slotKey);
+
+    keyInput.value = slotKey;
+    kindInput.value = kind;
+    nameInput.value = entry.name;
+    roomInput.value = entry.room;
+    creditsInput.value = entry.credits;
+    memoInput.value = entry.memo;
+
+    if (kind === "od") {
+      titleEl.textContent = "オンデマンド授業";
+      roomField.hidden = true;
+      roomInput.value = "";
+    } else {
+      titleEl.textContent = "授業詳細";
+      roomField.hidden = false;
+    }
+    subtitleEl.textContent = dayLabel
+      ? dayLabel + "曜・" + periodLabel
+      : periodLabel;
+
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("timetable-modal-open");
+    window.setTimeout(function () {
+      nameInput.focus();
+    }, 10);
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("timetable-modal-open");
+  }
+
+  document.addEventListener("click", function (event) {
+    var slot = event.target.closest("[data-timetable-slot]");
+    if (slot) {
+      openModal(slot);
+      return;
+    }
+    if (event.target.closest("[data-timetable-modal-close]")) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !modal.hidden) {
+      closeModal();
+    }
+  });
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var slotKey = keyInput.value;
+    var kind = kindInput.value || "period";
+    var entry = setEntry(slotKey, {
+      name: nameInput.value,
+      room: kind === "od" ? "" : roomInput.value,
+      credits: creditsInput.value,
+      memo: memoInput.value,
+    });
+    var button = document.querySelector(
+      '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
+    );
+    renderSlot(button, entry);
+    closeModal();
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", function () {
+      nameInput.value = "";
+      roomInput.value = "";
+      creditsInput.value = "";
+      memoInput.value = "";
+      var slotKey = keyInput.value;
+      setEntry(slotKey, emptyEntry());
+      var button = document.querySelector(
+        '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
+      );
+      renderSlot(button, emptyEntry());
+      closeModal();
+    });
+  }
+
+  hydrateAllSlots();
+})();
+</script>
