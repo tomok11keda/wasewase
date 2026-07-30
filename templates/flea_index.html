@@ -66,9 +66,12 @@
       margin: 0 4px 12px;
     }
     .flea-search-form { flex: 1; min-width: 0; }
-    .flea-search-bar {
-      width: 100%; height: 36px; padding: 0 12px; border: 1px solid #ddd;
-      border-radius: 20px; font-size: 14px; background: #fff;
+    .flea-toolbar .wase-search-bar {
+      margin: 0;
+      padding: 0;
+    }
+    .flea-toolbar .wase-search-panel {
+      margin: 8px 0 0;
     }
     .btn-exhibit {
       display: inline-flex; align-items: center; justify-content: center;
@@ -158,7 +161,7 @@
         </div>
       </section>
 
-      <main class="main-inner">
+      <main class="main-inner" data-search-root>
         <nav class="feed-scope-tabs" aria-label="フリマ表示範囲">
           <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all }}">全体</a>
           <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following }}">フォロー中</a>
@@ -173,17 +176,15 @@
         {% endif %}
 
         <div class="flea-toolbar">
-          <form class="flea-search-form" method="get" action="{% url 'flea_index' %}" role="search">
-            {% if feed_scope == 'following' %}<input type="hidden" name="feed" value="following">{% endif %}
-            {% if active_faculty %}<input type="hidden" name="faculty" value="{{ active_faculty }}">{% endif %}
-            <label class="visually-hidden" for="flea-q">フリマ検索</label>
-            <input class="flea-search-bar" id="flea-q" type="search" name="q" value="{{ query }}" placeholder="商品名・教科書名で検索">
-          </form>
+          <div class="flea-search-form">
+            {% include "includes/search_bar.html" with search_scope="flea" search_placeholder="商品名・教科書名で検索" search_query=query search_faculty=active_faculty search_input_id="flea-search-q" %}
+          </div>
           {% if user.is_authenticated %}
           <a class="btn-exhibit" href="{% url 'exhibit' %}">出品</a>
           {% endif %}
         </div>
 
+        <div data-search-default-content>
         <h2 class="section-title">{% if query %}「{{ query }}」の検索結果{% else %}おすすめ商品{% endif %}</h2>
 
         {% include "components/flea_banner_ad_slot.html" %}
@@ -199,6 +200,7 @@
           {% if query %}該当する商品はありません。{% elif feed_scope == 'following' %}フォロー中のユーザーの出品はまだありません。{% else %}出品されている商品はまだありません。{% endif %}
         </p>
         {% endif %}
+        </div>
       </main>
     </div>
 
@@ -210,5 +212,6 @@
   <div class="shell-hide-on-desktop">
     {% include "includes/bottom_nav.html" %}
   </div>
+  <script src="{% static 'js/search_bar.js' %}"></script>
 </body>
 </html>

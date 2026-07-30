@@ -196,7 +196,10 @@
     </div>
   </section>
 
-  <main class="main-inner">
+  <main class="main-inner" data-search-root>
+    {% include "includes/search_bar.html" with search_scope="home" search_placeholder="投稿・授業名で検索" search_query=query search_input_id="home-search-q" %}
+
+    <div data-search-default-content>
     <nav class="feed-scope-tabs" aria-label="タイムライン表示範囲">
       <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all }}">全体</a>
       <a class="feed-scope-tab{% if feed_scope == 'following' %} is-active{% endif %}" href="{{ feed_url_following }}">フォロー中</a>
@@ -259,6 +262,7 @@
       <p id="timeline-scroll-status" class="empty-message" aria-live="polite"></p>
       {% endif %}
     </div>
+    </div>
   </main>
 
   <section class="landing-info shell-hide-on-desktop" aria-label="わせわせについて">
@@ -285,6 +289,7 @@
     {% include "includes/bottom_nav.html" %}
   </div>
 
+  <script src="{% static 'js/search_bar.js' %}"></script>
   <script src="{% static 'js/timeline_infinite_scroll.js' %}"></script>
   <script src="{% static 'js/timeline_pull_refresh.js' %}"></script>
   {% include "includes/timeline_feed_scripts.html" %}

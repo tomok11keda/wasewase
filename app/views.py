@@ -117,6 +117,7 @@ from .notification_services import (
     mark_all_notifications_read,
 )
 from .timetable_services import build_timetable_grid
+from .search_api_services import run_scoped_search
 from .otp_services import (
     EmailConfigurationError,
     SIGNUP_PENDING_SESSION_KEY,
@@ -499,6 +500,17 @@ def search(request):
             "nav_active": "search",
         },
     )
+
+
+@require_GET
+def api_search(request):
+    """タブ共通の部分一致検索 API。GET /api/search/?q=&scope=home|communities|flea"""
+    query = request.GET.get("q", "").strip()
+    scope = request.GET.get("scope", "home")
+    faculty = request.GET.get("faculty", "").strip() or request.GET.get("tag", "").strip()
+    viewer = request.user if request.user.is_authenticated else None
+    payload = run_scoped_search(query, scope, viewer=viewer, faculty=faculty)
+    return JsonResponse(payload)
 
 
 def more_index(request):

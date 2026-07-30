@@ -19,6 +19,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", app_views.index, name="home"),
     path("search/", app_views.search, name="search"),
+    path("api/search/", app_views.api_search, name="api_search"),
     path("flea/", flea_views.flea_index, name="flea_index"),
     path("more/", app_views.more_index, name="more_index"),
     path("timetable/", app_views.timetable_index, name="timetable_index"),
