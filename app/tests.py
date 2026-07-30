@@ -3042,6 +3042,7 @@ class AppShellNavTests(TestCase):
         self.assertContains(response, reverse("home"))
         self.assertContains(response, reverse("search"))
         self.assertContains(response, reverse("flea_index"))
+        self.assertContains(response, reverse("timetable_index"))
         self.assertContains(response, reverse("more_index"))
 
     def test_notifications_page_uses_app_shell_nav(self):
@@ -3058,6 +3059,31 @@ class AppShellNavTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("mypage"))
         self._assert_app_shell_nav(response)
+
+    def test_timetable_page_uses_app_shell_nav(self):
+        response = self.client.get(reverse("timetable_index"))
+        self._assert_app_shell_nav(response)
+        self.assertContains(response, "時間割")
+        self.assertContains(response, 'aria-current="page"')
+
+    def test_home_header_has_notification_bell_left_of_dm(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        notify_pos = html.find('class="shell-header-notify"')
+        dm_pos = html.find('class="shell-header-dm"')
+        self.assertNotEqual(notify_pos, -1)
+        self.assertNotEqual(dm_pos, -1)
+        self.assertLess(notify_pos, dm_pos)
+        self.assertContains(response, reverse("notifications"))
+        self.assertContains(response, 'aria-label="通知"')
+        # 下部ナビから通知タブは外し、時間割を入れる
+        self.assertContains(response, reverse("timetable_index"))
+        bottom_nav_start = html.find('aria-label="メイン"')
+        bottom_nav_html = html[bottom_nav_start : bottom_nav_start + 2500]
+        self.assertIn("時間割", bottom_nav_html)
+        self.assertNotIn(">通知<", bottom_nav_html)
 
 
 class CommunitiesTests(TestCase):
@@ -3119,9 +3145,10 @@ class CommunitiesTests(TestCase):
     def test_communities_index_uses_shell_nav(self):
         response = self.client.get(reverse("communities_index"))
         self.assertContains(response, "コミュニティ")
-        self.assertContains(response, reverse("notifications"))
+        self.assertContains(response, reverse("timetable_index"))
         self.assertContains(response, reverse("flea_index"))
         self.assertContains(response, reverse("more_index"))
+        self.assertContains(response, reverse("notifications"))
 
     def test_thread_detail_accessible_from_list(self):
         self.client.force_login(self.user)

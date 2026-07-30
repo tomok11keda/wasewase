@@ -510,6 +510,16 @@ def more_index(request):
     )
 
 
+def timetable_index(request):
+    return render(
+        request,
+        "timetable.html",
+        {
+            "nav_active": "timetable",
+        },
+    )
+
+
 def communities_index(request):
     """学部タグと検索で絞り込めるスレッド一覧。"""
     faculty_values = {value for value, _ in FACULTY_CHOICES}
