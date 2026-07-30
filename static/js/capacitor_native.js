@@ -133,14 +133,12 @@
       return;
     }
     window.__waseSafeAreaBound = true;
-    var refresh = function () {
-      ensureSafeAreaTopCssVar();
-    };
-    window.addEventListener("orientationchange", refresh);
-    window.addEventListener("resize", refresh);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", refresh);
-    }
+    // 回転時のみ再計測する。
+    // resize / visualViewport は iOS のアドレスバー伸縮やスクロール中にも発火し、
+    // --wase-sat が揺れてヘッダーがガタつくため購読しない。
+    window.addEventListener("orientationchange", function () {
+      window.setTimeout(ensureSafeAreaTopCssVar, 300);
+    });
   }
 
   function getPlugin(name) {

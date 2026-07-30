@@ -3019,7 +3019,10 @@ class NotificationBadgeApiTests(TestCase):
             settings.BASE_DIR / "static" / "css" / "capacitor_native.css"
         ).read_text(encoding="utf-8")
         self.assertIn("--wase-header-content-min-h", capacitor_css)
+        self.assertIn("--wase-header-h", capacitor_css)
         self.assertIn("height: auto !important", capacitor_css)
+        self.assertIn("position: fixed !important", capacitor_css)
+        self.assertIn("アドレスバー伸縮やスクロール中にも発火", capacitor_js)
         self.assertIn("カメラへのアクセス権限が必要です", capacitor_js)
 
 

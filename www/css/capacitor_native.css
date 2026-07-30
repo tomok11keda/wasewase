@@ -36,12 +36,18 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 /*
  * 全ページ共通ヘッダー: Dynamic Island / ノッチ向け可変 safe-area。
  * contentInset=never 時も、固定高さではなく inset + コンテンツ行で伸縮する。
+ *
+ * モバイルでは position:fixed で画面最上端に固定する。
+ * sticky は iOS のアドレスバー伸縮・オーバースクロールでガタつきやすい。
  */
 :root {
   --wase-sat: 0px;
   --wase-sat-fallback: 0px;
   --wase-header-pad-y: 10px;
   --wase-header-content-min-h: 44px;
+  --wase-header-h: calc(
+    var(--wase-sat) + var(--wase-header-content-min-h) + (2 * var(--wase-header-pad-y))
+  );
 }
 
 @supports (top: constant(safe-area-inset-top)) {
@@ -61,9 +67,7 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   /* 固定 height を禁止し、safe-area + コンテンツ行で可変にする */
   height: auto !important;
   max-height: none !important;
-  min-height: calc(
-    var(--wase-sat) + var(--wase-header-content-min-h) + var(--wase-header-pad-y)
-  ) !important;
+  min-height: var(--wase-header-h) !important;
   padding-top: calc(var(--wase-sat) + var(--wase-header-pad-y)) !important;
   padding-bottom: var(--wase-header-pad-y) !important;
   box-sizing: border-box;
@@ -106,6 +110,69 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   position: relative;
   z-index: 1;
   line-height: 1.25;
+}
+
+/*
+ * モバイル: ヘッダーを viewport 最上端に固定。
+ * ページ内の sticky 指定より優先するため position に !important を使う。
+ * 文書フローから外れる分は --wase-header-h 分の padding で確保する。
+ */
+@media (max-width: 1023px) {
+  .site-header,
+  .legal-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 300;
+    /* 合成レイヤー化でスクロール中の再配置チラつきを抑える */
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* ラバーバンド時にヘッダー上へ白い地色が見えないよう、上方向へ同色を伸ばす */
+  .site-header::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--accent, #891e2b);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .main-column:has(> .site-header),
+  body:has(> .site-header),
+  body:has(> .legal-header) {
+    padding-top: var(--wase-header-h);
+  }
+
+  /* スペーサー要素を置く場合（任意）も同じ高さで揃える */
+  .site-header-offset {
+    display: block;
+    height: var(--wase-header-h);
+    flex-shrink: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
+
+@media (min-width: 1024px) {
+  .site-header,
+  .legal-header {
+    position: sticky;
+    top: 0;
+    z-index: 300;
+  }
+
+  .site-header-offset {
+    display: none;
+  }
 }
 
 /* 画面下部フォールバック時のみ余白を確保 */
