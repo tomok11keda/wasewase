@@ -89,6 +89,7 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 .site-header .shell-header-back,
 .site-header .shell-header-profile,
 .site-header .shell-header-dm,
+.site-header .shell-header-notify,
 .site-header .simple-back-header__back {
   position: relative;
   z-index: 2;

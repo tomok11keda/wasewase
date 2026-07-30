@@ -16,22 +16,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .nav-item--notify { position: relative; }
-  .nav-badge {
-    position: absolute;
-    top: 0;
-    right: calc(50% - 20px);
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: #891E2B;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    text-align: center;
-  }
 </style>
 <nav class="bottom-nav" aria-label="メイン">
   <a class="nav-item{% if nav_active == 'home' %} is-active{% endif %}" href="{% url 'home' %}"{% if nav_active == 'home' %} aria-current="page"{% endif %}>
@@ -46,19 +30,9 @@
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
     <span>フリマ</span>
   </a>
-  <a class="nav-item{% if nav_active == 'search' %} is-active{% endif %}" href="{% url 'search' %}"{% if nav_active == 'search' %} aria-current="page"{% endif %}>
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-    <span>検索</span>
-  </a>
-  <a class="nav-item nav-item--notify{% if nav_active == 'notifications' %} is-active{% endif %}" href="{% url 'notifications' %}"{% if nav_active == 'notifications' %} aria-current="page"{% endif %}>
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-    <span>通知</span>
-    <span
-      class="nav-badge"
-      data-notification-badge
-      {% if not unread_notifications %}hidden{% endif %}
-      {% if unread_notifications %}aria-label="未読通知 {{ unread_notifications }}件"{% endif %}
-    >{% if unread_notifications %}{{ unread_notifications }}{% endif %}</span>
+  <a class="nav-item{% if nav_active == 'timetable' %} is-active{% endif %}" href="{% url 'timetable_index' %}"{% if nav_active == 'timetable' %} aria-current="page"{% endif %}>
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zM7 12h5v5H7v-5z"/></svg>
+    <span>時間割</span>
   </a>
   <a class="nav-item{% if nav_active == 'more' %} is-active{% endif %}" href="{% url 'more_index' %}"{% if nav_active == 'more' %} aria-current="page"{% endif %}>
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>

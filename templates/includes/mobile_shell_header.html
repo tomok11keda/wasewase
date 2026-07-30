@@ -26,10 +26,13 @@
   }
   .shell-header-end {
     justify-content: flex-end;
+    gap: 2px;
+    min-width: 88px;
   }
   .shell-header-profile,
   .shell-header-back,
-  .shell-header-dm {
+  .shell-header-dm,
+  .shell-header-notify {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -75,14 +78,17 @@
     object-fit: cover;
     padding: 0;
   }
-  .shell-header-dm {
+  .shell-header-dm,
+  .shell-header-notify {
     position: relative;
   }
-  .shell-header-dm svg {
+  .shell-header-dm svg,
+  .shell-header-notify svg {
     fill: currentColor;
     display: block;
   }
-  .dm-nav-badge {
+  .dm-nav-badge,
+  .header-notify-badge {
     position: absolute;
     min-width: 16px;
     height: 16px;
@@ -96,7 +102,8 @@
     text-align: center;
     pointer-events: none;
   }
-  .shell-header-dm .dm-nav-badge {
+  .shell-header-dm .dm-nav-badge,
+  .shell-header-notify .header-notify-badge {
     top: 2px;
     right: 2px;
   }
@@ -141,11 +148,23 @@
     {% endif %}
     <div class="shell-header-end">
       {% if user.is_authenticated %}
+      <a class="shell-header-notify" href="{% url 'notifications' %}" aria-label="通知">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span
+          class="header-notify-badge"
+          data-notification-badge
+          {% if not unread_notifications %}hidden{% endif %}
+          {% if unread_notifications %}aria-label="未読通知 {{ unread_notifications }}件"{% endif %}
+        >{% if unread_notifications %}{{ unread_notifications }}{% endif %}</span>
+      </a>
       <a class="shell-header-dm" href="{% url 'user_dm_inbox' %}" aria-label="メッセージ">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
         {% include "includes/dm_nav_badge.html" %}
       </a>
       {% else %}
+      <a class="shell-header-notify" href="{% url 'login' %}" aria-label="ログインして通知を見る">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      </a>
       <a class="shell-header-dm" href="{% url 'login' %}" aria-label="ログインしてメッセージ">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
       </a>

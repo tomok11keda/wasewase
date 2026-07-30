@@ -21,6 +21,7 @@ urlpatterns = [
     path("search/", app_views.search, name="search"),
     path("flea/", flea_views.flea_index, name="flea_index"),
     path("more/", app_views.more_index, name="more_index"),
+    path("timetable/", app_views.timetable_index, name="timetable_index"),
     path("communities/", app_views.communities_index, name="communities_index"),
     path("communities/thread/", app_views.create_community_thread, name="create_community_thread"),
     path(

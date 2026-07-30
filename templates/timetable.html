@@ -1,0 +1,47 @@
+{% extends "app_shell.html" %}
+
+{% block title %}<title>わせわせ — 時間割</title>{% endblock %}
+
+{% block page_styles %}
+<style>
+  .page-title {
+    margin: 0 0 16px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .timetable-empty {
+    margin: 24px 0;
+    padding: 32px 20px;
+    border-radius: var(--radius);
+    background: var(--card);
+    border: 1px dashed #d0dae8;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .timetable-empty strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 16px;
+  }
+  @media (max-width: 1023px) {
+    .page-title { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block mobile_header %}
+{% include "includes/mobile_shell_header.html" with header_title="時間割" %}
+{% endblock %}
+
+{% block main %}
+<main class="main-inner">
+  <h1 class="page-title">時間割</h1>
+  <div class="timetable-empty">
+    <strong>時間割</strong>
+    授業の追加・編集機能は近日公開予定です。
+  </div>
+</main>
+{% endblock %}
