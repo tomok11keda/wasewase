@@ -1245,10 +1245,12 @@ class ProfileAndFollowTests(TestCase):
         self.assertContains(response, "@target")
         self.assertContains(response, "よろしく")
         self.assertContains(response, "法学部 2年")
-        self.assertContains(response, "出品数")
-        self.assertContains(response, ">1<", html=False)
-        self.assertContains(response, "この人の投稿（スレッド）を見る")
-        self.assertContains(response, "?from=thread")
+        self.assertContains(response, "投稿数")
+        self.assertContains(response, "出品中の商品")
+        self.assertContains(response, "本")
+        self.assertContains(response, "?tab=posts")
+        self.assertContains(response, "?tab=timetable")
+        self.assertContains(response, "?tab=market")
 
     def test_user_profile_shows_post_count_from_thread(self):
         TimelinePost.objects.create(
@@ -1258,11 +1260,12 @@ class ProfileAndFollowTests(TestCase):
         )
         response = self.client.get(
             reverse("user_profile", args=[self.target.pk]),
-            {"from": "thread"},
+            {"tab": "posts"},
         )
         self.assertContains(response, "投稿数")
         self.assertContains(response, "板書メモ")
         self.assertContains(response, "投稿一覧")
+        self.assertContains(response, "aria-label=\"プロフィールコンテンツ\"")
 
     def test_user_profile_shows_empty_posts_message(self):
         response = self.client.get(reverse("user_profile", args=[self.target.pk]))
@@ -3162,10 +3165,15 @@ class AppShellNavTests(TestCase):
             defaults={"name": "他ユーザー", "is_timetable_public": False},
         )
 
-        # 非公開時はプロフィールにボタンなし・他人時間割は 404
+        # 非公開時はプロフィール時間割タブに非公開メッセージ・他人時間割URLは 404
         self.client.force_login(self.user)
-        profile_page = self.client.get(reverse("user_profile", args=[other.pk]))
-        self.assertNotContains(profile_page, "時間割を見る")
+        profile_page = self.client.get(
+            reverse("user_profile", args=[other.pk]),
+            {"tab": "timetable"},
+        )
+        self.assertContains(profile_page, "非公開です")
+        self.assertContains(profile_page, "このユーザーの時間割は公開されていません")
+        self.assertNotContains(profile_page, "timetable-scroll")
         self.assertEqual(
             self.client.get(reverse("timetable_user", args=[other.pk])).status_code,
             404,
@@ -3188,11 +3196,26 @@ class AppShellNavTests(TestCase):
         self.assertContains(own_tt, "公開中")
         self.assertContains(own_tt, "data-timetable-visibility")
 
-        # 公開後は他人プロフィールにボタンが出る
+        # 自分のプロフィールでは非公開でも時間割を確認できる
+        UserProfile.objects.filter(user=other).update(is_timetable_public=False)
+        own_profile_tt = self.client.get(
+            reverse("user_profile", args=[other.pk]),
+            {"tab": "timetable"},
+        )
+        self.assertContains(own_profile_tt, "timetable-scroll")
+        self.assertContains(own_profile_tt, "時間割ページで編集・公開設定")
+
+        UserProfile.objects.filter(user=other).update(is_timetable_public=True)
+
+        # 公開後は他人プロフィールの時間割タブで閲覧できる
         self.client.force_login(self.user)
-        profile_page = self.client.get(reverse("user_profile", args=[other.pk]))
-        self.assertContains(profile_page, "時間割を見る")
-        self.assertContains(profile_page, reverse("timetable_user", args=[other.pk]))
+        profile_page = self.client.get(
+            reverse("user_profile", args=[other.pk]),
+            {"tab": "timetable"},
+        )
+        self.assertContains(profile_page, "timetable-scroll")
+        self.assertContains(profile_page, "公開中の時間割です")
+        self.assertNotContains(profile_page, "このユーザーの時間割は公開されていません")
         viewed = self.client.get(reverse("timetable_user", args=[other.pk]))
         self.assertEqual(viewed.status_code, 200)
         self.assertContains(viewed, "公開中の時間割です")

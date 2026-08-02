@@ -323,42 +323,6 @@
       color: var(--muted);
     }
 
-    .mode-switch {
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid #eee;
-    }
-
-    .btn-mode-switch {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      min-height: 44px;
-      padding: 12px 16px;
-      border-radius: 999px;
-      background: #f8f4f5;
-      color: var(--accent);
-      border: 1px solid #e8d4d8;
-      font-size: 14px;
-      font-weight: 700;
-      text-align: center;
-      text-decoration: none;
-      line-height: 1.4;
-      transition: background 0.15s, border-color 0.15s;
-      touch-action: manipulation;
-      box-sizing: border-box;
-    }
-
-    .mode-switch .btn-mode-switch + .btn-mode-switch {
-      margin-top: 8px;
-    }
-
-    .btn-mode-switch:hover {
-      background: #f0e6e8;
-      border-color: var(--accent);
-    }
-
     .section-title {
       font-size: 15px;
       font-weight: 700;
@@ -431,30 +395,38 @@
 
     .profile-tabs {
       display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-      padding: 4px;
+      gap: 0;
+      margin: 0 0 16px;
+      padding: 0;
       background: var(--card);
       border-radius: var(--radius);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+      border: 1px solid #eff3f4;
     }
 
     .profile-tab {
       flex: 1;
-      min-height: 40px;
+      min-height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 8px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
       font-size: 14px;
       font-weight: 700;
       text-decoration: none;
       color: var(--muted);
+      background: transparent;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .profile-tab.is-active {
-      background: #f7edf0;
       color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: #faf7f8;
     }
 
     .profile-bookmarks {
@@ -468,8 +440,72 @@
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
 
-    .profile-posts {
+    .profile-posts,
+    .profile-products,
+    .profile-timetable {
       margin-top: 4px;
+    }
+
+    .profile-timetable__note {
+      margin: 10px 2px 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .profile-timetable__note a {
+      color: var(--accent);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .profile-timetable__private {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .profile-timetable__private strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #536471;
+    }
+
+    .profile-timetable .timetable-board {
+      min-height: 0;
+    }
+
+    .profile-timetable .timetable-grid {
+      min-height: 380px;
+      height: auto;
+      grid-template-rows:
+        28px
+        repeat(5, minmax(48px, auto))
+        repeat(2, minmax(44px, auto));
+    }
+
+    .profile-timetable .timetable-slot {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .profile-timetable .timetable-slot:hover,
+    .profile-timetable .timetable-slot:focus-visible {
+      background: var(--tt-card-empty);
+      box-shadow: none;
+    }
+
+    .profile-timetable .timetable-slot.is-filled:hover,
+    .profile-timetable .timetable-slot.is-filled:focus-visible {
+      background: var(--tt-card);
+      box-shadow: var(--tt-shadow);
     }
 
     .page-title {
@@ -586,17 +622,6 @@
           <p class="stat-label">フォロー中</p>
         </div>
       </div>
-
-      <div class="mode-switch">
-        {% if from_source == "thread" %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">この人の出品（フリマ）を見る</a>
-        {% else %}
-        <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">この人の投稿（スレッド）を見る</a>
-        {% endif %}
-        {% if show_timetable_link|default:False %}
-        <a class="btn-mode-switch" href="{% url 'timetable_user' profile_user.pk %}">時間割を見る</a>
-        {% endif %}
-      </div>
     </section>
 
     {% if show_profile_safety_menu %}
@@ -631,18 +656,29 @@
     </div>
     {% endif %}
 
-    {% if is_own_profile %}
-    <nav class="profile-tabs" aria-label="プロフィール表示">
+    {% if profile_tab != 'bookmarks' %}
+    <nav class="profile-tabs" aria-label="プロフィールコンテンツ">
       <a
-        class="profile-tab{% if profile_tab == 'overview' %} is-active{% endif %}"
-        href="{% url 'user_profile' profile_user.pk %}"
-        {% if profile_tab == 'overview' %}aria-current="page"{% endif %}
-      >プロフィール</a>
+        class="profile-tab{% if profile_tab == 'posts' %} is-active{% endif %}"
+        href="{% url 'user_profile' profile_user.pk %}?tab=posts"
+        {% if profile_tab == 'posts' %}aria-current="page"{% endif %}
+      >投稿</a>
       <a
-        class="profile-tab{% if profile_tab == 'bookmarks' %} is-active{% endif %}"
-        href="{% url 'user_profile' profile_user.pk %}?tab=bookmarks"
-        {% if profile_tab == 'bookmarks' %}aria-current="page"{% endif %}
-      >ブックマーク</a>
+        class="profile-tab{% if profile_tab == 'timetable' %} is-active{% endif %}"
+        href="{% url 'user_profile' profile_user.pk %}?tab=timetable"
+        {% if profile_tab == 'timetable' %}aria-current="page"{% endif %}
+      >時間割</a>
+      <a
+        class="profile-tab{% if profile_tab == 'market' %} is-active{% endif %}"
+        href="{% url 'user_profile' profile_user.pk %}?tab=market"
+        {% if profile_tab == 'market' %}aria-current="page"{% endif %}
+      >フリマ</a>
+    </nav>
+    {% elif is_own_profile %}
+    <nav class="profile-tabs" aria-label="プロフィールコンテンツ">
+      <a class="profile-tab" href="{% url 'user_profile' profile_user.pk %}?tab=posts">投稿</a>
+      <a class="profile-tab" href="{% url 'user_profile' profile_user.pk %}?tab=timetable">時間割</a>
+      <a class="profile-tab" href="{% url 'user_profile' profile_user.pk %}?tab=market">フリマ</a>
     </nav>
     {% endif %}
 
@@ -665,7 +701,43 @@
     </section>
     {% endif %}
 
-    {% if profile_tab == 'overview' and from_source == 'market' %}
+    {% if profile_tab == 'posts' %}
+    <section class="profile-posts" aria-labelledby="profile-posts-title">
+      <h2 class="section-title" id="profile-posts-title">投稿一覧</h2>
+      <div class="timeline-list">
+        {% for post in profile_posts %}
+        {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
+        {% empty %}
+        <p class="empty-message">まだ投稿がありません</p>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if profile_tab == 'timetable' %}
+    <section class="profile-timetable" aria-labelledby="profile-timetable-title">
+      <h2 class="section-title" id="profile-timetable-title">時間割</h2>
+      {% if can_view_timetable and timetable %}
+        {% include "includes/timetable_grid.html" with timetable_days=timetable.days timetable_rows=timetable.rows timetable_od_rows=timetable.od_rows %}
+        {% if is_own_profile %}
+        <p class="profile-timetable__note">
+          {% if is_timetable_public %}公開中{% else %}非公開{% endif %}
+          ·
+          <a href="{% url 'timetable_index' %}">時間割ページで編集・公開設定</a>
+        </p>
+        {% else %}
+        <p class="profile-timetable__note">公開中の時間割です（閲覧のみ）。</p>
+        {% endif %}
+      {% else %}
+      <div class="profile-timetable__private" role="status">
+        <strong>非公開です</strong>
+        このユーザーの時間割は公開されていません。
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if profile_tab == 'market' %}
     <section class="profile-products" aria-labelledby="profile-products-title">
       <h2 class="section-title" id="profile-products-title">出品中の商品（{{ available_products|length }}）</h2>
       {% if available_products %}
@@ -689,19 +761,6 @@
       {% else %}
       <p class="empty-message">出品中の商品はありません</p>
       {% endif %}
-    </section>
-    {% endif %}
-
-    {% if profile_tab == 'overview' and from_source == 'thread' %}
-    <section class="profile-posts" aria-labelledby="profile-posts-title">
-      <h2 class="section-title" id="profile-posts-title">投稿一覧</h2>
-      <div class="timeline-list">
-        {% for post in profile_posts %}
-        {% include "includes/timeline_post_card.html" with post=post show_ad_slot=False %}
-        {% empty %}
-        <p class="empty-message">まだ投稿がありません</p>
-        {% endfor %}
-      </div>
     </section>
     {% endif %}
   </main>
