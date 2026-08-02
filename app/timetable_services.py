@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
 
 from .models import TimetableSlot
+
+logger = logging.getLogger(__name__)
 
 TIMETABLE_DAYS = ("月", "火", "水", "木", "金", "土")
 
@@ -24,6 +29,31 @@ TIMETABLE_OD_SLOTS = (
 )
 
 _SLOT_KEY_RE = re.compile(r"^(p|od)(\d+)-d(\d+)$")
+_TABLE_ENSURED = False
+
+
+def ensure_timetable_slot_table() -> None:
+    """本番で 0033 未適用でも app_timetableslot を作成するセーフティネット。"""
+    global _TABLE_ENSURED
+    if _TABLE_ENSURED:
+        return
+    table = TimetableSlot._meta.db_table
+    try:
+        if table in connection.introspection.table_names():
+            _TABLE_ENSURED = True
+            return
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(TimetableSlot)
+        logger.warning("Created missing table %s via ensure_timetable_slot_table", table)
+        _TABLE_ENSURED = True
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message or "duplicate" in message:
+            _TABLE_ENSURED = True
+            return
+        logger.warning("ensure_timetable_slot_table failed: %s", exc)
+    except Exception as exc:
+        logger.warning("ensure_timetable_slot_table failed: %s", exc)
 
 
 def parse_slot_key(slot_key: str) -> dict | None:
@@ -120,9 +150,35 @@ def load_slot_maps_for_user(user: AbstractBaseUser | None) -> tuple[dict, dict]:
     if user is None or not getattr(user, "pk", None):
         return entries, od_entries
 
-    for slot in TimetableSlot.objects.filter(user_id=user.pk).only(
-        "slot_key", "name", "room", "credits", "memo"
-    ):
+    ensure_timetable_slot_table()
+    try:
+        slots = list(
+            TimetableSlot.objects.filter(user_id=user.pk).only(
+                "slot_key", "name", "room", "credits", "memo"
+            )
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning(
+            "load_slot_maps_for_user failed for user=%s (retry after ensure): %s",
+            getattr(user, "pk", None),
+            exc,
+        )
+        ensure_timetable_slot_table()
+        try:
+            slots = list(
+                TimetableSlot.objects.filter(user_id=user.pk).only(
+                    "slot_key", "name", "room", "credits", "memo"
+                )
+            )
+        except (OperationalError, ProgrammingError) as retry_exc:
+            logger.exception(
+                "load_slot_maps_for_user still failing for user=%s: %s",
+                getattr(user, "pk", None),
+                retry_exc,
+            )
+            return entries, od_entries
+
+    for slot in slots:
         parsed = parse_slot_key(slot.slot_key)
         if parsed is None:
             continue
@@ -141,17 +197,36 @@ def load_slot_maps_for_user(user: AbstractBaseUser | None) -> tuple[dict, dict]:
 
 
 def build_timetable_grid_for_user(user: AbstractBaseUser | None):
-    entries, od_entries = load_slot_maps_for_user(user)
-    return build_timetable_grid(entries, od_entries)
+    try:
+        entries, od_entries = load_slot_maps_for_user(user)
+        return build_timetable_grid(entries, od_entries)
+    except Exception:
+        logger.exception(
+            "build_timetable_grid_for_user failed for user=%s; returning empty grid",
+            getattr(user, "pk", None),
+        )
+        return build_timetable_grid()
 
 
 def slots_dict_for_user(user: AbstractBaseUser | None) -> dict[str, dict]:
     if user is None or not getattr(user, "pk", None):
         return {}
-    return {
-        slot.slot_key: slot_to_payload(slot)
-        for slot in TimetableSlot.objects.filter(user_id=user.pk)
-    }
+    ensure_timetable_slot_table()
+    try:
+        return {
+            slot.slot_key: slot_to_payload(slot)
+            for slot in TimetableSlot.objects.filter(user_id=user.pk)
+        }
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("slots_dict_for_user failed: %s", exc)
+        ensure_timetable_slot_table()
+        try:
+            return {
+                slot.slot_key: slot_to_payload(slot)
+                for slot in TimetableSlot.objects.filter(user_id=user.pk)
+            }
+        except (OperationalError, ProgrammingError):
+            return {}
 
 
 def upsert_timetable_slot(
@@ -174,6 +249,8 @@ def upsert_timetable_slot(
     memo = (memo or "").strip()
     if parsed["kind"] == "od":
         room = ""
+
+    ensure_timetable_slot_table()
 
     if not name and not room and not credits and not memo:
         TimetableSlot.objects.filter(user=user, slot_key=parsed["slot_key"]).delete()
