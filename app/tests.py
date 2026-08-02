@@ -3075,10 +3075,31 @@ class NotificationBadgeApiTests(TestCase):
             settings.BASE_DIR / "ios" / "App" / "App" / "Info.plist"
         ).read_text(encoding="utf-8")
         self.assertIn("NSCameraUsageDescription", info_plist)
+        self.assertIn("NSPhotoLibraryUsageDescription", info_plist)
+        self.assertIn("NSPhotoLibraryAddUsageDescription", info_plist)
         self.assertIn(
-            "投稿用の写真を撮影するためにカメラを使用します",
+            "カメラへのアクセスが必要です",
             info_plist,
         )
+        self.assertIn(
+            "写真ライブラリへのアクセスが必要です",
+            info_plist,
+        )
+        podfile = (
+            settings.BASE_DIR / "ios" / "App" / "Podfile"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ensure_camera_photo_usage_descriptions!", podfile)
+        self.assertIn("NSCameraUsageDescription", podfile)
+        self.assertIn("pod 'CapacitorCamera'", podfile)
+        self.assertIn("requestCapacitorCameraPermissions", capacitor_js)
+        self.assertIn("[WASE Camera] requestPermissions status", capacitor_js)
+        self.assertIn("alertCameraDebugError", capacitor_js)
+        self.assertIn("alert(JSON.stringify(e, null, 2))", capacitor_js)
+        self.assertIn("getPhoto unavailable", capacitor_js)
+        self.assertNotIn("アプリを最新版に更新してください", capacitor_js)
+        self.assertIn("Capacitor.getPlugin", capacitor_js)
+        self.assertIn("PHOTOS_PERMISSION_REQUIRED_MESSAGE", capacitor_js)
+        self.assertIn("requestNativePhotosAuthorization", capacitor_js)
         camera_plugin = (
             settings.BASE_DIR / "ios" / "App" / "App" / "CameraPermissionPlugin.swift"
         ).read_text(encoding="utf-8")
@@ -3092,7 +3113,7 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("height: auto !important", capacitor_css)
         self.assertIn("position: fixed !important", capacitor_css)
         self.assertIn("アドレスバー伸縮やスクロール中にも発火", capacitor_js)
-        self.assertIn("カメラへのアクセス権限が必要です", capacitor_js)
+        self.assertIn("設定からカメラの使用を許可してください", capacitor_js)
 
 
 class AppShellNavTests(TestCase):

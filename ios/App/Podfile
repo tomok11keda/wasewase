@@ -32,9 +32,30 @@ def apply_wasewase_ios_patches!
   info_plist = File.join(__dir__, 'App', 'Info.plist')
   if File.exist?(info_plist)
     system('plutil', '-remove', 'NSUserTrackingUsageDescription', info_plist)
+    ensure_camera_photo_usage_descriptions!(info_plist)
   end
 end
 
+def ensure_camera_photo_usage_descriptions!(info_plist)
+  # Capacitor Camera 必須。欠けていると権限ダイアログ前にクラッシュする。
+  descriptions = {
+    'NSCameraUsageDescription' =>
+      '投稿やプロフィール用の写真を撮影するために、カメラへのアクセスが必要です。',
+    'NSPhotoLibraryUsageDescription' =>
+      'プロフィール画像や投稿画像を選ぶために、写真ライブラリへのアクセスが必要です。',
+    'NSPhotoLibraryAddUsageDescription' =>
+      '撮影した画像を写真ライブラリに保存するためにアクセスが必要です。'
+  }
+
+  descriptions.each do |key, value|
+    # 既存キーは replace、無い場合は insert
+    ok = system('plutil', '-replace', key, '-string', value, info_plist)
+    unless ok
+      system('plutil', '-insert', key, '-string', value, info_plist)
+    end
+  end
+  puts '[WASE] Ensured NSCamera/NSPhotoLibrary usage descriptions in Info.plist'
+end
 target 'App' do
   capacitor_pods
   # Add your Pods here
