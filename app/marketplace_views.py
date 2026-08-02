@@ -35,6 +35,13 @@ from .services import (
     prioritize_same_faculty,
     user_display_name,
 )
+from .trade_chat_services import (
+    complete_handover_by_seller,
+    confirm_negotiation_trade,
+    get_confirmed_room_for_product,
+    start_instant_purchase,
+    start_negotiation,
+)
 from .ugc_services import filter_visible_comments, filter_visible_products
 
 logger = logging.getLogger(__name__)
@@ -42,15 +49,20 @@ logger = logging.getLogger(__name__)
 _CAMPUS_VALUES = {value for value, _ in HANDOVER_CAMPUS_CHOICES}
 _ORDER_VALUES = {value for value, _ in FLEA_ORDER_CHOICES if value}
 
+
 def _serialize_room_message(message, current_user_id):
     created = timezone.localtime(message.created_at)
+    is_system = bool(getattr(message, "is_system", False)) or message.sender_id is None
     return {
         "id": message.pk,
         "sender_id": message.sender_id,
-        "sender_name": user_display_name(message.sender),
+        "sender_name": (
+            "システム" if is_system else user_display_name(message.sender)
+        ),
         "body": message.body,
         "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
+        "is_mine": (not is_system) and message.sender_id == current_user_id,
+        "is_system": is_system,
     }
 
 
@@ -264,10 +276,11 @@ def product_detail(request, pk):
         form = CommentForm()
 
     can_purchase = (
-        product.status == Product.Status.AVAILABLE
+        product.is_available
         and request.user.is_authenticated
         and product.seller_id != request.user.id
     )
+    can_negotiate = can_purchase
 
     review_form = None
     can_review = False
@@ -289,10 +302,11 @@ def product_detail(request, pk):
                 review_form = ReviewForm()
 
     show_trade_link = is_trade_participant(product, request.user)
+    trade_chat_room = get_confirmed_room_for_product(product) if show_trade_link else None
     can_share_to_timeline = (
         request.user.is_authenticated
         and product.seller_id == request.user.id
-        and product.status == Product.Status.AVAILABLE
+        and product.is_available
     )
 
     user_chat_room = None
@@ -302,6 +316,7 @@ def product_detail(request, pk):
         if product.seller_id == request.user.id:
             seller_chat_rooms = list(
                 ChatRoom.objects.filter(product=product)
+                .exclude(deal_status=ChatRoom.DealStatus.CLOSED)
                 .select_related("buyer")
                 .order_by("-updated_at")
             )
@@ -309,7 +324,10 @@ def product_detail(request, pk):
             user_chat_room = ChatRoom.objects.filter(
                 product=product, buyer=request.user
             ).first()
-            can_contact_seller = not product.is_sold or user_chat_room is not None
+            can_contact_seller = product.is_available or (
+                user_chat_room is not None
+                and user_chat_room.deal_status != ChatRoom.DealStatus.CLOSED
+            )
 
     return render(
         request,
@@ -321,12 +339,14 @@ def product_detail(request, pk):
             "like_count": like_count,
             "user_liked": user_liked,
             "can_purchase": can_purchase,
+            "can_negotiate": can_negotiate,
             "review_form": review_form,
             "can_review": can_review,
             "user_review": user_review,
             "partner_review": partner_review,
             "review_partner": review_partner,
             "show_trade_link": show_trade_link,
+            "trade_chat_room": trade_chat_room,
             "can_share_to_timeline": can_share_to_timeline,
             "can_contact_seller": can_contact_seller,
             "user_chat_room": user_chat_room,
@@ -338,27 +358,32 @@ def product_detail(request, pk):
 @login_required
 @require_POST
 def start_product_chat(request, pk):
+    """値下げ交渉: 商品専用チャットを開始（ステータスは available のまま）。"""
     product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
 
     if not product.seller_id or product.seller_id == request.user.id:
         messages.error(request, "出品者以外のユーザーのみチャットを開始できます。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
-    if product.is_sold:
-        messages.error(request, "売り切れの商品には新しいチャットを開始できません。")
+    try:
+        room, created = start_negotiation(product, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "sold":
+            messages.error(request, "売り切れの商品には新しい交渉を開始できません。")
+        elif code == "pending":
+            messages.error(request, "取引中の商品には新しい交渉を開始できません。")
+        else:
+            messages.error(request, "交渉を開始できません。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
-    room, created = ChatRoom.objects.get_or_create(
-        product=product,
-        buyer=request.user,
-    )
     if created:
         notify_seller(
             product,
-            f"「{product.name}」にチャットの問い合わせがありました。",
+            f"「{product.name}」に値下げ交渉の問い合わせがありました。",
             actor_id=request.user.id,
         )
-        messages.success(request, "出品者とのチャットを開始しました。")
+        messages.success(request, "値下げ交渉のチャットを開始しました。")
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
 
@@ -383,6 +408,18 @@ def chat_room(request, room_pk):
     latest_message_id = (
         chat_messages.order_by("-pk").values_list("pk", flat=True).first() or 0
     )
+    is_seller = request.user.id == room.product.seller_id
+    can_confirm_trade = (
+        is_seller
+        and room.is_negotiating
+        and room.product.is_available
+    )
+    can_complete_handover = (
+        is_seller
+        and room.is_confirmed
+        and room.product.is_pending
+        and room.product.buyer_id == room.buyer_id
+    )
 
     return render(
         request,
@@ -396,6 +433,9 @@ def chat_room(request, room_pk):
             "messages_poll_url": reverse(
                 "chat_room_messages", kwargs={"room_pk": room.pk}
             ),
+            "can_confirm_trade": can_confirm_trade,
+            "can_complete_handover": can_complete_handover,
+            "is_seller": is_seller,
         },
     )
 
@@ -420,6 +460,10 @@ def send_chat_message(request, room_pk):
         messages.error(request, "メッセージが長すぎます（500文字以内）。")
         return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
+    if room.product.is_sold or room.is_closed:
+        messages.info(request, "このチャットでは新しいメッセージを送信できません。")
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
     ChatMessage.objects.create(
         chat_room=room,
         sender=request.user,
@@ -439,6 +483,68 @@ def send_chat_message(request, room_pk):
             link=chat_room_link(room),
         )
 
+    return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+@require_POST
+def confirm_product_trade(request, room_pk):
+    """出品者が交渉チャットで「取引開始」→ pending。"""
+    room = get_object_or_404(
+        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
+        pk=room_pk,
+    )
+    try:
+        room = confirm_negotiation_trade(room, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "not_seller":
+            messages.error(request, "出品者のみ取引を開始できます。")
+        elif code == "not_negotiating":
+            messages.warning(request, "このチャットはすでに取引確定済みか終了しています。")
+        elif code == "not_available":
+            messages.warning(request, "この商品はすでに取引中か売り切れです。")
+        else:
+            messages.error(request, "取引を開始できません。")
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+    if room.buyer_id:
+        Notification.objects.create(
+            recipient_id=room.buyer_id,
+            message=f"「{room.product.name}」の取引が確定しました。受け渡しを相談しましょう。",
+            link=chat_room_link(room),
+        )
+    messages.success(request, "取引を開始しました。受け渡し場所と時間を相談してください。")
+    return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+
+@login_required
+@require_POST
+def complete_product_handover(request, room_pk):
+    """出品者が「受け渡し完了」→ sold。"""
+    room = get_object_or_404(
+        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
+        pk=room_pk,
+    )
+    try:
+        product = complete_handover_by_seller(room, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "not_seller":
+            messages.error(request, "出品者のみ受け渡し完了にできます。")
+        elif code == "already_sold":
+            messages.info(request, "この商品はすでに売り切れです。")
+        else:
+            messages.error(request, "受け渡し完了にできません。")
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+
+    if product.buyer_id:
+        Notification.objects.create(
+            recipient_id=product.buyer_id,
+            message=f"「{product.name}」の受け渡しが完了しました。",
+            link=chat_room_link(room),
+        )
+    messages.success(request, "受け渡し完了として売り切れにしました。")
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
 
@@ -552,49 +658,48 @@ def toggle_like(request, pk):
 @login_required
 @require_POST
 def purchase_product(request, pk):
+    """即決購入: 専用チャット作成 + pending + 他交渉へ終了通知。"""
     product = get_object_or_404(Product, pk=pk)
 
-    if product.is_sold:
-        messages.warning(request, "この商品はすでに売却済みです。")
-    elif product.is_trading:
-        messages.warning(request, "この商品はすでに取引中です。")
-    elif product.seller_id == request.user.id:
-        messages.error(request, "自分の商品は購入できません。")
-    else:
-        product.status = Product.Status.TRADING
-        product.buyer = request.user
-        product.seller_trade_completed = False
-        product.buyer_trade_completed = False
-        product.save(
-            update_fields=[
-                "status",
-                "buyer",
-                "seller_trade_completed",
-                "buyer_trade_completed",
-            ]
-        )
-        notify_seller(
-            product,
-            f"「{product.name}」の購入希望がありました。受け渡しチャットを確認してください。",
-            actor_id=request.user.id,
-        )
-        messages.success(
-            request,
-            "現地手渡しのチャットを開始しました。出品者と受け渡し場所などを相談しましょう。",
-        )
-        return redirect(reverse("product_trade", kwargs={"pk": pk}))
+    try:
+        room = start_instant_purchase(product, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "sold":
+            messages.warning(request, "この商品はすでに売却済みです。")
+        elif code == "pending":
+            messages.warning(request, "この商品はすでに取引中です。")
+        elif code == "own_product":
+            messages.error(request, "自分の商品は購入できません。")
+        else:
+            messages.error(request, "購入できません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
-    return redirect(reverse("product_detail", kwargs={"pk": pk}))
+    notify_seller(
+        product,
+        f"「{product.name}」が即決購入されました。受け渡しチャットを確認してください。",
+        actor_id=request.user.id,
+    )
+    messages.success(
+        request,
+        "即決購入が成立しました。受け渡し場所と時間を相談してください。",
+    )
+    return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
 
 @login_required
 def product_trade(request, pk):
+    """旧取引ページ。確定済みチャットがあればそちらへ誘導。"""
     product = get_object_or_404(
         Product.objects.select_related("seller", "buyer"), pk=pk
     )
     if not is_trade_participant(product, request.user):
         messages.error(request, "この取引ページにはアクセスできません。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    confirmed_room = get_confirmed_room_for_product(product)
+    if confirmed_room:
+        return redirect(reverse("chat_room", kwargs={"room_pk": confirmed_room.pk}))
 
     partner = product.buyer if request.user.id == product.seller_id else product.seller
     trade_messages = product.trade_messages.select_related("sender")
@@ -668,12 +773,23 @@ def send_trade_message(request, pk):
 @login_required
 @require_POST
 def complete_trade(request, pk):
+    """旧 dual-confirm。確定チャットがあれば出品者の受け渡し完了に委譲。"""
     product = get_object_or_404(
         Product.objects.select_related("seller", "buyer"), pk=pk
     )
     if not is_trade_participant(product, request.user):
         messages.error(request, "この取引を完了する権限がありません。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    confirmed_room = get_confirmed_room_for_product(product)
+    if confirmed_room and request.user.id == product.seller_id:
+        return complete_product_handover(request, confirmed_room.pk)
+    if confirmed_room:
+        messages.info(
+            request,
+            "受け渡し完了は出品者がチャットから行います。",
+        )
+        return redirect(reverse("chat_room", kwargs={"room_pk": confirmed_room.pk}))
 
     if product.is_sold:
         messages.info(request, "この取引はすでに完了しています。")
@@ -687,7 +803,7 @@ def complete_trade(request, pk):
     partner = product.buyer if request.user.id == product.seller_id else product.seller
     update_fields = ["seller_trade_completed", "buyer_trade_completed"]
     if product.seller_trade_completed and product.buyer_trade_completed:
-        product.status = Product.Status.SOLD_OUT
+        product.status = Product.Status.SOLD
         update_fields.append("status")
         messages.success(request, "双方の確認がそろいました。取引を完了しました。")
         if partner:

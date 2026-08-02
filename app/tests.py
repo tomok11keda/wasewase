@@ -1037,7 +1037,7 @@ class ProductTradeFlowTests(TestCase):
             faculty="商学部",
         )
 
-    def test_purchase_starts_trade_without_selling_out(self):
+    def test_instant_purchase_creates_chat_and_pending(self):
         self.client.force_login(self.buyer)
 
         response = self.client.post(
@@ -1045,36 +1045,117 @@ class ProductTradeFlowTests(TestCase):
         )
 
         self.product.refresh_from_db()
+        room = ChatRoom.objects.get(product=self.product, buyer=self.buyer)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response["Location"],
-            reverse("product_trade", args=[self.product.pk]),
+            reverse("chat_room", args=[room.pk]),
         )
-        self.assertEqual(self.product.status, Product.Status.TRADING)
+        self.assertEqual(self.product.status, Product.Status.PENDING)
         self.assertEqual(self.product.buyer, self.buyer)
         self.assertFalse(self.product.is_sold)
+        self.assertEqual(room.deal_status, ChatRoom.DealStatus.CONFIRMED)
+        self.assertTrue(
+            Message.objects.filter(
+                chat_room=room,
+                is_system=True,
+                body__contains="即決購入が成立しました",
+            ).exists()
+        )
 
-    def test_other_user_cannot_access_or_buy_trading_product(self):
-        self.product.status = Product.Status.TRADING
+    def test_instant_purchase_closes_other_negotiation_rooms(self):
+        other_room = ChatRoom.objects.create(
+            product=self.product,
+            buyer=self.other,
+            deal_status=ChatRoom.DealStatus.NEGOTIATING,
+        )
+        self.client.force_login(self.buyer)
+        self.client.post(reverse("purchase_product", args=[self.product.pk]))
+
+        other_room.refresh_from_db()
+        self.assertEqual(other_room.deal_status, ChatRoom.DealStatus.CLOSED)
+        self.assertTrue(
+            Message.objects.filter(
+                chat_room=other_room,
+                is_system=True,
+                body__contains="別の方が即決購入したため",
+            ).exists()
+        )
+
+    def test_negotiate_keeps_available_until_seller_confirms(self):
+        self.client.force_login(self.buyer)
+        response = self.client.post(
+            reverse("start_product_chat", args=[self.product.pk])
+        )
+        self.product.refresh_from_db()
+        room = ChatRoom.objects.get(product=self.product, buyer=self.buyer)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+        self.assertEqual(room.deal_status, ChatRoom.DealStatus.NEGOTIATING)
+
+        self.client.force_login(self.seller)
+        confirm = self.client.post(
+            reverse("confirm_product_trade", args=[room.pk])
+        )
+        self.product.refresh_from_db()
+        room.refresh_from_db()
+        self.assertEqual(confirm.status_code, 302)
+        self.assertEqual(self.product.status, Product.Status.PENDING)
+        self.assertEqual(self.product.buyer, self.buyer)
+        self.assertEqual(room.deal_status, ChatRoom.DealStatus.CONFIRMED)
+        self.assertTrue(
+            Message.objects.filter(
+                chat_room=room,
+                is_system=True,
+                body="取引が確定しました",
+            ).exists()
+        )
+
+    def test_pending_blocks_new_buy_and_negotiate(self):
+        self.product.status = Product.Status.PENDING
         self.product.buyer = self.buyer
         self.product.save(update_fields=["status", "buyer"])
         self.client.force_login(self.other)
 
-        trade_response = self.client.get(
-            reverse("product_trade", args=[self.product.pk])
-        )
         purchase_response = self.client.post(
             reverse("purchase_product", args=[self.product.pk])
         )
+        negotiate_response = self.client.post(
+            reverse("start_product_chat", args=[self.product.pk])
+        )
 
         self.product.refresh_from_db()
-        self.assertEqual(trade_response.status_code, 302)
         self.assertEqual(purchase_response.status_code, 302)
+        self.assertEqual(negotiate_response.status_code, 302)
         self.assertEqual(self.product.buyer, self.buyer)
-        self.assertEqual(self.product.status, Product.Status.TRADING)
+        self.assertEqual(self.product.status, Product.Status.PENDING)
+        self.assertFalse(
+            ChatRoom.objects.filter(product=self.product, buyer=self.other).exists()
+        )
 
-    def test_trade_chat_saves_message_for_participants(self):
-        self.product.status = Product.Status.TRADING
+    def test_seller_handover_marks_sold(self):
+        self.client.force_login(self.buyer)
+        self.client.post(reverse("purchase_product", args=[self.product.pk]))
+        room = ChatRoom.objects.get(product=self.product, buyer=self.buyer)
+
+        self.client.force_login(self.seller)
+        response = self.client.post(
+            reverse("complete_product_handover", args=[room.pk])
+        )
+        self.product.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.product.status, Product.Status.SOLD)
+        self.assertTrue(self.product.is_sold)
+        self.assertTrue(
+            Message.objects.filter(
+                chat_room=room,
+                is_system=True,
+                body__contains="受け渡しが完了",
+            ).exists()
+        )
+
+    def test_legacy_trade_chat_still_works_without_chatroom(self):
+        self.product.status = Product.Status.PENDING
         self.product.buyer = self.buyer
         self.product.save(update_fields=["status", "buyer"])
         self.client.force_login(self.buyer)
@@ -1088,25 +1169,6 @@ class ProductTradeFlowTests(TestCase):
         message = TradeMessage.objects.get(product=self.product)
         self.assertEqual(message.sender, self.buyer)
         self.assertEqual(message.body, "大隈講堂前でお願いします。")
-
-    def test_trade_completes_only_after_both_confirm(self):
-        self.product.status = Product.Status.TRADING
-        self.product.buyer = self.buyer
-        self.product.save(update_fields=["status", "buyer"])
-
-        self.client.force_login(self.buyer)
-        self.client.post(reverse("complete_trade", args=[self.product.pk]))
-        self.product.refresh_from_db()
-        self.assertEqual(self.product.status, Product.Status.TRADING)
-        self.assertTrue(self.product.buyer_trade_completed)
-        self.assertFalse(self.product.seller_trade_completed)
-
-        self.client.force_login(self.seller)
-        self.client.post(reverse("complete_trade", args=[self.product.pk]))
-        self.product.refresh_from_db()
-        self.assertEqual(self.product.status, Product.Status.SOLD_OUT)
-        self.assertTrue(self.product.is_sold)
-        self.assertTrue(self.product.seller_trade_completed)
 
 
 class ProfileAndFollowTests(TestCase):
@@ -1789,8 +1851,10 @@ class ProductChatTests(TestCase):
     def test_product_detail_shows_chat_button_for_non_seller(self):
         self.client.force_login(self.buyer)
         page = self.client.get(reverse("product_detail", args=[self.product.pk]))
-        self.assertContains(page, "出品者にチャットで連絡する")
+        self.assertContains(page, "値下げ交渉をする")
+        self.assertContains(page, "即決購入する")
         self.assertContains(page, reverse("start_product_chat", args=[self.product.pk]))
+        self.assertContains(page, reverse("purchase_product", args=[self.product.pk]))
 
     def test_product_detail_shows_seller_chat_list(self):
         room = ChatRoom.objects.create(product=self.product, buyer=self.buyer)
@@ -2629,12 +2693,12 @@ class PushNotificationTests(TestCase):
         self.assertTrue(
             Notification.objects.filter(
                 recipient=self.seller,
-                message__contains="購入希望がありました",
+                message__contains="即決購入されました",
             ).exists()
         )
         mock_notify_push.assert_called_once()
         _, kwargs = mock_notify_push.call_args
-        self.assertIn("購入希望がありました", kwargs["body"])
+        self.assertIn("即決購入されました", kwargs["body"])
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=False)
     @patch("app.push_services.get_firebase_app")

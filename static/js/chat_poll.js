@@ -56,6 +56,24 @@
   }
 
   function createMessageItem(msg) {
+    if (msg.is_system || area.dataset.messageStyle === "product") {
+      var simple = document.createElement("li");
+      simple.className =
+        "chat-msg" +
+        (msg.is_system ? " is-system" : msg.is_mine ? " is-mine" : "");
+      simple.dataset.messageId = String(msg.id);
+
+      var meta = document.createElement("div");
+      meta.className = "chat-msg-meta";
+      meta.textContent =
+        (msg.sender_name || "システム") + " · " + (msg.created_at || "");
+      simple.appendChild(meta);
+
+      var body = document.createTextNode(msg.body || "");
+      simple.appendChild(body);
+      return simple;
+    }
+
     var li = document.createElement("li");
     li.className = "chat-row" + (msg.is_mine ? " is-mine" : "");
     li.dataset.messageId = String(msg.id);
@@ -70,22 +88,22 @@
     bubble.textContent = msg.body;
     main.appendChild(bubble);
 
-    var meta = document.createElement("div");
-    meta.className = "chat-row__meta";
+    var metaRow = document.createElement("div");
+    metaRow.className = "chat-row__meta";
 
     if (msg.is_mine && msg.is_read) {
       var readLabel = document.createElement("span");
       readLabel.className = "chat-row__read";
       readLabel.textContent = "既読";
-      meta.appendChild(readLabel);
+      metaRow.appendChild(readLabel);
     }
 
     var time = document.createElement("time");
     time.className = "chat-row__time";
     time.textContent = msg.created_at;
-    meta.appendChild(time);
+    metaRow.appendChild(time);
 
-    main.appendChild(meta);
+    main.appendChild(metaRow);
     li.appendChild(main);
     return li;
   }
