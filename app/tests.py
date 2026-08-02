@@ -3221,14 +3221,19 @@ class AppShellNavTests(TestCase):
         self.assertContains(own_tt, "公開中")
         self.assertContains(own_tt, "data-timetable-visibility")
 
-        # 自分のプロフィールでは非公開でも時間割を確認できる
+        # 自分のプロフィールでは非公開でも時間割を確認でき、本人向けアラートが出る
         UserProfile.objects.filter(user=other).update(is_timetable_public=False)
         own_profile_tt = self.client.get(
             reverse("user_profile", args=[other.pk]),
             {"tab": "timetable"},
         )
         self.assertContains(own_profile_tt, "timetable-scroll")
+        self.assertContains(own_profile_tt, "※現在は非公開設定です")
+        self.assertContains(
+            own_profile_tt, "あなた以外のユーザーには表示されていません"
+        )
         self.assertContains(own_profile_tt, "時間割ページで編集・公開設定")
+        self.assertNotContains(own_profile_tt, "このユーザーの時間割は公開されていません")
 
         UserProfile.objects.filter(user=other).update(is_timetable_public=True)
 
