@@ -166,10 +166,6 @@
     "設定からカメラの使用を許可してください";
   var PHOTOS_PERMISSION_REQUIRED_MESSAGE =
     "設定から写真ライブラリの使用を許可してください";
-  var CAMERA_UNAVAILABLE_MESSAGE =
-    "この環境ではカメラを利用できません。フォトライブラリから画像を選択できます。";
-  var CAMERA_UNAVAILABLE_NO_FALLBACK_MESSAGE =
-    "この環境ではカメラを利用できません。実機でカメラ権限を有効にしてお試しください。";
 
   function showCameraAlert(message) {
     if (typeof window.alert === "function") {
@@ -461,8 +457,7 @@
 
     if (!access.ok) {
       if (access.reason === "unavailable") {
-        // カメラ不可時はフォトライブラリへフォールバック（クラッシュ回避）
-        showCameraAlert(CAMERA_UNAVAILABLE_MESSAGE);
+        // カメラ非対応環境ではアラートせず、そのままフォトライブラリへ進む
         photoSource = "photos";
         var photosAccess = await ensurePhotosAccess();
         if (!photosAccess.ok) {
