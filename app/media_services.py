@@ -130,6 +130,55 @@ def ensure_userprofile_terms_accepted_column() -> None:
         )
 
 
+def ensure_userprofile_is_timetable_public_column() -> None:
+    """本番 DB に is_timetable_public 列が無い場合に追加する。"""
+    from django.db import connection
+    from django.db.utils import OperationalError
+
+    table = "app_userprofile"
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, table
+                )
+            }
+            if "is_timetable_public" in columns:
+                return
+
+            if connection.vendor == "postgresql":
+                cursor.execute(
+                    "ALTER TABLE app_userprofile "
+                    "ADD COLUMN IF NOT EXISTS is_timetable_public "
+                    "boolean NOT NULL DEFAULT false"
+                )
+            else:
+                cursor.execute(
+                    "ALTER TABLE app_userprofile "
+                    "ADD COLUMN is_timetable_public bool NOT NULL DEFAULT 0"
+                )
+        log_media_upload(
+            "DB SCHEMA",
+            "Added missing app_userprofile.is_timetable_public column",
+        )
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "duplicate column" in message or "already exists" in message:
+            return
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.is_timetable_public repair failed: {exc}",
+            exc=exc,
+        )
+    except Exception as exc:
+        log_media_upload(
+            "DB SCHEMA",
+            f"app_userprofile.is_timetable_public repair failed: {exc}",
+            exc=exc,
+        )
+
+
 def ensure_timelinepost_author_nullable() -> None:
     """本番 DB で timelinepost.author_id が NOT NULL のままなら NULL 許可にする。"""
     from django.db import connection
