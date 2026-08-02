@@ -1,69 +1,82 @@
 {# 必須: timetable_days, timetable_rows, timetable_od_rows #}
 <style>
   .timetable-board {
-    --tt-period-w: 54px;
-    --tt-border: #e1e8ef;
-    --tt-head-bg: #f7f9fc;
-    --tt-period-bg: #fafbfc;
-    --tt-od-bg: #f3f7fb;
-    --tt-od-border: #9eb6ce;
+    --tt-period-w: 52px;
+    --tt-gap: 6px;
+    --tt-radius: 10px;
     --tt-day-count: {{ timetable_days|length }};
-    margin: 0 -4px;
-    border: 1px solid var(--tt-border);
-    border-radius: 12px;
-    background: var(--card, #fff);
-    overflow: hidden;
+    --tt-surface: #e8edf3;
+    --tt-card: #ffffff;
+    --tt-card-empty: #f4f6f9;
+    --tt-od-empty: #eef3f8;
+    --tt-od-border: #9eb6ce;
+    --tt-shadow: 0 1px 2px rgba(15, 20, 25, 0.06), 0 2px 8px rgba(15, 20, 25, 0.04);
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 8px;
+    border: none;
+    border-radius: 14px;
+    background: var(--tt-surface);
+    box-sizing: border-box;
   }
 
   .timetable-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
-    max-height: calc(
-      100dvh - var(--wase-header-h, 64px) - var(--nav-h, 56px) - env(safe-area-inset-bottom, 0px) - 72px
-    );
   }
 
   .timetable-grid {
     display: grid;
     grid-template-columns: var(--tt-period-w) repeat(var(--tt-day-count), minmax(0, 1fr));
     grid-template-rows:
-      auto
-      repeat(5, minmax(48px, 1fr))
-      repeat(2, minmax(42px, 0.9fr));
+      28px
+      repeat(5, minmax(56px, 1fr))
+      repeat(2, minmax(48px, 0.92fr));
+    gap: var(--tt-gap);
     width: 100%;
     min-width: 100%;
-    min-height: min(520px, calc(100dvh - var(--wase-header-h, 64px) - var(--nav-h, 56px) - 120px));
-    font-size: 12px;
+    min-height: calc(
+      100dvh - var(--wase-header-h, 64px) - var(--nav-h, 56px) - env(safe-area-inset-bottom, 0px) - 88px
+    );
+    height: 100%;
+    box-sizing: border-box;
   }
 
   .timetable-corner,
   .timetable-day,
-  .timetable-period,
-  .timetable-cell {
-    border-right: 1px solid var(--tt-border);
-    border-bottom: 1px solid var(--tt-border);
+  .timetable-period {
     min-width: 0;
+    border: none;
+    background: transparent;
   }
 
-  .timetable-corner,
   .timetable-day {
     position: sticky;
     top: 0;
     z-index: 2;
-    background: var(--tt-head-bg);
-    text-align: center;
-    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
     font-size: 12px;
-    color: var(--text, #0f1419);
-    padding: 8px 2px;
-    box-shadow: 0 1px 0 var(--tt-border);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #3d4a57;
+    background: var(--tt-surface);
   }
 
   .timetable-corner {
+    position: sticky;
+    top: 0;
     left: 0;
     z-index: 4;
-    box-shadow: 1px 1px 0 var(--tt-border);
+    background: var(--tt-surface);
   }
 
   .timetable-period {
@@ -75,29 +88,28 @@
     align-items: center;
     justify-content: center;
     gap: 2px;
-    background: var(--tt-period-bg);
+    padding: 2px;
     text-align: center;
-    padding: 4px 2px;
-    box-shadow: 1px 0 0 var(--tt-border);
-  }
-
-  .timetable-period.is-od {
-    background: #eef4fa;
+    background: var(--tt-surface);
   }
 
   .timetable-period__label {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
-    color: var(--text, #0f1419);
+    color: #2c3640;
     line-height: 1.15;
+  }
+
+  .timetable-period.is-od .timetable-period__label {
+    color: #4a6b88;
   }
 
   .timetable-period__time {
     display: block;
     font-size: 8px;
     font-weight: 600;
-    color: var(--muted, #536471);
+    color: #7a8794;
     line-height: 1.2;
     letter-spacing: -0.03em;
   }
@@ -105,59 +117,76 @@
   .timetable-cell {
     display: flex;
     align-items: stretch;
+    min-width: 0;
+    min-height: 0;
     padding: 0;
-    background: #fff;
-  }
-
-  .timetable-cell.is-od {
-    background: var(--tt-od-bg);
+    border: none;
+    background: transparent;
   }
 
   .timetable-slot {
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    gap: 2px;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 3px;
     width: 100%;
     min-height: 100%;
     margin: 0;
-    padding: 5px 4px;
-    border: none;
-    background: transparent;
+    padding: 7px 6px;
+    border: 1px solid rgba(15, 20, 25, 0.04);
+    border-radius: var(--tt-radius);
+    background: var(--tt-card-empty);
+    box-shadow: none;
     text-align: left;
     font: inherit;
     color: inherit;
     cursor: pointer;
+    box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
   }
 
-  .timetable-slot:hover,
-  .timetable-slot:focus-visible {
-    background: rgba(137, 30, 43, 0.06);
+  .timetable-slot.is-filled {
+    justify-content: flex-start;
+    background: var(--tt-card);
+    border-color: transparent;
+    box-shadow: var(--tt-shadow);
+  }
+
+  .timetable-slot.is-filled:hover,
+  .timetable-slot.is-filled:focus-visible {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(137, 30, 43, 0.14);
+    outline: none;
+  }
+
+  .timetable-slot.is-empty:hover,
+  .timetable-slot.is-empty:focus-visible {
+    background: #eef2f7;
     outline: none;
   }
 
   .timetable-cell.is-od .timetable-slot {
+    background: var(--tt-od-empty);
     border: 1.5px dashed var(--tt-od-border);
-    border-radius: 6px;
-    margin: 3px;
-    padding: 4px 3px;
-    min-height: calc(100% - 6px);
-    box-sizing: border-box;
+    box-shadow: none;
   }
 
-  .timetable-cell.is-od .timetable-slot:hover,
-  .timetable-cell.is-od .timetable-slot:focus-visible {
-    background: rgba(70, 110, 150, 0.1);
+  .timetable-cell.is-od .timetable-slot.is-filled {
+    background: #f7fbff;
+    border-style: solid;
+    border-color: #c5d6e6;
+    box-shadow: var(--tt-shadow);
   }
 
   .timetable-class__name {
     margin: 0;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.3;
-    color: var(--text, #0f1419);
+    color: #15202b;
     word-break: break-word;
     overflow-wrap: anywhere;
   }
@@ -166,30 +195,31 @@
     margin: 0;
     font-size: 9px;
     font-weight: 600;
-    color: var(--muted, #536471);
+    color: #5b6b7a;
     line-height: 1.2;
   }
 
   .timetable-slot__placeholder {
-    margin: 0;
-    font-size: 9px;
+    margin: 0 auto;
+    font-size: 11px;
     font-weight: 700;
-    color: #9aa8b6;
+    color: #b0bbc6;
     line-height: 1.2;
   }
 
   .timetable-cell.is-od .timetable-slot__placeholder {
-    color: #7a93ab;
+    color: #8aa0b5;
   }
 
   @media (min-width: 600px) {
     .timetable-board {
-      --tt-period-w: 70px;
-      margin: 0;
+      --tt-period-w: 68px;
+      --tt-gap: 8px;
+      --tt-radius: 12px;
+      padding: 12px;
     }
     .timetable-day {
       font-size: 13px;
-      padding: 10px 4px;
     }
     .timetable-period__label {
       font-size: 13px;
@@ -197,8 +227,11 @@
     .timetable-period__time {
       font-size: 10px;
     }
+    .timetable-slot {
+      padding: 10px 8px;
+    }
     .timetable-class__name {
-      font-size: 11px;
+      font-size: 12px;
     }
     .timetable-class__meta {
       font-size: 10px;
@@ -223,7 +256,7 @@
       <div class="timetable-cell" data-slot-wrap="{{ cell.slot_key }}">
         <button
           type="button"
-          class="timetable-slot"
+          class="timetable-slot {% if cell.name %}is-filled{% else %}is-empty{% endif %}"
           data-timetable-slot
           data-slot-key="{{ cell.slot_key }}"
           data-slot-kind="period"
@@ -253,7 +286,7 @@
       <div class="timetable-cell is-od" data-slot-wrap="{{ cell.slot_key }}">
         <button
           type="button"
-          class="timetable-slot"
+          class="timetable-slot {% if cell.name %}is-filled{% else %}is-empty{% endif %}"
           data-timetable-slot
           data-slot-key="{{ cell.slot_key }}"
           data-slot-kind="od"

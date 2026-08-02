@@ -6,31 +6,39 @@
 {% include "includes/compose_modal_styles.html" %}
 <style>
   .page-title {
-    margin: 0 0 12px;
+    margin: 0 0 8px;
     font-size: 20px;
     font-weight: 700;
   }
   .timetable-note {
-    margin: 12px 2px 0;
-    font-size: 12px;
+    flex-shrink: 0;
+    margin: 8px 2px 0;
+    font-size: 11px;
     color: var(--muted);
-    line-height: 1.5;
+    line-height: 1.45;
   }
   .main-inner--timetable {
-    padding-left: 8px;
-    padding-right: 8px;
-    padding-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(
+      100dvh - var(--wase-header-h, 64px) - var(--nav-h, 56px) - env(safe-area-inset-bottom, 0px)
+    );
+    padding: 8px 10px 6px;
+    box-sizing: border-box;
   }
   body.timetable-modal-open {
     overflow: hidden;
   }
   @media (max-width: 1023px) {
     .page-title { display: none; }
+    .main-inner--timetable {
+      padding-top: 6px;
+    }
   }
   @media (min-width: 1024px) {
     .main-inner--timetable {
-      padding-left: 16px;
-      padding-right: 16px;
+      min-height: calc(100vh - 32px);
+      padding: 16px;
     }
   }
 </style>
