@@ -20,6 +20,7 @@ class AppConfig(AppConfig):
         )
         from app.dm_services import ensure_dm_read_state_table, ensure_dm_message_is_read_column
         from app.chat_schema_services import ensure_chatroom_group_chat_schema
+        from app.product_trade_schema_services import ensure_product_trade_schema
         from app.timetable_services import ensure_timetable_slot_table
 
         ensure_userprofile_avatar_column()
@@ -30,5 +31,6 @@ class AppConfig(AppConfig):
         ensure_dm_message_is_read_column()
         ensure_chatroom_group_chat_schema()
         ensure_timetable_slot_table()
+        ensure_product_trade_schema()
         log_timelinepost_db_schema()
         log_userprofile_db_schema()

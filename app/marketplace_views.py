@@ -4,6 +4,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.db.utils import OperationalError, ProgrammingError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -35,6 +36,7 @@ from .services import (
     prioritize_same_faculty,
     user_display_name,
 )
+from .product_trade_schema_services import ensure_product_trade_schema
 from .trade_chat_services import (
     complete_handover_by_seller,
     confirm_negotiation_trade,
@@ -86,6 +88,7 @@ def _room_messages_json(request, message_queryset):
 
 
 def flea_index(request):
+    ensure_product_trade_schema()
     feed_scope = request.GET.get("feed", "all").strip().lower()
     if feed_scope not in ("all", "following"):
         feed_scope = "all"
@@ -161,42 +164,56 @@ def flea_index(request):
         for value, label in FLEA_ORDER_CHOICES
     ]
 
-    products = filter_visible_products(
-        Product.objects.select_related("seller", "seller__profile").all(),
-        request.user if request.user.is_authenticated else None,
-    )
-    if active_faculty:
-        products = products.filter(faculty=active_faculty)
-    if active_campus:
-        products = products.filter(handover_campus=active_campus)
-    if query:
-        products = products.filter(
-            Q(name__icontains=query)
-            | Q(description__icontains=query)
-            | Q(course_name__icontains=query)
-            | Q(professor_name__icontains=query)
+    try:
+        products = filter_visible_products(
+            Product.objects.select_related("seller", "seller__profile").all(),
+            request.user if request.user.is_authenticated else None,
         )
-    if feed_scope == "following":
-        if request.user.is_authenticated:
-            products = products.filter(seller_id__in=get_following_user_ids(request.user))
-        else:
-            products = products.none()
+        if active_faculty:
+            products = products.filter(faculty=active_faculty)
+        if active_campus:
+            products = products.filter(handover_campus=active_campus)
+        if query:
+            products = products.filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+                | Q(course_name__icontains=query)
+                | Q(professor_name__icontains=query)
+            )
+        if feed_scope == "following":
+            if request.user.is_authenticated:
+                products = products.filter(
+                    seller_id__in=get_following_user_ids(request.user)
+                )
+            else:
+                products = products.none()
 
-    if active_order == "price_low":
-        products = products.order_by("price", "-created_at")
-    elif active_order == "price_high":
-        products = products.order_by("-price", "-created_at")
-    elif active_order == "newest":
-        products = products.order_by("-created_at")
-    elif (
-        feed_scope != "following"
-        and request.user.is_authenticated
-        and not active_faculty
-        and not active_campus
-    ):
-        products = prioritize_same_faculty(products, request.user)
-    else:
-        products = products.order_by("-created_at")
+        if active_order == "price_low":
+            products = products.order_by("price", "-created_at")
+        elif active_order == "price_high":
+            products = products.order_by("-price", "-created_at")
+        elif active_order == "newest":
+            products = products.order_by("-created_at")
+        elif (
+            feed_scope != "following"
+            and request.user.is_authenticated
+            and not active_faculty
+            and not active_campus
+        ):
+            products = prioritize_same_faculty(products, request.user)
+        else:
+            products = products.order_by("-created_at")
+        # 遅延評価の失敗をビュー内で捕捉するため一度触る
+        products = list(products)
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("flea_index product query failed (retry after schema repair): %s", exc)
+        ensure_product_trade_schema()
+        products = list(
+            filter_visible_products(
+                Product.objects.select_related("seller", "seller__profile").all(),
+                request.user if request.user.is_authenticated else None,
+            ).order_by("-created_at")
+        )
 
     active_campus_label = dict(HANDOVER_CAMPUS_CHOICES).get(active_campus, "")
     active_order_label = dict(FLEA_ORDER_CHOICES).get(active_order, "おすすめ順")
@@ -239,15 +256,29 @@ def flea_index(request):
 
 
 def product_detail(request, pk):
-    product = get_object_or_404(
-        filter_visible_products(
-            Product.objects.select_related(
-                "seller", "seller__profile", "buyer", "buyer__profile"
-            ).prefetch_related("likes"),
-            request.user if request.user.is_authenticated else None,
-        ),
-        pk=pk,
-    )
+    ensure_product_trade_schema()
+    try:
+        product = get_object_or_404(
+            filter_visible_products(
+                Product.objects.select_related(
+                    "seller", "seller__profile", "buyer", "buyer__profile"
+                ).prefetch_related("likes"),
+                request.user if request.user.is_authenticated else None,
+            ),
+            pk=pk,
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("product_detail failed (retry after schema repair): %s", exc)
+        ensure_product_trade_schema()
+        product = get_object_or_404(
+            filter_visible_products(
+                Product.objects.select_related(
+                    "seller", "seller__profile", "buyer", "buyer__profile"
+                ).prefetch_related("likes"),
+                request.user if request.user.is_authenticated else None,
+            ),
+            pk=pk,
+        )
     comments = filter_visible_comments(
         product.comments.select_related("author"),
         request.user if request.user.is_authenticated else None,
