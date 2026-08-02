@@ -228,6 +228,19 @@
         </div>
 
         <div class="field">
+          <label for="{{ form.handover_campus.id_for_label }}">{{ form.handover_campus.label }}</label>
+          {{ form.handover_campus }}
+          <p class="price-hint">受け渡し予定のキャンパスを選択してください（必須）</p>
+          {% if form.handover_campus.errors %}
+          <ul class="field-error">
+            {% for error in form.handover_campus.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
           <label for="{{ form.course_name.id_for_label }}">{{ form.course_name.label }}</label>
           {{ form.course_name }}
         </div>

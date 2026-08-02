@@ -164,6 +164,8 @@ def build_flea_url(
     feed_scope: str = "all",
     query: str = "",
     active_faculty: str = "",
+    active_campus: str = "",
+    active_order: str = "",
 ) -> str:
     params: dict[str, str] = {}
     if feed_scope == "following":
@@ -172,6 +174,10 @@ def build_flea_url(
         params["q"] = query
     if active_faculty:
         params["faculty"] = active_faculty
+    if active_campus:
+        params["campus"] = active_campus
+    if active_order:
+        params["order"] = active_order
     base = reverse("flea_index")
     if not params:
         return base

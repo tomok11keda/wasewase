@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .constants import FACULTY_CHOICES, TRADE_LOCATION_PRESETS
+from .constants import FACULTY_CHOICES, FLEA_ORDER_CHOICES, HANDOVER_CAMPUS_CHOICES, TRADE_LOCATION_PRESETS
 from .forms import CommentForm, ProductExhibitForm, ReviewForm
 from .models import (
     ChatRoom,
@@ -39,6 +39,8 @@ from .ugc_services import filter_visible_comments, filter_visible_products
 
 logger = logging.getLogger(__name__)
 
+_CAMPUS_VALUES = {value for value, _ in HANDOVER_CAMPUS_CHOICES}
+_ORDER_VALUES = {value for value, _ in FLEA_ORDER_CHOICES if value}
 
 def _serialize_room_message(message, current_user_id):
     created = timezone.localtime(message.created_at)
@@ -84,23 +86,77 @@ def flea_index(request):
     active_faculty = request.GET.get("faculty", "").strip()
     if active_faculty not in faculty_values:
         active_faculty = ""
+
+    active_campus = request.GET.get("campus", "").strip().lower()
+    if active_campus not in _CAMPUS_VALUES:
+        active_campus = ""
+
+    active_order = request.GET.get("order", "").strip().lower()
+    if active_order not in _ORDER_VALUES:
+        active_order = ""
+
     faculty_tabs = [{"value": "", "label": "すべて"}] + [
-        {"value": value, "label": label, "url": build_flea_url(
-            feed_scope=feed_scope, query=query, active_faculty=value
-        )}
+        {
+            "value": value,
+            "label": label,
+            "url": build_flea_url(
+                feed_scope=feed_scope,
+                query=query,
+                active_faculty=value,
+                active_campus=active_campus,
+                active_order=active_order,
+            ),
+        }
         for value, label in FACULTY_CHOICES
     ]
     for tab in faculty_tabs:
         if "url" not in tab:
             tab["url"] = build_flea_url(
-                feed_scope=feed_scope, query=query, active_faculty=tab["value"]
+                feed_scope=feed_scope,
+                query=query,
+                active_faculty=tab["value"],
+                active_campus=active_campus,
+                active_order=active_order,
             )
+
+    campus_tabs = [{"value": "", "label": "すべて"}] + [
+        {
+            "value": value,
+            "label": label,
+            "url": build_flea_url(
+                feed_scope=feed_scope,
+                query=query,
+                active_faculty=active_faculty,
+                active_campus=value,
+                active_order=active_order,
+            ),
+        }
+        for value, label in HANDOVER_CAMPUS_CHOICES
+    ]
+
+    order_options = [
+        {
+            "value": value,
+            "label": label,
+            "url": build_flea_url(
+                feed_scope=feed_scope,
+                query=query,
+                active_faculty=active_faculty,
+                active_campus=active_campus,
+                active_order=value,
+            ),
+        }
+        for value, label in FLEA_ORDER_CHOICES
+    ]
+
     products = filter_visible_products(
         Product.objects.select_related("seller", "seller__profile").all(),
         request.user if request.user.is_authenticated else None,
     )
     if active_faculty:
         products = products.filter(faculty=active_faculty)
+    if active_campus:
+        products = products.filter(handover_campus=active_campus)
     if query:
         products = products.filter(
             Q(name__icontains=query)
@@ -113,10 +169,26 @@ def flea_index(request):
             products = products.filter(seller_id__in=get_following_user_ids(request.user))
         else:
             products = products.none()
-    if feed_scope != "following" and request.user.is_authenticated and not active_faculty:
+
+    if active_order == "price_low":
+        products = products.order_by("price", "-created_at")
+    elif active_order == "price_high":
+        products = products.order_by("-price", "-created_at")
+    elif active_order == "newest":
+        products = products.order_by("-created_at")
+    elif (
+        feed_scope != "following"
+        and request.user.is_authenticated
+        and not active_faculty
+        and not active_campus
+    ):
         products = prioritize_same_faculty(products, request.user)
     else:
         products = products.order_by("-created_at")
+
+    active_campus_label = dict(HANDOVER_CAMPUS_CHOICES).get(active_campus, "")
+    active_order_label = dict(FLEA_ORDER_CHOICES).get(active_order, "おすすめ順")
+
     return render(
         request,
         "flea_index.html",
@@ -126,13 +198,27 @@ def flea_index(request):
             "user_faculty": user_faculty,
             "faculty_tabs": faculty_tabs,
             "active_faculty": active_faculty,
+            "campus_tabs": campus_tabs,
+            "active_campus": active_campus,
+            "active_campus_label": active_campus_label,
+            "order_options": order_options,
+            "active_order": active_order,
+            "active_order_label": active_order_label,
             "feed_scope": feed_scope,
             "feed_following_unauthenticated": feed_following_unauthenticated,
             "feed_url_all": build_flea_url(
-                feed_scope="all", query=query, active_faculty=active_faculty
+                feed_scope="all",
+                query=query,
+                active_faculty=active_faculty,
+                active_campus=active_campus,
+                active_order=active_order,
             ),
             "feed_url_following": build_flea_url(
-                feed_scope="following", query=query, active_faculty=active_faculty
+                feed_scope="following",
+                query=query,
+                active_faculty=active_faculty,
+                active_campus=active_campus,
+                active_order=active_order,
             ),
             "nav_active": "flea",
             "exhibit_success": request.GET.get("exhibit_success") == "1",

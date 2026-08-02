@@ -226,8 +226,17 @@ class UserBlockAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "seller", "price", "status", "category", "is_removed", "created_at")
-    list_filter = ("status", "category", "is_removed", "created_at")
+    list_display = (
+        "name",
+        "seller",
+        "price",
+        "handover_campus",
+        "status",
+        "category",
+        "is_removed",
+        "created_at",
+    )
+    list_filter = ("status", "handover_campus", "category", "is_removed", "created_at")
     actions = [mark_as_removed, restore_removed]
     search_fields = (
         "name",
@@ -242,6 +251,8 @@ class ProductAdmin(admin.ModelAdmin):
         "name",
         "price",
         "description",
+        "faculty",
+        "handover_campus",
         "course_name",
         "professor_name",
         "category",

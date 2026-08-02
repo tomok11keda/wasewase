@@ -5,7 +5,12 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
-from .constants import FACULTY_CHOICES, GRADE_CHOICES, HANDLE_PATTERN
+from .constants import (
+    FACULTY_CHOICES,
+    GRADE_CHOICES,
+    HANDLE_PATTERN,
+    HANDOVER_CAMPUS_CHOICES,
+)
 
 
 class UserManager(BaseUserManager):
@@ -248,6 +253,14 @@ class Product(models.Model):
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100)
     faculty = models.CharField(max_length=50, choices=FACULTY_CHOICES, blank=True)
+    handover_campus = models.CharField(
+        "受け渡しキャンパス",
+        max_length=32,
+        choices=HANDOVER_CAMPUS_CHOICES,
+        blank=True,
+        default="",
+        db_index=True,
+    )
     course_name = models.CharField(max_length=120, blank=True, verbose_name="授業名")
     professor_name = models.CharField(max_length=120, blank=True, verbose_name="教授名")
     buyer = models.ForeignKey(

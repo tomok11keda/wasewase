@@ -31,6 +31,23 @@ FACULTY_CHOICES = [
     ("その他", "その他"),
 ]
 
+# フリマ受け渡しキャンパス（Product.handover_campus / URL ?campus=）
+HANDOVER_CAMPUS_CHOICES = [
+    ("waseda", "早稲田キャンパス"),
+    ("toyama", "戸山キャンパス"),
+    ("nishi_waseda", "西早稲田キャンパス"),
+    ("tokorozawa", "所沢キャンパス"),
+    ("other", "その他・要相談"),
+]
+
+# フリマ一覧の並び替え（URL ?order=）
+FLEA_ORDER_CHOICES = [
+    ("", "おすすめ順"),
+    ("newest", "投稿が新しい順"),
+    ("price_low", "金額の安い順"),
+    ("price_high", "金額の高い順"),
+]
+
 TRADE_LOCATION_PRESETS = [
     "今ラウンジにいます",
     "15号館に向かっています",

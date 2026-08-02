@@ -24,7 +24,7 @@
       {% endif %}
     </div>
     <p class="product-card-title">{{ product.name }}</p>
-    <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前</p>
+    <p class="product-card-meta">{{ product.seller|display_name }} · {{ product.created_at|timesince }}前{% if product.handover_campus %} · {{ product.get_handover_campus_display }}{% endif %}</p>
   </a>
   {% if ugc_report_enabled and user.is_authenticated and product.seller_id != user.id %}
   {% include "includes/ugc_report_button.html" with report_type="product" report_id=product.pk %}
