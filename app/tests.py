@@ -3294,6 +3294,25 @@ class AppShellNavTests(TestCase):
         )
         self.assertContains(other_view, "線形代数")
 
+    def test_build_timetable_grid_for_user_survives_missing_table(self):
+        from unittest.mock import patch
+
+        from django.db.utils import OperationalError
+
+        from app.timetable_services import build_timetable_grid_for_user
+
+        with patch(
+            "app.timetable_services.TimetableSlot.objects.filter",
+            side_effect=OperationalError("no such table: app_timetableslot"),
+        ):
+            with patch(
+                "app.timetable_services.ensure_timetable_slot_table",
+                return_value=None,
+            ):
+                grid = build_timetable_grid_for_user(self.user)
+        self.assertEqual(len(grid["rows"]), 5)
+        self.assertEqual(len(grid["od_rows"]), 2)
+
     def test_home_header_has_notification_bell_left_of_dm(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("home"))
