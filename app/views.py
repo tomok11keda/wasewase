@@ -116,7 +116,12 @@ from .notification_services import (
     get_unread_notification_count,
     mark_all_notifications_read,
 )
-from .timetable_services import build_timetable_grid
+from .timetable_services import (
+    build_timetable_grid_for_user,
+    slot_to_payload,
+    slots_dict_for_user,
+    upsert_timetable_slot,
+)
 from .timetable_privacy_services import (
     get_or_create_profile as get_or_create_timetable_profile,
     is_timetable_public_for,
@@ -545,12 +550,16 @@ def timetable_index(request):
         "timetable.html",
         {
             "nav_active": "timetable",
-            "timetable": build_timetable_grid(),
+            "timetable": build_timetable_grid_for_user(owner),
+            "timetable_slots": slots_dict_for_user(owner),
             "timetable_owner": owner,
             "is_own_timetable": is_own,
             "is_timetable_public": is_public,
             "can_edit_timetable_visibility": can_edit_visibility,
             "timetable_read_only": False,
+            "timetable_slot_api_url": reverse("api_timetable_slot")
+            if request.user.is_authenticated
+            else "",
         },
     )
 
@@ -573,7 +582,8 @@ def timetable_user(request, pk):
         "timetable.html",
         {
             "nav_active": "timetable",
-            "timetable": build_timetable_grid(),
+            "timetable": build_timetable_grid_for_user(owner),
+            "timetable_slots": slots_dict_for_user(owner),
             "timetable_owner": owner,
             "is_own_timetable": False,
             "is_timetable_public": True,
@@ -581,6 +591,7 @@ def timetable_user(request, pk):
             "timetable_read_only": True,
             "header_back_url": reverse("user_profile", args=[owner.pk]),
             "header_title": f"{user_display_name(owner)}の時間割",
+            "timetable_slot_api_url": "",
         },
     )
 
@@ -612,6 +623,65 @@ def api_timetable_visibility(request):
             "is_timetable_public": is_public,
             "isTimetablePublic": is_public,
             "label": "公開中" if is_public else "非公開",
+        }
+    )
+
+
+@login_required
+def api_timetable_slots(request):
+    """自分の時間割スロット一覧。GET /api/timetable/slots/"""
+    if request.method != "GET":
+        return JsonResponse({"error": "method_not_allowed"}, status=405)
+    return JsonResponse({"slots": slots_dict_for_user(request.user)})
+
+
+@login_required
+@require_POST
+def api_timetable_slot(request):
+    """時間割スロットを upsert / クリア。POST /api/timetable/slot/"""
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        body = {}
+
+    slot_key = (
+        body.get("slot_key")
+        or request.POST.get("slot_key")
+        or ""
+    ).strip()
+    name = body.get("name", request.POST.get("name", ""))
+    room = body.get("room", request.POST.get("room", ""))
+    credits = body.get("credits", request.POST.get("credits", ""))
+    memo = body.get("memo", request.POST.get("memo", ""))
+
+    try:
+        slot = upsert_timetable_slot(
+            request.user,
+            slot_key=slot_key,
+            name=name,
+            room=room,
+            credits=credits,
+            memo=memo,
+        )
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "invalid_slot_key"}, status=400)
+
+    if slot is None:
+        return JsonResponse(
+            {
+                "ok": True,
+                "deleted": True,
+                "slot_key": slot_key,
+                "entry": {"name": "", "room": "", "credits": "", "memo": ""},
+            }
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "deleted": False,
+            "slot_key": slot.slot_key,
+            "entry": slot_to_payload(slot),
         }
     )
 
@@ -1217,7 +1287,11 @@ def user_profile(request, pk):
         viewer = request.user if request.user.is_authenticated else None
         profile_posts = get_profile_timeline_posts(profile_user, viewer)
 
-    timetable = build_timetable_grid() if profile_tab == "timetable" and can_view_timetable else None
+    timetable = (
+        build_timetable_grid_for_user(profile_user)
+        if profile_tab == "timetable" and can_view_timetable
+        else None
+    )
 
     nav_active = ""
     if is_own_profile and profile_tab == "bookmarks":

@@ -29,6 +29,16 @@ urlpatterns = [
         app_views.api_timetable_visibility,
         name="api_timetable_visibility",
     ),
+    path(
+        "api/timetable/slots/",
+        app_views.api_timetable_slots,
+        name="api_timetable_slots",
+    ),
+    path(
+        "api/timetable/slot/",
+        app_views.api_timetable_slot,
+        name="api_timetable_slot",
+    ),
     path("communities/", app_views.communities_index, name="communities_index"),
     path("communities/thread/", app_views.create_community_thread, name="create_community_thread"),
     path(

@@ -27,6 +27,7 @@ from .models import (
     ThreadTip,
     TimelinePost,
     TimelineLike,
+    TimetableSlot,
     TradeMessage,
     Follow,
     UserBlock,
@@ -168,13 +169,21 @@ class ThreadTipAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "name", "department", "grade", "has_avatar")
-    list_filter = ("department", "grade")
+    list_display = ("user", "name", "department", "grade", "has_avatar", "is_timetable_public")
+    list_filter = ("department", "grade", "is_timetable_public")
     search_fields = ("user__username", "user__email", "name")
 
     @admin.display(boolean=True, description="画像あり")
     def has_avatar(self, obj):
         return bool(obj.avatar)
+
+
+@admin.register(TimetableSlot)
+class TimetableSlotAdmin(admin.ModelAdmin):
+    list_display = ("user", "slot_key", "name", "room", "credits", "updated_at")
+    list_filter = ("slot_key",)
+    search_fields = ("user__username", "user__email", "name", "slot_key", "room")
+    raw_id_fields = ("user",)
 
 
 @admin.register(Follow)

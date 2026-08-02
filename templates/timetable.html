@@ -170,6 +170,10 @@
 {% include "includes/timetable_visibility_scripts.html" %}
 {% endif %}
 {% if not timetable_read_only %}
+{{ timetable_slots|json_script:"timetable-initial-data" }}
+<script>
+  window.__WASE_TIMETABLE_SLOT_API__ = "{{ timetable_slot_api_url|default:''|escapejs }}";
+</script>
 {% include "includes/timetable_modal_scripts.html" %}
 {% endif %}
 {% endblock %}

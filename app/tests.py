@@ -3242,6 +3242,58 @@ class AppShellNavTests(TestCase):
         self.assertEqual(viewed.status_code, 200)
         self.assertContains(viewed, "公開中の時間割です")
 
+    def test_timetable_slot_saved_to_db_and_shown_on_profile(self):
+        UserProfile.objects.update_or_create(
+            user=self.user,
+            defaults={"name": "シェル", "is_timetable_public": True},
+        )
+        self.client.force_login(self.user)
+        save = self.client.post(
+            reverse("api_timetable_slot"),
+            data=json.dumps(
+                {
+                    "slot_key": "p1-d0",
+                    "name": "線形代数",
+                    "room": "11号館",
+                    "credits": "2",
+                    "memo": "課題あり",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(save.status_code, 200)
+        self.assertTrue(save.json()["ok"])
+        self.assertEqual(save.json()["entry"]["name"], "線形代数")
+
+        from app.models import TimetableSlot
+
+        slot = TimetableSlot.objects.get(user=self.user, slot_key="p1-d0")
+        self.assertEqual(slot.name, "線形代数")
+        self.assertEqual(slot.user_id, self.user.pk)
+
+        own_page = self.client.get(reverse("timetable_index"))
+        self.assertContains(own_page, "線形代数")
+        self.assertContains(own_page, "11号館")
+
+        profile = self.client.get(
+            reverse("user_profile", args=[self.user.pk]),
+            {"tab": "timetable"},
+        )
+        self.assertContains(profile, "線形代数")
+        self.assertContains(profile, "11号館")
+
+        other = get_user_model().objects.create_user(
+            email="viewer-tt@waseda.jp",
+            password="pass12345",
+            username="viewertt",
+        )
+        self.client.force_login(other)
+        other_view = self.client.get(
+            reverse("user_profile", args=[self.user.pk]),
+            {"tab": "timetable"},
+        )
+        self.assertContains(other_view, "線形代数")
+
     def test_home_header_has_notification_bell_left_of_dm(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("home"))

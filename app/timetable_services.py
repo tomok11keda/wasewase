@@ -1,4 +1,12 @@
-"""時間割表示用の定数・グリッド組み立て。"""
+"""時間割表示・永続化用の定数・グリッド組み立て。"""
+
+from __future__ import annotations
+
+import re
+
+from django.contrib.auth.models import AbstractBaseUser
+
+from .models import TimetableSlot
 
 TIMETABLE_DAYS = ("月", "火", "水", "木", "金", "土")
 
@@ -14,6 +22,28 @@ TIMETABLE_OD_SLOTS = (
     {"number": 1, "label": "OD1", "time": "オンデマンド"},
     {"number": 2, "label": "OD2", "time": "オンデマンド"},
 )
+
+_SLOT_KEY_RE = re.compile(r"^(p|od)(\d+)-d(\d+)$")
+
+
+def parse_slot_key(slot_key: str) -> dict | None:
+    """slot_key → {kind, number, day_index}。不正なら None。"""
+    raw = (slot_key or "").strip()
+    match = _SLOT_KEY_RE.fullmatch(raw)
+    if not match:
+        return None
+    prefix, number_s, day_s = match.groups()
+    number = int(number_s)
+    day_index = int(day_s)
+    if day_index < 0 or day_index >= len(TIMETABLE_DAYS):
+        return None
+    if prefix == "p":
+        if number < 1 or number > len(TIMETABLE_PERIODS):
+            return None
+        return {"kind": "period", "number": number, "day_index": day_index, "slot_key": raw}
+    if number < 1 or number > len(TIMETABLE_OD_SLOTS):
+        return None
+    return {"kind": "od", "number": number, "day_index": day_index, "slot_key": raw}
 
 
 def _normalize_cell(raw, *, slot_key, kind):
@@ -71,3 +101,92 @@ def build_timetable_grid(entries=None, od_entries=None):
         "od_rows": od_rows,
         "day_count": len(TIMETABLE_DAYS),
     }
+
+
+def slot_to_payload(slot: TimetableSlot) -> dict:
+    return {
+        "slot_key": slot.slot_key,
+        "name": slot.name or "",
+        "room": slot.room or "",
+        "credits": slot.credits or "",
+        "memo": slot.memo or "",
+    }
+
+
+def load_slot_maps_for_user(user: AbstractBaseUser | None) -> tuple[dict, dict]:
+    """DB から (period_entries, od_entries) を組み立てる。"""
+    entries: dict = {}
+    od_entries: dict = {}
+    if user is None or not getattr(user, "pk", None):
+        return entries, od_entries
+
+    for slot in TimetableSlot.objects.filter(user_id=user.pk).only(
+        "slot_key", "name", "room", "credits", "memo"
+    ):
+        parsed = parse_slot_key(slot.slot_key)
+        if parsed is None:
+            continue
+        payload = {
+            "name": slot.name,
+            "room": slot.room,
+            "credits": slot.credits,
+            "memo": slot.memo,
+        }
+        key = (parsed["number"], parsed["day_index"])
+        if parsed["kind"] == "period":
+            entries[key] = payload
+        else:
+            od_entries[key] = payload
+    return entries, od_entries
+
+
+def build_timetable_grid_for_user(user: AbstractBaseUser | None):
+    entries, od_entries = load_slot_maps_for_user(user)
+    return build_timetable_grid(entries, od_entries)
+
+
+def slots_dict_for_user(user: AbstractBaseUser | None) -> dict[str, dict]:
+    if user is None or not getattr(user, "pk", None):
+        return {}
+    return {
+        slot.slot_key: slot_to_payload(slot)
+        for slot in TimetableSlot.objects.filter(user_id=user.pk)
+    }
+
+
+def upsert_timetable_slot(
+    user: AbstractBaseUser,
+    *,
+    slot_key: str,
+    name: str = "",
+    room: str = "",
+    credits: str = "",
+    memo: str = "",
+) -> TimetableSlot | None:
+    """空内容なら削除して None。それ以外は upsert。不正キーは ValueError。"""
+    parsed = parse_slot_key(slot_key)
+    if parsed is None:
+        raise ValueError("invalid slot_key")
+
+    name = (name or "").strip()
+    room = (room or "").strip()
+    credits = (credits or "").strip()
+    memo = (memo or "").strip()
+    if parsed["kind"] == "od":
+        room = ""
+
+    if not name and not room and not credits and not memo:
+        TimetableSlot.objects.filter(user=user, slot_key=parsed["slot_key"]).delete()
+        return None
+
+    slot, _created = TimetableSlot.objects.update_or_create(
+        user=user,
+        slot_key=parsed["slot_key"],
+        defaults={
+            "name": name,
+            "room": room,
+            "credits": credits,
+            "memo": memo,
+        },
+    )
+    return slot
