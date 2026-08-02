@@ -593,7 +593,7 @@
         {% else %}
         <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">この人の投稿（スレッド）を見る</a>
         {% endif %}
-        {% if show_timetable_link %}
+        {% if show_timetable_link|default:False %}
         <a class="btn-mode-switch" href="{% url 'timetable_user' profile_user.pk %}">時間割を見る</a>
         {% endif %}
       </div>

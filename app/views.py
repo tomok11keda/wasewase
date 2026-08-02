@@ -120,6 +120,7 @@ from .timetable_services import build_timetable_grid
 from .timetable_privacy_services import (
     get_or_create_profile as get_or_create_timetable_profile,
     is_timetable_public_for,
+    is_timetable_public_value,
     set_timetable_public,
     toggle_timetable_public,
 )
@@ -536,7 +537,7 @@ def timetable_index(request):
     can_edit_visibility = False
     if owner is not None:
         profile = get_or_create_timetable_profile(owner)
-        is_public = bool(profile.is_timetable_public)
+        is_public = is_timetable_public_value(profile)
         can_edit_visibility = True
 
     return render(
@@ -605,11 +606,12 @@ def api_timetable_visibility(request):
             desired_bool = bool(desired)
         profile = set_timetable_public(request.user, desired_bool)
 
+    is_public = is_timetable_public_value(profile)
     return JsonResponse(
         {
-            "is_timetable_public": bool(profile.is_timetable_public),
-            "isTimetablePublic": bool(profile.is_timetable_public),
-            "label": "公開中" if profile.is_timetable_public else "非公開",
+            "is_timetable_public": is_public,
+            "isTimetablePublic": is_public,
+            "label": "公開中" if is_public else "非公開",
         }
     )
 
@@ -1157,7 +1159,8 @@ def mypage(request):
 
 def user_profile(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
-    profile, _ = UserProfile.objects.get_or_create(user=profile_user)
+    # 時間割公開フラグ列が未作成でも落ちないよう ensure 付きで取得
+    profile = get_or_create_timetable_profile(profile_user)
 
     from_source = request.GET.get("from", "thread").strip().lower()
     if from_source not in ("market", "thread"):
@@ -1235,9 +1238,9 @@ def user_profile(request, pk):
             "bookmark_meta": bookmark_meta,
             "profile_posts": profile_posts,
             "nav_active": "",
-            "is_timetable_public": bool(profile.is_timetable_public),
+            "is_timetable_public": is_timetable_public_value(profile),
             "show_timetable_link": (
-                (not is_own_profile) and bool(profile.is_timetable_public)
+                (not is_own_profile) and is_timetable_public_value(profile)
             ),
         },
     )

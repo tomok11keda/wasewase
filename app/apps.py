@@ -13,6 +13,7 @@ class AppConfig(AppConfig):
         from app.media_services import (
             ensure_timelinepost_author_nullable,
             ensure_userprofile_avatar_column,
+            ensure_userprofile_is_timetable_public_column,
             ensure_userprofile_terms_accepted_column,
             log_timelinepost_db_schema,
             log_userprofile_db_schema,
@@ -22,6 +23,7 @@ class AppConfig(AppConfig):
 
         ensure_userprofile_avatar_column()
         ensure_userprofile_terms_accepted_column()
+        ensure_userprofile_is_timetable_public_column()
         ensure_timelinepost_author_nullable()
         ensure_dm_read_state_table()
         ensure_dm_message_is_read_column()
