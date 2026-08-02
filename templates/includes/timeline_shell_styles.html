@@ -412,27 +412,29 @@ body.shell-desktop {
   color: var(--accent);
 }
 
-.widget-tag-list {
+/* デスクトップ右サイドバー広告枠（人気タグ / ニュース枠の代替） */
+.ad-container.sidebar-ad-container {
+  display: none;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--shell-border, #eff3f4);
+  border-radius: 16px;
+  background: #f7f9f9;
+  box-sizing: border-box;
+}
+
+.ad-container__slot {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.widget-tag-list a {
-  display: inline-block;
-  padding: 6px 12px;
-  border: 1px solid #d0dae8;
-  border-radius: 999px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 250px;
+  max-width: 300px;
+  margin: 0 auto;
+  border-radius: 12px;
   background: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent, #891e2b);
-  text-decoration: none;
-}
-.widget-tag-list a:hover {
-  background: #f7edf0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 表示切替ユーティリティ（step 4 で top.html 側と連携） */
@@ -446,6 +448,18 @@ body.shell-desktop {
 @media (min-width: 1024px) {
   body.shell-desktop {
     padding-bottom: 0;
+  }
+
+  .ad-container.sidebar-ad-container {
+    display: block;
+    position: sticky;
+    top: 16px;
+  }
+
+  .ad-container__slot {
+    /* 一般的な IAB 中サイズバナー（300x250）を想定 */
+    min-height: 250px;
+    min-width: 250px;
   }
 
   .app-shell {

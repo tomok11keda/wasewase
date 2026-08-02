@@ -34,24 +34,12 @@
   </section>
   {% endif %}
 
-  {% if popular_tags %}
-  <section class="widget-card" aria-labelledby="widget-tags-title">
-    <h2 class="widget-card__title" id="widget-tags-title">📘 人気タグ</h2>
-    <ul class="widget-tag-list">
-      {% for t in popular_tags %}
-      <li><a href="{% url 'home' %}?tag={{ t|urlencode }}">{{ t }}</a></li>
-      {% endfor %}
-    </ul>
-  </section>
-  {% else %}
-  <section class="widget-card widget-card--placeholder" aria-labelledby="widget-tags-placeholder-title">
-    <h2 class="widget-card__title" id="widget-tags-placeholder-title">📘 人気タグ</h2>
-    <p class="widget-card__lead">授業名タグのランキングがここに表示されます。</p>
-  </section>
-  {% endif %}
-
-  <section class="widget-card widget-card--placeholder" aria-labelledby="widget-news-title">
-    <h2 class="widget-card__title" id="widget-news-title">📰 キャンパスニュース</h2>
-    <p class="widget-card__lead">早稲田関連の話題やイベント情報を表示する予定のエリアです。</p>
-  </section>
+  {# デスクトップ右サイドバー広告枠。AdSense / AdMob のコードは内側に差し替えればよい #}
+  <div class="ad-container sidebar-ad-container" aria-label="広告">
+    <div
+      class="ad-container__slot wase-admob-anchor"
+      data-wase-admob-anchor="sidebar-desktop"
+      id="sidebar-desktop-ad"
+    ></div>
+  </div>
 </div>
