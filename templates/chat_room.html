@@ -150,6 +150,76 @@
       border: 1px solid #e8c4ca;
     }
 
+    .chat-msg.is-system {
+      max-width: 100%;
+      margin: 4px auto;
+      background: #f3f6f9;
+      border: 1px solid #e2e8f0;
+      color: #536471;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .chat-msg.is-system .chat-msg-meta {
+      color: #8899a6;
+    }
+
+    .chat-deal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+
+    .chat-deal-actions form {
+      margin: 0;
+    }
+
+    .btn-deal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 42px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .btn-deal-confirm {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-deal-handover {
+      background: #1d6b4f;
+      color: #fff;
+    }
+
+    .deal-status-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #f0f0f0;
+      color: #555;
+    }
+
+    .deal-status-badge.is-confirmed {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .deal-status-badge.is-closed {
+      background: #eceff1;
+      color: #607d8b;
+    }
+
     .chat-msg-meta {
       margin-bottom: 4px;
       color: var(--muted);
@@ -227,7 +297,31 @@
         出品者: {% if product.seller %}<a href="{% url 'user_profile' product.seller.pk %}?from=market">{{ product.seller|display_name }}</a>{% else %}—{% endif %} ·
         相手: {% if partner %}<a href="{% url 'user_profile' partner.pk %}?from=market">{{ partner|display_name }}</a>{% else %}—{% endif %}
       </p>
+      {% if room.is_confirmed %}
+      <span class="deal-status-badge is-confirmed">取引確定</span>
+      {% elif room.is_closed %}
+      <span class="deal-status-badge is-closed">交渉終了</span>
+      {% else %}
+      <span class="deal-status-badge">交渉中</span>
+      {% endif %}
     </section>
+
+    {% if can_confirm_trade or can_complete_handover %}
+    <div class="chat-deal-actions">
+      {% if can_confirm_trade %}
+      <form method="post" action="{% url 'confirm_product_trade' room.pk %}" onsubmit="return confirm('この相手と取引を開始しますか？他の交渉は終了します。');">
+        {% csrf_token %}
+        <button type="submit" class="btn-deal btn-deal-confirm">取引開始</button>
+      </form>
+      {% endif %}
+      {% if can_complete_handover %}
+      <form method="post" action="{% url 'complete_product_handover' room.pk %}" onsubmit="return confirm('受け渡し完了として売り切れにしますか？');">
+        {% csrf_token %}
+        <button type="submit" class="btn-deal btn-deal-handover">受け渡し完了</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
 
     <section class="chat-panel" aria-label="チャット">
       <h2>メッセージ</h2>
@@ -237,16 +331,18 @@
         id="message-area"
         data-poll-url="{{ messages_poll_url }}"
         data-latest-id="{{ latest_message_id }}"
+        data-message-style="product"
       >
         {% if chat_messages %}
         <ul class="message-list" id="message-list">
           {% for msg in chat_messages %}
           <li
-            class="chat-msg{% if msg.sender_id == user.id %} is-mine{% endif %}"
+            class="chat-msg{% if msg.is_system %} is-system{% elif msg.sender_id == user.id %} is-mine{% endif %}"
             data-message-id="{{ msg.pk }}"
           >
             <div class="chat-msg-meta">
-              {{ msg.sender|display_name }} · {{ msg.created_at|date:"m/d H:i" }}
+              {% if msg.is_system %}システム{% else %}{{ msg.sender|display_name }}{% endif %}
+              · {{ msg.created_at|date:"m/d H:i" }}
             </div>
             {{ msg.body }}
           </li>
@@ -257,7 +353,7 @@
         {% endif %}
       </div>
 
-      {% if not product.is_sold %}
+      {% if not product.is_sold and not room.is_closed %}
       <form class="chat-form" method="post" action="{% url 'send_chat_message' room.pk %}">
         {% csrf_token %}
         <input
@@ -272,7 +368,10 @@
         <button type="submit">送信</button>
       </form>
       {% else %}
-      <p class="chat-hint" style="margin-top:12px;text-align:center">この商品は売り切れのため、新しいメッセージは送信できません。</p>
+      <p class="chat-hint" style="margin-top:12px;text-align:center">
+        {% if product.is_sold %}この商品は売り切れのため、新しいメッセージは送信できません。
+        {% else %}この交渉は終了したため、新しいメッセージは送信できません。{% endif %}
+      </p>
       {% endif %}
     </section>
   </main>

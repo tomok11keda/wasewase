@@ -238,8 +238,12 @@ class SignupOTP(models.Model):
 class Product(models.Model):
     class Status(models.TextChoices):
         AVAILABLE = "available", "出品中"
-        TRADING = "trading", "取引中"
-        SOLD_OUT = "sold_out", "売り切れ"
+        PENDING = "pending", "取引中"
+        SOLD = "sold", "売り切れ"
+
+    # 旧ステータス値（DB移行前のデータ互換）
+    _LEGACY_PENDING = "trading"
+    _LEGACY_SOLD = "sold_out"
 
     seller = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -303,11 +307,20 @@ class Product(models.Model):
 
     @property
     def is_sold(self) -> bool:
-        return self.status == self.Status.SOLD_OUT
+        return self.status in (self.Status.SOLD, self._LEGACY_SOLD)
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status in (self.Status.PENDING, self._LEGACY_PENDING)
 
     @property
     def is_trading(self) -> bool:
-        return self.status == self.Status.TRADING
+        """後方互換: 取引確定中（pending）。"""
+        return self.is_pending
+
+    @property
+    def is_available(self) -> bool:
+        return self.status == self.Status.AVAILABLE
 
 
 class Comment(models.Model):
@@ -568,6 +581,11 @@ class ChatRoom(models.Model):
         PRODUCT = "product", "商品チャット"
         GROUP = "group", "グループチャット"
 
+    class DealStatus(models.TextChoices):
+        NEGOTIATING = "negotiating", "交渉中"
+        CONFIRMED = "confirmed", "取引確定"
+        CLOSED = "closed", "終了"
+
     kind = models.CharField(
         max_length=20,
         choices=Kind.choices,
@@ -599,6 +617,12 @@ class ChatRoom(models.Model):
         null=True,
         blank=True,
     )
+    deal_status = models.CharField(
+        max_length=20,
+        choices=DealStatus.choices,
+        default=DealStatus.NEGOTIATING,
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -618,6 +642,18 @@ class ChatRoom(models.Model):
             return f"{self.product.name} × {self.buyer.username}"
         return f"チャットルーム #{self.pk}"
 
+    @property
+    def is_negotiating(self) -> bool:
+        return self.deal_status == self.DealStatus.NEGOTIATING
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.deal_status == self.DealStatus.CONFIRMED
+
+    @property
+    def is_closed(self) -> bool:
+        return self.deal_status == self.DealStatus.CLOSED
+
 
 class Message(models.Model):
     chat_room = models.ForeignKey(
@@ -629,14 +665,19 @@ class Message(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="chat_messages",
+        null=True,
+        blank=True,
     )
     body = models.TextField(max_length=500)
+    is_system = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["created_at"]
 
     def __str__(self) -> str:
+        if self.is_system or not self.sender_id:
+            return f"[system] {self.body[:30]}"
         return f"{self.sender}: {self.body[:30]}"
 
 

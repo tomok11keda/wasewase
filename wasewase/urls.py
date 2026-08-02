@@ -86,6 +86,16 @@ urlpatterns = [
     path("chat/<int:room_pk>/", flea_views.chat_room, name="chat_room"),
     path("chat/<int:room_pk>/messages/", flea_views.chat_room_messages, name="chat_room_messages"),
     path("chat/<int:room_pk>/message/", flea_views.send_chat_message, name="send_chat_message"),
+    path(
+        "chat/<int:room_pk>/confirm/",
+        flea_views.confirm_product_trade,
+        name="confirm_product_trade",
+    ),
+    path(
+        "chat/<int:room_pk>/handover-complete/",
+        flea_views.complete_product_handover,
+        name="complete_product_handover",
+    ),
     path("product/<int:pk>/trade/", flea_views.product_trade, name="product_trade"),
     path("product/<int:pk>/trade/complete/", flea_views.complete_trade, name="complete_trade"),
     path("product/<int:pk>/review/", flea_views.submit_review, name="submit_review"),

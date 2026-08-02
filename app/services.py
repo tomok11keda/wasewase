@@ -268,7 +268,7 @@ def get_profile_stats(user: AbstractBaseUser, from_source: str = "thread") -> di
 def is_trade_participant(product: Product, user: AbstractBaseUser) -> bool:
     if (
         not user.is_authenticated
-        or product.status == Product.Status.AVAILABLE
+        or product.is_available
         or not product.buyer_id
     ):
         return False
@@ -313,7 +313,7 @@ def get_reviewee(product: Product, reviewer: AbstractBaseUser):
 
 def calc_sales_total(user: AbstractBaseUser) -> int:
     total = (
-        Product.objects.filter(seller=user, status=Product.Status.SOLD_OUT).aggregate(
+        Product.objects.filter(seller=user, status=Product.Status.SOLD).aggregate(
             total=Sum("price")
         )["total"]
     )
