@@ -1162,10 +1162,22 @@ def user_profile(request, pk):
     # 時間割公開フラグ列が未作成でも落ちないよう ensure 付きで取得
     profile = get_or_create_timetable_profile(profile_user)
 
-    from_source = request.GET.get("from", "thread").strip().lower()
-    if from_source not in ("market", "thread"):
-        from_source = "thread"
+    is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
+    is_timetable_public = is_timetable_public_value(profile)
+    can_view_timetable = is_own_profile or is_timetable_public
 
+    # タブ: posts / timetable / market（bookmarks は自分のみ・サイドバー用）
+    # 旧 ?from=market|thread も互換のため解釈する
+    from_legacy = request.GET.get("from", "").strip().lower()
+    profile_tab = request.GET.get("tab", "").strip().lower()
+    if profile_tab == "overview":
+        profile_tab = "market" if from_legacy == "market" else "posts"
+    if profile_tab not in ("posts", "timetable", "market", "bookmarks"):
+        profile_tab = "market" if from_legacy == "market" else "posts"
+    if profile_tab == "bookmarks" and not is_own_profile:
+        profile_tab = "posts"
+
+    from_source = "market" if profile_tab == "market" else "thread"
     available_products = filter_visible_products(
         Product.objects.filter(
             seller=profile_user, status=Product.Status.AVAILABLE
@@ -1173,8 +1185,7 @@ def user_profile(request, pk):
         request.user if request.user.is_authenticated else None,
     )
     rating_stats = get_user_rating_stats(profile_user)
-    stats = get_profile_stats(profile_user, from_source)
-    is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
+    stats = get_profile_stats(profile_user, "thread")
     show_profile_safety_menu = (
         request.user.is_authenticated and not is_own_profile
     )
@@ -1194,12 +1205,6 @@ def user_profile(request, pk):
         can_send_dm = not is_either_blocked(request.user, profile_user)
         user_dm_room = find_dm_room(request.user, profile_user)
 
-    profile_tab = request.GET.get("tab", "overview").strip()
-    if profile_tab not in ("overview", "bookmarks"):
-        profile_tab = "overview"
-    if profile_tab == "bookmarks" and not is_own_profile:
-        profile_tab = "overview"
-
     bookmark_posts = []
     bookmark_meta = {}
     if profile_tab == "bookmarks" and is_own_profile:
@@ -1208,13 +1213,15 @@ def user_profile(request, pk):
         )
 
     profile_posts = []
-    if profile_tab == "overview" and from_source == "thread":
+    if profile_tab == "posts":
         viewer = request.user if request.user.is_authenticated else None
         profile_posts = get_profile_timeline_posts(profile_user, viewer)
 
+    timetable = build_timetable_grid() if profile_tab == "timetable" and can_view_timetable else None
+
     nav_active = ""
-    if is_own_profile:
-        nav_active = "bookmarks" if profile_tab == "bookmarks" else ""
+    if is_own_profile and profile_tab == "bookmarks":
+        nav_active = "bookmarks"
 
     return render(
         request,
@@ -1237,11 +1244,10 @@ def user_profile(request, pk):
             "bookmark_posts": bookmark_posts,
             "bookmark_meta": bookmark_meta,
             "profile_posts": profile_posts,
-            "nav_active": "",
-            "is_timetable_public": is_timetable_public_value(profile),
-            "show_timetable_link": (
-                (not is_own_profile) and is_timetable_public_value(profile)
-            ),
+            "timetable": timetable,
+            "nav_active": nav_active,
+            "is_timetable_public": is_timetable_public,
+            "can_view_timetable": can_view_timetable,
         },
     )
 
