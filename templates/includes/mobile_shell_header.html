@@ -125,6 +125,84 @@
     font-weight: 800;
     letter-spacing: 0.02em;
   }
+  .timetable-visibility {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+  }
+  .timetable-visibility__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .timetable-visibility__badge.is-public {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+  }
+  .timetable-visibility__badge.is-private {
+    background: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .timetable-visibility__switch {
+    position: relative;
+    display: inline-flex;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .timetable-visibility__switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .timetable-visibility__slider {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.28);
+    transition: background 0.15s ease;
+  }
+  .timetable-visibility__slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease;
+  }
+  .timetable-visibility__switch input:checked + .timetable-visibility__slider {
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .timetable-visibility__switch input:checked + .timetable-visibility__slider::before {
+    transform: translateX(18px);
+  }
+  .timetable-visibility__switch input:disabled + .timetable-visibility__slider {
+    opacity: 0.6;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 </style>
 <header class="site-header mobile-only">
   <div class="shell-header-row">
@@ -147,7 +225,28 @@
     <h1 class="shell-header-title shell-header-title--brand">わせわせ</h1>
     {% endif %}
     <div class="shell-header-end">
-      {% if user.is_authenticated %}
+      {% if can_edit_timetable_visibility %}
+      <div
+        class="timetable-visibility"
+        data-timetable-visibility
+        data-api-url="{% url 'api_timetable_visibility' %}"
+        data-is-public="{% if is_timetable_public %}true{% else %}false{% endif %}"
+      >
+        <span
+          class="timetable-visibility__badge{% if is_timetable_public %} is-public{% else %} is-private{% endif %}"
+          data-visibility-badge
+        >{% if is_timetable_public %}公開中{% else %}非公開{% endif %}</span>
+        <label class="timetable-visibility__switch" title="時間割の公開設定">
+          <span class="visually-hidden">時間割を公開する</span>
+          <input
+            type="checkbox"
+            data-visibility-toggle
+            {% if is_timetable_public %}checked{% endif %}
+          >
+          <span class="timetable-visibility__slider" aria-hidden="true"></span>
+        </label>
+      </div>
+      {% elif user.is_authenticated %}
       <a class="shell-header-notify" href="{% url 'notifications' %}" aria-label="通知">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <span
