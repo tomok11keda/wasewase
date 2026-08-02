@@ -37,8 +37,8 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
  * 全ページ共通ヘッダー: Dynamic Island / ノッチ向け可変 safe-area。
  * contentInset=never 時も、固定高さではなく inset + コンテンツ行で伸縮する。
  *
- * モバイルでは position:fixed で画面最上端に固定する。
- * sticky は iOS のアドレスバー伸縮・オーバースクロールでガタつきやすい。
+ * モバイルは position:fixed（viewport 基準）で固定。
+ * sticky は iOS のラバーバンド・アドレスバー伸縮でガタつきやすいため使わない。
  */
 :root {
   --wase-sat: 0px;
@@ -68,12 +68,25 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   height: auto !important;
   max-height: none !important;
   min-height: var(--wase-header-h) !important;
-  padding-top: calc(var(--wase-sat) + var(--wase-header-pad-y)) !important;
+  /* env() を直接も使い、変数未設定時でもステータスバー下に食い込まない */
+  padding-top: calc(
+    max(
+      env(safe-area-inset-top, 0px),
+      var(--wase-sat),
+      var(--wase-sat-fallback)
+    ) + var(--wase-header-pad-y)
+  ) !important;
   padding-bottom: var(--wase-header-pad-y) !important;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  /* デスクトップ既定（モバイルは下の media で fixed に上書き） */
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--accent, #891e2b);
+  background-clip: padding-box;
 }
 
 .site-header .shell-header-row,
@@ -123,28 +136,45 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   .legal-header {
     position: fixed !important;
     top: 0 !important;
-    left: 0;
-    right: 0;
-    width: 100%;
-    z-index: 300;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    z-index: 1000 !important;
     /* 合成レイヤー化でスクロール中の再配置チラつきを抑える */
     transform: translateZ(0);
+    -webkit-transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    will-change: transform;
   }
 
   /* ラバーバンド時にヘッダー上へ白い地色が見えないよう、上方向へ同色を伸ばす */
-  .site-header::before {
+  .site-header::before,
+  .legal-header::before {
     content: "";
     position: absolute;
     left: 0;
     right: 0;
+    top: auto;
     bottom: 100%;
-    height: 100vh;
-    height: 100dvh;
+    height: max(100vh, 100dvh);
     background: var(--accent, #891e2b);
     pointer-events: none;
     z-index: -1;
+  }
+
+  /* オーバースクロール時の白い隙間対策（ヘッダー色を地色に） */
+  html.is-native-capacitor {
+    background: var(--accent, #891e2b);
+  }
+
+  html.is-native-capacitor body.shell-desktop {
+    background: var(--accent, #891e2b);
+  }
+
+  html.is-native-capacitor .main-column {
+    background: var(--bg, #f7f9fc);
+    min-height: 100%;
   }
 
   .main-column:has(> .site-header),
@@ -166,9 +196,9 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 @media (min-width: 1024px) {
   .site-header,
   .legal-header {
-    position: sticky;
-    top: 0;
-    z-index: 300;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1000;
   }
 
   .site-header-offset {

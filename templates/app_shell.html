@@ -26,9 +26,8 @@
   }
 
   .site-header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    /* 位置・safe-area は capacitor_native.css が担当（競合する sticky を置かない） */
+    z-index: 1000;
     background: var(--accent);
     color: #fff;
     border-bottom: 1px solid var(--accent-dark);
