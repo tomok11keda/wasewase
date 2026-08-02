@@ -117,6 +117,12 @@ from .notification_services import (
     mark_all_notifications_read,
 )
 from .timetable_services import build_timetable_grid
+from .timetable_privacy_services import (
+    get_or_create_profile as get_or_create_timetable_profile,
+    is_timetable_public_for,
+    set_timetable_public,
+    toggle_timetable_public,
+)
 from .search_api_services import run_scoped_search
 from .otp_services import (
     EmailConfigurationError,
@@ -524,13 +530,87 @@ def more_index(request):
 
 
 def timetable_index(request):
+    is_own = True
+    owner = request.user if request.user.is_authenticated else None
+    is_public = False
+    can_edit_visibility = False
+    if owner is not None:
+        profile = get_or_create_timetable_profile(owner)
+        is_public = bool(profile.is_timetable_public)
+        can_edit_visibility = True
+
     return render(
         request,
         "timetable.html",
         {
             "nav_active": "timetable",
             "timetable": build_timetable_grid(),
+            "timetable_owner": owner,
+            "is_own_timetable": is_own,
+            "is_timetable_public": is_public,
+            "can_edit_timetable_visibility": can_edit_visibility,
+            "timetable_read_only": False,
         },
+    )
+
+
+def timetable_user(request, pk):
+    """他ユーザーの公開時間割。非公開かつ本人以外は 404。"""
+    owner = get_object_or_404(User, pk=pk)
+    is_own = request.user.is_authenticated and request.user.pk == owner.pk
+    is_public = is_timetable_public_for(owner)
+    if not is_own and not is_public:
+        from django.http import Http404
+
+        raise Http404("この時間割は非公開です。")
+
+    if is_own:
+        return redirect("timetable_index")
+
+    return render(
+        request,
+        "timetable.html",
+        {
+            "nav_active": "timetable",
+            "timetable": build_timetable_grid(),
+            "timetable_owner": owner,
+            "is_own_timetable": False,
+            "is_timetable_public": True,
+            "can_edit_timetable_visibility": False,
+            "timetable_read_only": True,
+            "header_back_url": reverse("user_profile", args=[owner.pk]),
+            "header_title": f"{user_display_name(owner)}の時間割",
+        },
+    )
+
+
+@login_required
+@require_POST
+def api_timetable_visibility(request):
+    """時間割の公開/非公開を切り替える。POST /api/timetable/visibility/"""
+    desired = request.POST.get("is_public")
+    if desired is None and request.content_type and "application/json" in request.content_type:
+        try:
+            body = json.loads(request.body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            body = {}
+        desired = body.get("is_public")
+
+    if desired is None:
+        profile = toggle_timetable_public(request.user)
+    else:
+        if isinstance(desired, str):
+            desired_bool = desired.strip().lower() in ("1", "true", "on", "yes")
+        else:
+            desired_bool = bool(desired)
+        profile = set_timetable_public(request.user, desired_bool)
+
+    return JsonResponse(
+        {
+            "is_timetable_public": bool(profile.is_timetable_public),
+            "isTimetablePublic": bool(profile.is_timetable_public),
+            "label": "公開中" if profile.is_timetable_public else "非公開",
+        }
     )
 
 
@@ -1155,6 +1235,10 @@ def user_profile(request, pk):
             "bookmark_meta": bookmark_meta,
             "profile_posts": profile_posts,
             "nav_active": "",
+            "is_timetable_public": bool(profile.is_timetable_public),
+            "show_timetable_link": (
+                (not is_own_profile) and bool(profile.is_timetable_public)
+            ),
         },
     )
 

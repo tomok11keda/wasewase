@@ -123,6 +123,11 @@ class UserProfile(models.Model):
         default=False,
         help_text="新規登録時に利用規約・プライバシーポリシーへ同意したか。",
     )
+    is_timetable_public = models.BooleanField(
+        "時間割を公開する",
+        default=False,
+        help_text="true のとき他ユーザーのプロフィールから時間割を閲覧できる。",
+    )
 
     def __str__(self) -> str:
         label = self.name or self.user.username

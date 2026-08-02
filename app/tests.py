@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from urllib.parse import quote
+import json
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -3149,6 +3150,52 @@ class AppShellNavTests(TestCase):
         self.assertContains(response, 'data-slot-kind="od"')
         # 月〜土 × (5限 + OD2) = 各曜日に OD 枠が2つ
         self.assertEqual(response.content.decode().count('data-slot-kind="od"'), 12)
+
+    def test_timetable_visibility_toggle_and_profile_link(self):
+        other = get_user_model().objects.create_user(
+            email="other-tt@waseda.jp",
+            password="pass12345",
+            username="othertt",
+        )
+        UserProfile.objects.update_or_create(
+            user=other,
+            defaults={"name": "他ユーザー", "is_timetable_public": False},
+        )
+
+        # 非公開時はプロフィールにボタンなし・他人時間割は 404
+        self.client.force_login(self.user)
+        profile_page = self.client.get(reverse("user_profile", args=[other.pk]))
+        self.assertNotContains(profile_page, "時間割を見る")
+        self.assertEqual(
+            self.client.get(reverse("timetable_user", args=[other.pk])).status_code,
+            404,
+        )
+
+        # 本人が公開に切り替える
+        self.client.force_login(other)
+        toggle = self.client.post(
+            reverse("api_timetable_visibility"),
+            data=json.dumps({"is_public": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(toggle.status_code, 200)
+        self.assertTrue(toggle.json()["is_timetable_public"])
+        self.assertTrue(
+            UserProfile.objects.get(user=other).is_timetable_public
+        )
+
+        own_tt = self.client.get(reverse("timetable_index"))
+        self.assertContains(own_tt, "公開中")
+        self.assertContains(own_tt, "data-timetable-visibility")
+
+        # 公開後は他人プロフィールにボタンが出る
+        self.client.force_login(self.user)
+        profile_page = self.client.get(reverse("user_profile", args=[other.pk]))
+        self.assertContains(profile_page, "時間割を見る")
+        self.assertContains(profile_page, reverse("timetable_user", args=[other.pk]))
+        viewed = self.client.get(reverse("timetable_user", args=[other.pk]))
+        self.assertEqual(viewed.status_code, 200)
+        self.assertContains(viewed, "公開中の時間割です")
 
     def test_home_header_has_notification_bell_left_of_dm(self):
         self.client.force_login(self.user)

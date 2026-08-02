@@ -1,14 +1,79 @@
 {% extends "app_shell.html" %}
 
-{% block title %}<title>わせわせ — 時間割</title>{% endblock %}
+{% block title %}<title>わせわせ — {% if header_title %}{{ header_title }}{% else %}時間割{% endif %}</title>{% endblock %}
 
 {% block page_styles %}
 {% include "includes/compose_modal_styles.html" %}
 <style>
-  .page-title {
+  .page-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     margin: 0 0 8px;
+  }
+  .page-title {
+    margin: 0;
     font-size: 20px;
     font-weight: 700;
+  }
+  .timetable-visibility--desktop {
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  .timetable-visibility--desktop .timetable-visibility__badge {
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .timetable-visibility--desktop .timetable-visibility__badge.is-public {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  .timetable-visibility--desktop .timetable-visibility__badge.is-private {
+    background: #eff3f4;
+    color: #536471;
+  }
+  .timetable-visibility--desktop .timetable-visibility__switch {
+    position: relative;
+    display: inline-flex;
+    width: 44px;
+    height: 26px;
+    cursor: pointer;
+  }
+  .timetable-visibility--desktop .timetable-visibility__switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .timetable-visibility--desktop .timetable-visibility__slider {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: #cfd8df;
+    transition: background 0.15s ease;
+  }
+  .timetable-visibility--desktop .timetable-visibility__slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease;
+  }
+  .timetable-visibility--desktop .timetable-visibility__switch input:checked + .timetable-visibility__slider {
+    background: var(--accent, #891e2b);
+  }
+  .timetable-visibility--desktop .timetable-visibility__switch input:checked + .timetable-visibility__slider::before {
+    transform: translateX(18px);
   }
   .timetable-note {
     flex-shrink: 0;
@@ -29,13 +94,18 @@
   body.timetable-modal-open {
     overflow: hidden;
   }
+  body.timetable-read-only .timetable-slot {
+    cursor: default;
+    pointer-events: none;
+  }
   @media (max-width: 1023px) {
-    .page-title { display: none; }
+    .page-title-row { display: none; }
     .main-inner--timetable {
       padding-top: 6px;
     }
   }
   @media (min-width: 1024px) {
+    .timetable-visibility--desktop { display: inline-flex; }
     .main-inner--timetable {
       min-height: calc(100vh - 32px);
       padding: 16px;
@@ -44,24 +114,62 @@
 </style>
 {% endblock %}
 
-{% block body_attrs %} class="shell-desktop"{% if user.is_authenticated %} data-timetable-user="{{ user.pk }}"{% endif %}{% endblock %}
+{% block body_attrs %} class="shell-desktop{% if timetable_read_only %} timetable-read-only{% endif %}"{% if user.is_authenticated %} data-timetable-user="{{ user.pk }}"{% endif %}{% endblock %}
 
 {% block mobile_header %}
-{% include "includes/mobile_shell_header.html" with header_title="時間割" %}
+{% include "includes/mobile_shell_header.html" with header_title=header_title|default:"時間割" header_back_url=header_back_url can_edit_timetable_visibility=can_edit_timetable_visibility is_timetable_public=is_timetable_public %}
 {% endblock %}
 
 {% block main %}
 <main class="main-inner main-inner--timetable">
-  <h1 class="page-title">時間割</h1>
+  <div class="page-title-row">
+    <h1 class="page-title">{% if header_title %}{{ header_title }}{% else %}時間割{% endif %}</h1>
+    {% if can_edit_timetable_visibility %}
+    <div
+      class="timetable-visibility timetable-visibility--desktop"
+      data-timetable-visibility
+      data-api-url="{% url 'api_timetable_visibility' %}"
+      data-is-public="{% if is_timetable_public %}true{% else %}false{% endif %}"
+    >
+      <span
+        class="timetable-visibility__badge{% if is_timetable_public %} is-public{% else %} is-private{% endif %}"
+        data-visibility-badge
+        data-timetable-visibility-sync
+      >{% if is_timetable_public %}公開中{% else %}非公開{% endif %}</span>
+      <label class="timetable-visibility__switch" title="時間割の公開設定">
+        <span class="visually-hidden">時間割を公開する</span>
+        <input
+          type="checkbox"
+          data-visibility-toggle
+          {% if is_timetable_public %}checked{% endif %}
+        >
+        <span class="timetable-visibility__slider" aria-hidden="true"></span>
+      </label>
+    </div>
+    {% elif is_timetable_public and not is_own_timetable %}
+    <span class="timetable-visibility__badge is-public" style="display:inline-flex;background:#e8f5e9;color:#2e7d32;padding:0 10px;min-height:24px;border-radius:999px;font-size:12px;font-weight:800;align-items:center;">公開中</span>
+    {% endif %}
+  </div>
   {% include "includes/timetable_grid.html" with timetable_days=timetable.days timetable_rows=timetable.rows timetable_od_rows=timetable.od_rows %}
-  <p class="timetable-note">セルをタップして授業名・単位・進捗メモを登録できます。OD枠はオンデマンド授業・締切管理用です。</p>
+  {% if timetable_read_only %}
+  <p class="timetable-note">公開中の時間割です（閲覧のみ）。</p>
+  {% else %}
+  <p class="timetable-note">セルをタップして授業名・単位・進捗メモを登録できます。右上のトグルで公開／非公開を切り替えられます。</p>
+  {% endif %}
 </main>
 {% endblock %}
 
 {% block shell_modals %}
+{% if not timetable_read_only %}
 {% include "includes/timetable_modal.html" %}
+{% endif %}
 {% endblock %}
 
 {% block shell_scripts %}
+{% if can_edit_timetable_visibility %}
+{% include "includes/timetable_visibility_scripts.html" %}
+{% endif %}
+{% if not timetable_read_only %}
 {% include "includes/timetable_modal_scripts.html" %}
+{% endif %}
 {% endblock %}

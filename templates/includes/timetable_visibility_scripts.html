@@ -1,0 +1,85 @@
+<script>
+(function () {
+  "use strict";
+
+  function getCsrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function applyState(root, isPublic) {
+    var badge = root.querySelector("[data-visibility-badge]");
+    var toggle = root.querySelector("[data-visibility-toggle]");
+    root.setAttribute("data-is-public", isPublic ? "true" : "false");
+    if (badge) {
+      badge.textContent = isPublic ? "公開中" : "非公開";
+      badge.classList.toggle("is-public", isPublic);
+      badge.classList.toggle("is-private", !isPublic);
+    }
+    if (toggle) {
+      toggle.checked = isPublic;
+    }
+    document.querySelectorAll("[data-timetable-visibility-sync]").forEach(function (el) {
+      el.textContent = isPublic ? "公開中" : "非公開";
+      el.classList.toggle("is-public", isPublic);
+      el.classList.toggle("is-private", !isPublic);
+    });
+  }
+
+  async function persist(root, isPublic) {
+    var apiUrl = root.getAttribute("data-api-url") || "/api/timetable/visibility/";
+    var toggle = root.querySelector("[data-visibility-toggle]");
+    if (toggle) {
+      toggle.disabled = true;
+    }
+    try {
+      var response = await fetch(apiUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({ is_public: isPublic }),
+      });
+      if (!response.ok) {
+        throw new Error("visibility_update_failed");
+      }
+      var payload = await response.json();
+      applyState(root, Boolean(payload.is_timetable_public));
+    } catch (error) {
+      applyState(root, !isPublic);
+      window.alert("公開設定の更新に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      if (toggle) {
+        toggle.disabled = false;
+      }
+    }
+  }
+
+  function bind(root) {
+    if (root.getAttribute("data-visibility-bound") === "1") {
+      return;
+    }
+    root.setAttribute("data-visibility-bound", "1");
+    var toggle = root.querySelector("[data-visibility-toggle]");
+    if (!toggle) {
+      return;
+    }
+    toggle.addEventListener("change", function () {
+      persist(root, Boolean(toggle.checked));
+    });
+  }
+
+  function init() {
+    document.querySelectorAll("[data-timetable-visibility]").forEach(bind);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>

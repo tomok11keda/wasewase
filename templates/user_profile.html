@@ -350,6 +350,10 @@
       box-sizing: border-box;
     }
 
+    .mode-switch .btn-mode-switch + .btn-mode-switch {
+      margin-top: 8px;
+    }
+
     .btn-mode-switch:hover {
       background: #f0e6e8;
       border-color: var(--accent);
@@ -588,6 +592,9 @@
         <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=market">この人の出品（フリマ）を見る</a>
         {% else %}
         <a class="btn-mode-switch" href="{% url 'user_profile' profile_user.pk %}?from=thread">この人の投稿（スレッド）を見る</a>
+        {% endif %}
+        {% if show_timetable_link %}
+        <a class="btn-mode-switch" href="{% url 'timetable_user' profile_user.pk %}">時間割を見る</a>
         {% endif %}
       </div>
     </section>
