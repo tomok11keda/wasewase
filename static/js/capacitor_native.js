@@ -142,14 +142,30 @@
   }
 
   function getPlugin(name) {
-    if (!window.Capacitor || !window.Capacitor.Plugins) {
+    if (!window.Capacitor) {
       return null;
     }
-    return window.Capacitor.Plugins[name] || null;
+    // Capacitor 3+ は getPlugin が正式。Plugins 辞書だけだと見つからないことがある。
+    if (typeof window.Capacitor.getPlugin === "function") {
+      try {
+        var viaGet = window.Capacitor.getPlugin(name);
+        if (viaGet) {
+          return viaGet;
+        }
+      } catch (error) {
+        logNativeError("Capacitor.getPlugin(" + name + ") failed", error);
+      }
+    }
+    if (window.Capacitor.Plugins && window.Capacitor.Plugins[name]) {
+      return window.Capacitor.Plugins[name];
+    }
+    return null;
   }
 
   var CAMERA_PERMISSION_REQUIRED_MESSAGE =
-    "カメラへのアクセス権限が必要です。設定アプリでカメラを許可してください。";
+    "設定からカメラの使用を許可してください";
+  var PHOTOS_PERMISSION_REQUIRED_MESSAGE =
+    "設定から写真ライブラリの使用を許可してください";
   var CAMERA_UNAVAILABLE_MESSAGE =
     "この環境ではカメラを利用できません。フォトライブラリから画像を選択できます。";
   var CAMERA_UNAVAILABLE_NO_FALLBACK_MESSAGE =
@@ -158,6 +174,47 @@
   function showCameraAlert(message) {
     if (typeof window.alert === "function") {
       window.alert(message);
+    }
+  }
+
+  /**
+   * 実機デバッグ用: Safari コンソール無しでもエラー内容を alert で確認する。
+   * Error は JSON.stringify だと {} になるため、主要フィールドを展開する。
+   */
+  function alertCameraDebugError(e, context) {
+    var payload = e;
+    if (e instanceof Error) {
+      payload = {
+        context: context || null,
+        name: e.name,
+        message: e.message,
+        stack: e.stack,
+        code: e.code,
+      };
+      try {
+        Object.keys(e).forEach(function (key) {
+          payload[key] = e[key];
+        });
+      } catch (_ignore) {}
+    } else if (e && typeof e === "object") {
+      payload = { context: context || null };
+      try {
+        Object.keys(e).forEach(function (key) {
+          payload[key] = e[key];
+        });
+      } catch (_ignore) {
+        payload.raw = String(e);
+      }
+      if (e.message) payload.message = e.message;
+      if (e.code) payload.code = e.code;
+      if (e.errorMessage) payload.errorMessage = e.errorMessage;
+    } else {
+      payload = { context: context || null, value: e, raw: String(e) };
+    }
+    try {
+      alert(JSON.stringify(payload, null, 2));
+    } catch (_stringifyError) {
+      alert(String(context || "camera-debug") + ": " + String(e));
     }
   }
 
@@ -182,41 +239,157 @@
     return status || "unknown";
   }
 
+  function isPermissionDeniedError(error) {
+    var message = String(
+      (error && (error.message || error.localizedDescription || error.code)) ||
+        error ||
+        ""
+    ).toLowerCase();
+    return (
+      message.indexOf("permission") >= 0 ||
+      message.indexOf("denied") >= 0 ||
+      message.indexOf("access") >= 0 ||
+      message.indexOf("authorized") >= 0 ||
+      message.indexOf("os-plug-camr-0003") >= 0 ||
+      message.indexOf("os-plug-camr-0005") >= 0
+    );
+  }
+
+  async function requestCapacitorCameraPermissions(permissions) {
+    var Camera = getPlugin("Camera");
+    if (!Camera || typeof Camera.requestPermissions !== "function") {
+      alertCameraDebugError(
+        {
+          step: "requestPermissions",
+          hasCameraPlugin: !!Camera,
+          hasRequestPermissions: !!(Camera && Camera.requestPermissions),
+          pluginKeys: Camera ? Object.keys(Camera) : [],
+          capacitorPlugins:
+            window.Capacitor && window.Capacitor.Plugins
+              ? Object.keys(window.Capacitor.Plugins)
+              : [],
+          hasGetPlugin: !!(window.Capacitor && window.Capacitor.getPlugin),
+        },
+        "Camera.requestPermissions unavailable"
+      );
+      return null;
+    }
+    try {
+      var permission = await Camera.requestPermissions({
+        permissions: permissions || ["camera", "photos"],
+      });
+      // デバッグ: 権限 status を画面と console の両方に出す
+      console.log("[WASE Camera] requestPermissions status", permission);
+      alert(JSON.stringify({ step: "requestPermissions", status: permission }, null, 2));
+      return permission;
+    } catch (e) {
+      logNativeError("Camera.requestPermissions failed", e);
+      alert(JSON.stringify(e, null, 2));
+      alertCameraDebugError(e, "Camera.requestPermissions catch");
+      return null;
+    }
+  }
+
   async function checkNativeCameraAuthorization() {
+    var Camera = getPlugin("Camera");
+    if (Camera && typeof Camera.checkPermissions === "function") {
+      try {
+        var permission = await Camera.checkPermissions();
+        console.log("[WASE Camera] checkPermissions status", permission);
+        return mapCapacitorCameraPermission(permission && permission.camera);
+      } catch (e) {
+        logNativeError("Camera.checkPermissions failed", e);
+        alert(JSON.stringify(e, null, 2));
+        alertCameraDebugError(e, "Camera.checkPermissions catch");
+        return "unknown";
+      }
+    }
+
     var NativePermission = getPlugin("CameraPermission");
     if (
       NativePermission &&
       typeof NativePermission.checkAuthorization === "function"
     ) {
-      var nativeResult = await NativePermission.checkAuthorization();
-      return (nativeResult && nativeResult.status) || "unknown";
-    }
-
-    var Camera = getPlugin("Camera");
-    if (Camera && typeof Camera.checkPermissions === "function") {
-      var permission = await Camera.checkPermissions();
-      return mapCapacitorCameraPermission(permission && permission.camera);
+      try {
+        var nativeResult = await NativePermission.checkAuthorization();
+        console.log("[WASE Camera] CameraPermission.checkAuthorization", nativeResult);
+        return (nativeResult && nativeResult.status) || "unknown";
+      } catch (e) {
+        logNativeError("CameraPermission.checkAuthorization failed", e);
+        alert(JSON.stringify(e, null, 2));
+        alertCameraDebugError(e, "CameraPermission.checkAuthorization catch");
+        return "unknown";
+      }
     }
 
     return "unknown";
   }
 
+  async function requestNativePhotosAuthorization() {
+    var permission = await requestCapacitorCameraPermissions(["photos"]);
+    if (!permission) {
+      return "unknown";
+    }
+    return mapCapacitorCameraPermission(permission.photos);
+  }
+
+  async function ensurePhotosAccess() {
+    try {
+      var Camera = getPlugin("Camera");
+      if (!Camera || typeof Camera.checkPermissions !== "function") {
+        return { ok: true };
+      }
+      var permission = await Camera.checkPermissions();
+      console.log("[WASE Camera] photos checkPermissions status", permission);
+      var status = mapCapacitorCameraPermission(permission && permission.photos);
+      if (isCameraAuthorizationGranted(status)) {
+        return { ok: true };
+      }
+      if (!isCameraAuthorizationBlocked(status)) {
+        status = await requestNativePhotosAuthorization();
+        if (isCameraAuthorizationGranted(status)) {
+          return { ok: true };
+        }
+      }
+      showCameraAlert(PHOTOS_PERMISSION_REQUIRED_MESSAGE);
+      return { ok: false, reason: "photos_denied" };
+    } catch (e) {
+      logNativeError("Photos permission check failed", e);
+      alert(JSON.stringify(e, null, 2));
+      alertCameraDebugError(e, "ensurePhotosAccess catch");
+      return { ok: false, reason: "photos_error" };
+    }
+  }
+
   async function requestNativeCameraAuthorization() {
+    // まず Capacitor Camera 公式 API で要求（戻り値を alert / console に出す）
+    var permission = await requestCapacitorCameraPermissions(["camera", "photos"]);
+    if (permission) {
+      return mapCapacitorCameraPermission(permission.camera);
+    }
+
     var NativePermission = getPlugin("CameraPermission");
     if (
       NativePermission &&
       typeof NativePermission.requestAuthorization === "function"
     ) {
-      var nativeResult = await NativePermission.requestAuthorization();
-      return (nativeResult && nativeResult.status) || "unknown";
-    }
-
-    var Camera = getPlugin("Camera");
-    if (Camera && typeof Camera.requestPermissions === "function") {
-      var permission = await Camera.requestPermissions({
-        permissions: ["camera", "photos"],
-      });
-      return mapCapacitorCameraPermission(permission && permission.camera);
+      try {
+        var nativeResult = await NativePermission.requestAuthorization();
+        console.log("[WASE Camera] CameraPermission.requestAuthorization", nativeResult);
+        alert(
+          JSON.stringify(
+            { step: "CameraPermission.requestAuthorization", result: nativeResult },
+            null,
+            2
+          )
+        );
+        return (nativeResult && nativeResult.status) || "unknown";
+      } catch (e) {
+        logNativeError("CameraPermission.requestAuthorization failed", e);
+        alert(JSON.stringify(e, null, 2));
+        alertCameraDebugError(e, "CameraPermission.requestAuthorization catch");
+        return "unknown";
+      }
     }
 
     return "unknown";
@@ -270,9 +443,10 @@
 
       showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
       return { ok: false, reason: "permission" };
-    } catch (error) {
-      logNativeError("Camera permission check failed", error);
-      showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+    } catch (e) {
+      logNativeError("Camera permission check failed", e);
+      alert(JSON.stringify(e, null, 2));
+      alertCameraDebugError(e, "ensureCameraAccess catch");
       return { ok: false, reason: "error" };
     }
   }
@@ -290,15 +464,50 @@
         // カメラ不可時はフォトライブラリへフォールバック（クラッシュ回避）
         showCameraAlert(CAMERA_UNAVAILABLE_MESSAGE);
         photoSource = "photos";
+        var photosAccess = await ensurePhotosAccess();
+        if (!photosAccess.ok) {
+          return true;
+        }
       } else {
         return true;
+      }
+    } else {
+      // prompt の「ライブラリ」選択用に写真権限も要求（拒否でもカメラ撮影は続行）
+      try {
+        await requestNativePhotosAuthorization();
+      } catch (e) {
+        logNativeError("Photos permission request failed", e);
+        alert(JSON.stringify(e, null, 2));
+        alertCameraDebugError(e, "requestNativePhotosAuthorization catch");
       }
     }
 
     var Camera = getPlugin("Camera");
     if (!Camera || typeof Camera.getPhoto !== "function") {
-      showCameraAlert(
-        "カメラ機能を利用できません。アプリを最新版に更新してください。"
+      // 「最新版」メッセージは出さず、プラグイン未検出の技術情報を表示
+      alert(
+        JSON.stringify(
+          {
+            step: "getPhoto unavailable",
+            hasCameraPlugin: !!Camera,
+            hasGetPhoto: !!(Camera && Camera.getPhoto),
+            pluginKeys: Camera ? Object.keys(Camera) : [],
+            capacitorPlugins:
+              window.Capacitor && window.Capacitor.Plugins
+                ? Object.keys(window.Capacitor.Plugins)
+                : [],
+            hasCapacitor: !!window.Capacitor,
+            hasGetPlugin: !!(window.Capacitor && window.Capacitor.getPlugin),
+            platform:
+              window.Capacitor && window.Capacitor.getPlatform
+                ? window.Capacitor.getPlatform()
+                : null,
+            photoSource: photoSource,
+            access: access,
+          },
+          null,
+          2
+        )
       );
       return true;
     }
@@ -313,7 +522,13 @@
         correctOrientation: true,
       });
       if (!photo || !photo.webPath) {
-        showCameraAlert("カメラ画像を取得できませんでした。");
+        alert(
+          JSON.stringify(
+            { step: "getPhoto empty result", photo: photo, photoSource: photoSource },
+            null,
+            2
+          )
+        );
         return true;
       }
 
@@ -326,7 +541,17 @@
         throw new Error("empty camera photo");
       }
       if (typeof File === "undefined" || typeof DataTransfer === "undefined") {
-        showCameraAlert("この端末では画像の取り込みに対応していません。");
+        alert(
+          JSON.stringify(
+            {
+              step: "File/DataTransfer unavailable",
+              hasFile: typeof File !== "undefined",
+              hasDataTransfer: typeof DataTransfer !== "undefined",
+            },
+            null,
+            2
+          )
+        );
         return true;
       }
       var file = new File(
@@ -339,19 +564,17 @@
       input.files = dataTransfer.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
-    } catch (error) {
+    } catch (e) {
       var message = String(
-        (error && (error.message || error.localizedDescription)) || error || ""
+        (e && (e.message || e.localizedDescription)) || e || ""
       ).toLowerCase();
       if (message.indexOf("cancel") >= 0 || message.indexOf("user cancelled") >= 0) {
         return true;
       }
-      logNativeError("Camera getPhoto failed", error);
-      if (photoSource === "photos") {
-        showCameraAlert(CAMERA_UNAVAILABLE_NO_FALLBACK_MESSAGE);
-      } else {
-        showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
-      }
+      logNativeError("Camera getPhoto failed", e);
+      // デバッグ: エラーオブジェクトをそのまま画面表示（最新版メッセージは出さない）
+      alert(JSON.stringify(e, null, 2));
+      alertCameraDebugError(e, "Camera.getPhoto catch");
       return true;
     }
   }
@@ -373,9 +596,10 @@
         event.preventDefault();
         event.stopPropagation();
 
-        attachNativeCameraPhoto(input).catch(function (error) {
-          logNativeError("Camera guard failed", error);
-          showCameraAlert(CAMERA_PERMISSION_REQUIRED_MESSAGE);
+        attachNativeCameraPhoto(input).catch(function (e) {
+          logNativeError("Camera guard failed", e);
+          alert(JSON.stringify(e, null, 2));
+          alertCameraDebugError(e, "setupNativeCameraInputGuard catch");
         });
       },
       true
