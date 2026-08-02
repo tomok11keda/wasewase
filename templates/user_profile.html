@@ -459,6 +459,35 @@
       text-decoration: none;
     }
 
+    .profile-timetable__privacy-alert {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 0 0 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border: 1px solid #f0d9a8;
+      background: #fff8eb;
+      color: #6b5420;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .profile-timetable__privacy-alert strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #5a4618;
+    }
+
+    .profile-timetable__privacy-alert a {
+      color: #8a6914;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
     .profile-timetable__private {
       text-align: center;
       padding: 36px 20px;
@@ -718,6 +747,15 @@
     <section class="profile-timetable" aria-labelledby="profile-timetable-title">
       <h2 class="section-title" id="profile-timetable-title">時間割</h2>
       {% if can_view_timetable and timetable %}
+        {% if is_own_profile and not is_timetable_public %}
+        <div class="profile-timetable__privacy-alert" role="status">
+          <div>
+            <strong>※現在は非公開設定です</strong>
+            あなた以外のユーザーには表示されていません。
+            <a href="{% url 'timetable_index' %}">公開設定を変更する</a>
+          </div>
+        </div>
+        {% endif %}
         {% include "includes/timetable_grid.html" with timetable_days=timetable.days timetable_rows=timetable.rows timetable_od_rows=timetable.od_rows %}
         {% if is_own_profile %}
         <p class="profile-timetable__note">
