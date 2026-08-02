@@ -4,7 +4,13 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .constants import FACULTY_CHOICES, HANDLE_PATTERN, WASEDA_EMAIL_ERROR, is_waseda_email
+from .constants import (
+    FACULTY_CHOICES,
+    HANDLE_PATTERN,
+    HANDOVER_CAMPUS_CHOICES,
+    WASEDA_EMAIL_ERROR,
+    is_waseda_email,
+)
 from .media_services import validate_timeline_image_file
 from .models import (
     Comment,
@@ -258,6 +264,7 @@ class ProductExhibitForm(forms.ModelForm):
             "price",
             "description",
             "faculty",
+            "handover_campus",
             "course_name",
             "professor_name",
             "image",
@@ -267,6 +274,7 @@ class ProductExhibitForm(forms.ModelForm):
             "price": "値段",
             "description": "説明",
             "faculty": "対象の学部",
+            "handover_campus": "受け渡しキャンパス",
             "course_name": "授業名",
             "professor_name": "教授名",
             "image": "写真",
@@ -290,6 +298,10 @@ class ProductExhibitForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["faculty"].choices = [("", "学部を選択")] + list(FACULTY_CHOICES)
         self.fields["faculty"].required = True
+        self.fields["handover_campus"].choices = [
+            ("", "キャンパスを選択")
+        ] + list(HANDOVER_CAMPUS_CHOICES)
+        self.fields["handover_campus"].required = True
 
     def save(self, commit=True):
         product = super().save(commit=False)
@@ -297,7 +309,6 @@ class ProductExhibitForm(forms.ModelForm):
         if commit:
             product.save()
         return product
-
 
 class ReviewForm(forms.ModelForm):
     class Meta:

@@ -715,9 +715,10 @@
             </time>
           </span>
         </p>
-        {% if product.faculty or product.course_name or product.professor_name %}
+        {% if product.faculty or product.handover_campus or product.course_name or product.professor_name %}
         <p class="product-tags">
           {% if product.faculty %}<span class="tag">🏷 {{ product.faculty }}</span>{% endif %}
+          {% if product.handover_campus %}<span class="tag">📍 {{ product.get_handover_campus_display }}</span>{% endif %}
           {% if product.course_name %}<span class="tag">📘 {{ product.course_name }}</span>{% endif %}
           {% if product.professor_name %}<span class="tag">👨‍🏫 {{ product.professor_name }}</span>{% endif %}
         </p>

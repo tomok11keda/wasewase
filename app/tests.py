@@ -1402,6 +1402,106 @@ class FeedAndShareTests(TestCase):
         self.assertIsNone(post.course_name)
 
 
+class FleaSortAndCampusFilterTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.seller = User.objects.create_user(
+            email="flea-seller@waseda.jp",
+            password="pass12345",
+            username="fleaseller",
+        )
+        self.cheap_waseda = Product.objects.create(
+            seller=self.seller,
+            name="安い早稲田本",
+            price=500,
+            category="本",
+            handover_campus="waseda",
+        )
+        self.expensive_toyama = Product.objects.create(
+            seller=self.seller,
+            name="高い戸山本",
+            price=3000,
+            category="本",
+            handover_campus="toyama",
+        )
+        self.mid_waseda = Product.objects.create(
+            seller=self.seller,
+            name="中間早稲田本",
+            price=1200,
+            category="本",
+            handover_campus="waseda",
+        )
+
+    def test_filter_by_campus(self):
+        response = self.client.get(reverse("flea_index"), {"campus": "waseda"})
+        self.assertContains(response, "安い早稲田本")
+        self.assertContains(response, "中間早稲田本")
+        self.assertNotContains(response, "高い戸山本")
+        self.assertContains(response, "早稲田キャンパスで絞り込み中")
+
+    def test_order_price_low(self):
+        response = self.client.get(reverse("flea_index"), {"order": "price_low"})
+        body = response.content.decode()
+        self.assertLess(body.index("安い早稲田本"), body.index("中間早稲田本"))
+        self.assertLess(body.index("中間早稲田本"), body.index("高い戸山本"))
+
+    def test_order_price_high(self):
+        response = self.client.get(reverse("flea_index"), {"order": "price_high"})
+        body = response.content.decode()
+        self.assertLess(body.index("高い戸山本"), body.index("中間早稲田本"))
+        self.assertLess(body.index("中間早稲田本"), body.index("安い早稲田本"))
+
+    def test_order_newest(self):
+        response = self.client.get(reverse("flea_index"), {"order": "newest"})
+        body = response.content.decode()
+        # mid_waseda が最後に作成されたので先頭付近に出る
+        self.assertLess(body.index("中間早稲田本"), body.index("安い早稲田本"))
+
+    def test_campus_and_order_combined(self):
+        response = self.client.get(
+            reverse("flea_index"),
+            {"campus": "waseda", "order": "price_high"},
+        )
+        body = response.content.decode()
+        self.assertContains(response, "安い早稲田本")
+        self.assertNotContains(response, "高い戸山本")
+        self.assertLess(body.index("中間早稲田本"), body.index("安い早稲田本"))
+
+    def test_exhibit_requires_handover_campus(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(
+            reverse("exhibit"),
+            {
+                "name": "キャンパス必須テスト",
+                "price": "800",
+                "description": "説明",
+                "faculty": "商学部",
+                "course_name": "",
+                "professor_name": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            Product.objects.filter(name="キャンパス必須テスト").exists()
+        )
+
+        ok = self.client.post(
+            reverse("exhibit"),
+            {
+                "name": "キャンパス必須テスト",
+                "price": "800",
+                "description": "説明",
+                "faculty": "商学部",
+                "handover_campus": "nishi_waseda",
+                "course_name": "",
+                "professor_name": "",
+            },
+        )
+        self.assertEqual(ok.status_code, 302)
+        product = Product.objects.get(name="キャンパス必須テスト")
+        self.assertEqual(product.handover_campus, "nishi_waseda")
+
+
 class DeleteContentTests(TestCase):
     def setUp(self):
         self.owner = get_user_model().objects.create_user(

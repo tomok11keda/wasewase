@@ -43,6 +43,31 @@
       color: #6b5b5f; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap;
     }
     .faculty-tab.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .campus-filter-section {
+      background: var(--card); padding: 8px 0 10px; margin-bottom: 8px; border-bottom: 1px solid #eee;
+    }
+    .campus-filter-label {
+      margin: 0 12px 6px; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.02em;
+    }
+    .flea-sort-bar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      margin: 0 4px 12px; padding: 10px 12px;
+      background: var(--card); border: 1px solid #eee; border-radius: 10px;
+    }
+    .flea-sort-bar__label {
+      font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap;
+    }
+    .flea-sort-options {
+      display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0;
+    }
+    .flea-sort-option {
+      display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px;
+      border: 1px solid #e5d3d7; border-radius: 999px; background: #fff;
+      color: #6b5b5f; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap;
+    }
+    .flea-sort-option.is-active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
     .main-inner { padding: 0 8px 16px; max-width: 1200px; margin: 0 auto; }
     .feed-scope-tabs { display: flex; gap: 8px; margin: 0 0 12px; padding: 0 4px; }
     .feed-scope-tab {
@@ -161,6 +186,18 @@
         </div>
       </section>
 
+      <section class="campus-filter-section" aria-label="キャンパスフィルター">
+        <p class="campus-filter-label">受け渡しキャンパス</p>
+        <div class="faculty-tabs">
+          {% for tab in campus_tabs %}
+          <a
+            class="faculty-tab{% if active_campus == tab.value %} is-active{% endif %}"
+            href="{{ tab.url }}"
+          >{{ tab.label }}</a>
+          {% endfor %}
+        </div>
+      </section>
+
       <main class="main-inner" data-search-root>
         <nav class="feed-scope-tabs" aria-label="フリマ表示範囲">
           <a class="feed-scope-tab{% if feed_scope != 'following' %} is-active{% endif %}" href="{{ feed_url_all }}">全体</a>
@@ -169,10 +206,10 @@
 
         {% if feed_following_unauthenticated %}
         <p class="feed-scope-hint">フォロー中の出品を見るには<a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログイン</a>してください。</p>
-        {% elif user_faculty and not query and feed_scope != 'following' and not active_faculty %}
+        {% elif user_faculty and not query and feed_scope != 'following' and not active_faculty and not active_campus and not active_order %}
         <p class="faculty-hint">📍 {{ user_faculty }}の出品を優先表示しています</p>
-        {% elif active_faculty %}
-        <p class="faculty-hint">🏷 {{ active_faculty }}で絞り込み中</p>
+        {% elif active_faculty or active_campus %}
+        <p class="faculty-hint">🏷 {% if active_faculty %}{{ active_faculty }}{% endif %}{% if active_faculty and active_campus %} · {% endif %}{% if active_campus %}{{ active_campus_label }}{% endif %}で絞り込み中</p>
         {% endif %}
 
         <div class="flea-toolbar">
@@ -182,6 +219,18 @@
           {% if user.is_authenticated %}
           <a class="btn-exhibit" href="{% url 'exhibit' %}">出品</a>
           {% endif %}
+        </div>
+
+        <div class="flea-sort-bar" aria-label="並び替え">
+          <span class="flea-sort-bar__label">並び替え</span>
+          <div class="flea-sort-options">
+            {% for option in order_options %}
+            <a
+              class="flea-sort-option{% if active_order == option.value %} is-active{% endif %}"
+              href="{{ option.url }}"
+            >{{ option.label }}</a>
+            {% endfor %}
+          </div>
         </div>
 
         <div data-search-default-content>
