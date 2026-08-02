@@ -102,6 +102,8 @@
     var kind = button.getAttribute("data-slot-kind") || "period";
     var name = entry.name || "";
     var meta = metaText(entry, kind);
+    button.classList.toggle("is-filled", Boolean(name));
+    button.classList.toggle("is-empty", !name);
     button.innerHTML = "";
     if (name) {
       var nameEl = document.createElement("p");
