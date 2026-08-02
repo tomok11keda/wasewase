@@ -3113,6 +3113,9 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("--wase-header-h", capacitor_css)
         self.assertIn("height: auto !important", capacitor_css)
         self.assertIn("position: fixed !important", capacitor_css)
+        self.assertIn("z-index: 1000", capacitor_css)
+        self.assertIn("env(safe-area-inset-top", capacitor_css)
+        self.assertIn("padding-top: calc(", capacitor_css)
         self.assertIn("アドレスバー伸縮やスクロール中にも発火", capacitor_js)
         self.assertIn("設定からカメラの使用を許可してください", capacitor_js)
 
