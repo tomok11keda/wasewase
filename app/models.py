@@ -152,6 +152,43 @@ class UserProfile(models.Model):
         return " ".join(parts)
 
 
+class TimetableSlot(models.Model):
+    """ユーザーごとの時間割セル（通常限・オンデマンド）。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="timetable_slots",
+        verbose_name="ユーザー",
+    )
+    slot_key = models.CharField(
+        "スロットキー",
+        max_length=16,
+        help_text="例: p1-d0（月曜1限）, od1-d2（水曜OD1）",
+    )
+    name = models.CharField("授業名", max_length=120, blank=True)
+    room = models.CharField("教室", max_length=80, blank=True)
+    credits = models.CharField("単位", max_length=20, blank=True)
+    memo = models.TextField("進捗・課題メモ", blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "時間割スロット"
+        verbose_name_plural = "時間割スロット"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "slot_key"],
+                name="unique_timetable_slot_per_user",
+            )
+        ]
+        ordering = ["slot_key"]
+
+    def __str__(self) -> str:
+        label = self.name or "(空)"
+        return f"{self.user_id}:{self.slot_key} {label}"
+
+
 class Follow(models.Model):
     follower = models.ForeignKey(
         settings.AUTH_USER_MODEL,

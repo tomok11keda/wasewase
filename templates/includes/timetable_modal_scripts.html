@@ -2,7 +2,6 @@
 (function () {
   "use strict";
 
-  var STORAGE_PREFIX = "wase_timetable_v1_";
   var modal = document.getElementById("timetable-slot-modal");
   var form = document.getElementById("timetable-slot-form");
   if (!modal || !form) {
@@ -19,37 +18,34 @@
   var creditsInput = document.getElementById("timetable-slot-credits");
   var memoInput = document.getElementById("timetable-slot-memo");
   var clearBtn = document.getElementById("timetable-slot-clear");
-  var storageKey =
-    STORAGE_PREFIX +
-    (document.body.getAttribute("data-timetable-user") || "guest");
+  var apiUrl = window.__WASE_TIMETABLE_SLOT_API__ || "";
+  var store = {};
 
   function emptyEntry() {
     return { name: "", room: "", credits: "", memo: "" };
   }
 
-  function loadStore() {
+  function getCsrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function loadInitialStore() {
+    var el = document.getElementById("timetable-initial-data");
+    if (!el) {
+      return {};
+    }
     try {
-      var raw = window.localStorage.getItem(storageKey);
-      if (!raw) {
-        return {};
-      }
-      var parsed = JSON.parse(raw);
+      var parsed = JSON.parse(el.textContent || "{}");
       return parsed && typeof parsed === "object" ? parsed : {};
     } catch (error) {
       return {};
     }
   }
 
-  function saveStore(store) {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(store));
-    } catch (error) {
-      // quota / private mode
-    }
-  }
+  store = loadInitialStore();
 
   function getEntry(slotKey) {
-    var store = loadStore();
     var entry = store[slotKey];
     if (!entry || typeof entry !== "object") {
       return emptyEntry();
@@ -62,8 +58,7 @@
     };
   }
 
-  function setEntry(slotKey, entry) {
-    var store = loadStore();
+  function applyLocalEntry(slotKey, entry) {
     var normalized = {
       name: String(entry.name || "").trim(),
       room: String(entry.room || "").trim(),
@@ -75,8 +70,36 @@
     } else {
       store[slotKey] = normalized;
     }
-    saveStore(store);
     return normalized;
+  }
+
+  function saveEntryRemote(slotKey, entry) {
+    if (!apiUrl) {
+      return Promise.resolve(applyLocalEntry(slotKey, entry));
+    }
+    return fetch(apiUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken(),
+      },
+      body: JSON.stringify({
+        slot_key: slotKey,
+        name: entry.name || "",
+        room: entry.room || "",
+        credits: entry.credits || "",
+        memo: entry.memo || "",
+      }),
+    }).then(function (res) {
+      return res.json().then(function (payload) {
+        if (!res.ok || !payload || !payload.ok) {
+          throw new Error((payload && payload.error) || "save_failed");
+        }
+        var saved = payload.entry || emptyEntry();
+        return applyLocalEntry(slotKey, saved);
+      });
+    });
   }
 
   function metaText(entry, kind) {
@@ -177,6 +200,16 @@
     document.body.classList.remove("timetable-modal-open");
   }
 
+  function setSaving(isSaving) {
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = Boolean(isSaving);
+    }
+    if (clearBtn) {
+      clearBtn.disabled = Boolean(isSaving);
+    }
+  }
+
   document.addEventListener("click", function (event) {
     var slot = event.target.closest("[data-timetable-slot]");
     if (slot) {
@@ -198,17 +231,27 @@
     event.preventDefault();
     var slotKey = keyInput.value;
     var kind = kindInput.value || "period";
-    var entry = setEntry(slotKey, {
+    var entry = {
       name: nameInput.value,
       room: kind === "od" ? "" : roomInput.value,
       credits: creditsInput.value,
       memo: memoInput.value,
-    });
-    var button = document.querySelector(
-      '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
-    );
-    renderSlot(button, entry);
-    closeModal();
+    };
+    setSaving(true);
+    saveEntryRemote(slotKey, entry)
+      .then(function (saved) {
+        var button = document.querySelector(
+          '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
+        );
+        renderSlot(button, saved);
+        closeModal();
+      })
+      .catch(function () {
+        window.alert("時間割の保存に失敗しました。通信環境を確認して再度お試しください。");
+      })
+      .finally(function () {
+        setSaving(false);
+      });
   });
 
   if (clearBtn) {
@@ -218,12 +261,21 @@
       creditsInput.value = "";
       memoInput.value = "";
       var slotKey = keyInput.value;
-      setEntry(slotKey, emptyEntry());
-      var button = document.querySelector(
-        '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
-      );
-      renderSlot(button, emptyEntry());
-      closeModal();
+      setSaving(true);
+      saveEntryRemote(slotKey, emptyEntry())
+        .then(function (saved) {
+          var button = document.querySelector(
+            '[data-timetable-slot][data-slot-key="' + slotKey + '"]'
+          );
+          renderSlot(button, saved);
+          closeModal();
+        })
+        .catch(function () {
+          window.alert("時間割の削除に失敗しました。通信環境を確認して再度お試しください。");
+        })
+        .finally(function () {
+          setSaving(false);
+        });
     });
   }
 
