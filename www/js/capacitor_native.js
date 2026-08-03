@@ -177,7 +177,7 @@
    * 実機デバッグ用: Safari コンソール無しでもエラー内容を alert で確認する。
    * Error は JSON.stringify だと {} になるため、主要フィールドを展開する。
    */
-  function alertCameraDebugError(e, context) {
+  function alertCameraDebugError(e, context, extra) {
     var payload = e;
     if (e instanceof Error) {
       payload = {
@@ -207,11 +207,98 @@
     } else {
       payload = { context: context || null, value: e, raw: String(e) };
     }
+    if (extra && typeof extra === "object") {
+      try {
+        Object.keys(extra).forEach(function (key) {
+          payload[key] = extra[key];
+        });
+      } catch (_ignoreExtra) {}
+    }
+    try {
+      console.error("[WASE Camera]", context || "error", e, extra || null);
+    } catch (_consoleIgnore) {}
     try {
       alert(JSON.stringify(payload, null, 2));
     } catch (_stringifyError) {
       alert(String(context || "camera-debug") + ": " + String(e));
     }
+  }
+
+  function dataUrlToFile(dataUrl, filename) {
+    var parts = String(dataUrl || "").split(",");
+    if (parts.length < 2) {
+      throw new Error("invalid dataUrl");
+    }
+    var mimeMatch = parts[0].match(/:(.*?);/);
+    var mime = (mimeMatch && mimeMatch[1]) || "image/jpeg";
+    var binary = atob(parts[1]);
+    var len = binary.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], filename, { type: mime });
+  }
+
+  function base64ToFile(base64, filename, mimeType) {
+    var binary = atob(String(base64 || ""));
+    var len = binary.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], filename, { type: mimeType || "image/jpeg" });
+  }
+
+  async function photoResultToFile(photo, stepMeta) {
+    var filename = "camera_" + Date.now() + ".jpg";
+    if (photo && photo.dataUrl) {
+      stepMeta.step = "dataUrlToFile";
+      return dataUrlToFile(photo.dataUrl, filename);
+    }
+    if (photo && photo.base64String) {
+      stepMeta.step = "base64ToFile";
+      var format = String(photo.format || "jpeg").toLowerCase();
+      var mime = format === "png" ? "image/png" : "image/jpeg";
+      return base64ToFile(photo.base64String, filename, mime);
+    }
+
+    // 最終手段: webPath / path を fetch（iOS では TypeError: Load failed になりやすい）
+    var src = photo && (photo.webPath || photo.path);
+    if (
+      photo &&
+      photo.path &&
+      window.Capacitor &&
+      typeof window.Capacitor.convertFileSrc === "function"
+    ) {
+      try {
+        src = window.Capacitor.convertFileSrc(photo.path);
+        stepMeta.convertFileSrc = src;
+      } catch (convertError) {
+        stepMeta.convertFileSrcError = String(
+          (convertError && convertError.message) || convertError
+        );
+      }
+    }
+    if (!src) {
+      throw new Error("photo has no dataUrl/base64/webPath");
+    }
+    stepMeta.step = "fetch(webPath)";
+    stepMeta.fetchUrl = src;
+    var response = await fetch(src);
+    if (!response || !response.ok) {
+      throw new Error(
+        "failed to fetch camera photo status=" +
+          (response && response.status)
+      );
+    }
+    stepMeta.step = "response.blob";
+    var blob = await response.blob();
+    if (!blob || !blob.size) {
+      throw new Error("empty camera photo");
+    }
+    stepMeta.step = "new File(blob)";
+    return new File([blob], filename, { type: blob.type || "image/jpeg" });
   }
 
   function isCameraAuthorizationGranted(status) {
@@ -507,53 +594,46 @@
       return true;
     }
 
+    var stepMeta = {
+      step: "before getPhoto",
+      photoSource: photoSource,
+      resultType: "dataUrl",
+    };
     try {
+      stepMeta.step = "Camera.getPhoto";
+      // dataUrl なら fetch(webPath) が不要。iOS WKWebView の TypeError: Load failed を回避する。
       var photo = await Camera.getPhoto({
         quality: 85,
-        resultType: "uri",
+        resultType: "dataUrl",
         // ハード確認済みなら prompt。カメラ不可時は photos のみ（カメラ起動クラッシュ防止）。
         source: photoSource,
         saveToGallery: false,
         correctOrientation: true,
       });
-      if (!photo || !photo.webPath) {
-        alert(
-          JSON.stringify(
-            { step: "getPhoto empty result", photo: photo, photoSource: photoSource },
-            null,
-            2
-          )
+      if (!photo || !(photo.dataUrl || photo.base64String || photo.webPath)) {
+        alertCameraDebugError(
+          new Error("getPhoto empty result"),
+          "Camera.getPhoto empty",
+          { photo: photo, photoSource: photoSource, step: stepMeta.step }
         );
         return true;
       }
 
-      var response = await fetch(photo.webPath);
-      if (!response || !response.ok) {
-        throw new Error("failed to fetch camera photo");
-      }
-      var blob = await response.blob();
-      if (!blob || !blob.size) {
-        throw new Error("empty camera photo");
-      }
-      if (typeof File === "undefined" || typeof DataTransfer === "undefined") {
-        alert(
-          JSON.stringify(
-            {
-              step: "File/DataTransfer unavailable",
-              hasFile: typeof File !== "undefined",
-              hasDataTransfer: typeof DataTransfer !== "undefined",
-            },
-            null,
-            2
-          )
+      stepMeta.step = "photoResultToFile";
+      stepMeta.hasDataUrl = !!photo.dataUrl;
+      stepMeta.hasBase64 = !!photo.base64String;
+      stepMeta.hasWebPath = !!photo.webPath;
+      stepMeta.webPath = photo.webPath || null;
+      var file = await photoResultToFile(photo, stepMeta);
+      if (typeof DataTransfer === "undefined") {
+        alertCameraDebugError(
+          new Error("DataTransfer unavailable"),
+          "Camera.assign file",
+          stepMeta
         );
         return true;
       }
-      var file = new File(
-        [blob],
-        "camera_" + Date.now() + ".jpg",
-        { type: blob.type || "image/jpeg" }
-      );
+      stepMeta.step = "assign input.files";
       var dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
       input.files = dataTransfer.files;
@@ -567,9 +647,21 @@
         return true;
       }
       logNativeError("Camera getPhoto failed", e);
-      // デバッグ: エラーオブジェクトをそのまま画面表示（最新版メッセージは出さない）
-      alert(JSON.stringify(e, null, 2));
-      alertCameraDebugError(e, "Camera.getPhoto catch");
+      try {
+        console.error("[WASE Camera] Camera.getPhoto/catch", e, stepMeta);
+      } catch (_ignore) {}
+      alertCameraDebugError(e, "Camera.getPhoto catch", {
+        hint:
+          e && e.message === "Load failed"
+            ? "Likely fetch(webPath) failed in WKWebView; prefer dataUrl resultType"
+            : null,
+        photoSource: photoSource,
+        access: access,
+        stepMeta: stepMeta,
+        name: e && e.name,
+        message: e && e.message,
+        stack: e && e.stack,
+      });
       return true;
     }
   }
