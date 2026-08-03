@@ -1537,7 +1537,7 @@ class FleaSortAndCampusFilterTests(TestCase):
                 "name": "キャンパス必須テスト",
                 "price": "800",
                 "description": "説明",
-                "faculty": "商学部",
+                "faculty": "",
                 "course_name": "",
                 "professor_name": "",
             },
@@ -1553,7 +1553,7 @@ class FleaSortAndCampusFilterTests(TestCase):
                 "name": "キャンパス必須テスト",
                 "price": "800",
                 "description": "説明",
-                "faculty": "商学部",
+                "faculty": "",
                 "handover_campus": "nishi_waseda",
                 "course_name": "",
                 "professor_name": "",
@@ -1562,6 +1562,17 @@ class FleaSortAndCampusFilterTests(TestCase):
         self.assertEqual(ok.status_code, 302)
         product = Product.objects.get(name="キャンパス必須テスト")
         self.assertEqual(product.handover_campus, "nishi_waseda")
+
+    def test_exhibit_form_hides_textbook_details_by_default(self):
+        self.client.force_login(self.seller)
+        page = self.client.get(reverse("exhibit"))
+        self.assertContains(page, "教科書などの詳細情報を追加")
+        self.assertContains(page, "data-exhibit-details")
+        self.assertContains(page, "説明文")
+        self.assertContains(page, "受け渡しキャンパス")
+        # 初期はアコーディオン閉（is-open なし）
+        self.assertNotContains(page, 'class="details-panel is-open"')
+        self.assertContains(page, 'aria-expanded="false"')
 
 
 class DeleteContentTests(TestCase):

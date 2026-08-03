@@ -260,48 +260,61 @@ class ProductExhibitForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = (
+            "image",
             "name",
             "price",
-            "description",
-            "faculty",
             "handover_campus",
+            "description",
             "course_name",
             "professor_name",
-            "image",
+            "faculty",
         )
         labels = {
+            "image": "写真",
             "name": "商品名",
-            "price": "値段",
-            "description": "説明",
-            "faculty": "対象の学部",
+            "price": "価格",
             "handover_campus": "受け渡しキャンパス",
+            "description": "説明文",
             "course_name": "授業名",
             "professor_name": "教授名",
-            "image": "写真",
+            "faculty": "対象学部",
         }
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "例：線形代数の教科書"}),
+            "name": forms.TextInput(
+                attrs={"placeholder": "例：黒のトートバッグ、線形代数の教科書"}
+            ),
             "price": forms.NumberInput(attrs={"placeholder": "1000", "min": 0}),
             "description": forms.Textarea(
-                attrs={"placeholder": "商品の状態や取引方法など", "rows": 5}
+                attrs={
+                    "placeholder": "状態・サイズ・購入時期・受け渡しの希望など",
+                    "rows": 4,
+                }
             ),
             "course_name": forms.TextInput(
-                attrs={"placeholder": "例：線形代数Ⅰ"}
+                attrs={"placeholder": "例：線形代数Ⅰ（任意）"}
             ),
             "professor_name": forms.TextInput(
-                attrs={"placeholder": "例：山田太郎"}
+                attrs={"placeholder": "例：山田太郎（任意）"}
             ),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["faculty"].choices = [("", "学部を選択")] + list(FACULTY_CHOICES)
-        self.fields["faculty"].required = True
+        self.fields["faculty"].choices = [("", "学部を選択（任意）")] + list(
+            FACULTY_CHOICES
+        )
+        self.fields["faculty"].required = False
         self.fields["handover_campus"].choices = [
             ("", "キャンパスを選択")
         ] + list(HANDOVER_CAMPUS_CHOICES)
         self.fields["handover_campus"].required = True
+        self.fields["name"].required = True
+        self.fields["price"].required = True
+        self.fields["description"].required = False
+        self.fields["course_name"].required = False
+        self.fields["professor_name"].required = False
+        self.fields["image"].required = False
 
     def save(self, commit=True):
         product = super().save(commit=False)
