@@ -871,7 +871,7 @@ def exhibit(request):
                 return render(request, "exhibit.html", {"form": form, "nav_active": "flea"})
             return redirect(f"{reverse('flea_index')}?exhibit_success=1")
     else:
-        form = ProductExhibitForm(initial={"faculty": get_user_faculty(request.user)})
+        form = ProductExhibitForm()
 
     return render(request, "exhibit.html", {"form": form, "nav_active": "flea"})
 

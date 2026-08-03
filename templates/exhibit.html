@@ -7,18 +7,18 @@
   <title>わせわせ — 商品を出品</title>
   <style>
     :root {
-      --bg: #f5f5f5;
+      --bg: #f4f6f8;
       --card: #fff;
-      --text: #222;
-      --muted: #888;
+      --text: #1a1a1a;
+      --muted: #6b7280;
+      --line: #e5e7eb;
       --accent: #891E2B;
       --accent-dark: #6f1722;
-      --radius: 12px;
+      --accent-soft: #f7edf0;
+      --radius: 14px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -34,25 +34,26 @@
       background: var(--accent);
       color: #fff;
       border-bottom: 1px solid var(--accent-dark);
-      padding-right: 16px;
-      padding-left: 16px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-top, 0px));
+      padding-top: calc(12px + env(safe-area-inset-top, 0px));
     }
 
     .header-row {
       display: flex;
       flex-direction: column;
       gap: 4px;
+      max-width: 520px;
+      margin: 0 auto;
     }
 
     .back-link {
       font-size: 13px;
       color: #fff;
       text-decoration: none;
+      width: fit-content;
     }
 
-    .back-link:hover {
-      color: #f6edf0;
-    }
+    .back-link:hover { color: #f6edf0; }
 
     .site-header h1 {
       margin: 0;
@@ -61,15 +62,22 @@
     }
 
     .main-inner {
-      max-width: 480px;
+      max-width: 520px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 16px 16px 28px;
+    }
+
+    .form-lead {
+      margin: 0 0 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--muted);
     }
 
     .form-card {
       background: var(--card);
       border-radius: var(--radius);
-      padding: 20px;
+      padding: 20px 18px 22px;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
 
@@ -77,33 +85,87 @@
       margin-bottom: 18px;
     }
 
+    .field:last-child { margin-bottom: 0; }
+
+    .field-label-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
     .field label {
       display: block;
       font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 6px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .req-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    .opt-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      vertical-align: middle;
     }
 
     .field input[type="file"] {
       padding: 8px 0;
       border: none;
+      width: 100%;
+      font-size: 14px;
     }
 
     .field input,
     .field select,
     .field textarea {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
       font-size: 16px;
       font-family: inherit;
       outline: none;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 110px;
+      line-height: 1.5;
     }
 
     .field input:focus,
+    .field select:focus,
     .field textarea:focus {
       border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(137, 30, 43, 0.12);
+    }
+
+    .field-hint {
+      margin: 6px 0 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
     }
 
     .field-error {
@@ -117,35 +179,128 @@
     .non-field-errors {
       margin: 0 0 16px;
       padding: 10px 12px;
-      background: #f7edf0;
+      background: var(--accent-soft);
       border-radius: 8px;
       font-size: 13px;
       color: var(--accent);
       list-style: none;
     }
 
-    .price-hint {
-      margin: 6px 0 0;
+    .details-panel {
+      margin: 4px 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fafbfc;
+      overflow: hidden;
+    }
+
+    .details-toggle {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 14px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .details-toggle:hover {
+      background: rgba(137, 30, 43, 0.04);
+    }
+
+    .details-toggle__text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .details-toggle__title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .details-toggle__sub {
       font-size: 12px;
       color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .details-toggle__chevron {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.22s ease;
+    }
+
+    .details-toggle__chevron svg {
+      display: block;
+      fill: var(--muted);
+    }
+
+    .details-panel.is-open .details-toggle__chevron {
+      transform: rotate(180deg);
+      border-color: #e8c4ca;
+      background: var(--accent-soft);
+    }
+
+    .details-panel.is-open .details-toggle__chevron svg {
+      fill: var(--accent);
+    }
+
+    .details-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.28s ease;
+    }
+
+    .details-panel.is-open .details-body {
+      grid-template-rows: 1fr;
+    }
+
+    .details-body__inner {
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .details-fields {
+      padding: 0 14px 14px;
+      border-top: 1px solid transparent;
+    }
+
+    .details-panel.is-open .details-fields {
+      border-top-color: var(--line);
+      padding-top: 14px;
     }
 
     .actions {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      margin-top: 24px;
+      margin-top: 22px;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      height: 44px;
+      height: 46px;
       padding: 0 16px;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
       text-decoration: none;
       border: none;
       cursor: pointer;
@@ -157,9 +312,7 @@
       color: #fff;
     }
 
-    .btn-primary:hover {
-      background: var(--accent-dark);
-    }
+    .btn-primary:hover { background: var(--accent-dark); }
 
     .btn-ghost {
       background: transparent;
@@ -171,12 +324,14 @@
 <body>
   <header class="site-header">
     <div class="header-row">
-      <a class="back-link" href="{% url 'home' %}">← トップへ</a>
+      <a class="back-link" href="{% url 'flea_index' %}">← フリマへ</a>
       <h1>商品を出品</h1>
     </div>
   </header>
 
   <main class="main-inner">
+    <p class="form-lead">教科書以外の雑貨・服なども出品できます。まずは写真と基本情報を入れてください。</p>
+
     <div class="form-card">
       {% if form.non_field_errors %}
       <ul class="non-field-errors">
@@ -186,94 +341,116 @@
       </ul>
       {% endif %}
 
-      <form method="post" action="" enctype="multipart/form-data">
+      <form method="post" action="" enctype="multipart/form-data" novalidate>
         {% csrf_token %}
 
         <div class="field">
-          <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+          <div class="field-label-row">
+            <label for="{{ form.image.id_for_label }}">{{ form.image.label }}<span class="opt-badge">任意</span></label>
+          </div>
+          {{ form.image }}
+          <p class="field-hint">JPEG / PNG など。あると売れやすくなります</p>
+          {% if form.image.errors %}
+          <ul class="field-error">{% for error in form.image.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}<span class="req-badge">必須</span></label>
+          </div>
           {{ form.name }}
           {% if form.name.errors %}
-          <ul class="field-error">
-            {% for error in form.name.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
+          <ul class="field-error">{% for error in form.name.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
         </div>
 
         <div class="field">
-          <label for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
+          <div class="field-label-row">
+            <label for="{{ form.price.id_for_label }}">{{ form.price.label }}<span class="req-badge">必須</span></label>
+          </div>
           {{ form.price }}
-          <p class="price-hint">円単位で入力してください</p>
+          <p class="field-hint">円単位で入力</p>
           {% if form.price.errors %}
-          <ul class="field-error">
-            {% for error in form.price.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
+          <ul class="field-error">{% for error in form.price.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
         </div>
 
         <div class="field">
-          <label for="{{ form.faculty.id_for_label }}">{{ form.faculty.label }}</label>
-          {{ form.faculty }}
-          <p class="price-hint">一覧の学部タブで絞り込めるようになります</p>
-          {% if form.faculty.errors %}
-          <ul class="field-error">
-            {% for error in form.faculty.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
-          {% endif %}
-        </div>
-
-        <div class="field">
-          <label for="{{ form.handover_campus.id_for_label }}">{{ form.handover_campus.label }}</label>
+          <div class="field-label-row">
+            <label for="{{ form.handover_campus.id_for_label }}">{{ form.handover_campus.label }}<span class="req-badge">必須</span></label>
+          </div>
           {{ form.handover_campus }}
-          <p class="price-hint">受け渡し予定のキャンパスを選択してください（必須）</p>
+          <p class="field-hint">キャンパス内での受け渡しを想定しています</p>
           {% if form.handover_campus.errors %}
-          <ul class="field-error">
-            {% for error in form.handover_campus.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
+          <ul class="field-error">{% for error in form.handover_campus.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
         </div>
 
         <div class="field">
-          <label for="{{ form.course_name.id_for_label }}">{{ form.course_name.label }}</label>
-          {{ form.course_name }}
-        </div>
-
-        <div class="field">
-          <label for="{{ form.professor_name.id_for_label }}">{{ form.professor_name.label }}</label>
-          {{ form.professor_name }}
-          <p class="price-hint">授業名・教授名で検索しやすくなります</p>
-        </div>
-
-        <div class="field">
-          <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+          <div class="field-label-row">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}<span class="opt-badge">推奨</span></label>
+          </div>
           {{ form.description }}
+          <p class="field-hint">状態や使い方の説明があると購入者が安心します</p>
           {% if form.description.errors %}
-          <ul class="field-error">
-            {% for error in form.description.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
+          <ul class="field-error">{% for error in form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
         </div>
 
-        <div class="field">
-          <label for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
-          {{ form.image }}
-          <p class="price-hint">JPEG / PNG などの画像ファイル</p>
-          {% if form.image.errors %}
-          <ul class="field-error">
-            {% for error in form.image.errors %}
-            <li>{{ error }}</li>
-            {% endfor %}
-          </ul>
-          {% endif %}
+        <div
+          class="details-panel{% if form.faculty.errors or form.course_name.errors or form.professor_name.errors or form.course_name.value or form.professor_name.value %} is-open{% endif %}"
+          data-exhibit-details
+        >
+          <button
+            type="button"
+            class="details-toggle"
+            data-exhibit-details-toggle
+            aria-expanded="{% if form.faculty.errors or form.course_name.errors or form.professor_name.errors or form.course_name.value or form.professor_name.value %}true{% else %}false{% endif %}"
+            aria-controls="exhibit-details-body"
+          >
+            <span class="details-toggle__text">
+              <span class="details-toggle__title">教科書などの詳細情報を追加</span>
+              <span class="details-toggle__sub">授業名・教授名・対象学部（任意）</span>
+            </span>
+            <span class="details-toggle__chevron" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>
+            </span>
+          </button>
+          <div class="details-body" id="exhibit-details-body">
+            <div class="details-body__inner">
+              <div class="details-fields">
+                <div class="field">
+                  <div class="field-label-row">
+                    <label for="{{ form.course_name.id_for_label }}">{{ form.course_name.label }}<span class="opt-badge">任意</span></label>
+                  </div>
+                  {{ form.course_name }}
+                  {% if form.course_name.errors %}
+                  <ul class="field-error">{% for error in form.course_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                  {% endif %}
+                </div>
+                <div class="field">
+                  <div class="field-label-row">
+                    <label for="{{ form.professor_name.id_for_label }}">{{ form.professor_name.label }}<span class="opt-badge">任意</span></label>
+                  </div>
+                  {{ form.professor_name }}
+                  {% if form.professor_name.errors %}
+                  <ul class="field-error">{% for error in form.professor_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                  {% endif %}
+                </div>
+                <div class="field">
+                  <div class="field-label-row">
+                    <label for="{{ form.faculty.id_for_label }}">{{ form.faculty.label }}<span class="opt-badge">任意</span></label>
+                  </div>
+                  {{ form.faculty }}
+                  <p class="field-hint">教科書のとき、学部タブで見つけやすくなります</p>
+                  {% if form.faculty.errors %}
+                  <ul class="field-error">{% for error in form.faculty.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="actions">
@@ -283,6 +460,19 @@
       </form>
     </div>
   </main>
+
+  <script>
+    (function () {
+      var panel = document.querySelector("[data-exhibit-details]");
+      var toggle = document.querySelector("[data-exhibit-details-toggle]");
+      if (!panel || !toggle) return;
+
+      toggle.addEventListener("click", function () {
+        var open = panel.classList.toggle("is-open");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    })();
+  </script>
   {% include "includes/bottom_nav.html" %}
 </body>
 </html>
