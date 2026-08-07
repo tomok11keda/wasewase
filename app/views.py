@@ -57,7 +57,15 @@ from .group_chat_services import (
     group_room_link,
     mark_group_room_read,
 )
-from .inbox_services import build_inbox_conversations, build_inbox_unread_summary
+from .inbox_services import (
+    INBOX_TAB_ALL,
+    INBOX_TAB_DM,
+    INBOX_TAB_TRADE,
+    build_inbox_conversations,
+    build_inbox_unread_summary,
+    filter_inbox_by_tab,
+    normalize_inbox_tab,
+)
 from .board_services import (
     prepare_timeline_post_for_save,
     TIMELINE_INITIAL_SIZE,
@@ -1336,20 +1344,55 @@ def user_profile(request, pk):
 
 @login_required
 def user_dm_inbox(request):
+    active_tab = normalize_inbox_tab(request.GET.get("tab"))
     try:
-        conversations = build_inbox_conversations(request.user)
+        all_conversations = build_inbox_conversations(request.user)
     except Exception as exc:
         logger.warning("user_dm_inbox failed to build conversations: %s", exc)
-        conversations = []
+        all_conversations = []
         messages.error(
             request,
             "メッセージ一覧の取得中に一部データの問題が発生しました。再読み込みしてください。",
         )
+
+    conversations = filter_inbox_by_tab(all_conversations, active_tab)
+    tab_counts = {
+        INBOX_TAB_ALL: len(all_conversations),
+        INBOX_TAB_TRADE: sum(
+            1 for item in all_conversations if item.get("kind") == "trade"
+        ),
+        INBOX_TAB_DM: sum(
+            1 for item in all_conversations if item.get("kind") in ("dm", "group")
+        ),
+    }
+
     return render(
         request,
         "dm_inbox.html",
         {
             "conversations": conversations,
+            "active_tab": active_tab,
+            "tab_counts": tab_counts,
+            "inbox_tabs": [
+                {
+                    "key": INBOX_TAB_ALL,
+                    "label": "すべて",
+                    "url": reverse("user_dm_inbox"),
+                    "count": tab_counts[INBOX_TAB_ALL],
+                },
+                {
+                    "key": INBOX_TAB_TRADE,
+                    "label": "取引チャット",
+                    "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_TRADE}",
+                    "count": tab_counts[INBOX_TAB_TRADE],
+                },
+                {
+                    "key": INBOX_TAB_DM,
+                    "label": "通常DM",
+                    "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_DM}",
+                    "count": tab_counts[INBOX_TAB_DM],
+                },
+            ],
             "nav_active": "dm",
             "header_back_url": reverse("home"),
         },

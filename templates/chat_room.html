@@ -38,6 +38,10 @@
       border-bottom: 1px solid var(--accent-dark);
       padding-right: 16px;
       padding-left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
     }
 
     .back-link {
@@ -79,14 +83,45 @@
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
 
+    .chat-product-card-inner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chat-product-thumb {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      background: #f0f3f6;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 22px;
+    }
+
+    .chat-product-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .chat-product-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
     .chat-product-name {
-      margin: 0 0 6px;
+      margin: 0 0 4px;
       font-size: 16px;
       font-weight: 700;
     }
 
     .chat-product-meta {
-      margin: 0;
+      margin: 0 0 8px;
       font-size: 13px;
       color: var(--muted);
       line-height: 1.5;
@@ -278,7 +313,8 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="back-link" href="{% url 'product_detail' product.pk %}">← 商品詳細へ</a>
+    <a class="back-link" href="{{ inbox_back_url|default:'/dm/?tab=trade' }}">← メッセージ</a>
+    <a class="back-link" href="{% url 'product_detail' product.pk %}" style="margin-left:auto;opacity:.9">商品詳細</a>
   </header>
 
   <main class="main-inner">
@@ -291,19 +327,25 @@
     {% endif %}
 
     <section class="chat-product-card">
-      <h1 class="chat-product-name">{{ product.name }}</h1>
-      <p class="chat-product-meta">
-        ¥{{ product.price|floatformat:0 }} ·
-        出品者: {% if product.seller %}<a href="{% url 'user_profile' product.seller.pk %}?from=market">{{ product.seller|display_name }}</a>{% else %}—{% endif %} ·
-        相手: {% if partner %}<a href="{% url 'user_profile' partner.pk %}?from=market">{{ partner|display_name }}</a>{% else %}—{% endif %}
-      </p>
-      {% if room.is_confirmed %}
-      <span class="deal-status-badge is-confirmed">取引確定</span>
-      {% elif room.is_closed %}
-      <span class="deal-status-badge is-closed">交渉終了</span>
-      {% else %}
-      <span class="deal-status-badge">交渉中</span>
-      {% endif %}
+      <div class="chat-product-card-inner">
+        <div class="chat-product-thumb" aria-hidden="true">
+          {% if product_thumbnail_url %}
+          <img src="{{ product_thumbnail_url }}" alt="">
+          {% else %}
+          <span>🛒</span>
+          {% endif %}
+        </div>
+        <div class="chat-product-copy">
+          <h1 class="chat-product-name">{{ product.name }}</h1>
+          <p class="chat-product-meta">
+            ¥{{ product.price|floatformat:0 }} ·
+            相手: {% if partner %}<a href="{% url 'user_profile' partner.pk %}?from=market">{{ partner|display_name }}</a>{% else %}—{% endif %}
+          </p>
+          <span class="deal-status-badge{% if product.is_sold %} is-closed{% elif room.is_confirmed %} is-confirmed{% elif room.is_closed %} is-closed{% endif %}">
+            {{ trade_status_label|default:"交渉中" }}
+          </span>
+        </div>
+      </div>
     </section>
 
     {% if can_confirm_trade or can_complete_handover %}
