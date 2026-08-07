@@ -1,0 +1,107 @@
+{% load static %}
+{% if not user.is_authenticated %}
+{% if is_browse_mode %}
+<style>
+  .browse-mode-banner {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #fff8e8;
+    border-bottom: 1px solid #f0e0b8;
+    color: #6b5420;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .browse-mode-banner strong { font-weight: 700; }
+  .browse-mode-banner a {
+    flex-shrink: 0;
+    color: #891E2B;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .browse-mode-banner a:hover { text-decoration: underline; }
+  @media (min-width: 1024px) {
+    .browse-mode-banner { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+<div class="browse-mode-banner" role="status">
+  <span><strong>閲覧モード</strong> — 投稿・出品・チャットには早稲田大学のメールアドレスでのログインが必要です。</span>
+  <a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">ログイン</a>
+</div>
+{% endif %}
+
+<dialog id="login-required-dialog" class="login-required-dialog" aria-labelledby="login-required-title">
+  <form method="dialog" class="login-required-dialog__card">
+    <h2 id="login-required-title">ログインが必要です</h2>
+    <p>早稲田大学のメールアドレスでログインしてください。受験生の方などは、引き続き閲覧モードでご覧いただけます。</p>
+    <div class="login-required-dialog__actions">
+      <a class="login-required-dialog__primary" id="login-required-login-link" href="{% url 'login' %}">ログインする</a>
+      <button type="submit" class="login-required-dialog__secondary" value="cancel">閉じる</button>
+    </div>
+  </form>
+</dialog>
+<style>
+  .login-required-dialog {
+    border: none;
+    border-radius: 14px;
+    padding: 0;
+    max-width: min(92vw, 360px);
+    box-shadow: 0 12px 40px rgba(15, 20, 25, 0.22);
+  }
+  .login-required-dialog::backdrop {
+    background: rgba(15, 20, 25, 0.45);
+  }
+  .login-required-dialog__card {
+    margin: 0;
+    padding: 20px 18px 16px;
+    background: #fff;
+  }
+  .login-required-dialog__card h2 {
+    margin: 0 0 8px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #0f1419;
+  }
+  .login-required-dialog__card p {
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #536471;
+  }
+  .login-required-dialog__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .login-required-dialog__primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border-radius: 10px;
+    background: #891E2B;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .login-required-dialog__secondary {
+    min-height: 40px;
+    border: 1px solid #d9dee3;
+    border-radius: 10px;
+    background: #fff;
+    color: #536471;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+</style>
+<script src="{% static 'js/login_required.js' %}" defer></script>
+{% endif %}

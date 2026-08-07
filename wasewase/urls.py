@@ -181,6 +181,7 @@ urlpatterns = [
     path("comment/<int:pk>/delete/", app_views.delete_comment, name="delete_comment"),
     path("login/", app_views.AppLoginView.as_view(), name="login"),
     path("logout/", app_views.logout_view, name="logout"),
+    path("browse/", app_views.enter_browse_mode, name="enter_browse_mode"),
     path("signup/", app_views.signup, name="signup"),
     path("verify-otp/", app_views.verify_otp, name="verify_otp"),
     path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),

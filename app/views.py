@@ -1687,6 +1687,26 @@ class AppLoginView(LoginView):
         return f"{url}{separator}login_success=1"
 
 
+def enter_browse_mode(request):
+    """未ログインユーザーを閲覧モードにしてホーム（または next）へ進める。"""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from .browse_mode_services import enable_browse_mode
+
+    if request.user.is_authenticated:
+        return redirect(reverse("home"))
+
+    enable_browse_mode(request)
+    next_url = (request.GET.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect(reverse("home"))
+
+
 def _log_auth_debug(label: str, detail: str, *, exc: BaseException | None = None) -> None:
     logger.warning("%s: %s", label, detail, exc_info=exc)
     if settings.DEBUG:

@@ -218,6 +218,8 @@
           </div>
           {% if user.is_authenticated %}
           <a class="btn-exhibit" href="{% url 'exhibit' %}">出品</a>
+          {% else %}
+          <a class="btn-exhibit" href="{% url 'login' %}?next={% url 'exhibit' %}" data-requires-login>出品</a>
           {% endif %}
         </div>
 

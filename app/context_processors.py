@@ -72,3 +72,12 @@ def ads_config(request):
         "show_timeline_infeed_ads": should_show_timeline_infeed_ads(request),
         "timeline_ad_offset": 0,
     }
+
+
+def browse_mode(request):
+    from .browse_mode_services import is_browse_mode as check_browse_mode
+
+    flag = getattr(request, "is_browse_mode", None)
+    if flag is None:
+        flag = check_browse_mode(request)
+    return {"is_browse_mode": bool(flag)}

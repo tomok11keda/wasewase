@@ -214,7 +214,7 @@
       早稲田大学生向けの<strong>キャンパスSNS</strong>です。授業タグ付きでつぶやき、<strong>いいね</strong>で応援できます。
     </p>
     {% if not user.is_authenticated %}
-    <p class="board-intro"><a href="{% url 'login' %}">ログイン</a>して投稿する</p>
+    <p class="board-intro"><a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}" data-requires-login>ログイン</a>して投稿する</p>
     {% endif %}
 
     {% if active_tag %}
@@ -296,6 +296,8 @@
   {% include "includes/compose_modal.html" %}
   {% if user.is_authenticated and timeline_form %}
   <button type="button" class="compose-fab shell-hide-on-desktop" data-compose-open aria-label="投稿する">＋</button>
+  {% elif not user.is_authenticated %}
+  <button type="button" class="compose-fab shell-hide-on-desktop" data-requires-login aria-label="投稿する">＋</button>
   {% endif %}
   {% include "includes/compose_modal_scripts.html" %}
 </body>
