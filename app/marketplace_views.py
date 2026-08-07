@@ -4,7 +4,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.db.utils import OperationalError, ProgrammingError
+from django.db.utils import IntegrityError, OperationalError, ProgrammingError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -553,6 +553,8 @@ def confirm_product_trade(request, room_pk):
 @require_POST
 def complete_product_handover(request, room_pk):
     """出品者が「受け渡し完了」→ sold。"""
+    # 本番 SQLite で is_system / sender_id NULL が未修復だとシステムメッセージ作成で 500 になる
+    ensure_product_trade_schema()
     room = get_object_or_404(
         ChatRoom.objects.select_related("product", "product__seller", "buyer"),
         pk=room_pk,
@@ -568,6 +570,18 @@ def complete_product_handover(request, room_pk):
         else:
             messages.error(request, "受け渡し完了にできません。")
         return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
+    except (IntegrityError, OperationalError, ProgrammingError) as exc:
+        logger.exception("complete_product_handover schema/db error: %s", exc)
+        ensure_product_trade_schema()
+        try:
+            product = complete_handover_by_seller(room, request.user)
+        except Exception:
+            logger.exception("complete_product_handover retry failed")
+            messages.error(
+                request,
+                "受け渡し完了の保存に失敗しました。時間をおいて再度お試しください。",
+            )
+            return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
     if product.buyer_id:
         Notification.objects.create(

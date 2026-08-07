@@ -170,6 +170,8 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
         .select_related("product")
         .get(pk=room.pk)
     )
+    if not room.product_id:
+        raise ValueError("no_product")
     product = Product.objects.select_for_update().get(pk=room.product_id)
 
     if product.seller_id != seller.id:
