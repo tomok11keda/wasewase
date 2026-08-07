@@ -1,6 +1,7 @@
 /* ネイティブ起動スプラッシュ（エンジ色 → タイムラインへフェード） */
 :root {
   --wase-brand: #891e2b;
+  --wase-splash-fade-ms: 380ms;
 }
 
 html.is-native-capacitor {
@@ -21,15 +22,19 @@ html.is-native-capacitor {
   background: var(--wase-brand);
   color: #fff;
   opacity: 1;
-  transition: opacity 1s ease;
+  transition: opacity var(--wase-splash-fade-ms) cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
+  touch-action: manipulation;
 }
 
 #splash-screen.is-hiding {
   opacity: 0;
   pointer-events: none;
+  cursor: default;
 }
 
 #splash-screen[hidden] {
@@ -44,6 +49,7 @@ html.is-native-capacitor {
   flex: 1 1 auto;
   width: 100%;
   max-width: 280px;
+  pointer-events: none;
 }
 
 .splash-screen__logo {
@@ -53,9 +59,19 @@ html.is-native-capacitor {
   margin: 0 auto;
 }
 
-.splash-screen__footer {
+.splash-screen__footer-block {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 28px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.splash-screen__footer {
+  margin: 0;
   padding: 0;
   width: 100%;
   text-align: center;
@@ -65,4 +81,37 @@ html.is-native-capacitor {
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.4;
+}
+
+.splash-screen__hint {
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  font-family: "Hiragino Sans", "Noto Sans JP", "Avenir Next", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.38);
+  line-height: 1.4;
+  animation: splash-hint-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes splash-hint-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen__hint {
+    animation: none;
+    opacity: 0.7;
+  }
+  #splash-screen {
+    transition-duration: 200ms;
+  }
 }
