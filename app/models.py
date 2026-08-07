@@ -235,6 +235,22 @@ class SignupOTP(models.Model):
         return f"OTP for {self.user.email} (expires {self.expires_at})"
 
 
+class PasswordResetOTP(models.Model):
+    """パスワード再設定用のワンタイムコード（平文は保存しない）。"""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="password_reset_otp",
+    )
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Password reset OTP for {self.user.email} (expires {self.expires_at})"
+
+
 class Product(models.Model):
     class Status(models.TextChoices):
         AVAILABLE = "available", "出品中"

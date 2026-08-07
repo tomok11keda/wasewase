@@ -148,6 +148,59 @@ class SignupOTPVerifyForm(forms.Form):
         return code
 
 
+class PasswordResetRequestForm(forms.Form):
+    email = forms.EmailField(
+        label="登録しているメールアドレス",
+        widget=forms.EmailInput(
+            attrs={
+                "placeholder": "例：taro@akane.waseda.jp",
+                "autocomplete": "email",
+            }
+        ),
+    )
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if not is_waseda_email(email):
+            raise ValidationError(WASEDA_EMAIL_ERROR)
+        return email
+
+
+class PasswordResetOTPVerifyForm(SignupOTPVerifyForm):
+    """パスワード再設定用の確認コード入力（サインアップ OTP と同形式）。"""
+
+
+class PasswordResetSetForm(forms.Form):
+    password1 = forms.CharField(
+        label="新しいパスワード",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"autocomplete": "new-password", "placeholder": "8文字以上"}
+        ),
+    )
+    password2 = forms.CharField(
+        label="新しいパスワード（確認）",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"autocomplete": "new-password", "placeholder": "もう一度入力"}
+        ),
+    )
+
+    def clean_password1(self):
+        password = self.cleaned_data.get("password1") or ""
+        if len(password) < 8:
+            raise ValidationError("パスワードは8文字以上にしてください。")
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get("password1")
+        p2 = cleaned.get("password2")
+        if p1 and p2 and p1 != p2:
+            raise ValidationError("パスワードが一致しません。")
+        return cleaned
+
+
 class AccountProfileForm(forms.ModelForm):
     """マイページからニックネーム・ハンドル・プロフィールを編集する。"""
 

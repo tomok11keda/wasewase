@@ -53,6 +53,138 @@ from .otp_services import SIGNUP_PENDING_SESSION_KEY, create_and_send_signup_otp
 from .services import build_product_share_timeline_body, notify_seller
 
 
+class PasswordResetFlowTests(TestCase):
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_request_sends_otp_for_existing_user(self):
+        user = get_user_model().objects.create_user(
+            email="reset@waseda.jp",
+            password="oldpass123",
+        )
+        response = self.client.post(
+            reverse("password_reset_request"),
+            {"email": "reset@waseda.jp"},
+        )
+        self.assertRedirects(response, reverse("password_reset_verify"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("パスワード再設定", mail.outbox[0].subject)
+        from .models import PasswordResetOTP
+
+        self.assertTrue(PasswordResetOTP.objects.filter(user=user).exists())
+
+    def test_request_rejects_unknown_email(self):
+        response = self.client.post(
+            reverse("password_reset_request"),
+            {"email": "nobody@waseda.jp"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "登録されていません")
+
+    def test_login_page_has_forgot_password_link(self):
+        response = self.client.get(reverse("login"))
+        self.assertContains(response, "パスワードを忘れた方はこちら")
+        self.assertContains(response, reverse("password_reset_request"))
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_full_reset_flow_updates_password(self):
+        from .models import PasswordResetOTP
+        from .otp_services import (
+            PASSWORD_RESET_USER_SESSION_KEY,
+            PASSWORD_RESET_VERIFIED_SESSION_KEY,
+            create_and_send_password_reset_otp,
+        )
+
+        user = get_user_model().objects.create_user(
+            email="flow@waseda.jp",
+            password="oldpass123",
+        )
+        code = create_and_send_password_reset_otp(user)
+        session = self.client.session
+        session[PASSWORD_RESET_USER_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("password_reset_verify"),
+            {"code": code},
+        )
+        self.assertRedirects(response, reverse("password_reset_set"))
+        self.assertFalse(PasswordResetOTP.objects.filter(user=user).exists())
+        self.assertTrue(
+            self.client.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY)
+        )
+
+        response = self.client.post(
+            reverse("password_reset_set"),
+            {"password1": "newpass456", "password2": "newpass456"},
+        )
+        self.assertRedirects(response, reverse("login"))
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("newpass456"))
+        self.assertFalse(user.check_password("oldpass123"))
+        self.assertIsNone(
+            self.client.session.get(PASSWORD_RESET_USER_SESSION_KEY)
+        )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="test@example.com",
+    )
+    def test_verify_rejects_wrong_and_expired_code(self):
+        from .models import PasswordResetOTP
+        from .otp_services import PASSWORD_RESET_USER_SESSION_KEY
+
+        user = get_user_model().objects.create_user(
+            email="badcode@waseda.jp",
+            password="oldpass123",
+        )
+        PasswordResetOTP.objects.create(
+            user=user,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+        session = self.client.session
+        session[PASSWORD_RESET_USER_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("password_reset_verify"),
+            {"code": "000000"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "正しくありません")
+
+        otp = PasswordResetOTP.objects.get(user=user)
+        otp.expires_at = timezone.now() - timedelta(minutes=1)
+        otp.save(update_fields=["expires_at"])
+
+        response = self.client.post(
+            reverse("password_reset_verify"),
+            {"code": "123456"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "有効期限")
+        self.assertFalse(PasswordResetOTP.objects.filter(user=user).exists())
+
+    def test_set_password_requires_verified_session(self):
+        from .otp_services import PASSWORD_RESET_USER_SESSION_KEY
+
+        user = get_user_model().objects.create_user(
+            email="skip@waseda.jp",
+            password="oldpass123",
+        )
+        session = self.client.session
+        session[PASSWORD_RESET_USER_SESSION_KEY] = user.pk
+        session.save()
+
+        response = self.client.get(reverse("password_reset_set"))
+        self.assertRedirects(response, reverse("password_reset_verify"))
+
+
 class EmailEnvSanitizeTests(TestCase):
     def test_rejects_japanese_placeholder_email(self):
         self.assertEqual(

@@ -184,6 +184,26 @@ urlpatterns = [
     path("signup/", app_views.signup, name="signup"),
     path("verify-otp/", app_views.verify_otp, name="verify_otp"),
     path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),
+    path(
+        "password-reset/",
+        app_views.password_reset_request,
+        name="password_reset_request",
+    ),
+    path(
+        "password-reset/verify/",
+        app_views.password_reset_verify,
+        name="password_reset_verify",
+    ),
+    path(
+        "password-reset/verify/resend/",
+        app_views.password_reset_verify_resend,
+        name="password_reset_verify_resend",
+    ),
+    path(
+        "password-reset/set/",
+        app_views.password_reset_set,
+        name="password_reset_set",
+    ),
     path("api/push-token/", app_views.register_push_token, name="register_push_token"),
 ]
 
