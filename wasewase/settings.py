@@ -535,10 +535,10 @@ MODERATION_NOTIFICATION_EMAIL = (
 
 # ---------------------------------------------------------------------------
 # 広告（AdMob / インフィード）
-# App Store 審査提出時は WASE_DISABLE_ADS=True（または環境変数）にして全停止。
-# static/js/admob_config.js の DISABLE_ADS もテンプレート経由で同期される。
+# リリース初期は既定で全停止（WASE_DISABLE_ADS=True）。
+# 再開: 環境変数 WASE_DISABLE_ADS=False ＋ static/js/admob_config.js の DISABLE_ADS=false。
 # ---------------------------------------------------------------------------
-WASE_DISABLE_ADS = env.bool("WASE_DISABLE_ADS", default=False)
+WASE_DISABLE_ADS = env.bool("WASE_DISABLE_ADS", default=True)
 WASE_INFEED_AD_INTERVAL = env.int("WASE_INFEED_AD_INTERVAL", default=3)
 # True: インフィード HTML はアプリ（IS_APP）のみ。Web は将来用にフラグだけ用意。
 WASE_INFEED_ADS_APP_ONLY = env.bool("WASE_INFEED_ADS_APP_ONLY", default=True)
