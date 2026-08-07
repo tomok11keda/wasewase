@@ -1,15 +1,48 @@
 import UIKit
 import Capacitor
 import FirebaseCore
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    /// 早稲田エンジ #891E2B — LaunchScreen / WebView の隙間で白が出ないようにする
+    private let brandBurgundy = UIColor(
+        red: 137.0 / 255.0,
+        green: 30.0 / 255.0,
+        blue: 43.0 / 255.0,
+        alpha: 1.0
+    )
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         FirebaseApp.configure()
+        applyBrandBackground()
+        // Capacitor が window / WebView を用意した直後にも再適用
+        DispatchQueue.main.async { [weak self] in
+            self?.applyBrandBackground()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.applyBrandBackground()
+        }
         return true
+    }
+
+    private func applyBrandBackground() {
+        window?.backgroundColor = brandBurgundy
+        window?.rootViewController?.view.backgroundColor = brandBurgundy
+
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController else {
+            return
+        }
+        bridge.view.backgroundColor = brandBurgundy
+        if let webView = bridge.webView {
+            webView.isOpaque = false
+            webView.backgroundColor = brandBurgundy
+            webView.scrollView.backgroundColor = brandBurgundy
+            webView.scrollView.contentInsetAdjustmentBehavior = .never
+        }
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
@@ -35,7 +68,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        applyBrandBackground()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

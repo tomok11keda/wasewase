@@ -5,6 +5,10 @@
 }
 
 html.is-native-capacitor {
+  background: var(--wase-brand) !important;
+}
+
+html.is-native-capacitor body {
   background: var(--wase-brand);
 }
 

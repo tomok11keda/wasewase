@@ -17,10 +17,16 @@
     }
     document.documentElement.classList.add("is-native-capacitor", "wase-splash-pending");
     document.documentElement.style.backgroundColor = "#891E2B";
+    if (document.documentElement.style) {
+      document.documentElement.style.setProperty("background-color", "#891E2B", "important");
+    }
 
     function mountSplash() {
       if (document.getElementById("splash-screen")) {
         return;
+      }
+      if (document.body) {
+        document.body.style.backgroundColor = "#891E2B";
       }
       var root = document.createElement("div");
       root.id = "splash-screen";

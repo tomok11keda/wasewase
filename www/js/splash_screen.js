@@ -23,6 +23,24 @@
     );
   }
 
+  function hideNativeSplash() {
+    try {
+      var plugins = window.Capacitor && window.Capacitor.Plugins;
+      var SplashScreen = plugins && plugins.SplashScreen;
+      if (!SplashScreen || typeof SplashScreen.hide !== "function") {
+        return;
+      }
+      // Web 側スプラッシュが乗った直後にネイティブを即消す（同色なので隙間が見えない）
+      Promise.resolve(
+        SplashScreen.hide({
+          fadeOutDuration: 0,
+        })
+      ).catch(function () {});
+    } catch (e) {
+      // ignore
+    }
+  }
+
   function logoSrc() {
     var existing = document.querySelector("#splash-screen .splash-screen__logo");
     if (existing && existing.getAttribute("src")) {
@@ -211,7 +229,21 @@
   }
 
   function boot() {
-    if (!ensureMounted()) {
+    var splash = ensureMounted();
+    // Web 側の準備ができたらネイティブ Splash を外す（2回目以降起動含む）
+    window.requestAnimationFrame(function () {
+      hideNativeSplash();
+      window.setTimeout(hideNativeSplash, 50);
+      window.setTimeout(hideNativeSplash, 300);
+    });
+    window.addEventListener(
+      "capacitor:ready",
+      function () {
+        hideNativeSplash();
+      },
+      { once: true }
+    );
+    if (!splash) {
       return;
     }
     scheduleAutoDismiss();
