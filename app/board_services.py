@@ -118,7 +118,7 @@ def timeline_post_link(post: TimelinePost) -> str:
 
 
 def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> TimelinePost | None:
-    """引用可能な投稿を返す（削除済み・ブロック相手は不可）。"""
+    """リポスト可能な投稿を返す（削除済み・ブロック相手は不可）。"""
     post = (
         TimelinePost.objects.select_related(
             "author",
