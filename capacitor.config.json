@@ -2,16 +2,24 @@
   "appId": "com.wasewase.app",
   "appName": "わせわせ",
   "webDir": "www",
+  "backgroundColor": "#891E2B",
   "ios": {
     "contentInset": "never",
     "allowsLinkPreview": false,
+    "backgroundColor": "#891E2B",
+    "preferredContentMode": "mobile"
+  },
+  "android": {
     "backgroundColor": "#891E2B"
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 0,
-      "launchAutoHide": true,
+      "launchAutoHide": false,
+      "launchShowDuration": 8000,
+      "launchFadeOutDuration": 0,
       "backgroundColor": "#891E2B",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
       "showSpinner": false,
       "splashFullScreen": true,
       "splashImmersive": true
