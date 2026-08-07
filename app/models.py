@@ -942,7 +942,7 @@ class TimelinePost(models.Model):
         null=True,
         blank=True,
         related_name="quotes",
-        verbose_name="引用元投稿",
+        verbose_name="リポスト元投稿",
     )
     body = models.CharField(max_length=280)
     course_name = models.CharField(

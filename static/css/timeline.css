@@ -313,7 +313,7 @@
   color: var(--tweet-bookmark);
 }
 
-/* 引用カード */
+/* リポスト（引用）カード */
 .quoted-post-card {
   display: block;
   margin: 0 0 12px;

@@ -2951,7 +2951,7 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, "tweet-action--like")
         self.assertContains(response, "tweet-action--report")
         self.assertContains(response, ">コメント<")
-        self.assertContains(response, ">リツイート<")
+        self.assertContains(response, ">リポスト<")
         self.assertContains(response, ">いいね<")
         self.assertContains(response, ">通報<")
         self.assertContains(response, 'data-report-open')

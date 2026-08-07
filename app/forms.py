@@ -386,7 +386,7 @@ class TimelinePostForm(forms.ModelForm):
             return None
         post = TimelinePost.objects.filter(pk=value, is_removed=False).first()
         if not post:
-            raise ValidationError("引用元の投稿が見つかりません。")
+            raise ValidationError("リポスト元の投稿が見つかりません。")
         return post.pk
 
     def save(self, commit=True):

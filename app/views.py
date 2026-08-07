@@ -1942,7 +1942,7 @@ def board_compose(request):
         if post.image:
             messages.success(request, "写真付きのつぶやきを投稿しました。")
         elif post.quoted_post_id:
-            messages.success(request, "引用投稿しました。")
+            messages.success(request, "リポストしました。")
         else:
             messages.success(request, "つぶやきを投稿しました。")
         return _board_redirect(
@@ -2018,7 +2018,7 @@ def board_timeline_bookmark(request, pk):
 def board_quote(request, pk):
     post = get_quotable_post(pk, request.user)
     if not post:
-        messages.error(request, "この投稿は引用できません。")
+        messages.error(request, "この投稿はリポストできません。")
         return redirect(reverse("home"))
     return redirect(f"{reverse('home')}?quote={post.pk}")
 
