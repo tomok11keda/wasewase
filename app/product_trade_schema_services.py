@@ -91,6 +91,85 @@ def ensure_chatroom_deal_status_column() -> None:
         logger.warning("ensure_chatroom_deal_status_column failed: %s", exc)
 
 
+def _sqlite_message_sender_not_null(cursor) -> bool | None:
+    """PRAGMA table_info で sender_id が NOT NULL か判定する。不明時は None。"""
+    try:
+        cursor.execute(f"PRAGMA table_info({MESSAGE_TABLE})")
+    except Exception:
+        return None
+    for _cid, name, _ctype, notnull, _default, _pk in cursor.fetchall():
+        if name == "sender_id":
+            return bool(notnull)
+    return None
+
+
+def _sqlite_make_message_sender_nullable(cursor) -> None:
+    """
+    SQLite は ALTER COLUMN DROP NOT NULL が使えないため、
+    app_message を再構築して sender_id を NULL 許可にする。
+    """
+    from django.contrib.auth import get_user_model
+
+    user_table = get_user_model()._meta.db_table
+    tmp_table = f"{MESSAGE_TABLE}__sender_null"
+
+    cursor.execute("PRAGMA foreign_keys=OFF")
+    try:
+        cursor.execute(f"DROP TABLE IF EXISTS {tmp_table}")
+        cursor.execute(
+            f"""
+            CREATE TABLE {tmp_table} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                body TEXT NOT NULL,
+                created_at DATETIME NOT NULL,
+                is_system bool NOT NULL DEFAULT 0,
+                chat_room_id BIGINT NOT NULL
+                    REFERENCES {CHATROOM_TABLE} (id) DEFERRABLE INITIALLY DEFERRED,
+                sender_id BIGINT NULL
+                    REFERENCES {user_table} (id) DEFERRABLE INITIALLY DEFERRED
+            )
+            """
+        )
+        columns = _table_columns(cursor, MESSAGE_TABLE)
+        has_is_system = "is_system" in columns
+        if has_is_system:
+            cursor.execute(
+                f"""
+                INSERT INTO {tmp_table}
+                    (id, body, created_at, is_system, chat_room_id, sender_id)
+                SELECT id, body, created_at, COALESCE(is_system, 0),
+                       chat_room_id, sender_id
+                FROM {MESSAGE_TABLE}
+                """
+            )
+        else:
+            cursor.execute(
+                f"""
+                INSERT INTO {tmp_table}
+                    (id, body, created_at, is_system, chat_room_id, sender_id)
+                SELECT id, body, created_at, 0, chat_room_id, sender_id
+                FROM {MESSAGE_TABLE}
+                """
+            )
+        cursor.execute(f"DROP TABLE {MESSAGE_TABLE}")
+        cursor.execute(f"ALTER TABLE {tmp_table} RENAME TO {MESSAGE_TABLE}")
+        cursor.execute(
+            f"CREATE INDEX IF NOT EXISTS {MESSAGE_TABLE}_is_system_idx "
+            f"ON {MESSAGE_TABLE} (is_system)"
+        )
+        cursor.execute(
+            f"CREATE INDEX IF NOT EXISTS {MESSAGE_TABLE}_chat_room_id_idx "
+            f"ON {MESSAGE_TABLE} (chat_room_id)"
+        )
+    finally:
+        cursor.execute("PRAGMA foreign_keys=ON")
+
+    logger.warning(
+        "Rebuilt %s so sender_id allows NULL (SQLite schema repair)",
+        MESSAGE_TABLE,
+    )
+
+
 def ensure_message_system_schema() -> None:
     """0036 の is_system / sender NULL を修復する。"""
     try:
@@ -110,8 +189,9 @@ def ensure_message_system_schema() -> None:
                         "ADD COLUMN is_system bool NOT NULL DEFAULT 0"
                     )
                 logger.warning("Added missing %s.is_system column", MESSAGE_TABLE)
+                columns = _table_columns(cursor, MESSAGE_TABLE)
 
-            # sender_id を NULL 許可（PostgreSQL）
+            # sender_id を NULL 許可
             if connection.vendor == "postgresql" and "sender_id" in columns:
                 cursor.execute(
                     f"""
@@ -126,6 +206,9 @@ def ensure_message_system_schema() -> None:
                     END $$;
                     """
                 )
+            elif connection.vendor == "sqlite" and "sender_id" in columns:
+                if _sqlite_message_sender_not_null(cursor) is True:
+                    _sqlite_make_message_sender_nullable(cursor)
     except (OperationalError, ProgrammingError) as exc:
         logger.warning("ensure_message_system_schema failed: %s", exc)
 
