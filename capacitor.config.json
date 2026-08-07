@@ -4,9 +4,18 @@
   "webDir": "www",
   "ios": {
     "contentInset": "never",
-    "allowsLinkPreview": false
+    "allowsLinkPreview": false,
+    "backgroundColor": "#891E2B"
   },
   "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "backgroundColor": "#891E2B",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
     "AdMob": {
       "appId": "ca-app-pub-3330130877204303~8437918867"
     },

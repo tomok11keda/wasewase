@@ -1490,6 +1490,10 @@
       handlePageTriggers();
     } catch (error) {
       logNativeError("bootstrap failed", error);
+    } finally {
+      if (window.WaseSplashScreen && typeof window.WaseSplashScreen.dismiss === "function") {
+        window.WaseSplashScreen.dismiss();
+      }
     }
   }
 

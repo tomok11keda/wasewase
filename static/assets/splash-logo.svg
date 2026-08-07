@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 280" role="img" aria-label="????">
+  <title>????</title>
+  <g transform="translate(160 108)">
+    <path
+      d="M-86 -52 L-52 52 L-18 -18 L18 52 L52 -52 L28 -52 L12 18 L-6 -28 L-24 18 L-40 -52 Z"
+      fill="#ffffff"
+      opacity="0.96"
+    />
+    <path
+      d="M-52 52 L-18 -18 L-6 8 L-28 52 Z"
+      fill="#f3d6db"
+      opacity="0.55"
+    />
+    <path
+      d="M18 52 L-6 8 L12 18 L28 52 Z"
+      fill="#f3d6db"
+      opacity="0.4"
+    />
+  </g>
+  <text
+    x="160"
+    y="232"
+    text-anchor="middle"
+    fill="#ffffff"
+    font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif"
+    font-size="42"
+    font-weight="700"
+    letter-spacing="0.14em"
+  >????</text>
+</svg>
