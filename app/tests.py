@@ -1286,6 +1286,18 @@ class ProductTradeFlowTests(TestCase):
             ).exists()
         )
 
+    def test_product_detail_shows_single_trade_chat_button(self):
+        self.client.force_login(self.buyer)
+        self.client.post(reverse("purchase_product", args=[self.product.pk]))
+        room = ChatRoom.objects.get(product=self.product, buyer=self.buyer)
+
+        page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertContains(page, "取引チャットを開く", count=1)
+        self.assertContains(page, reverse("chat_room", args=[room.pk]), count=1)
+        self.assertNotContains(page, "取引チャットへ")
+        self.assertNotContains(page, "交渉チャットを開く")
+        self.assertNotContains(page, 'class="btn-chat-open"')
+
     def test_legacy_trade_chat_still_works_without_chatroom(self):
         self.product.status = Product.Status.PENDING
         self.product.buyer = self.buyer
