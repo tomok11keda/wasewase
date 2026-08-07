@@ -9,6 +9,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="{% static 'pwa/icon-192.png' %}">
 {% include "includes/adsense_head.html" %}
 <link rel="stylesheet" href="{% static 'css/capacitor_native.css' %}">
+{% include "includes/splash_screen.html" %}
 <script src="{% static 'js/admob_config.js' %}"></script>
 <script>
   /* Django 側 WASE_DISABLE_ADS / IS_APP を JS 設定へ同期 */
@@ -37,6 +38,7 @@
     } catch (e) {}
   })();
 </script>
+<script src="{% static 'js/splash_screen.js' %}" defer></script>
 <script src="{% static 'js/capacitor_native.js' %}" defer></script>
 {% include "includes/compose_fab_visibility.html" %}
 {% if user.is_authenticated %}

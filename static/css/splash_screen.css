@@ -1,0 +1,68 @@
+/* ネイティブ起動スプラッシュ（エンジ色 → タイムラインへフェード） */
+:root {
+  --wase-brand: #891e2b;
+}
+
+html.is-native-capacitor {
+  background: var(--wase-brand);
+}
+
+#splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) 24px env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+  background: var(--wase-brand);
+  color: #fff;
+  opacity: 1;
+  transition: opacity 1s ease;
+  pointer-events: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#splash-screen.is-hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#splash-screen[hidden] {
+  display: none !important;
+}
+
+.splash-screen__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 280px;
+}
+
+.splash-screen__logo {
+  display: block;
+  width: min(52vw, 220px);
+  height: auto;
+  margin: 0 auto;
+}
+
+.splash-screen__footer {
+  flex: 0 0 auto;
+  margin: 0 0 28px;
+  padding: 0;
+  width: 100%;
+  text-align: center;
+  font-family: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.4;
+}

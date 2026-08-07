@@ -1,0 +1,47 @@
+{% load static %}
+{# Capacitor ネイティブ起動時のみ。真っ白回避のためエンジ色オーバーレイを先に出す。 #}
+<link rel="stylesheet" href="{% static 'css/splash_screen.css' %}">
+<script>
+(function () {
+  "use strict";
+  try {
+    var isNative =
+      window.Capacitor &&
+      typeof window.Capacitor.isNativePlatform === "function" &&
+      window.Capacitor.isNativePlatform();
+    if (!isNative) {
+      return;
+    }
+    if (sessionStorage.getItem("wase_splash_done") === "1") {
+      return;
+    }
+    document.documentElement.classList.add("is-native-capacitor", "wase-splash-pending");
+    document.documentElement.style.backgroundColor = "#891E2B";
+
+    function mountSplash() {
+      if (document.getElementById("splash-screen")) {
+        return;
+      }
+      var root = document.createElement("div");
+      root.id = "splash-screen";
+      root.setAttribute("role", "presentation");
+      root.setAttribute("aria-hidden", "true");
+      root.innerHTML =
+        '<div class="splash-screen__brand">' +
+        '<img class="splash-screen__logo" src="{% static 'assets/splash-logo.svg' %}" alt="わせわせ" width="220" height="192" decoding="async">' +
+        "</div>" +
+        '<p class="splash-screen__footer">Anonymous Waseda Developer</p>';
+      document.body.appendChild(root);
+      window.__waseSplashMountedAt = Date.now();
+    }
+
+    if (document.body) {
+      mountSplash();
+    } else {
+      document.addEventListener("DOMContentLoaded", mountSplash, { once: true });
+    }
+  } catch (e) {
+    // ignore
+  }
+})();
+</script>
