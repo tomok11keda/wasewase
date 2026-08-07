@@ -52,12 +52,17 @@
           if (document.getElementById("splash-screen")) return;
           var root = document.createElement("div");
           root.id = "splash-screen";
-          root.setAttribute("aria-hidden", "true");
+          root.setAttribute("role", "button");
+          root.setAttribute("aria-label", "タップしてはじめる");
+          root.tabIndex = 0;
           root.innerHTML =
             '<div class="splash-screen__brand">' +
             '<img class="splash-screen__logo" src="assets/splash-logo.svg" alt="わせわせ" width="220" height="192">' +
             "</div>" +
-            '<p class="splash-screen__footer">Anonymous Waseda Developer</p>';
+            '<div class="splash-screen__footer-block">' +
+            '<p class="splash-screen__footer">Anonymous Waseda Developer</p>' +
+            '<p class="splash-screen__hint">タップしてはじめる</p>' +
+            "</div>";
           document.body.appendChild(root);
           window.__waseSplashMountedAt = Date.now();
         }
