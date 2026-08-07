@@ -1,24 +1,25 @@
 /**
  * AdMob 広告ユニット設定。
  *
- * 【審査・緊急停止用】
- * DISABLE_ADS を true にすると広告を完全停止します。
+ * 【リリース初期・緊急停止用】
+ * DISABLE_ADS を true にすると広告を完全停止します（リクエストも枠 DOM も出ません）。
  * 本番 HTML では Django の WASE_DISABLE_ADS がこの値を上書き同期します。
- * （テンプレート側も DOM を一切レンダリングしません）
  *
- * テスト時は useProductionAds: false（Google 公式テスト ID）。
- * ストア申請・本番リリース前に true に切り替えてください。
+ * 再開するとき:
+ *   1) ここを false（または環境変数 WASE_DISABLE_ADS=False）
+ *   2) ストア本番前に useProductionAds: true
  */
 (function (window) {
   "use strict";
 
   window.WASE_ADMOB_CONFIG = {
-    // ★ App Store 審査提出時は true（または Django の WASE_DISABLE_ADS=True）
-    DISABLE_ADS: false,
+    // ★ リリース初期は true（広告完全停止）。再開時は false に戻す。
+    DISABLE_ADS: true,
 
     // Django 側 IS_APP と同期（インフィード出し分けの参考値）
     IS_APP: false,
 
+    // 再開時も当面は false（Google 公式テスト ID）。本番課金前に true。
     useProductionAds: false,
     test: {
       appId: "ca-app-pub-3940256099942544~1458002511",

@@ -34,7 +34,8 @@
   </section>
   {% endif %}
 
-  {# デスクトップ右サイドバー広告枠。AdSense / AdMob のコードは内側に差し替えればよい #}
+  {# デスクトップ右サイドバー広告枠。DISABLE_ADS 時は DOM ごと出さない #}
+  {% if not ads_disabled %}
   <div class="ad-container sidebar-ad-container" aria-label="広告">
     <div
       class="ad-container__slot wase-admob-anchor"
@@ -42,4 +43,5 @@
       id="sidebar-desktop-ad"
     ></div>
   </div>
+  {% endif %}
 </div>

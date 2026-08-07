@@ -6,8 +6,8 @@ from django.conf import settings
 
 
 def is_ads_disabled() -> bool:
-    """審査・緊急停止用。True のとき広告 HTML / AdMob を一切出さない。"""
-    return bool(getattr(settings, "WASE_DISABLE_ADS", False))
+    """リリース初期・審査・緊急停止用。True のとき広告 HTML / AdMob を一切出さない。"""
+    return bool(getattr(settings, "WASE_DISABLE_ADS", True))
 
 
 def detect_is_native_app(request) -> bool:

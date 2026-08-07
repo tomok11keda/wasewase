@@ -4285,6 +4285,16 @@ class TimelineInfeedAdTests(TestCase):
                 body=f"インフィード広告テスト投稿 {i}",
             )
 
+    def test_default_disable_ads_skips_infeed_even_for_app(self):
+        """リリース初期の既定（WASE_DISABLE_ADS=True）では枠ごと出ない。"""
+        self.client.force_login(self.user)
+        self.client.cookies["wase_is_app"] = "1"
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["ads_disabled"])
+        self.assertFalse(response.context["show_timeline_infeed_ads"])
+        self.assertNotContains(response, 'data-wase-admob-anchor="timeline-infeed"')
+
     def test_web_home_does_not_render_infeed_ad_dom(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("home"))
@@ -4292,6 +4302,7 @@ class TimelineInfeedAdTests(TestCase):
         self.assertFalse(response.context["show_timeline_infeed_ads"])
         self.assertNotContains(response, 'data-wase-admob-anchor="timeline-infeed"')
 
+    @override_settings(WASE_DISABLE_ADS=False)
     def test_app_home_renders_infeed_every_three_posts(self):
         self.client.force_login(self.user)
         self.client.cookies["wase_is_app"] = "1"
@@ -4315,6 +4326,7 @@ class TimelineInfeedAdTests(TestCase):
         self.assertFalse(response.context["show_timeline_infeed_ads"])
         self.assertNotContains(response, 'data-wase-admob-anchor="timeline-infeed"')
 
+    @override_settings(WASE_DISABLE_ADS=False)
     def test_feed_batch_uses_offset_for_ad_interval(self):
         self.client.force_login(self.user)
         self.client.cookies["wase_is_app"] = "1"
