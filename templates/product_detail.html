@@ -756,9 +756,11 @@
             {% if product.is_sold %}
             <button type="button" class="btn btn-sold" disabled>SOLD OUT</button>
             {% elif show_trade_link and trade_chat_room %}
-            <a class="btn btn-trade" href="{% url 'chat_room' trade_chat_room.pk %}">取引チャットへ</a>
+            <a class="btn btn-trade" href="{% url 'chat_room' trade_chat_room.pk %}">取引チャットを開く</a>
+            {% elif show_trade_link and user_chat_room %}
+            <a class="btn btn-trade" href="{% url 'chat_room' user_chat_room.pk %}">取引チャットを開く</a>
             {% elif show_trade_link %}
-            <a class="btn btn-trade" href="{% url 'product_trade' product.pk %}">取引ページへ</a>
+            <a class="btn btn-trade" href="{% url 'product_trade' product.pk %}">取引チャットを開く</a>
             {% elif product.is_pending %}
             <button type="button" class="btn btn-trading" disabled>取引中</button>
             {% elif can_purchase %}
@@ -783,17 +785,13 @@
           {% if can_negotiate %}
           <div class="chat-contact-row">
             {% if user_chat_room %}
-            <a class="btn-chat-open" href="{% url 'chat_room' user_chat_room.pk %}">💬 交渉チャットを開く</a>
+            <a class="btn-chat-open" href="{% url 'chat_room' user_chat_room.pk %}">取引チャットを開く</a>
             {% else %}
             <form method="post" action="{% url 'start_product_chat' product.pk %}">
               {% csrf_token %}
               <button type="submit" class="btn-chat-contact">💬 値下げ交渉をする</button>
             </form>
             {% endif %}
-          </div>
-          {% elif can_contact_seller and user_chat_room %}
-          <div class="chat-contact-row">
-            <a class="btn-chat-open" href="{% url 'chat_room' user_chat_room.pk %}">💬 チャットを開く</a>
           </div>
           {% elif not user.is_authenticated and product.seller_id and product.is_available %}
           <div class="chat-contact-row">
