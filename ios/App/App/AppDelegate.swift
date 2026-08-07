@@ -42,6 +42,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             webView.backgroundColor = brandBurgundy
             webView.scrollView.backgroundColor = brandBurgundy
             webView.scrollView.contentInsetAdjustmentBehavior = .never
+            // fixed ヘッダーとラバーバンドの描画ずれを防ぐ
+            webView.scrollView.bounces = false
+            webView.scrollView.alwaysBounceVertical = false
+            webView.scrollView.alwaysBounceHorizontal = false
         }
     }
 

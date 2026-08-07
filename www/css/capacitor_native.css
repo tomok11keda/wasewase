@@ -37,8 +37,9 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
  * 全ページ共通ヘッダー: Dynamic Island / ノッチ向け可変 safe-area。
  * contentInset=never 時も、固定高さではなく inset + コンテンツ行で伸縮する。
  *
- * モバイルは position:fixed（viewport 基準）で固定。
- * sticky は iOS のラバーバンド・アドレスバー伸縮でガタつきやすいため使わない。
+ * モバイル Web は position:fixed（viewport 基準）。
+ * sticky は iOS Safari のアドレスバー伸縮でガタつきやすいため使わない。
+ * ネイティブ WKWebView 向けの追加安定化は下部の .is-native-capacitor ブロック。
  */
 :root {
   --wase-sat: 0px;
@@ -127,9 +128,8 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
 }
 
 /*
- * モバイル: ヘッダーを viewport 最上端に固定。
+ * モバイル Web: ヘッダーを viewport 最上端に固定。
  * ページ内の sticky 指定より優先するため position に !important を使う。
- * 文書フローから外れる分は --wase-header-h 分の padding で確保する。
  */
 @media (max-width: 1023px) {
   .site-header,
@@ -140,12 +140,10 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
     right: 0 !important;
     width: 100% !important;
     z-index: 1000 !important;
-    /* 合成レイヤー化でスクロール中の再配置チラつきを抑える */
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    will-change: transform;
   }
 
   /* ラバーバンド時にヘッダー上へ白い地色が見えないよう、上方向へ同色を伸ばす */
@@ -163,9 +161,44 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
     z-index: -1;
   }
 
-  /* オーバースクロール時の白い隙間対策（ヘッダー色を地色に） */
+  .main-column:has(> .site-header),
+  body:has(> .site-header),
+  body:has(> .legal-header) {
+    padding-top: var(--wase-header-h);
+  }
+
+  .site-header-offset {
+    display: block;
+    height: var(--wase-header-h);
+    flex-shrink: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
+
+/*
+ * Capacitor iOS WebView 専用: ヘッダーのガタつき対策
+ * - バウンスによる fixed 要素の描画遅延を抑える
+ * - safe-area は JS が一度決めた --wase-sat のみ使い、スクロール中の env() 再計算を避ける
+ * - will-change は WKWebView で逆にブレやすいので使わない
+ */
+@media (max-width: 1023px) {
   html.is-native-capacitor {
     background: var(--accent, #891e2b);
+    height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html.is-native-capacitor body {
+    background: var(--accent, #891e2b);
+    min-height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+    /* スクロールチェーンでヘッダーが引っ張られないようにする */
+    overscroll-behavior: none;
   }
 
   html.is-native-capacitor body.shell-desktop {
@@ -175,21 +208,54 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
   html.is-native-capacitor .main-column {
     background: var(--bg, #f7f9fc);
     min-height: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
-  .main-column:has(> .site-header),
-  body:has(> .site-header),
-  body:has(> .legal-header) {
-    padding-top: var(--wase-header-h);
+  html.is-native-capacitor .site-header,
+  html.is-native-capacitor .legal-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    z-index: 1000 !important;
+
+    /* 高さ・上余白をロック（スクロール中に変わらない） */
+    padding-top: calc(var(--wase-sat) + var(--wase-header-pad-y)) !important;
+    padding-bottom: var(--wase-header-pad-y) !important;
+    height: var(--wase-header-h) !important;
+    min-height: var(--wase-header-h) !important;
+    max-height: var(--wase-header-h) !important;
+
+    /* 独自レイヤへ昇格（will-change は使わない） */
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+    isolation: isolate;
+    will-change: auto;
+
+    /* サブピクセル揺れを抑える */
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* スペーサー要素を置く場合（任意）も同じ高さで揃える */
-  .site-header-offset {
-    display: block;
-    height: var(--wase-header-h);
-    flex-shrink: 0;
-    pointer-events: none;
-    visibility: hidden;
+  html.is-native-capacitor .bottom-nav {
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    will-change: auto;
+  }
+
+  html.is-native-capacitor .browse-mode-banner {
+    position: sticky;
+    top: var(--wase-header-h);
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
   }
 }
 

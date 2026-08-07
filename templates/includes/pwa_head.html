@@ -34,6 +34,7 @@
       var min = h >= 852 && w >= 390 ? 59 : h >= 812 ? 47 : 20;
       document.documentElement.style.setProperty("--wase-sat-fallback", min + "px");
       document.documentElement.style.setProperty("--wase-sat", min + "px");
+      document.documentElement.style.setProperty("--wase-header-h", min + 10 + 44 + 10 + "px");
       document.documentElement.classList.add("is-native-capacitor");
     } catch (e) {}
   })();
