@@ -2087,6 +2087,87 @@ class UserDirectMessageTests(TestCase):
         content = response.content.decode()
         self.assertLess(content.index("dm_other"), content.index("dm_user_b"))
 
+    def test_dm_inbox_includes_trade_chat_and_tabs(self):
+        product = Product.objects.create(
+            seller=self.user_b,
+            name="タブ統合テスト商品",
+            price=800,
+            category="本",
+            status=Product.Status.PENDING,
+            buyer=self.user_a,
+        )
+        trade_room = ChatRoom.objects.create(
+            product=product,
+            buyer=self.user_a,
+            deal_status=ChatRoom.DealStatus.CONFIRMED,
+        )
+        Message.objects.create(
+            chat_room=trade_room,
+            sender=None,
+            body="即決購入が成立しました。受け渡し場所と時間を相談してください",
+            is_system=True,
+        )
+        dm_room, _ = get_or_create_dm_room(self.user_a, self.other)
+        UserDirectMessage.objects.create(
+            room=dm_room, sender=self.other, body="通常DMの本文"
+        )
+
+        self.client.force_login(self.user_a)
+
+        all_page = self.client.get(reverse("user_dm_inbox"))
+        self.assertContains(all_page, "すべて")
+        self.assertContains(all_page, "取引チャット")
+        self.assertContains(all_page, "通常DM")
+        self.assertContains(all_page, "タブ統合テスト商品")
+        self.assertContains(all_page, reverse("chat_room", args=[trade_room.pk]))
+        self.assertContains(all_page, "通常DMの本文")
+        self.assertContains(all_page, "取引中")
+
+        trade_page = self.client.get(f"{reverse('user_dm_inbox')}?tab=trade")
+        self.assertContains(trade_page, "タブ統合テスト商品")
+        self.assertNotContains(trade_page, "通常DMの本文")
+
+        dm_page = self.client.get(f"{reverse('user_dm_inbox')}?tab=dm")
+        self.assertContains(dm_page, "通常DMの本文")
+        self.assertNotContains(dm_page, "タブ統合テスト商品")
+
+    def test_opening_trade_chat_marks_messages_read_for_inbox(self):
+        product = Product.objects.create(
+            seller=self.user_b,
+            name="既読テスト商品",
+            price=500,
+            category="本",
+            status=Product.Status.PENDING,
+            buyer=self.user_a,
+        )
+        trade_room = ChatRoom.objects.create(
+            product=product,
+            buyer=self.user_a,
+            deal_status=ChatRoom.DealStatus.CONFIRMED,
+        )
+        Message.objects.create(
+            chat_room=trade_room,
+            sender=self.user_b,
+            body="受け渡し場所はどこがいいですか？",
+        )
+
+        self.client.force_login(self.user_a)
+        summary_before = self.client.get(reverse("dm_unread_summary")).json()
+        self.assertGreaterEqual(summary_before["total_unread"], 1)
+
+        response = self.client.get(reverse("chat_room", args=[trade_room.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "既読テスト商品")
+        self.assertContains(response, "メッセージ")
+
+        summary_after = self.client.get(reverse("dm_unread_summary")).json()
+        trade_unread = [
+            room
+            for room in summary_after["rooms"]
+            if room.get("kind") == "trade" and room.get("room_pk") == trade_room.pk
+        ]
+        self.assertEqual(trade_unread, [])
+
     def test_dm_inbox_shows_unread_badge_for_partner_messages(self):
         room, _ = get_or_create_dm_room(self.user_a, self.user_b)
         UserDirectMessage.objects.create(

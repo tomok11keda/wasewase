@@ -41,10 +41,13 @@
   function applySummary(payload) {
     var unreadDm = {};
     var unreadGroup = {};
+    var unreadTrade = {};
     (payload.rooms || []).forEach(function (room) {
       var count = Number(room.unread_count) || 0;
       if (room.kind === "group") {
         unreadGroup[String(room.room_pk)] = count;
+      } else if (room.kind === "trade") {
+        unreadTrade[String(room.room_pk)] = count;
       } else {
         unreadDm[String(room.room_pk)] = count;
       }
@@ -61,6 +64,13 @@
       var roomPk = item.getAttribute("data-group-room-pk");
       if (roomPk) {
         updateBadge(item, unreadGroup[roomPk] || 0);
+      }
+    });
+
+    root.querySelectorAll(".dm-inbox-item[data-trade-room-pk]").forEach(function (item) {
+      var roomPk = item.getAttribute("data-trade-room-pk");
+      if (roomPk) {
+        updateBadge(item, unreadTrade[roomPk] || 0);
       }
     });
   }

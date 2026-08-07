@@ -44,6 +44,11 @@ from .trade_chat_services import (
     start_instant_purchase,
     start_negotiation,
 )
+from .trade_chat_inbox_services import (
+    mark_product_chat_room_read,
+    product_thumbnail_url,
+    trade_status_label,
+)
 from .ugc_services import filter_visible_comments, filter_visible_products
 
 logger = logging.getLogger(__name__)
@@ -430,6 +435,8 @@ def chat_room(request, room_pk):
         messages.error(request, "このチャットルームにはアクセスできません。")
         return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
 
+    mark_product_chat_room_read(room, request.user)
+
     partner = (
         room.buyer
         if request.user.id == room.product.seller_id
@@ -467,6 +474,9 @@ def chat_room(request, room_pk):
             "can_confirm_trade": can_confirm_trade,
             "can_complete_handover": can_complete_handover,
             "is_seller": is_seller,
+            "product_thumbnail_url": product_thumbnail_url(room.product),
+            "trade_status_label": trade_status_label(room, room.product),
+            "inbox_back_url": f"{reverse('user_dm_inbox')}?tab=trade",
         },
     )
 

@@ -72,6 +72,48 @@
       color: var(--muted);
       line-height: 1.5;
     }
+    .dm-inbox-tabs {
+      display: flex;
+      gap: 6px;
+      margin-top: 14px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .dm-inbox-tabs::-webkit-scrollbar { display: none; }
+    .dm-inbox-tab {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid #d9dee3;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .dm-inbox-tab.is-active {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .dm-inbox-tab-count {
+      min-width: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: rgba(15, 20, 25, 0.08);
+      color: inherit;
+      font-size: 11px;
+      line-height: 18px;
+      text-align: center;
+    }
+    .dm-inbox-tab.is-active .dm-inbox-tab-count {
+      background: rgba(255, 255, 255, 0.22);
+    }
     .dm-inbox-list {
       margin: 0;
       padding: 0;
@@ -95,8 +137,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       background: linear-gradient(135deg, #f7edf0, #e8c4ca);
       color: var(--accent);
@@ -104,6 +146,21 @@
       font-weight: 800;
       flex-shrink: 0;
       line-height: 1;
+      overflow: hidden;
+    }
+    .dm-inbox-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .dm-inbox-avatar.is-trade {
+      border-radius: 10px;
+      background: #f0f3f6;
+    }
+    .dm-inbox-avatar.is-group {
+      font-size: 18px;
+      letter-spacing: -0.04em;
     }
     .dm-inbox-body {
       min-width: 0;
@@ -137,6 +194,30 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .dm-inbox-status {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 0 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f0f3f6;
+      color: #536471;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .dm-inbox-status.is-trading {
+      background: #eef6ff;
+      color: #1d4f91;
+    }
+    .dm-inbox-status.is-sold {
+      background: #f4f4f4;
+      color: #666;
+    }
+    .dm-inbox-status.is-closed {
+      background: #fff4e5;
+      color: #9a6700;
     }
     .dm-inbox-preview {
       margin: 0;
@@ -186,10 +267,6 @@
       margin-bottom: 8px;
       color: var(--text);
       font-size: 16px;
-    }
-    .dm-inbox-avatar.is-group {
-      font-size: 18px;
-      letter-spacing: -0.04em;
     }
     .dm-create-fab {
       position: fixed;
@@ -275,7 +352,19 @@
       >
         <header class="dm-inbox-header">
           <h1>メッセージ</h1>
-          <p>1対1のDMとグループチャットの一覧です。</p>
+          <p>通常のDMと、フリマの取引チャットをまとめて確認できます。</p>
+          <nav class="dm-inbox-tabs" aria-label="メッセージの種類">
+            {% for tab in inbox_tabs %}
+            <a
+              class="dm-inbox-tab{% if active_tab == tab.key %} is-active{% endif %}"
+              href="{{ tab.url }}"
+              {% if active_tab == tab.key %}aria-current="page"{% endif %}
+            >
+              {{ tab.label }}
+              <span class="dm-inbox-tab-count">{{ tab.count }}</span>
+            </a>
+            {% endfor %}
+          </nav>
         </header>
 
         {% if conversations %}
@@ -284,11 +373,17 @@
           <li>
             <a
               class="dm-inbox-item{% if item.unread_count %} has-unread{% endif %}"
-              href="{% if item.kind == 'group' %}{% url 'dm_group_room' item.room.pk %}{% else %}{% url 'user_dm_room' item.room.pk %}{% endif %}"
-              {% if item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
+              href="{% if item.kind == 'trade' %}{% url 'chat_room' item.room.pk %}{% elif item.kind == 'group' %}{% url 'dm_group_room' item.room.pk %}{% else %}{% url 'user_dm_room' item.room.pk %}{% endif %}"
+              {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
             >
-              <span class="dm-inbox-avatar{% if item.kind == 'group' %} is-group{% endif %}" aria-hidden="true">
-                {% if item.kind == 'group' %}👥{% elif item.is_blocked %}?{% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
+              <span class="dm-inbox-avatar{% if item.kind == 'group' %} is-group{% elif item.kind == 'trade' %} is-trade{% endif %}" aria-hidden="true">
+                {% if item.kind == 'trade' %}
+                  {% if item.thumbnail_url %}
+                  <img src="{{ item.thumbnail_url }}" alt="">
+                  {% else %}🛒{% endif %}
+                {% elif item.kind == 'group' %}👥
+                {% elif item.is_blocked %}?
+                {% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
               </span>
               <span class="dm-inbox-body">
                 <span class="dm-inbox-top">
@@ -297,10 +392,17 @@
                   <time class="dm-inbox-time" datetime="{{ item.latest_message.created_at|date:'c' }}">{{ item.latest_message.created_at|timesince }}</time>
                   {% endif %}
                 </span>
+                {% if item.kind == 'trade' %}
+                <span class="dm-inbox-status{% if item.status_label == '取引中' %} is-trading{% elif item.status_label == '売り切れ' %} is-sold{% elif item.status_label == '交渉終了' %} is-closed{% endif %}">{{ item.status_label }}</span>
+                {% if item.partner %}
+                <span class="dm-inbox-handle">相手: {{ item.partner|display_name }}</span>
+                {% endif %}
+                {% else %}
                 <span class="dm-inbox-handle">{{ item.subtitle }}</span>
+                {% endif %}
                 {% if item.latest_message %}
                 <p class="dm-inbox-preview{% if item.latest_message.sender_id == user.id %} is-mine{% endif %}">
-                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
+                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% elif item.kind == 'trade' and not item.latest_message.sender_id %}<span class="dm-inbox-preview-prefix">システム: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
                 </p>
                 {% else %}
                 <p class="dm-inbox-preview">まだメッセージはありません</p>
@@ -309,7 +411,7 @@
               <span
                 class="dm-inbox-unread"
                 data-dm-unread-badge
-                {% if item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
+                {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
                 {% if item.unread_count <= 0 %}hidden{% endif %}
               >{% if item.unread_count %}{{ item.unread_count }}{% endif %}</span>
             </a>
@@ -318,8 +420,16 @@
         </ul>
         {% else %}
         <div class="dm-inbox-empty">
+          {% if active_tab == 'trade' %}
+          <strong>取引チャットはまだありません</strong>
+          フリマで即決購入や値下げ交渉をすると、ここに取引チャットが表示されます。
+          {% elif active_tab == 'dm' %}
+          <strong>通常のDMはまだありません</strong>
+          プロフィールやタイムラインの「DM」ボタンから会話を始めるか、右下の＋からグループを作成できます。
+          {% else %}
           <strong>まだ会話がありません</strong>
-          プロフィールやタイムラインの「DM」ボタンから1対1の会話を始めるか、右下の＋からグループを作成できます。
+          通常のDM・グループ、またはフリマの取引チャットがここに表示されます。
+          {% endif %}
         </div>
         {% endif %}
       </main>
