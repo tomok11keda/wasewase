@@ -114,8 +114,16 @@
       var minimum = isNativeApp() ? getNativeSafeAreaTopMinimum() : 0;
       var value = Math.max(measured, minimum);
       var root = document.documentElement;
+      // 一度決めた値はスクロール中に揺らさない（ヘッダー高さの再計算を防ぐ）
       root.style.setProperty("--wase-sat-fallback", minimum + "px");
       root.style.setProperty("--wase-sat", value + "px");
+      // ネイティブでは :root の env() ベース計算を上書きし、固定 px にロック
+      if (isNativeApp()) {
+        var padY = 10;
+        var contentMin = 44;
+        var headerH = value + contentMin + padY * 2;
+        root.style.setProperty("--wase-header-h", headerH + "px");
+      }
       if (value > measured) {
         logNative("safe-area-top raised to device minimum", {
           measured: measured,
