@@ -10,13 +10,15 @@ from django.core.mail import send_mail
 
 from django.utils import timezone
 
-from .models import SignupOTP
+from .models import PasswordResetOTP, SignupOTP
 
 logger = logging.getLogger(__name__)
 
 OTP_LENGTH = 6
 OTP_VALID_MINUTES = 10
 SIGNUP_PENDING_SESSION_KEY = "signup_pending_user_id"
+PASSWORD_RESET_USER_SESSION_KEY = "password_reset_user_id"
+PASSWORD_RESET_VERIFIED_SESSION_KEY = "password_reset_verified"
 
 
 class EmailConfigurationError(Exception):
@@ -179,3 +181,109 @@ def verify_signup_otp(user, code: str) -> str | None:
 
     otp.delete()
     return None
+
+
+def create_and_send_password_reset_otp(user) -> str:
+    """パスワード再設定 OTP を生成・保存しメール送信する。戻り値は平文コード（テスト用）。"""
+    assert_email_configured()
+
+    code = generate_otp_code()
+    expires_at = timezone.now() + timedelta(minutes=OTP_VALID_MINUTES)
+    PasswordResetOTP.objects.update_or_create(
+        user=user,
+        defaults={
+            "code_hash": make_password(code),
+            "expires_at": expires_at,
+        },
+    )
+
+    from_email = (settings.DEFAULT_FROM_EMAIL or "").strip()
+    if not from_email:
+        from_email = settings.EMAIL_HOST_USER
+    recipient = _ascii_safe_email(user.email)
+    use_console = getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False)
+
+    logger.info(
+        "Sending password reset OTP to %s via %s (console=%s, from=%s)",
+        recipient,
+        settings.EMAIL_BACKEND,
+        use_console,
+        from_email,
+    )
+
+    subject = "【わせわせ】パスワード再設定の確認コード"
+    body = (
+        f"パスワード再設定のリクエストを受け付けました。\n\n"
+        f"確認コード: {code}\n"
+        f"有効期限: {OTP_VALID_MINUTES}分\n\n"
+        f"このメールに心当たりがない場合は破棄してください。"
+        f" パスワードは変更されません。"
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=from_email,
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+    except UnicodeEncodeError as exc:
+        logger.exception(
+            "UnicodeEncodeError while sending password reset OTP to %s", recipient
+        )
+        if settings.DEBUG:
+            traceback.print_exc()
+        raise EmailConfigurationError(
+            "メール送信時に文字コードエラーが発生しました。"
+            " 環境変数に日本語のプレースホルダーが残っていないか確認してください。"
+        ) from exc
+    except Exception as exc:
+        logger.exception("SMTP send failed for password reset to %s", recipient)
+        if settings.DEBUG:
+            print(
+                f"[WASE EMAIL SEND FAILED] to={recipient} error={exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            traceback.print_exc()
+        raise
+
+    logger.info("Password reset OTP sent to %s", recipient)
+    if settings.DEBUG:
+        backend_note = (
+            " (console backend — ターミナルを確認)"
+            if use_console
+            else ""
+        )
+        print(
+            f"[WASE EMAIL SENT] password-reset to={recipient} from={from_email}{backend_note}",
+            flush=True,
+        )
+    return code
+
+
+def verify_password_reset_otp(user, code: str) -> str | None:
+    """成功時は None、失敗時はエラーメッセージを返す。成功時は OTP を削除する。"""
+    try:
+        otp = PasswordResetOTP.objects.get(user=user)
+    except PasswordResetOTP.DoesNotExist:
+        return "確認コードが見つかりません。メールアドレスの入力からやり直してください。"
+
+    if timezone.now() > otp.expires_at:
+        otp.delete()
+        return (
+            "確認コードの有効期限が切れました。"
+            "「確認コードを再送信」から新しいコードを取得してください。"
+        )
+
+    if not check_password(code, otp.code_hash):
+        return "確認コードが正しくありません。"
+
+    otp.delete()
+    return None
+
+
+def clear_password_reset_session(request) -> None:
+    request.session.pop(PASSWORD_RESET_USER_SESSION_KEY, None)
+    request.session.pop(PASSWORD_RESET_VERIFIED_SESSION_KEY, None)

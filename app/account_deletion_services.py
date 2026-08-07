@@ -27,6 +27,7 @@ from .models import (
     Product,
     Review,
     SignupOTP,
+    PasswordResetOTP,
     ThreadPost,
     ThreadTip,
     TimelineLike,
@@ -54,6 +55,7 @@ OPTIONAL_DELETION_MODELS = (
     TimelineLike,
     Follow,
     SignupOTP,
+    PasswordResetOTP,
 )
 
 
@@ -281,6 +283,10 @@ def delete_user_account(user) -> None:
             _safe_delete_step(
                 "signup_otp",
                 SignupOTP.objects.filter(user=user),
+            )
+            _safe_delete_step(
+                "password_reset_otp",
+                PasswordResetOTP.objects.filter(user=user),
             )
 
             user.groups.clear()

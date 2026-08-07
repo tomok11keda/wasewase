@@ -80,6 +80,9 @@ from .forms import (
     CommunityThreadForm,
     CommunityThreadReplyForm,
     ContentReportForm,
+    PasswordResetOTPVerifyForm,
+    PasswordResetRequestForm,
+    PasswordResetSetForm,
     SignUpForm,
     SignupOTPVerifyForm,
     TimelineCommentForm,
@@ -132,9 +135,14 @@ from .timetable_privacy_services import (
 from .search_api_services import run_scoped_search
 from .otp_services import (
     EmailConfigurationError,
+    PASSWORD_RESET_USER_SESSION_KEY,
+    PASSWORD_RESET_VERIFIED_SESSION_KEY,
     SIGNUP_PENDING_SESSION_KEY,
+    clear_password_reset_session,
+    create_and_send_password_reset_otp,
     create_and_send_signup_otp,
     get_email_config_errors,
+    verify_password_reset_otp,
     verify_signup_otp,
 )
 
@@ -1900,6 +1908,220 @@ def verify_otp_resend(request):
             messages.error(request, f"詳細（DEBUG）: {exc}")
 
     return redirect(reverse("verify_otp"))
+
+
+def _get_password_reset_user(request):
+    user_id = request.session.get(PASSWORD_RESET_USER_SESSION_KEY)
+    if not user_id:
+        return None
+    return User.objects.filter(pk=user_id, is_active=True).first()
+
+
+def _start_password_reset_verification(request, user):
+    """OTP送信後、セッションを設定して確認コード入力画面へリダイレクトする。"""
+    clear_password_reset_session(request)
+    request.session[PASSWORD_RESET_USER_SESSION_KEY] = user.pk
+    request.session.modified = True
+    if getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False):
+        messages.info(
+            request,
+            "開発モード: 確認コードは runserver のターミナルに出力されています。"
+            " 10分以内に下の画面で入力してください。",
+        )
+    else:
+        messages.info(
+            request,
+            f"{user.email} に6桁の確認コードを送信しました。10分以内に入力してください。",
+        )
+    return redirect(reverse("password_reset_verify"))
+
+
+def password_reset_request(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    if request.method == "GET":
+        _flash_email_env_warnings(request)
+        if not getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False):
+            for err in get_email_config_errors():
+                messages.warning(request, err)
+
+    if request.method == "POST":
+        form = PasswordResetRequestForm(request.POST)
+        if not form.is_valid():
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=200
+            )
+
+        email = form.cleaned_data["email"]
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            form.add_error(
+                "email",
+                "このメールアドレスは登録されていません。",
+            )
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=200
+            )
+        if not user.is_active:
+            messages.warning(
+                request,
+                "このアカウントはまだメール認証が完了していません。"
+                " 新規登録の認証を完了してください。",
+            )
+            return redirect(reverse("signup"))
+
+        try:
+            create_and_send_password_reset_otp(user)
+        except EmailConfigurationError as exc:
+            _log_auth_debug("PASSWORD RESET EMAIL CONFIG", str(exc), exc=exc)
+            messages.error(request, str(exc))
+            _flash_email_env_warnings(request)
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=200
+            )
+        except UnicodeEncodeError as exc:
+            _log_auth_debug("PASSWORD RESET UNICODE", str(exc), exc=exc)
+            messages.error(
+                request,
+                "メール設定に使用できない文字が含まれています。"
+                " サーバーログを確認してください。",
+            )
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=200
+            )
+        except Exception as exc:
+            _log_auth_debug("PASSWORD RESET FAILED", str(exc), exc=exc)
+            messages.error(
+                request,
+                "確認メールの送信に失敗しました。ターミナルのエラーログを確認してください。",
+            )
+            if settings.DEBUG:
+                messages.error(request, f"詳細（DEBUG）: {exc}")
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=200
+            )
+
+        return _start_password_reset_verification(request, user)
+
+    form = PasswordResetRequestForm()
+    return render(request, "password_reset_request.html", {"form": form})
+
+
+def password_reset_verify(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    user = _get_password_reset_user(request)
+    if not user:
+        messages.warning(
+            request, "パスワード再設定はメールアドレスの入力からやり直してください。"
+        )
+        return redirect(reverse("password_reset_request"))
+
+    if request.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY):
+        return redirect(reverse("password_reset_set"))
+
+    if request.method == "POST":
+        form = PasswordResetOTPVerifyForm(request.POST)
+        if form.is_valid():
+            error = verify_password_reset_otp(user, form.cleaned_data["code"])
+            if error:
+                form.add_error("code", error)
+                _log_auth_debug("PASSWORD RESET VERIFY", error)
+            else:
+                request.session[PASSWORD_RESET_VERIFIED_SESSION_KEY] = True
+                request.session.modified = True
+                messages.success(
+                    request, "確認コードが正しいことを確認しました。新しいパスワードを設定してください。"
+                )
+                return redirect(reverse("password_reset_set"))
+        else:
+            _log_auth_debug(
+                "PASSWORD RESET VERIFY VALIDATION",
+                f"errors={form.errors.as_json()}",
+            )
+    else:
+        form = PasswordResetOTPVerifyForm()
+
+    return render(
+        request,
+        "password_reset_verify.html",
+        {"form": form, "masked_email": user.email},
+    )
+
+
+@require_POST
+def password_reset_verify_resend(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    user = _get_password_reset_user(request)
+    if not user:
+        messages.warning(
+            request, "パスワード再設定はメールアドレスの入力からやり直してください。"
+        )
+        return redirect(reverse("password_reset_request"))
+
+    try:
+        create_and_send_password_reset_otp(user)
+        request.session.pop(PASSWORD_RESET_VERIFIED_SESSION_KEY, None)
+        request.session.modified = True
+        messages.success(request, "確認コードを再送信しました。")
+    except EmailConfigurationError as exc:
+        _log_auth_debug("PASSWORD RESET RESEND EMAIL CONFIG", str(exc), exc=exc)
+        messages.error(request, str(exc))
+        _flash_email_env_warnings(request)
+    except UnicodeEncodeError as exc:
+        _log_auth_debug("PASSWORD RESET RESEND UNICODE", str(exc), exc=exc)
+        messages.error(
+            request,
+            "メール設定に使用できない文字が含まれています。サーバーログを確認してください。",
+        )
+    except Exception as exc:
+        _log_auth_debug("PASSWORD RESET RESEND FAILED", str(exc), exc=exc)
+        messages.error(
+            request,
+            "確認メールの送信に失敗しました。ターミナルのエラーログを確認してください。",
+        )
+        if settings.DEBUG:
+            messages.error(request, f"詳細（DEBUG）: {exc}")
+
+    return redirect(reverse("password_reset_verify"))
+
+
+def password_reset_set(request):
+    if request.user.is_authenticated and request.user.is_active:
+        return redirect(reverse("home"))
+
+    user = _get_password_reset_user(request)
+    if not user or not request.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY):
+        messages.warning(
+            request, "確認コードの入力からやり直してください。"
+        )
+        if user:
+            return redirect(reverse("password_reset_verify"))
+        return redirect(reverse("password_reset_request"))
+
+    if request.method == "POST":
+        form = PasswordResetSetForm(request.POST)
+        if form.is_valid():
+            # set_password によりハッシュ化して保存する
+            user.set_password(form.cleaned_data["password1"])
+            user.save(update_fields=["password"])
+            clear_password_reset_session(request)
+            messages.success(
+                request,
+                "パスワードを再設定しました。新しいパスワードでログインしてください。",
+            )
+            return redirect(reverse("login"))
+        _log_auth_debug(
+            "PASSWORD RESET SET VALIDATION", f"errors={form.errors.as_json()}"
+        )
+    else:
+        form = PasswordResetSetForm()
+
+    return render(request, "password_reset_set.html", {"form": form})
 
 
 def _board_redirect(request, *, tag="", post_id=None, extra_query=None):
