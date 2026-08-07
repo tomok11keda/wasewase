@@ -253,6 +253,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'app.middleware.BrowseModeGateMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -274,6 +275,7 @@ TEMPLATES = [
                 'app.context_processors.timeline_compose',
                 'app.context_processors.ugc_safety',
                 'app.context_processors.ads_config',
+                'app.context_processors.browse_mode',
             ],
         },
     },
@@ -414,7 +416,14 @@ else:
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
-LOGOUT_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
+
+# 未ログイン時はログイン画面を入口にし、閲覧モード選択後のみサイト閲覧可。
+# 既存のゲスト向けテストを壊さないよう、manage.py test 実行時は既定で無効。
+BROWSE_MODE_GATE_ENABLED = env.bool(
+    "BROWSE_MODE_GATE_ENABLED",
+    default="test" not in sys.argv,
+)
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

@@ -123,25 +123,25 @@
         <span class="tweet-action tweet-action--spacer" aria-hidden="true"></span>
         {% endif %}
         {% else %}
-        <span class="tweet-action tweet-action--quote tweet-action--static">
+        <button type="button" class="tweet-action tweet-action--quote" data-requires-login aria-label="リポスト">
           {% include "includes/sf_symbol_icon.html" with name="arrow_2_squarepath" %}
           <span class="tweet-action-meta">
             <span class="tweet-action-label">リポスト</span>
           </span>
-        </span>
-        <span class="tweet-action tweet-action--like tweet-action--static">
+        </button>
+        <button type="button" class="tweet-action tweet-action--like" data-requires-login aria-label="いいね">
           {% include "includes/sf_symbol_icon.html" with name="heart" %}
           <span class="tweet-action-meta">
             <span class="tweet-action-label">いいね</span>
             <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
           </span>
-        </span>
-        <a class="tweet-action tweet-action--report" href="{% url 'login' %}?next={{ request.path|urlencode }}">
+        </button>
+        <button type="button" class="tweet-action tweet-action--report" data-requires-login aria-label="通報">
           {% include "includes/sf_symbol_icon.html" with name="flag" %}
           <span class="tweet-action-meta">
             <span class="tweet-action-label">通報</span>
           </span>
-        </a>
+        </button>
         {% endif %}
       </div>
 
@@ -175,7 +175,7 @@
           <button type="submit" aria-label="コメントを送信">送信</button>
         </form>
         {% else %}
-        <p class="comment-login-hint"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">ログイン</a>してコメント</p>
+        <p class="comment-login-hint"><a href="{% url 'login' %}?next={{ request.path|urlencode }}" data-requires-login>ログイン</a>してコメント</p>
         {% endif %}
       </div>
     </div>

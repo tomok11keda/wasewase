@@ -359,6 +359,8 @@
             </div>
             {% if user.is_authenticated and thread_form %}
             <button type="button" class="btn-new-thread desktop-only" data-thread-open>＋ 新規スレッド</button>
+            {% elif not user.is_authenticated %}
+            <button type="button" class="btn-new-thread desktop-only" data-requires-login>＋ 新規スレッド</button>
             {% endif %}
           </div>
         </header>
@@ -387,7 +389,7 @@
 
         {% if not user.is_authenticated %}
         <p class="community-login-hint">
-          スレッドを作成するには<a href="{% url 'login' %}?next={{ request.path|urlencode }}">ログイン</a>してください。
+          スレッドを作成するには<a href="{% url 'login' %}?next={{ request.path|urlencode }}" data-requires-login>ログイン</a>してください。
         </p>
         {% endif %}
 
@@ -431,6 +433,13 @@
     type="button"
     class="thread-create-fab shell-hide-on-desktop"
     data-thread-open
+    aria-label="新規スレッドを作成"
+  >＋</button>
+  {% elif not user.is_authenticated %}
+  <button
+    type="button"
+    class="thread-create-fab shell-hide-on-desktop"
+    data-requires-login
     aria-label="新規スレッドを作成"
   >＋</button>
   {% endif %}

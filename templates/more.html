@@ -130,6 +130,9 @@
     <li>
       <a class="more-link" href="{% url 'signup' %}">新規登録</a>
     </li>
+    <li>
+      <a class="more-link" href="{% url 'login' %}?next={% url 'exhibit' %}" data-requires-login>商品を出品</a>
+    </li>
   </ul>
   {% endif %}
 
