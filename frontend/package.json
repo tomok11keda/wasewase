@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "verify:spa-nav": "node scripts/verify_spa_nav.mjs",
     "verify:prod-spa": "node scripts/verify_prod_spa.mjs",
+    "verify:tab-flash": "node scripts/verify_tab_flash.mjs",
     "verify:dm-poll": "node scripts/verify_dm_poll.mjs"
   },
   "dependencies": {

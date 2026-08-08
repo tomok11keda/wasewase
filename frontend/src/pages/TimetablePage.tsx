@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -20,6 +21,7 @@ import {
   type SlotEntry,
   type SlotsMap,
 } from "../features/timetable/api";
+import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 type ModalState = {
   slotKey: string;
@@ -92,6 +94,8 @@ export function TimetablePage({
   const [readOnly, setReadOnly] = useState(false);
   const [title, setTitle] = useState("時間割");
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,53 +115,70 @@ export function TimetablePage({
     [slots]
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (viewingOther && userPk) {
-        const data = await fetchUserSlots(Number(userPk));
-        if (data.is_own && !embedded) {
-          // Owner hitting own public URL → treat as own editable page
-          navigate("/timetable", { replace: true });
-          return;
-        }
-        if (data.is_own && embedded) {
-          // Own profile timetable tab: editable own slots
-          const own = await fetchOwnSlots();
-          setSlots(own.slots || {});
-          setIsPublic(Boolean(own.is_timetable_public));
+  const load = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      if (mode === "initial" && !readyRef.current) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        if (viewingOther && userPk) {
+          const data = await fetchUserSlots(Number(userPk));
+          if (data.is_own && !embedded) {
+            navigate("/timetable", { replace: true });
+            return;
+          }
+          if (data.is_own && embedded) {
+            const own = await fetchOwnSlots();
+            setSlots(own.slots || {});
+            setIsPublic(Boolean(own.is_timetable_public));
+            setReadOnly(false);
+            setTitle("時間割");
+            readyRef.current = true;
+            setReady(true);
+            return;
+          }
+          setSlots(data.slots || {});
+          setIsPublic(true);
+          setReadOnly(true);
+          setTitle(`${data.owner.display_name}の時間割`);
+          readyRef.current = true;
+          setReady(true);
+        } else if (me?.authenticated) {
+          const data = await fetchOwnSlots();
+          setSlots(data.slots || {});
+          setIsPublic(Boolean(data.is_timetable_public));
           setReadOnly(false);
           setTitle("時間割");
-          return;
+          readyRef.current = true;
+          setReady(true);
+        } else {
+          setSlots({});
+          setIsPublic(false);
+          setReadOnly(false);
+          setTitle("時間割");
+          readyRef.current = true;
+          setReady(true);
         }
-        setSlots(data.slots || {});
-        setIsPublic(true);
-        setReadOnly(true);
-        setTitle(`${data.owner.display_name}の時間割`);
-      } else if (me?.authenticated) {
-        const data = await fetchOwnSlots();
-        setSlots(data.slots || {});
-        setIsPublic(Boolean(data.is_timetable_public));
-        setReadOnly(false);
-        setTitle("時間割");
-      } else {
-        setSlots({});
-        setIsPublic(false);
-        setReadOnly(false);
-        setTitle("時間割");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "load_failed");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [viewingOther, userPk, me?.authenticated, navigate, embedded]);
+    },
+    [viewingOther, userPk, me?.authenticated, navigate, embedded]
+  );
 
   useEffect(() => {
     if (sessionLoading) return;
-    void load();
+    void load(readyRef.current ? "soft" : "initial");
   }, [sessionLoading, load]);
+
+  useSoftTabRefetch("timetable", () => {
+    if (!viewingOther && !embedded) {
+      void load("soft");
+    }
+  });
 
   // Clean up modal body class on leave / unmount
   useEffect(() => {
@@ -325,9 +346,9 @@ export function TimetablePage({
           </div>
         ) : null}
 
-        {loading || sessionLoading ? (
+        {(loading || sessionLoading) && !ready ? (
           <p className="timetable-note">読み込み中…</p>
-        ) : error ? (
+        ) : error && !ready ? (
           <p className="timetable-note">
             読み込みに失敗しました（{error}）
             {error === "private" ? "。この時間割は非公開です。" : ""}

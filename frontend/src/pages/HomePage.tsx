@@ -11,6 +11,7 @@ import {
 } from "../features/timeline/api";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { restoreScrollPosition } from "../features/profile/api";
+import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -37,6 +38,7 @@ export function HomePage() {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const hasDataRef = useRef(false);
   const authenticated = Boolean(me?.authenticated);
 
   // Open compose from Search / Sidebar without full reload
@@ -58,25 +60,33 @@ export function HomePage() {
     }
   }, [authenticated, location.state, navigate, searchParams, setSearchParams]);
 
-  const loadInitial = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchTimeline({ feed });
-      setPosts(data.posts);
-      setHasMore(data.has_more);
-      setNextOffset(data.next_offset);
-      setFollowingUnauth(Boolean(data.feed_following_unauthenticated));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [feed]);
+  const loadInitial = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      if (mode === "initial" && !hasDataRef.current) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await fetchTimeline({ feed });
+        setPosts(data.posts);
+        setHasMore(data.has_more);
+        setNextOffset(data.next_offset);
+        setFollowingUnauth(Boolean(data.feed_following_unauthenticated));
+        hasDataRef.current = true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "load_failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [feed]
+  );
 
   useEffect(() => {
-    void loadInitial();
+    void loadInitial(hasDataRef.current ? "soft" : "initial");
   }, [loadInitial]);
+
+  useSoftTabRefetch("home", () => loadInitial("soft"));
 
   useEffect(() => {
     if (loading) return;
@@ -250,9 +260,9 @@ export function HomePage() {
         </p>
       )}
 
-      {sessionLoading || loading ? (
+      {sessionLoading || (loading && posts.length === 0) ? (
         <p className="empty-message">読み込み中…</p>
-      ) : error ? (
+      ) : error && posts.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : posts.length === 0 ? (
         <p className="empty-message">まだ投稿がありません。</p>
