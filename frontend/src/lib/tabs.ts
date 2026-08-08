@@ -37,3 +37,20 @@ export const TAB_ROUTES = [
 ] as const;
 
 export type TabId = (typeof TAB_ROUTES)[number]["id"];
+
+/** BottomNav primary tabs that participate in keep-alive (exact path only). */
+export type MainTabId = TabId;
+
+/**
+ * Exact main-tab match. Nested routes like /flea/products/1 return null
+ * so they render through <Outlet /> while keep-alive panes stay mounted (hidden).
+ */
+export function matchMainTab(pathname: string): MainTabId | null {
+  const normalized = pathname.replace(/\/$/, "") || "/";
+  if (normalized === "/" || normalized === "") return "home";
+  if (normalized === "/communities") return "communities";
+  if (normalized === "/flea") return "flea";
+  if (normalized === "/timetable") return "timetable";
+  if (normalized === "/more") return "more";
+  return null;
+}

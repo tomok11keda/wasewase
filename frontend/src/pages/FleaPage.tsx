@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import {
@@ -7,6 +7,7 @@ import {
   type ProductCard,
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
+import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 function ProductGridCard({ product }: { product: ProductCard }) {
   const sellerName = product.seller?.display_name || "出品者";
@@ -60,6 +61,7 @@ export function FleaPage() {
   const [error, setError] = useState<string | null>(null);
   const [qInput, setQInput] = useState(qParam);
   const exhibitSuccess = searchParams.get("exhibit_success") === "1";
+  const hasDataRef = useRef(false);
 
   const patchParams = useCallback(
     (patch: Record<string, string>) => {
@@ -73,34 +75,42 @@ export function FleaPage() {
     [searchParams, setSearchParams]
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchFleaList({
-        feed: feed || undefined,
-        q: qParam || undefined,
-        faculty: faculty || undefined,
-        campus: campus || undefined,
-        order: order || undefined,
-      });
-      setProducts(data.products);
-      setFacultyTabs(data.faculty_tabs);
-      setCampusTabs(data.campus_tabs);
-      setOrderOptions(data.order_options);
-      setUserFaculty(data.user_faculty);
-      setCampusLabel(data.campus_label);
-      setFollowingUnauth(data.feed_following_unauthenticated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [feed, qParam, faculty, campus, order]);
+  const load = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      if (mode === "initial" && !hasDataRef.current) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await fetchFleaList({
+          feed: feed || undefined,
+          q: qParam || undefined,
+          faculty: faculty || undefined,
+          campus: campus || undefined,
+          order: order || undefined,
+        });
+        setProducts(data.products);
+        setFacultyTabs(data.faculty_tabs);
+        setCampusTabs(data.campus_tabs);
+        setOrderOptions(data.order_options);
+        setUserFaculty(data.user_faculty);
+        setCampusLabel(data.campus_label);
+        setFollowingUnauth(data.feed_following_unauthenticated);
+        hasDataRef.current = true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "load_failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [feed, qParam, faculty, campus, order]
+  );
 
   useEffect(() => {
-    void load();
+    void load(hasDataRef.current ? "soft" : "initial");
   }, [load]);
+
+  useSoftTabRefetch("flea", () => load("soft"));
 
   useEffect(() => {
     setQInput(qParam);
@@ -234,9 +244,9 @@ export function FleaPage() {
           {qParam ? `「${qParam}」の検索結果` : "おすすめ商品"}
         </h2>
 
-        {loading ? (
+        {loading && products.length === 0 ? (
           <p className="empty-message">読み込み中…</p>
-        ) : error ? (
+        ) : error && products.length === 0 ? (
           <p className="empty-message">読み込みに失敗しました（{error}）</p>
         ) : products.length ? (
           <div className="product-grid">

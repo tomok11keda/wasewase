@@ -12,6 +12,7 @@
 .main-column {
   width: 100%;
   min-width: 0;
+  background: var(--bg, #f7f9fc);
 }
 
 .shell-hide-on-desktop {
@@ -442,6 +443,19 @@
   max-width: 672px;
   margin: 0 auto;
   padding: 12px;
+}
+
+/* BottomNav keep-alive: hide inactive tabs without unmounting */
+.tab-keep-alive-pane {
+  display: none;
+}
+
+.tab-keep-alive-pane.is-active {
+  display: block;
+}
+
+.tab-keep-alive-outlet.is-hidden {
+  display: none;
 }
 
 .spa-placeholder {

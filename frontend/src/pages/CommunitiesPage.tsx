@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -8,6 +8,7 @@ import {
   type FacultyTab,
   type ThreadSummary,
 } from "../features/community/api";
+import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 export function CommunitiesPage() {
   const { me } = useSession();
@@ -25,27 +26,36 @@ export function CommunitiesPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const hasDataRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchCommunityThreads({
-        tag: tag || undefined,
-        q: qParam || undefined,
-      });
-      setThreads(data.threads);
-      setTabs(data.faculty_tabs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [tag, qParam]);
+  const load = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      if (mode === "initial" && !hasDataRef.current) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await fetchCommunityThreads({
+          tag: tag || undefined,
+          q: qParam || undefined,
+        });
+        setThreads(data.threads);
+        setTabs(data.faculty_tabs);
+        hasDataRef.current = true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "load_failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [tag, qParam]
+  );
 
   useEffect(() => {
-    void load();
+    void load(hasDataRef.current ? "soft" : "initial");
   }, [load]);
+
+  useSoftTabRefetch("communities", () => load("soft"));
 
   useEffect(() => {
     setQInput(qParam);
@@ -159,9 +169,9 @@ export function CommunitiesPage() {
         </form>
       ) : null}
 
-      {loading ? (
+      {loading && threads.length === 0 ? (
         <p className="empty-message">読み込み中…</p>
-      ) : error ? (
+      ) : error && threads.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : threads.length === 0 ? (
         <p className="empty-message">スレッドがありません。</p>
