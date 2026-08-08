@@ -21,11 +21,16 @@ ensure_npm() {
 
 if [ -f frontend/package.json ]; then
   ensure_npm
-  npm --prefix frontend ci
+  if [ -f frontend/package-lock.json ]; then
+    npm --prefix frontend ci || npm --prefix frontend install
+  else
+    npm --prefix frontend install
+  fi
   npm --prefix frontend run build
-  if [ ! -f static/frontend/assets/main.js ] && [ ! -f static/frontend/.vite/manifest.json ]; then
-    echo "ERROR: frontend build did not produce static/frontend assets." >&2
+  if [ ! -f static/frontend/assets/main.js ]; then
+    echo "ERROR: frontend build did not produce static/frontend/assets/main.js" >&2
     ls -la static/frontend 2>/dev/null || true
+    ls -la static/frontend/assets 2>/dev/null || true
     exit 1
   fi
 fi

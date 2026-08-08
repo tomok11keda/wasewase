@@ -24,6 +24,23 @@ const spaUrl = `${baseUrl}/app/`;
 const email = process.env.WASE_E2E_EMAIL || "";
 const password = process.env.WASE_E2E_PASSWORD || "";
 
+async function assertFrontendAssets() {
+  for (const path of [
+    "/static/frontend/assets/main.js",
+    "/static/frontend/assets/main.css",
+  ]) {
+    const res = await fetch(`${baseUrl}${path}`);
+    if (!res.ok) {
+      throw new Error(`Missing SPA asset ${path} (HTTP ${res.status})`);
+    }
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("text/html")) {
+      throw new Error(`SPA asset ${path} returned HTML instead of static file`);
+    }
+    console.log(`asset OK: ${path} (${ct || "no-content-type"})`);
+  }
+}
+
 const findings = {
   spaVisible: false,
   reactSpaEnabled: false,
@@ -63,6 +80,17 @@ function note(path) {
 const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.setViewportSize({ width: 390, height: 844 });
+
+try {
+  await assertFrontendAssets();
+} catch (err) {
+  findings.problems.push(String(err.message || err));
+  console.error(err);
+  await browser.close();
+  console.log("\n=== SUMMARY ===");
+  console.log(JSON.stringify(findings, null, 2));
+  process.exit(1);
+}
 
 let loadCount = 0;
 page.on("load", () => {
