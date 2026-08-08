@@ -1,0 +1,173 @@
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useSession } from "../lib/session";
+import { logoutRequest, spaLoginPath } from "../features/auth/api";
+import { TAB_ROUTES } from "../lib/tabs";
+import type { MeResponse } from "../lib/api";
+
+const SEARCH_ICON =
+  "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z";
+const NOTIFY_ICON =
+  "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z";
+const BOOKMARK_ICON =
+  "M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z";
+const COMPOSE_ICON = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z";
+
+export function SidebarNav() {
+  const { me, setMeFromAuth, refresh } = useSession();
+  const navigate = useNavigate();
+  const unread = me?.unread_notifications || 0;
+  const user = me?.user;
+
+  const onLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      /* ignore */
+    }
+    setMeFromAuth({
+      authenticated: false,
+      is_browse_mode: false,
+      react_spa_enabled: true,
+      user: null,
+      unread_notifications: 0,
+      dm_unread_total: 0,
+    } as MeResponse);
+    await refresh();
+    navigate("/login", { replace: true });
+  };
+
+  return (
+    <nav className="sidebar-left-inner" aria-label="メインナビゲーション">
+      <NavLink to="/" className="sidebar-brand" aria-label="わせわせ ホーム" end>
+        <span className="sidebar-brand__mark" aria-hidden="true">
+          わ
+        </span>
+        <span className="sidebar-brand__text">わせわせ</span>
+      </NavLink>
+
+      <ul className="sidebar-nav">
+        {TAB_ROUTES.map((tab) => (
+          <li key={tab.id}>
+            <NavLink
+              to={tab.path}
+              end={tab.path === "/"}
+              className={({ isActive }) =>
+                isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+              }
+            >
+              <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+                <path d={tab.icon} />
+              </svg>
+              <span className="sidebar-nav__label">{tab.label}</span>
+            </NavLink>
+          </li>
+        ))}
+        <li>
+          <NavLink
+            to="/search"
+            className={({ isActive }) =>
+              isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+            }
+          >
+            <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+              <path d={SEARCH_ICON} />
+            </svg>
+            <span className="sidebar-nav__label">検索</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink
+            to="/notifications"
+            className={({ isActive }) =>
+              isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+            }
+          >
+            <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+              <path d={NOTIFY_ICON} />
+            </svg>
+            <span className="sidebar-nav__label">通知</span>
+            {unread > 0 ? (
+              <span className="sidebar-nav__badge" aria-label={`未読通知 ${unread}件`}>
+                {unread}
+              </span>
+            ) : null}
+          </NavLink>
+        </li>
+        {user ? (
+          <li>
+            <NavLink
+              className={({ isActive }) =>
+                isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+              }
+              to={`/users/${user.id}/bookmarks`}
+            >
+              <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+                <path d={BOOKMARK_ICON} />
+              </svg>
+              <span className="sidebar-nav__label">ブックマーク</span>
+            </NavLink>
+          </li>
+        ) : null}
+      </ul>
+
+      {me?.authenticated ? (
+        <button
+          type="button"
+          className="sidebar-nav__compose"
+          onClick={() => navigate("/", { state: { openCompose: true } })}
+        >
+          <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+            <path d={COMPOSE_ICON} />
+          </svg>
+          <span className="sidebar-nav__compose-label">投稿する</span>
+        </button>
+      ) : (
+        <Link className="sidebar-nav__compose" to={spaLoginPath("/app/?compose=1")}>
+          <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+            <path d={COMPOSE_ICON} />
+          </svg>
+          <span className="sidebar-nav__compose-label">投稿する</span>
+        </Link>
+      )}
+
+      <div className={`sidebar-user${user ? "" : " sidebar-user--guest"}`}>
+        {user ? (
+          <>
+            <Link className="sidebar-user__link" to={`/users/${user.id}/posts`}>
+              <span className="sidebar-user__avatar" aria-hidden="true">
+                {user.initial}
+              </span>
+              <span className="sidebar-user__meta">
+                <span className="sidebar-user__name">{user.display_name}</span>
+                <span className="sidebar-user__handle">@{user.username}</span>
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="sidebar-nav__item"
+              onClick={() => void onLogout()}
+              style={{
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <span className="sidebar-nav__label">ログアウト</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <Link className="sidebar-nav__item" to={spaLoginPath("/app/")}>
+              <span className="sidebar-nav__label">ログイン</span>
+            </Link>
+            <Link className="sidebar-nav__item" to="/signup">
+              <span className="sidebar-nav__label">新規登録</span>
+            </Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}

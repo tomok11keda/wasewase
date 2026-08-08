@@ -254,6 +254,8 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'app.middleware.BrowseModeGateMiddleware',
+    # Convert /api/v1/* login redirects (gate + @login_required) to JSON 401
+    'app.api_auth_middleware.ApiV1UnauthorizedJsonMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -424,6 +426,10 @@ BROWSE_MODE_GATE_ENABLED = env.bool(
     "BROWSE_MODE_GATE_ENABLED",
     default="test" not in sys.argv,
 )
+
+# React SPA (Phase 1–2)。既定 OFF — 既存テンプレート UI を壊さない。
+# 有効化: WASE_REACT_SPA=True → /app/ で SPA を配信。無効時は /app/ が 404。
+WASE_REACT_SPA = env.bool("WASE_REACT_SPA", default=False)
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

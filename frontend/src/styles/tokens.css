@@ -1,0 +1,61 @@
+/* Ported from app_shell / timeline_shell_styles — do not redesign */
+:root {
+  --bg: #f7f9fc;
+  --card: #fff;
+  --text: #0f1419;
+  --muted: #536471;
+  --accent: #891e2b;
+  --accent-dark: #6f1722;
+  --radius: 12px;
+  --nav-h: 56px;
+  --sidebar-left-w: 275px;
+  --sidebar-right-w: 350px;
+  --feed-max-w: 600px;
+  --shell-max-w: 1280px;
+  --shell-border: #eff3f4;
+  --wase-header-content-min-h: 44px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body.shell-desktop {
+  margin: 0;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo,
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

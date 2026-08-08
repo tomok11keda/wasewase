@@ -4,6 +4,8 @@
   "private": true,
   "description": "わせわせ — 早稲田大学キャンパスフリマ（Capacitor iOS ラッパー）",
   "scripts": {
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
     "cap:sync": "node scripts/copy-google-service-info.js && npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:copy": "npx cap copy",
