@@ -1,0 +1,217 @@
+import { getCsrfToken } from "../timeline/api";
+
+export type Author = {
+  id: number | null;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  initial: string;
+};
+
+export type InboxItem = {
+  kind: "dm" | "group" | "trade";
+  room_id: number;
+  display_name: string;
+  subtitle: string;
+  status_label: string;
+  thumbnail_url: string;
+  unread_count: number;
+  is_blocked: boolean;
+  updated_at: string;
+  latest_body: string;
+  latest_sender_name: string;
+  partner: Author | null;
+  product_id: number | null;
+  spa_path: string;
+};
+
+export type ChatMessage = {
+  id: number;
+  sender_id: number | null;
+  sender_name: string;
+  sender_initial?: string;
+  avatar_url?: string;
+  body: string;
+  created_at: string;
+  is_mine: boolean;
+  is_read?: boolean;
+  is_system?: boolean;
+};
+
+export type DmRoomDetail = {
+  id: number;
+  kind: "dm";
+  partner: Author | null;
+  is_blocked: boolean;
+  can_send: boolean;
+  latest_id: number;
+};
+
+export type GroupRoomDetail = {
+  id: number;
+  kind: "group";
+  name: string;
+  members: Author[];
+  member_count: number;
+  can_send: boolean;
+  latest_id: number;
+};
+
+export async function fetchDmInbox(
+  tab: string = "all",
+  signal?: AbortSignal
+): Promise<{
+  tab: string;
+  tab_counts: Record<string, number>;
+  conversations: InboxItem[];
+}> {
+  const res = await fetch(`/api/v1/dm/inbox/?tab=${encodeURIComponent(tab)}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "inbox_failed");
+  return data;
+}
+
+export async function startDm(userId: number): Promise<number> {
+  const res = await fetch("/api/v1/dm/start/", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "start_failed");
+  return data.room_id as number;
+}
+
+export async function fetchDmRoom(roomPk: number, signal?: AbortSignal) {
+  const res = await fetch(`/api/v1/dm/rooms/${roomPk}/`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "room_failed");
+  return data as { room: DmRoomDetail; messages: ChatMessage[] };
+}
+
+export async function pollDmMessages(
+  roomPk: number,
+  after: number,
+  signal?: AbortSignal
+) {
+  const qs = after ? `?after=${after}` : "";
+  const res = await fetch(`/api/v1/dm/rooms/${roomPk}/messages/${qs}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!res.ok) throw new Error(`poll_${res.status}`);
+  return res.json() as Promise<{
+    messages: ChatMessage[];
+    latest_id: number;
+    can_send: boolean;
+    is_blocked: boolean;
+    read_message_ids?: number[];
+  }>;
+}
+
+export async function sendDmMessage(
+  roomPk: number,
+  body: string
+): Promise<ChatMessage> {
+  const res = await fetch(`/api/v1/dm/rooms/${roomPk}/messages/send/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ body }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  return data.message as ChatMessage;
+}
+
+export async function fetchGroupFollowees(): Promise<Author[]> {
+  const res = await fetch("/api/v1/dm/groups/", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "following_failed");
+  return data.following as Author[];
+}
+
+export async function createGroup(
+  name: string,
+  memberIds: number[]
+): Promise<number> {
+  const res = await fetch("/api/v1/dm/groups/", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, member_ids: memberIds }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "create_failed");
+  return data.room_id as number;
+}
+
+export async function fetchGroupRoom(roomPk: number, signal?: AbortSignal) {
+  const res = await fetch(`/api/v1/dm/groups/${roomPk}/`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "group_failed");
+  return data as { room: GroupRoomDetail; messages: ChatMessage[] };
+}
+
+export async function pollGroupMessages(
+  roomPk: number,
+  after: number,
+  signal?: AbortSignal
+) {
+  const qs = after ? `?after=${after}` : "";
+  const res = await fetch(`/api/v1/dm/groups/${roomPk}/messages/${qs}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!res.ok) throw new Error(`poll_${res.status}`);
+  return res.json() as Promise<{ messages: ChatMessage[]; latest_id: number }>;
+}
+
+export async function sendGroupMessage(
+  roomPk: number,
+  body: string
+): Promise<ChatMessage> {
+  const res = await fetch(`/api/v1/dm/groups/${roomPk}/messages/send/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ body }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  return data.message as ChatMessage;
+}

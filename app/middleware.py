@@ -48,8 +48,23 @@ class BrowseModeGateMiddleware:
             return self.get_response(request)
 
         request.is_browse_mode = False
-        login_url = reverse("login")
+        # SPA JSON APIs must not receive HTML login redirects
+        if (request.path or "").startswith("/api/v1/"):
+            from django.http import JsonResponse
+
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "unauthorized",
+                    "message": "authentication_required",
+                },
+                status=401,
+            )
+        if getattr(settings, "WASE_REACT_SPA", False):
+            login_url = "/app/login"
+        else:
+            login_url = reverse("login")
         next_path = request.get_full_path() or "/"
-        if next_path.startswith(login_url):
+        if next_path.startswith(login_url) or next_path.startswith("/login"):
             return redirect(login_url)
         return redirect(f"{login_url}?next={quote(next_path, safe='/?&=')}")

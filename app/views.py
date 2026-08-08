@@ -648,7 +648,36 @@ def api_timetable_slots(request):
     """自分の時間割スロット一覧。GET /api/timetable/slots/"""
     if request.method != "GET":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
-    return JsonResponse({"slots": slots_dict_for_user(request.user)})
+    profile = get_or_create_timetable_profile(request.user)
+    return JsonResponse(
+        {
+            "slots": slots_dict_for_user(request.user),
+            "is_timetable_public": is_timetable_public_value(profile),
+        }
+    )
+
+
+@require_GET
+def api_timetable_user_slots(request, pk):
+    """公開時間割（または本人）のスロット。GET /api/timetable/user/<pk>/"""
+    owner = get_object_or_404(User, pk=pk)
+    is_own = request.user.is_authenticated and request.user.pk == owner.pk
+    is_public = is_timetable_public_for(owner)
+    if not is_own and not is_public:
+        return JsonResponse({"ok": False, "error": "private"}, status=404)
+    return JsonResponse(
+        {
+            "ok": True,
+            "owner": {
+                "id": owner.pk,
+                "display_name": user_display_name(owner),
+            },
+            "is_own": is_own,
+            "is_timetable_public": bool(is_public or is_own),
+            "read_only": not is_own,
+            "slots": slots_dict_for_user(owner),
+        }
+    )
 
 
 @login_required
@@ -920,6 +949,16 @@ def notification_mark_read(request):
 @login_required
 def mypage_edit(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    next_url = (request.POST.get("next") or request.GET.get("next") or "").strip()
+
+    def _safe_next() -> str | None:
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return next_url
+        return None
 
     if request.method == "POST":
         form = AccountProfileForm(
@@ -937,6 +976,9 @@ def mypage_edit(request):
                 request,
                 "ニックネーム・プロフィール画像・プロフィールを更新しました。",
             )
+            safe = _safe_next()
+            if safe:
+                return redirect(safe)
             return redirect(reverse("mypage"))
         messages.error(request, "保存に失敗しました。入力内容を確認してください。")
         for field, errors in form.errors.items():
@@ -948,7 +990,11 @@ def mypage_edit(request):
     return render(
         request,
         "mypage_edit.html",
-        {"form": form, "profile": profile},
+        {
+            "form": form,
+            "profile": profile,
+            "next_url": _safe_next() or "",
+        },
     )
 
 

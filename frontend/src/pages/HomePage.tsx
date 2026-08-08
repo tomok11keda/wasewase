@@ -1,0 +1,288 @@
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useSession } from "../lib/session";
+import { spaLoginPath } from "../features/auth/api";
+import {
+  createTimelinePost,
+  fetchQuotable,
+  fetchTimeline,
+  type TimelineFeedResponse,
+  type TimelinePost,
+} from "../features/timeline/api";
+import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
+import { restoreScrollPosition } from "../features/profile/api";
+
+export function HomePage() {
+  const { me, loading: sessionLoading } = useSession();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const feed = (searchParams.get("feed") === "following" ? "following" : "all") as
+    | "all"
+    | "following";
+
+  const [posts, setPosts] = useState<TimelinePost[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [followingUnauth, setFollowingUnauth] = useState(false);
+
+  const [composeBody, setComposeBody] = useState("");
+  const [composeImage, setComposeImage] = useState<File | null>(null);
+  const [quoteId, setQuoteId] = useState<number | null>(null);
+  const [quotePreview, setQuotePreview] = useState<TimelinePost | null>(null);
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const authenticated = Boolean(me?.authenticated);
+
+  // Open compose from Search / Sidebar without full reload
+  useEffect(() => {
+    const state = location.state as { openCompose?: boolean } | null;
+    const wantCompose =
+      Boolean(state?.openCompose) || searchParams.get("compose") === "1";
+    if (!wantCompose) return;
+    if (authenticated) {
+      setComposeOpen(true);
+    }
+    if (state?.openCompose) {
+      navigate(".", { replace: true, state: {} });
+    }
+    if (searchParams.get("compose") === "1") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("compose");
+      setSearchParams(next, { replace: true });
+    }
+  }, [authenticated, location.state, navigate, searchParams, setSearchParams]);
+
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchTimeline({ feed });
+      setPosts(data.posts);
+      setHasMore(data.has_more);
+      setNextOffset(data.next_offset);
+      setFollowingUnauth(Boolean(data.feed_following_unauthenticated));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "load_failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [feed]);
+
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
+
+  useEffect(() => {
+    if (loading) return;
+    restoreScrollPosition("/");
+  }, [loading, posts.length]);
+
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setLoadingMore(true);
+        void fetchTimeline({ feed, offset: nextOffset })
+          .then((data: TimelineFeedResponse) => {
+            setPosts((prev) => {
+              const seen = new Set(prev.map((p) => p.id));
+              const appended = data.posts.filter((p) => !seen.has(p.id));
+              return [...prev, ...appended];
+            });
+            setHasMore(data.has_more);
+            setNextOffset(data.next_offset);
+          })
+          .catch(() => {
+            /* ignore */
+          })
+          .finally(() => setLoadingMore(false));
+      },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [feed, hasMore, loading, loadingMore, nextOffset]);
+
+  const requireLogin = () => {
+    navigate(spaLoginPath("/app/"));
+  };
+
+  const onQuote = async (post: TimelinePost) => {
+    if (!authenticated) {
+      requireLogin();
+      return;
+    }
+    try {
+      const quoted = await fetchQuotable(post.id);
+      setQuoteId(quoted.id);
+      setQuotePreview(quoted);
+      setComposeOpen(true);
+    } catch {
+      window.alert("この投稿はリポストできません。");
+    }
+  };
+
+  const submitCompose = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!authenticated) {
+      requireLogin();
+      return;
+    }
+    const body = composeBody.trim();
+    if (!body && !composeImage && !quoteId) return;
+    setComposeBusy(true);
+    try {
+      const post = await createTimelinePost({
+        body: body || (quoteId ? "リポスト" : ""),
+        image: composeImage,
+        quoted_post_id: quoteId,
+      });
+      setPosts((prev) => [post, ...prev]);
+      setComposeBody("");
+      setComposeImage(null);
+      setQuoteId(null);
+      setQuotePreview(null);
+      setComposeOpen(false);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "投稿に失敗しました");
+    } finally {
+      setComposeBusy(false);
+    }
+  };
+
+  return (
+    <div className="main-inner timeline-home" data-spa-page="ホーム">
+      <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
+        <button
+          type="button"
+          className={`feed-scope-tab${feed === "all" ? " is-active" : ""}`}
+          onClick={() => setSearchParams({})}
+        >
+          全体
+        </button>
+        <button
+          type="button"
+          className={`feed-scope-tab${feed === "following" ? " is-active" : ""}`}
+          onClick={() => setSearchParams({ feed: "following" })}
+        >
+          フォロー中
+        </button>
+      </nav>
+
+      {followingUnauth ? (
+        <p className="feed-scope-hint">
+          フォロー中の投稿を見るには
+          <Link to={spaLoginPath("/app/?feed=following")}>
+            ログイン
+          </Link>
+          してください。
+        </p>
+      ) : null}
+
+      {authenticated ? (
+        <div className="spa-compose">
+          {!composeOpen ? (
+            <button
+              type="button"
+              className="spa-compose__open"
+              onClick={() => setComposeOpen(true)}
+            >
+              いまどうしてる？
+            </button>
+          ) : (
+            <form className="spa-compose__form" onSubmit={submitCompose}>
+              <textarea
+                value={composeBody}
+                onChange={(e) => setComposeBody(e.target.value)}
+                maxLength={280}
+                rows={3}
+                placeholder="いま思ったこと、質問、情報共有など（280字まで）"
+              />
+              {quotePreview ? (
+                <div className="quoted-post-card spa-compose__quote">
+                  <strong>
+                    {quotePreview.author?.display_name || "投稿"} をリポスト
+                  </strong>
+                  <p>{quotePreview.body.slice(0, 120)}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuoteId(null);
+                      setQuotePreview(null);
+                    }}
+                  >
+                    解除
+                  </button>
+                </div>
+              ) : null}
+              <div className="spa-compose__actions">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setComposeImage(e.target.files?.[0] || null)
+                  }
+                />
+                <button type="button" onClick={() => setComposeOpen(false)}>
+                  閉じる
+                </button>
+                <button type="submit" disabled={composeBusy}>
+                  投稿する
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : (
+        <p className="feed-scope-hint">
+          投稿するには
+          <Link to={spaLoginPath("/app/")}>ログイン</Link>
+          してください。
+        </p>
+      )}
+
+      {sessionLoading || loading ? (
+        <p className="empty-message">読み込み中…</p>
+      ) : error ? (
+        <p className="empty-message">読み込みに失敗しました（{error}）</p>
+      ) : posts.length === 0 ? (
+        <p className="empty-message">まだ投稿がありません。</p>
+      ) : (
+        <div className="timeline-list" id="timeline-list">
+          {posts.map((post) => (
+            <TimelinePostCard
+              key={post.id}
+              post={post}
+              authenticated={authenticated}
+              onChange={(next: TimelinePost) =>
+                setPosts((prev) =>
+                  prev.map((p) => (p.id === next.id ? next : p))
+                )
+              }
+              onRemove={(id: number) =>
+                setPosts((prev) => prev.filter((p) => p.id !== id))
+              }
+              onQuote={onQuote}
+              onRequireLogin={requireLogin}
+            />
+          ))}
+        </div>
+      )}
+
+      <div ref={sentinelRef} className="timeline-scroll-sentinel" aria-hidden="true" />
+      {loadingMore ? <p className="empty-message">読み込み中…</p> : null}
+      {!hasMore && posts.length > 0 ? (
+        <p className="empty-message">すべて表示しました</p>
+      ) : null}
+    </div>
+  );
+}

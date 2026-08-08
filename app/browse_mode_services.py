@@ -23,6 +23,13 @@ BROWSE_MODE_ALLOW_PREFIXES = (
     "/static/",
     "/media/",
     "/admin/",
+    # React SPA auth surfaces (Phase 9)
+    "/app/login",
+    "/app/signup",
+    "/app/verify",
+    "/app/password-reset",
+    "/api/v1/auth",
+    "/api/v1/me",
 )
 
 

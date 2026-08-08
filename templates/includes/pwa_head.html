@@ -42,7 +42,7 @@
 <script src="{% static 'js/splash_screen.js' %}" defer></script>
 <script src="{% static 'js/capacitor_native.js' %}" defer></script>
 {% include "includes/compose_fab_visibility.html" %}
-{% if user.is_authenticated %}
+{% if user.is_authenticated and not spa_shell %}
 <script src="{% static 'js/notification_badge.js' %}" defer></script>
 <script src="{% static 'js/dm_badge.js' %}" defer></script>
 {% endif %}

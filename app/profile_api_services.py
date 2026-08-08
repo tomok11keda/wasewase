@@ -1,0 +1,241 @@
+"""Profile / search JSON helpers — thin wrappers over existing services."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractBaseUser
+from django.db.models import Exists, OuterRef
+from django.http import HttpRequest
+
+from .board_services import get_profile_timeline_posts
+from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_posts
+from .dm_services import find_dm_room
+from .flea_api_services import serialize_product_card
+from .models import Follow, Product, TimelineLike
+from .services import (
+    get_profile_stats,
+    get_user_avatar_url,
+    is_following,
+    search_timeline_posts,
+    search_users,
+    user_avatar_initial,
+    user_display_name,
+)
+from .timeline_api_services import serialize_author, serialize_timeline_post
+from .timetable_privacy_services import (
+    get_or_create_profile as get_or_create_timetable_profile,
+    is_timetable_public_value,
+)
+from .ugc_services import (
+    filter_visible_products,
+    is_either_blocked,
+    is_user_blocked,
+)
+
+User = get_user_model()
+
+SEARCH_TAB_ALL = "all"
+SEARCH_TAB_LATEST = "latest"
+SEARCH_TAB_USERS = "users"
+
+
+def serialize_profile_user(user: AbstractBaseUser, profile) -> dict[str, Any]:
+    avatar = get_user_avatar_url(user) or ""
+    return {
+        "id": user.pk,
+        "username": user.get_username(),
+        "display_name": user_display_name(user),
+        "avatar_url": avatar,
+        "initial": user_avatar_initial(user),
+        "bio": (getattr(profile, "bio", None) or ""),
+        "department": (getattr(profile, "department", None) or ""),
+        "grade": (getattr(profile, "grade", None) or ""),
+        "department_grade": profile.department_grade_display if profile else "",
+    }
+
+
+def build_profile_payload(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser | None,
+) -> dict[str, Any]:
+    profile = get_or_create_timetable_profile(profile_user)
+    is_own = bool(
+        viewer is not None
+        and getattr(viewer, "is_authenticated", False)
+        and viewer.pk == profile_user.pk
+    )
+    is_public = is_timetable_public_value(profile)
+    stats = get_profile_stats(profile_user, "thread")
+
+    viewer_auth = (
+        viewer
+        if viewer is not None and getattr(viewer, "is_authenticated", False)
+        else None
+    )
+    following = False
+    blocked = False
+    can_send_dm = False
+    dm_room_id = None
+    if viewer_auth and not is_own:
+        following = is_following(viewer_auth, profile_user)
+        blocked = is_user_blocked(viewer_auth, profile_user)
+        can_send_dm = not is_either_blocked(viewer_auth, profile_user)
+        room = find_dm_room(viewer_auth, profile_user)
+        dm_room_id = room.pk if room else None
+
+    return {
+        "ok": True,
+        "user": serialize_profile_user(profile_user, profile),
+        "stats": {
+            "post_count": stats["post_count"],
+            "product_count": stats["product_count"],
+            "follower_count": stats["follower_count"],
+            "following_count": stats["following_count"],
+            "left_label": stats["left_label"],
+            "left_count": stats["left_count"],
+        },
+        "is_own": is_own,
+        "is_following": following,
+        "is_blocked": blocked,
+        "can_send_dm": can_send_dm,
+        "dm_room_id": dm_room_id,
+        "show_safety_menu": bool(viewer_auth and not is_own),
+        "can_view_timetable": is_own or is_public,
+        "is_timetable_public": is_public,
+        "can_view_bookmarks": is_own,
+    }
+
+
+def list_profile_posts(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser | None,
+) -> dict[str, Any]:
+    posts = get_profile_timeline_posts(profile_user, viewer)
+    return {
+        "ok": True,
+        "posts": [serialize_timeline_post(p, viewer) for p in posts],
+    }
+
+
+def list_profile_products(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser | None,
+) -> dict[str, Any]:
+    products = filter_visible_products(
+        Product.objects.filter(
+            seller=profile_user, status=Product.Status.AVAILABLE
+        ).select_related("seller", "seller__profile"),
+        viewer,
+    )
+    return {
+        "ok": True,
+        "products": [serialize_product_card(p) for p in products],
+    }
+
+
+def list_profile_bookmarks(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser,
+) -> dict[str, Any]:
+    posts, meta = get_bookmarked_timeline_posts(profile_user, viewer)
+    return {
+        "ok": True,
+        "posts": [serialize_timeline_post(p, viewer) for p in posts],
+        "meta": meta or {},
+    }
+
+
+def toggle_follow_for_api(
+    actor: AbstractBaseUser, target: AbstractBaseUser
+) -> dict[str, Any]:
+    if actor.pk == target.pk:
+        raise ValueError("own_user")
+    follow = Follow.objects.filter(follower=actor, following=target).first()
+    if follow:
+        follow.delete()
+        following = False
+    else:
+        Follow.objects.create(follower=actor, following=target)
+        from .models import Notification
+        from django.urls import reverse
+
+        Notification.objects.create(
+            recipient=target,
+            message=f"「{actor.username}さんにフォローされました！」",
+            link=reverse("user_profile", kwargs={"pk": actor.pk}),
+        )
+        following = True
+    from .services import count_followers
+
+    return {
+        "ok": True,
+        "is_following": following,
+        "follower_count": count_followers(target),
+    }
+
+
+def toggle_block_for_api(
+    actor: AbstractBaseUser, target: AbstractBaseUser
+) -> dict[str, Any]:
+    if actor.pk == target.pk:
+        raise ValueError("own_user")
+    from .ugc_services import block_user, unblock_user
+
+    if is_user_blocked(actor, target):
+        unblock_user(actor, target)
+        blocked = False
+    else:
+        block_user(actor, target)
+        blocked = True
+    return {"ok": True, "is_blocked": blocked}
+
+
+def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
+    query = request.GET.get("q", "").strip()
+    tab = (request.GET.get("tab") or SEARCH_TAB_ALL).strip().lower()
+    if tab not in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST, SEARCH_TAB_USERS):
+        tab = SEARCH_TAB_ALL
+    viewer = request.user if request.user.is_authenticated else None
+
+    posts_payload: list[dict[str, Any]] = []
+    users_payload: list[dict[str, Any]] = []
+
+    if query:
+        if tab in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST):
+            sort = "popular" if tab == SEARCH_TAB_ALL else "latest"
+            timeline_qs = (
+                search_timeline_posts(query, viewer=viewer, sort=sort)
+                .select_related(
+                    "author",
+                    "author__profile",
+                    "quoted_post",
+                    "quoted_post__author",
+                )
+                .prefetch_related("comments__author")
+            )
+            if viewer is not None and getattr(viewer, "is_authenticated", False):
+                timeline_qs = timeline_qs.annotate(
+                    user_has_liked=Exists(
+                        TimelineLike.objects.filter(
+                            timeline_post_id=OuterRef("pk"),
+                            user_id=viewer.id,
+                        )
+                    )
+                )
+            posts = prepare_timeline_posts(list(timeline_qs), viewer)
+            posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
+        elif tab == SEARCH_TAB_USERS:
+            for user in list(search_users(query, viewer=viewer)[:50]):
+                users_payload.append(serialize_author(user))
+
+    return {
+        "ok": True,
+        "q": query,
+        "tab": tab,
+        "posts": posts_payload,
+        "users": users_payload,
+        "post_count": len(posts_payload),
+        "user_count": len(users_payload),
+    }

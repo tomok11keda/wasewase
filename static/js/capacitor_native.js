@@ -1509,6 +1509,27 @@
     isProductionAds: isProductionAds,
     getActiveAdIds: getActiveAdIds,
     trackPageView: trackPageView,
+    handlePageTriggers: handlePageTriggers,
+    /**
+     * React Router クライアント遷移時に Analytics / 作成完了広告トリガーを再評価する。
+     */
+    notifySpaNavigation: function (reason) {
+      trackPageView(reason || "spa-nav").catch(function (error) {
+        logNativeError("Analytics spa-nav failed", error);
+      });
+      try {
+        handlePageTriggers();
+      } catch (error) {
+        logNativeError("SPA page triggers failed", error);
+      }
+      if (bannerTrackingReady) {
+        try {
+          scheduleBannerReposition();
+        } catch (error) {
+          logNative("SPA banner reposition failed", error);
+        }
+      }
+    },
     showInterstitialAd: showInterstitialAd,
     showBannerAd: showBannerAd,
     showAppOpenAd: showAppOpenAd,

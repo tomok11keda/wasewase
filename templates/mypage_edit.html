@@ -134,7 +134,11 @@
 </head>
 <body>
   <header class="site-header">
+    {% if next_url %}
+    <a class="back-link" href="{{ next_url }}">← アプリに戻る</a>
+    {% else %}
     <a class="back-link" href="{% url 'mypage' %}">← マイページに戻る</a>
+    {% endif %}
     <h1 style="margin:0;font-size:18px">プロフィール・アカウント設定</h1>
   </header>
 
@@ -149,6 +153,9 @@
 
     <form class="form-card" method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if next_url %}
+      <input type="hidden" name="next" value="{{ next_url }}">
+      {% endif %}
       <p class="form-intro">
         <strong>ニックネーム（表示名）</strong>は投稿名などに、
         <strong>ハンドル（@ID）</strong>はプロフィールの @ の後ろ（例：@wase_taro）に表示されます。英数字と _ のみ、3〜30文字です。

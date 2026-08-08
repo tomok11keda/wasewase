@@ -1,0 +1,187 @@
+/* Home timeline chrome — matches classic feed-scope / compose spacing */
+.feed-scope-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0 4px;
+}
+
+.feed-scope-tab {
+  flex: 1;
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid #e5e5e5;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.feed-scope-tab.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.feed-scope-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #fff8e6;
+  border: 1px solid #f0e0a8;
+  border-radius: 8px;
+}
+
+.feed-scope-hint a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.spa-compose {
+  margin: 0 0 12px;
+}
+
+.spa-compose__open {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.spa-compose__form {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.spa-compose__form textarea {
+  width: 100%;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.spa-compose__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.spa-compose__actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+}
+
+.spa-compose__actions button[type="button"] {
+  background: #eff3f4;
+  color: var(--text);
+}
+
+.spa-compose__quote {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  background: #f7f9f9;
+}
+
+.tweet-comments {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #eff3f4;
+}
+
+.tweet-comment-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.tweet-comment {
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.tweet-comment__meta {
+  font-size: 12px;
+  color: var(--tweet-muted, #536471);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tweet-comment__body {
+  font-size: 14px;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.tweet-comment-form {
+  display: flex;
+  gap: 8px;
+}
+
+.tweet-comment-form input {
+  flex: 1;
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-family: inherit;
+}
+
+.tweet-comment-form button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.quoted-post-card {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  background: #f7f9f9;
+}
+
+.empty-message {
+  margin: 16px 8px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.timeline-scroll-sentinel {
+  height: 1px;
+}
+
+.tweet-action--like.is-liked {
+  color: var(--tweet-like, #f91880);
+}
