@@ -10,13 +10,32 @@ import {
 /**
  * Capacitor ネイティブ専用。More ページ下部の診断モード切替。
  * 通常の Web ブラウザでは何も描画しない。
+ *
+ * Note: remote WKWebView では Capacitor 注入が head スクリプトより遅れるため、
+ * 初回 false でも capacitor:ready / 短時間ポーリングで再判定する。
  */
 export function SpaDiagSection() {
   const diag = useSpaNavDiag();
-  const [native, setNative] = useState(false);
+  const [native, setNative] = useState(() => isNativeCapacitorApp());
 
   useEffect(() => {
-    setNative(isNativeCapacitorApp());
+    const update = () => {
+      if (isNativeCapacitorApp()) {
+        setNative(true);
+      }
+    };
+    update();
+    window.addEventListener("capacitor:ready", update);
+    const intervalId = window.setInterval(update, 200);
+    const timeoutId = window.setTimeout(() => {
+      window.clearInterval(intervalId);
+      update();
+    }, 8000);
+    return () => {
+      window.removeEventListener("capacitor:ready", update);
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   if (!native) return null;
@@ -32,6 +51,7 @@ export function SpaDiagSection() {
   return (
     <section
       className="spa-diag-section"
+      data-spa-diag-section="1"
       aria-label="SPA Flash Diagnostic"
       style={{
         marginTop: 28,
