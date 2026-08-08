@@ -68,5 +68,16 @@
 	<string>プロフィール画像や投稿画像を選ぶために、写真ライブラリへのアクセスが必要です。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>撮影した画像を写真ライブラリに保存するためにアクセスが必要です。</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.wasewase.app.spa-diag</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wasewase</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

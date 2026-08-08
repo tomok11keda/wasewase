@@ -25,6 +25,8 @@
 html,
 body {
   margin: 0;
+  /* Stable surface — prevents WebView default white peek between paints */
+  background: var(--bg);
 }
 
 body.shell-desktop {
@@ -38,6 +40,8 @@ body.shell-desktop {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
 }
 
 a {

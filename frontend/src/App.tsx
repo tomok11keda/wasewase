@@ -8,6 +8,7 @@ import { AuthLayout } from "./layouts/AuthLayout";
 import { SessionProvider } from "./lib/session";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
+import { SpaNavDiagBadge } from "./components/SpaNavDiagBadge";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmInboxPage } from "./pages/DmInboxPage";
 import { DmRoomPage } from "./pages/DmRoomPage";
@@ -28,6 +29,11 @@ import { SignupPage } from "./pages/SignupPage";
 import { TimetablePage } from "./pages/TimetablePage";
 import { TradeChatPage } from "./pages/TradeChatPage";
 import { VerifyOtpPage } from "./pages/VerifyOtpPage";
+import { CommunitiesPage } from "./pages/CommunitiesPage";
+import { FleaPage } from "./pages/FleaPage";
+import { HomePage } from "./pages/HomePage";
+import { MorePage } from "./pages/tabs";
+import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
 
@@ -36,7 +42,75 @@ function SpaRuntimeHooks() {
     <>
       <UnauthorizedRedirect />
       <NativeSpaBridge />
+      <SpaNavDiagBadge />
     </>
+  );
+}
+
+function NestedAppRoutes() {
+  return (
+    <>
+      <Route
+        path="communities/:slug/threads/:threadPk"
+        element={<CommunityThreadPage />}
+      />
+      <Route path="flea/exhibit" element={<ExhibitPage />} />
+      <Route path="flea/products/:pk" element={<ProductDetailPage />} />
+      <Route path="flea/chats/:roomPk" element={<TradeChatPage />} />
+      <Route path="timetable/user/:userPk" element={<TimetablePage />} />
+      <Route path="users/:userId" element={<ProfilePage />} />
+      <Route path="users/:userId/:tab" element={<ProfilePage />} />
+      <Route path="search" element={<SearchPage />} />
+      <Route path="notifications" element={<NotificationsPage />} />
+      <Route path="dm" element={<DmInboxPage />} />
+      <Route path="dm/groups/new" element={<GroupCreatePage />} />
+      <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />
+      <Route path="dm/:roomPk" element={<DmRoomPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </>
+  );
+}
+
+/** Must be a component under BrowserRouter (hooks need Router context). */
+function AppRoutes() {
+  const diag = useSpaNavDiag();
+
+  return (
+    <Routes>
+      <Route element={<AuthLayout />}>
+        <Route path="login" element={<LoginPage />} />
+        <Route path="signup" element={<SignupPage />} />
+        <Route path="verify" element={<VerifyOtpPage />} />
+        <Route path="password-reset" element={<PasswordResetRequestPage />} />
+        <Route
+          path="password-reset/verify"
+          element={<PasswordResetVerifyPage />}
+        />
+        <Route path="password-reset/set" element={<PasswordResetSetPage />} />
+      </Route>
+
+      {diag.disableKeepAlive ? (
+        <Route element={<AppShellLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="communities" element={<CommunitiesPage />} />
+          <Route path="flea" element={<FleaPage />} />
+          <Route path="timetable" element={<TimetablePage />} />
+          <Route path="more" element={<MorePage />} />
+          {NestedAppRoutes()}
+        </Route>
+      ) : (
+        <Route element={<AppShellLayout />}>
+          <Route element={<TabKeepAliveLayout />}>
+            <Route index element={<MainTabRoute />} />
+            <Route path="communities" element={<MainTabRoute />} />
+            <Route path="flea" element={<MainTabRoute />} />
+            <Route path="timetable" element={<MainTabRoute />} />
+            <Route path="more" element={<MainTabRoute />} />
+            {NestedAppRoutes()}
+          </Route>
+        </Route>
+      )}
+    </Routes>
   );
 }
 
@@ -45,49 +119,7 @@ export default function App() {
     <SessionProvider>
       <BrowserRouter basename={BASENAME}>
         <SpaRuntimeHooks />
-        <Routes>
-          <Route element={<AuthLayout />}>
-            <Route path="login" element={<LoginPage />} />
-            <Route path="signup" element={<SignupPage />} />
-            <Route path="verify" element={<VerifyOtpPage />} />
-            <Route path="password-reset" element={<PasswordResetRequestPage />} />
-            <Route
-              path="password-reset/verify"
-              element={<PasswordResetVerifyPage />}
-            />
-            <Route path="password-reset/set" element={<PasswordResetSetPage />} />
-          </Route>
-
-          <Route element={<AppShellLayout />}>
-            <Route element={<TabKeepAliveLayout />}>
-              {/* Primary tabs: panes kept alive; route element is a no-op */}
-              <Route index element={<MainTabRoute />} />
-              <Route path="communities" element={<MainTabRoute />} />
-              <Route path="flea" element={<MainTabRoute />} />
-              <Route path="timetable" element={<MainTabRoute />} />
-              <Route path="more" element={<MainTabRoute />} />
-
-              {/* Nested / non-tab routes still use Outlet */}
-              <Route
-                path="communities/:slug/threads/:threadPk"
-                element={<CommunityThreadPage />}
-              />
-              <Route path="flea/exhibit" element={<ExhibitPage />} />
-              <Route path="flea/products/:pk" element={<ProductDetailPage />} />
-              <Route path="flea/chats/:roomPk" element={<TradeChatPage />} />
-              <Route path="timetable/user/:userPk" element={<TimetablePage />} />
-              <Route path="users/:userId" element={<ProfilePage />} />
-              <Route path="users/:userId/:tab" element={<ProfilePage />} />
-              <Route path="search" element={<SearchPage />} />
-              <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="dm" element={<DmInboxPage />} />
-              <Route path="dm/groups/new" element={<GroupCreatePage />} />
-              <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />
-              <Route path="dm/:roomPk" element={<DmRoomPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Route>
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </SessionProvider>
   );

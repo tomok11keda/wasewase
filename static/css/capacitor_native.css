@@ -183,16 +183,22 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
  * - will-change は WKWebView で逆にブレやすいので使わない
  */
 @media (max-width: 1023px) {
+  /*
+   * Native cushion: WebView / html / body はエンジ。
+   * コンテンツ面（#root AppShell / .main-column）だけアプリ背景色。
+   * !important: spa / tokens の light bg が WKWebView 隙間で白く見えないようにする。
+   */
   html.is-native-capacitor {
-    background: var(--accent, #891e2b);
+    background: var(--accent, #891e2b) !important;
     height: 100%;
     overflow-x: hidden;
     overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
   }
 
-  html.is-native-capacitor body {
-    background: var(--accent, #891e2b);
+  html.is-native-capacitor body,
+  html.is-native-capacitor body.shell-desktop {
+    background: var(--accent, #891e2b) !important;
     min-height: 100%;
     overflow-x: hidden;
     overscroll-behavior-y: none;
@@ -201,12 +207,20 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
     overscroll-behavior: none;
   }
 
-  html.is-native-capacitor body.shell-desktop {
-    background: var(--accent, #891e2b);
+  html.is-native-capacitor #root {
+    background: var(--bg, #f7f9fc);
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  html.is-native-capacitor .app-shell,
+  html.is-native-capacitor .main-column,
+  html.is-native-capacitor .tab-keep-alive-stack,
+  html.is-native-capacitor .tab-keep-alive-pane {
+    background: var(--bg, #f7f9fc);
   }
 
   html.is-native-capacitor .main-column {
-    background: var(--bg, #f7f9fc);
     min-height: 100%;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
