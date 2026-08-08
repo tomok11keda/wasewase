@@ -236,12 +236,16 @@ export function TradeChatPage() {
                 m.is_system ? " system" : m.is_mine ? " mine" : " theirs"
               }`}
             >
-              {!m.is_system ? (
-                <p className="chat-meta">
-                  {m.sender_name} · {m.created_at}
-                </p>
-              ) : null}
-              {m.body}
+              {m.is_system ? (
+                m.body
+              ) : (
+                <>
+                  <div className="chat-meta">
+                    {m.sender_name} · {m.created_at}
+                  </div>
+                  <div className="chat-bubble-body">{m.body}</div>
+                </>
+              )}
             </div>
           ))}
           <div ref={bottomRef} />

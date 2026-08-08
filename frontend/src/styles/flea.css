@@ -807,7 +807,10 @@
 }
 
 .trade-chat-page .main-inner {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 640px;
+  min-width: 0;
   margin: 0 auto;
   padding: 12px;
   display: flex;
@@ -884,12 +887,16 @@
 }
 
 .trade-chat-page .chat-messages {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   flex: 1;
   background: #fff;
   border-radius: var(--radius);
   padding: 12px;
   min-height: 240px;
   max-height: 50vh;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -897,19 +904,24 @@
   gap: 6px;
 }
 
+/*
+ * Flex item + block children: width:fit-content often resolves near the
+ * container width. Use max-content (clamped by max-width) like Classic
+ * content-sized bubbles — short text stays tight, long text wraps at cap.
+ */
 .trade-chat-page .chat-bubble {
   display: block;
   box-sizing: border-box;
-  width: fit-content;
+  width: max-content;
   max-width: min(78%, 320px);
+  min-width: 0;
   margin: 0;
   padding: 6px 10px;
   border-radius: 14px;
   font-size: 14px;
   line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
   flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .trade-chat-page .chat-bubble.mine {
@@ -929,7 +941,7 @@
 
 .trade-chat-page .chat-bubble.system {
   align-self: center;
-  width: fit-content;
+  width: max-content;
   max-width: min(92%, 360px);
   margin: 2px auto;
   padding: 4px 10px;
@@ -940,6 +952,9 @@
   line-height: 1.35;
   text-align: center;
   border-radius: 999px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .trade-chat-page .chat-meta {
@@ -947,6 +962,13 @@
   font-size: 10px;
   line-height: 1.2;
   color: var(--muted);
+}
+
+.trade-chat-page .chat-bubble-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .trade-chat-page .chat-compose {
