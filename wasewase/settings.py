@@ -427,9 +427,15 @@ BROWSE_MODE_GATE_ENABLED = env.bool(
     default="test" not in sys.argv,
 )
 
-# React SPA (Phase 1–2)。既定 OFF — 既存テンプレート UI を壊さない。
-# 有効化: WASE_REACT_SPA=True → /app/ で SPA を配信。無効時は /app/ が 404。
-WASE_REACT_SPA = env.bool("WASE_REACT_SPA", default=False)
+# React SPA soft-launch:
+# - Local: default False (classic UI only)
+# - Render (RENDER_EXTERNAL_HOSTNAME set): default True → /app/ serves SPA
+# - Rollback anytime: set WASE_REACT_SPA=False (classic / は維持、/app/ は 404)
+# Classic templates are NOT deleted (Phase 10 前).
+WASE_REACT_SPA = env.bool(
+    "WASE_REACT_SPA",
+    default=bool(RENDER_EXTERNAL_HOSTNAME),
+)
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
