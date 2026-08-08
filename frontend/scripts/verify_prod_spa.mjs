@@ -24,16 +24,16 @@ const spaUrl = `${baseUrl}/app/`;
 const email = process.env.WASE_E2E_EMAIL || "";
 const password = process.env.WASE_E2E_PASSWORD || "";
 
-async function assertFrontendAssets() {
+async function assertFrontendAssets(page) {
   for (const path of [
     "/static/frontend/assets/main.js",
     "/static/frontend/assets/main.css",
   ]) {
-    const res = await fetch(`${baseUrl}${path}`);
-    if (!res.ok) {
-      throw new Error(`Missing SPA asset ${path} (HTTP ${res.status})`);
+    const res = await page.request.get(`${baseUrl}${path}`);
+    if (!res.ok()) {
+      throw new Error(`Missing SPA asset ${path} (HTTP ${res.status()})`);
     }
-    const ct = res.headers.get("content-type") || "";
+    const ct = res.headers()["content-type"] || "";
     if (ct.includes("text/html")) {
       throw new Error(`SPA asset ${path} returned HTML instead of static file`);
     }
@@ -82,7 +82,7 @@ const page = await browser.newPage();
 await page.setViewportSize({ width: 390, height: 844 });
 
 try {
-  await assertFrontendAssets();
+  await assertFrontendAssets(page);
 } catch (err) {
   findings.problems.push(String(err.message || err));
   console.error(err);
@@ -125,6 +125,19 @@ if (!me.react_spa_enabled) {
 }
 
 let baselineLoads = loadCount;
+
+// Browse gate: unauthenticated /app/ lands on login — enter browse mode for nav checks.
+const onLogin = await page.locator('[data-spa-page="ログイン"]').count();
+if (onLogin > 0 && !me.authenticated) {
+  await page
+    .locator("button.linkish", {
+      hasText: "閲覧モード",
+    })
+    .click();
+  await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
+  note("browse-mode→home");
+  baselineLoads = loadCount;
+}
 
 async function expectNoReload(label, fn) {
   const before = loadCount;
@@ -271,33 +284,40 @@ if (!me.authenticated) {
   }
 }
 
-// Authenticated flows
+// Authenticated flows — go to a clean login page first (avoid 401-probe side effects)
 if (email && password) {
-  if (!page.url().includes("/app/login")) {
-    await page.goto(`${baseUrl}/app/login`, { waitUntil: "domcontentloaded" });
-  }
-  await page.waitForSelector('input[type="email"], input[name="email"]', {
+  await page.goto(`${baseUrl}/app/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('input[type="email"], input[name="email"], #login-email', {
     timeout: 20000,
   });
-  await page.fill('input[type="email"], input[name="email"]', email);
-  await page.fill('input[type="password"], input[name="password"]', password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(400);
+  await page.fill('#login-email, input[type="email"]', email);
+  await page.fill('#login-password, input[type="password"]', password);
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  const loginErr = await page.locator(".errors").textContent().catch(() => null);
   const afterLogin = page.url();
+  let loggedIn = false;
   if (afterLogin.includes("/app/login")) {
-    findings.problems.push("login failed (still on /app/login)");
+    findings.problems.push(
+      `login failed (still on /app/login)${loginErr ? `: ${loginErr}` : ""}`
+    );
   } else if (!afterLogin.includes("/app")) {
     findings.fullReloads.push(`login redirect left SPA: ${afterLogin}`);
     findings.problems.push(`login left /app/: ${afterLogin}`);
   } else {
     findings.authChecked.push("login");
-    note("login→spa");
+    note(`login→spa (${afterLogin})`);
     baselineLoads = loadCount;
+    loggedIn = true;
   }
 
+  if (!loggedIn) {
+    console.log("skip post-login hops (login failed)");
+  } else {
   // DM inbox + room poll cleanup
   await page.setViewportSize({ width: 390, height: 844 });
-  const dmLink = page.locator("a.shell-header-dm, a[href*='/app/dm']").first();
+  const dmLink = page.locator("a.shell-header-dm, a[href*='/dm']").first();
   if ((await dmLink.count()) > 0) {
     await expectNoReload("dm:inbox", async () => {
       await dmLink.click();
@@ -346,6 +366,7 @@ if (email && password) {
     await page.waitForSelector('[data-spa-page="通知"]', { timeout: 20000 });
   });
   findings.authChecked.push("notifications");
+  }
 } else {
   console.log("skip authenticated flows (set WASE_E2E_EMAIL / WASE_E2E_PASSWORD)");
 }
