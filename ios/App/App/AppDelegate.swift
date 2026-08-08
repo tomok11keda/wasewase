@@ -58,6 +58,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             webView.isOpaque = false
             webView.backgroundColor = brandBurgundy
             webView.scrollView.backgroundColor = brandBurgundy
+            // Experiment: if tab-switch "white flash" is under-page peek, it should
+            // turn burgundy instead of system white. Keep isOpaque=false.
+            if #available(iOS 15.0, *) {
+                webView.underPageBackgroundColor = brandBurgundy
+            }
             webView.scrollView.contentInsetAdjustmentBehavior = .never
             // fixed ヘッダーとラバーバンドの描画ずれを防ぐ
             webView.scrollView.bounces = false
