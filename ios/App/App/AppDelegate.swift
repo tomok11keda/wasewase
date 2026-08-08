@@ -26,6 +26,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.applyBrandBackground()
         }
+        // Cold start via wasewase://spa-diag/...
+        if let url = launchOptions?[.url] as? URL {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                _ = self?.handleSpaDiagDeepLink(url)
+            }
+        }
         return true
     }
 
@@ -80,16 +86,105 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        // Called when the app was launched with a url. Feel free to add additional processing here,
-        // but if you want the App API to support tracking app url opens, make sure to keep this call
+        // TestFlight 診断専用: wasewase://spa-diag/no_banner 等
+        if handleSpaDiagDeepLink(url) {
+            return true
+        }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
         // Called when the app was launched with an activity, including Universal Links.
-        // Feel free to add additional processing here, but if you want the App API to support
-        // tracking app url opens, make sure to keep this call
+        // Use this method to restore the user activity and continue it.
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+    /// wasewase://spa-diag/<mode> → WKWebView で /app/?spa_flash_diag=&spa_nav_diag= を開く
+    @discardableResult
+    private func handleSpaDiagDeepLink(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "wasewase" else {
+            return false
+        }
+        let host = (url.host ?? "").lowercased()
+        guard host == "spa-diag" else {
+            return false
+        }
+
+        var mode = url.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        if mode.isEmpty {
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+            mode = (items?.first(where: { $0.name == "mode" })?.value ?? "normal").lowercased()
+        }
+
+        let allowed: Set<String> = [
+            "normal", "no_banner", "off", "no_bridge",
+            "no_analytics", "no_keepalive", "no_transition", "clear",
+        ]
+        if !allowed.contains(mode) {
+            mode = "normal"
+        }
+
+        let flashOn = !(mode == "normal" || mode == "clear")
+        let navValue = (mode == "normal") ? "clear" : mode
+
+        // Prefer current WebView origin (remote server or local)
+        var components = URLComponents()
+        if let bridge = window?.rootViewController as? CAPBridgeViewController,
+           let current = bridge.webView?.url {
+            components.scheme = current.scheme
+            components.host = current.host
+            components.port = current.port
+        } else {
+            components.scheme = "https"
+            components.host = "wasewase.onrender.com"
+        }
+        components.path = "/app/"
+        components.queryItems = [
+            URLQueryItem(name: "spa_flash_diag", value: flashOn ? "1" : "0"),
+            URLQueryItem(name: "spa_nav_diag", value: navValue),
+        ]
+        guard let target = components.url else {
+            return true
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.navigateWebView(to: target, mode: mode, flashOn: flashOn)
+        }
+        return true
+    }
+
+    private func navigateWebView(to target: URL, mode: String, flashOn: Bool) {
+        guard let bridge = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridge.webView else {
+            return
+        }
+
+        // localStorage を先に合わせてから遷移（既存 JS 診断機構と整合）
+        let navLiteral = (mode == "normal" || mode == "clear") ? "" : mode
+        let flashJs = flashOn ? "localStorage.setItem('wase_flash_diag','1');" : "localStorage.removeItem('wase_flash_diag');"
+        let navJs: String
+        if navLiteral.isEmpty {
+            navJs = "localStorage.removeItem('wase_spa_nav_diag');"
+        } else {
+            navJs = "localStorage.setItem('wase_spa_nav_diag','\(navLiteral)');"
+        }
+        let js = """
+        (function(){
+          try { \(flashJs) \(navJs) } catch (e) {}
+          location.href = \(jsonString(target.absoluteString));
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private func jsonString(_ value: String) -> String {
+        let data = try? JSONSerialization.data(withJSONObject: value, options: [])
+        if let data = data, let s = String(data: data, encoding: .utf8) {
+            return s
+        }
+        return "\"\(value)\""
     }
 
 }

@@ -28,6 +28,91 @@
   var bannerFailureListenersReady = false;
   var lastTrackedAnalyticsScreen = "";
 
+  /**
+   * TestFlight 切り分け用フラグ。通常時はすべて false（本番挙動を変えない）。
+   *
+   * URL: /app/?spa_nav_diag=off|no_banner|no_ads|no_analytics|no_bridge|no_keepalive|no_transition
+   * 解除: ?spa_nav_diag=clear
+   * または localStorage.wase_spa_nav_diag / window.WASE_SPA_NAV_DIAG
+   */
+  function readSpaNavDiag() {
+    var flags = {
+      disableAll: false,
+      disableAnalytics: false,
+      disableAds: false,
+      disableBannerReposition: false,
+      disableBridge: false,
+    };
+    try {
+      if (window.WASE_SPA_NAV_DIAG && typeof window.WASE_SPA_NAV_DIAG === "object") {
+        flags.disableAll = Boolean(window.WASE_SPA_NAV_DIAG.disableAll);
+        flags.disableAnalytics = Boolean(window.WASE_SPA_NAV_DIAG.disableAnalytics);
+        flags.disableAds = Boolean(window.WASE_SPA_NAV_DIAG.disableAds);
+        flags.disableBannerReposition = Boolean(
+          window.WASE_SPA_NAV_DIAG.disableBannerReposition
+        );
+        flags.disableBridge = Boolean(window.WASE_SPA_NAV_DIAG.disableBridge);
+      }
+      var stored = null;
+      try {
+        stored = window.localStorage.getItem("wase_spa_nav_diag");
+      } catch (e) {
+        stored = null;
+      }
+      var raw = stored || "";
+      try {
+        var params = new URLSearchParams(window.location.search || "");
+        if (params.has("spa_nav_diag")) {
+          raw = params.get("spa_nav_diag") || "";
+          try {
+            if (!raw || raw === "clear" || raw === "default" || raw === "reset") {
+              window.localStorage.removeItem("wase_spa_nav_diag");
+              raw = "";
+            } else {
+              window.localStorage.setItem("wase_spa_nav_diag", raw);
+            }
+          } catch (ePersist) {
+            /* ignore */
+          }
+        }
+      } catch (e2) {
+        /* ignore */
+      }
+      if (raw) {
+        var parts = String(raw)
+          .toLowerCase()
+          .split(/[,+\s]+/)
+          .filter(Boolean);
+        parts.forEach(function (p) {
+          if (p === "off" || p === "no_all" || p === "all") {
+            flags.disableAll = true;
+          }
+          if (p === "no_analytics" || p === "analytics") {
+            flags.disableAnalytics = true;
+          }
+          if (p === "no_ads" || p === "ads") {
+            flags.disableAds = true;
+          }
+          if (p === "no_banner" || p === "banner") {
+            flags.disableBannerReposition = true;
+          }
+          if (p === "no_bridge" || p === "bridge") {
+            flags.disableBridge = true;
+          }
+        });
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    if (flags.disableAll) {
+      flags.disableAnalytics = true;
+      flags.disableAds = true;
+      flags.disableBannerReposition = true;
+      flags.disableBridge = true;
+    }
+    return flags;
+  }
+
   var DEFAULT_ADMOB_IDS = {
     test: {
       appId: "ca-app-pub-3940256099942544~1458002511",
@@ -42,6 +127,30 @@
       appOpen: "ca-app-pub-3330130877204303/9431324966",
     },
   };
+
+  function flashDiagMark(type, payload) {
+    try {
+      if (window.WaseFlashDiag && typeof window.WaseFlashDiag.mark === "function") {
+        window.WaseFlashDiag.mark(type, payload || null);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function flashDiagSnapshot(reason) {
+    try {
+      if (
+        window.WaseFlashDiag &&
+        typeof window.WaseFlashDiag.snapshotNative === "function"
+      ) {
+        return window.WaseFlashDiag.snapshotNative(reason);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    return Promise.resolve(null);
+  }
 
   function getAdMobConfig() {
     return window.WASE_ADMOB_CONFIG || {};
@@ -1093,11 +1202,17 @@
     if (!AdMob || !bannerVisible) {
       return;
     }
+    flashDiagMark("admob_remove_banner_start", null);
     if (typeof AdMob.removeBanner === "function") {
       try {
         await AdMob.removeBanner();
+        flashDiagMark("admob_remove_banner", null);
+        void flashDiagSnapshot("after_remove_banner");
       } catch (error) {
         logNative("removeBanner failed", error);
+        flashDiagMark("admob_remove_banner_error", {
+          message: String(error && error.message ? error.message : error),
+        });
       }
     }
     bannerVisible = false;
@@ -1112,14 +1227,27 @@
       return false;
     }
 
+    flashDiagMark("admob_show_banner_start", {
+      position: options && options.position,
+      margin: options && options.margin,
+    });
+
     if (bannerVisible) {
       await hideBannerAd();
     }
 
     try {
       await AdMob.showBanner(options);
+      flashDiagMark("admob_show_banner", {
+        position: options && options.position,
+        margin: options && options.margin,
+      });
+      void flashDiagSnapshot("after_show_banner");
     } catch (error) {
       logNativeError("AdMob.showBanner failed", error);
+      flashDiagMark("admob_show_banner_error", {
+        message: String(error && error.message ? error.message : error),
+      });
       throw error;
     }
 
@@ -1185,12 +1313,19 @@
 
   async function repositionInlineBanner() {
     if (bannerRepositionInFlight) {
+      flashDiagMark("reposition_inline_banner_skipped", { reason: "in_flight" });
       return;
     }
     bannerRepositionInFlight = true;
+    flashDiagMark("reposition_inline_banner", {
+      bannerVisible: bannerVisible,
+      bannerMode: bannerMode,
+    });
+    void flashDiagSnapshot("reposition_inline_banner_start");
     try {
       var anchor = findBestAdAnchor();
       if (!anchor) {
+        flashDiagMark("reposition_inline_banner_no_anchor", null);
         if (bannerMode === "inline") {
           await hideBannerAd();
           if (currentBannerAnchor) {
@@ -1201,25 +1336,119 @@
         return;
       }
       await positionBannerAtAnchor(anchor);
+      flashDiagMark("reposition_inline_banner_done", null);
+      void flashDiagSnapshot("reposition_inline_banner_done");
     } catch (error) {
       logNative("Banner reposition failed", error);
+      flashDiagMark("reposition_inline_banner_error", {
+        message: String(error && error.message ? error.message : error),
+      });
     } finally {
       bannerRepositionInFlight = false;
     }
   }
 
-  function scheduleBannerReposition() {
+  function scheduleBannerReposition(delayMs) {
+    var diag = readSpaNavDiag();
+    var waitMs =
+      typeof delayMs === "number" ? delayMs : BANNER_REPOSITION_DEBOUNCE_MS;
+    flashDiagMark("schedule_banner_reposition_attempt", {
+      delayMs: waitMs,
+      bannerTrackingReady: bannerTrackingReady,
+      disableBannerReposition: Boolean(diag.disableBannerReposition),
+    });
     if (!bannerTrackingReady) {
+      flashDiagMark("schedule_banner_reposition_skipped", {
+        reason: "not_ready",
+      });
+      return;
+    }
+    if (diag.disableBannerReposition) {
+      flashDiagMark("schedule_banner_reposition_skipped", {
+        reason: "diag_no_banner",
+      });
       return;
     }
     if (bannerRepositionTimer) {
       clearTimeout(bannerRepositionTimer);
     }
+    flashDiagMark("schedule_banner_reposition", { delayMs: waitMs });
     bannerRepositionTimer = setTimeout(function () {
+      flashDiagMark("schedule_banner_reposition_fire", { delayMs: waitMs });
       repositionInlineBanner().catch(function (error) {
         logNative("Deferred banner reposition failed", error);
       });
-    }, BANNER_REPOSITION_DEBOUNCE_MS);
+    }, waitMs);
+  }
+
+  /**
+   * React SPA のクライアント遷移用。
+   * 通常時は Analytics + AdMob creation trigger + banner reposition（従来どおり）。
+   *
+   * 切り分け（通常挙動は変えない）:
+   *   ?spa_nav_diag=off          → notifySpaNavigation 全体オフ
+   *   ?spa_nav_diag=no_banner    → banner reposition のみオフ
+   *   ?spa_nav_diag=no_ads       → creation AdMob trigger のみオフ
+   *   ?spa_nav_diag=no_analytics → Analytics のみオフ
+   */
+  function notifySpaNavigation(reason) {
+    var diag = readSpaNavDiag();
+    flashDiagMark("notify_spa_navigation", {
+      reason: reason || "spa-nav",
+      path: window.location.pathname,
+      diag: diag,
+    });
+    logNative("SPA navigation", {
+      reason: reason || "spa-nav",
+      path: window.location.pathname,
+      diag: diag,
+    });
+
+    if (diag.disableAll) {
+      flashDiagMark("notify_spa_navigation_skipped", { reason: "diag_off" });
+      return;
+    }
+
+    if (!diag.disableAnalytics) {
+      flashDiagMark("analytics_track_page_view", {
+        reason: reason || "spa-nav",
+      });
+      trackPageView(reason || "spa-nav").catch(function (error) {
+        logNativeError("Analytics spa-nav failed", error);
+      });
+    } else {
+      flashDiagMark("analytics_track_page_view_skipped", {
+        reason: "diag_no_analytics",
+      });
+    }
+
+    if (!diag.disableAds) {
+      flashDiagMark("handle_page_triggers", null);
+      try {
+        handlePageTriggers();
+      } catch (error) {
+        logNativeError("SPA page triggers failed", error);
+      }
+    } else {
+      flashDiagMark("handle_page_triggers_skipped", { reason: "diag_no_ads" });
+    }
+
+    if (!diag.disableBannerReposition && bannerTrackingReady) {
+      try {
+        scheduleBannerReposition();
+      } catch (error) {
+        logNative("SPA banner reposition failed", error);
+      }
+    } else if (diag.disableBannerReposition) {
+      flashDiagMark("schedule_banner_reposition_skipped", {
+        reason: "diag_no_banner_from_notify",
+      });
+    } else {
+      flashDiagMark("schedule_banner_reposition_skipped", {
+        reason: "banner_tracking_not_ready",
+      });
+    }
+    void flashDiagSnapshot("after_notify_spa_navigation");
   }
 
   function setupInlineBannerTracking() {
@@ -1509,6 +1738,14 @@
     isProductionAds: isProductionAds,
     getActiveAdIds: getActiveAdIds,
     trackPageView: trackPageView,
+    handlePageTriggers: handlePageTriggers,
+    /**
+     * React Router クライアント遷移時に Analytics / 広告トリガーを再評価する。
+     * タブ切替時の AdMob banner 再配置は notifySpaNavigation 内で抑制・遅延。
+     */
+    notifySpaNavigation: notifySpaNavigation,
+    /** TestFlight 切り分け: 現在の diag フラグを返す */
+    getSpaNavDiag: readSpaNavDiag,
     showInterstitialAd: showInterstitialAd,
     showBannerAd: showBannerAd,
     showAppOpenAd: showAppOpenAd,

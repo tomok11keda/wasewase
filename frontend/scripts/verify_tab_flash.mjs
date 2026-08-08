@@ -1,7 +1,7 @@
 /**
- * Verify BottomNav tab switches do not white-flash after keep-alive.
- * 1) Warm each tab once (first visit may load)
- * 2) Remeasure hops — content must stay (no 読み込み中 blank)
+ * Measure tab-switch luminance jumps (not just loadingFlash).
+ * After warm-up, each hop samples frames across the crossfade window
+ * and reports max frame-to-frame Δluma / near-white.
  *
  * Usage: node scripts/verify_tab_flash.mjs [baseUrl]
  */
@@ -13,9 +13,12 @@ import { fileURLToPath } from "node:url";
 const baseUrl = (process.argv[2] || "http://127.0.0.1:8000").replace(/\/$/, "");
 const outDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
-  "flash-captures-after"
+  "flash-captures-luma"
 );
 fs.mkdirSync(outDir, { recursive: true });
+
+/** Must cover TAB_CROSSFADE_MS (220) */
+const SAMPLE_MS = [0, 16, 33, 50, 80, 120, 160, 200, 240, 300];
 
 async function launchBrowser() {
   for (const channel of [
@@ -47,10 +50,14 @@ page.on("load", () => {
   loadCount += 1;
 });
 
-await page.goto(`${baseUrl}/app/`, { waitUntil: "domcontentloaded", timeout: 120000 });
-await page.waitForSelector('[data-spa-page="ホーム"], [data-spa-page="ログイン"]', {
-  timeout: 60000,
+await page.goto(`${baseUrl}/app/`, {
+  waitUntil: "domcontentloaded",
+  timeout: 120000,
 });
+await page.waitForSelector(
+  '[data-spa-page="ホーム"], [data-spa-page="ログイン"]',
+  { timeout: 60000 }
+);
 if (await page.locator('[data-spa-page="ログイン"]').count()) {
   await page.locator("button.linkish", { hasText: "閲覧モード" }).click();
   await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
@@ -65,18 +72,48 @@ const tabs = [
   ["ホーム", "ホーム"],
 ];
 
-console.log("warm-up tabs…");
+console.log("warm-up…");
 for (const [label, heading] of tabs) {
   await page.locator("nav.bottom-nav a.nav-item", { hasText: label }).click();
   await page.waitForSelector(`[data-spa-page="${heading}"]`, { timeout: 20000 });
-  // wait for loading text to clear if present
-  await page.waitForTimeout(800);
-  const loading = await page.locator("text=読み込み中").count();
-  if (loading) await page.waitForTimeout(1500);
+  await page.waitForTimeout(600);
 }
 console.log("warm-up done");
 
-async function meanLuma(file) {
+async function sampleViewport() {
+  return page.evaluate(() => {
+    // Draw current viewport via screenshot is external; here read DOM metrics
+    // plus a canvas sample of the main column if available is hard without bitmap.
+    // Caller uses page.screenshot + this for structural probes.
+    const stack = document.querySelector(".tab-keep-alive-stack");
+    const active = document.querySelector(".tab-keep-alive-pane.is-active");
+    const leaving = document.querySelector(".tab-keep-alive-pane.is-leaving");
+    const loadingVisible = Array.from(
+      document.querySelectorAll(".empty-message, .timetable-note")
+    ).some(
+      (el) =>
+        active?.contains(el) && (el.textContent || "").includes("読み込み中")
+    );
+    return {
+      activeTab: active?.getAttribute("data-tab-pane"),
+      leavingTab: leaving?.getAttribute("data-tab-pane"),
+      activeOpacity: active ? getComputedStyle(active).opacity : null,
+      leavingOpacity: leaving ? getComputedStyle(leaving).opacity : null,
+      stackBg: stack ? getComputedStyle(stack).backgroundColor : null,
+      bodyBg: getComputedStyle(document.body).backgroundColor,
+      rootBg: getComputedStyle(document.documentElement).backgroundColor,
+      loadingVisible,
+      shell: Boolean(document.querySelector(".app-shell")),
+      nav: Boolean(document.querySelector(".bottom-nav")),
+      header: Boolean(document.querySelector(".site-header")),
+      displayNoneActive: active
+        ? getComputedStyle(active).display === "none"
+        : null,
+    };
+  });
+}
+
+async function lumaFromFile(file) {
   const b64 = fs.readFileSync(file).toString("base64");
   return page.evaluate(async (dataUrl) => {
     const img = new Image();
@@ -90,21 +127,29 @@ async function meanLuma(file) {
     c.height = img.height;
     const ctx = c.getContext("2d");
     ctx.drawImage(img, 0, 0);
+    // Content band below header / above bottom nav
     const y0 = Math.floor(img.height * 0.12);
     const y1 = Math.floor(img.height * 0.82);
     const data = ctx.getImageData(0, y0, img.width, y1 - y0).data;
     let sum = 0;
     let n = 0;
     let nearWhite = 0;
+    let maxLuma = 0;
     for (let i = 0; i < data.length; i += 16) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      sum += luma;
       n += 1;
+      if (luma > maxLuma) maxLuma = luma;
       if (r > 245 && g > 245 && b > 245) nearWhite += 1;
     }
-    return { meanLuma: sum / n, nearWhiteRatio: nearWhite / n };
+    return {
+      meanLuma: sum / n,
+      maxLuma,
+      nearWhiteRatio: nearWhite / n,
+    };
   }, `data:image/png;base64,${b64}`);
 }
 
@@ -112,102 +157,103 @@ const hops = [
   ...tabs,
   ["時間割", "時間割"],
   ["ホーム", "ホーム"],
-  ["コミュニティ", "コミュニティ"],
+  ["時間割", "時間割"],
+  ["その他", "その他"],
   ["ホーム", "ホーム"],
   ["フリマ", "フリマ"],
-  ["コミュニティ", "コミュニティ"],
-  ["その他", "その他"],
-  ["フリマ", "フリマ"],
+  ["ホーム", "ホーム"],
 ];
 
 const results = [];
 let failures = 0;
 
 for (const [label, heading] of hops) {
-  const beforeShot = path.join(outDir, `${label}-before-${results.length}.png`);
-  await page.screenshot({ path: beforeShot, fullPage: false });
-  const beforeLuma = await meanLuma(beforeShot);
-
-  const beforeProbe = await page.evaluate(() => ({
-    page: document.querySelector(".tab-keep-alive-pane.is-active [data-spa-page], [data-spa-page]")
-      ?.getAttribute("data-spa-page"),
-    loadingVisible: Array.from(document.querySelectorAll(".empty-message, .timetable-note"))
-      .some((el) => (el.textContent || "").includes("読み込み中")),
-    activePane: document.querySelector(".tab-keep-alive-pane.is-active")?.getAttribute("data-tab-pane"),
-    shell: Boolean(document.querySelector(".app-shell")),
-    nav: Boolean(document.querySelector(".bottom-nav")),
-    header: Boolean(document.querySelector(".site-header")),
-  }));
+  const idx = results.length;
+  const beforePath = path.join(outDir, `${idx}-${label}-before.png`);
+  await page.screenshot({ path: beforePath, fullPage: false });
+  const beforeLuma = await lumaFromFile(beforePath);
+  const beforeProbe = await sampleViewport();
 
   await page.locator("nav.bottom-nav a.nav-item", { hasText: label }).click();
 
-  const midSamples = [];
-  for (const delay of [0, 16, 33, 50, 100, 200]) {
-    if (delay) await page.waitForTimeout(delay - (midSamples.at(-1)?.delay || 0));
+  const frames = [];
+  let lastDelay = 0;
+  for (const delay of SAMPLE_MS) {
+    if (delay > lastDelay) await page.waitForTimeout(delay - lastDelay);
+    lastDelay = delay;
     const shot = path.join(
       outDir,
-      `${label}-t${String(delay).padStart(3, "0")}-${results.length}.png`
+      `${idx}-${label}-t${String(delay).padStart(3, "0")}.png`
     );
     await page.screenshot({ path: shot, fullPage: false });
-    const luma = await meanLuma(shot);
-    const probe = await page.evaluate((d) => {
-      const activePane = document.querySelector(".tab-keep-alive-pane.is-active");
-      const loadingVisible = Array.from(
-        document.querySelectorAll(".empty-message, .timetable-note")
-      ).some(
-        (el) =>
-          activePane?.contains(el) &&
-          (el.textContent || "").includes("読み込み中")
-      );
-      return {
-        delay: d,
-        page: activePane
-          ?.querySelector("[data-spa-page]")
-          ?.getAttribute("data-spa-page"),
-        loadingVisible,
-        shell: Boolean(document.querySelector(".app-shell")),
-        nav: Boolean(document.querySelector(".bottom-nav")),
-        header: Boolean(document.querySelector(".site-header")),
-        activePane: activePane?.getAttribute("data-tab-pane"),
-      };
-    }, delay);
-    midSamples.push({ ...probe, ...luma, file: path.basename(shot) });
+    const luma = await lumaFromFile(shot);
+    const probe = await sampleViewport();
+    frames.push({ delay, ...luma, ...probe, file: path.basename(shot) });
   }
 
   await page.waitForSelector(`[data-spa-page="${heading}"]`, { timeout: 10000 });
 
-  const maxWhite = midSamples.reduce((a, b) =>
-    a.nearWhiteRatio > b.nearWhiteRatio ? a : b
-  );
-  const deltaWhite = maxWhite.nearWhiteRatio - beforeLuma.nearWhiteRatio;
-  const loadingFlash = midSamples.some((s) => s.loadingVisible);
-  const shellOk = midSamples.every((s) => s.shell && s.nav && s.header);
+  // Frame-to-frame jumps
+  let maxStepLuma = 0;
+  let maxStepWhite = 0;
+  for (let i = 1; i < frames.length; i++) {
+    maxStepLuma = Math.max(
+      maxStepLuma,
+      Math.abs(frames[i].meanLuma - frames[i - 1].meanLuma)
+    );
+    maxStepWhite = Math.max(
+      maxStepWhite,
+      Math.abs(frames[i].nearWhiteRatio - frames[i - 1].nearWhiteRatio)
+    );
+  }
+  // Also compare each frame vs before
+  let maxJumpFromBefore = 0;
+  for (const f of frames) {
+    maxJumpFromBefore = Math.max(
+      maxJumpFromBefore,
+      Math.abs(f.meanLuma - beforeLuma.meanLuma)
+    );
+  }
+
+  const loadingFlash = frames.some((f) => f.loadingVisible);
+  const usedDisplayNone = frames.some((f) => f.displayNoneActive === true);
+  const shellOk = frames.every((f) => f.shell && f.nav && f.header);
+  const sawLeaving = frames.some((f) => Boolean(f.leavingTab));
+  const opacityMid = frames.find((f) => f.delay === 80 || f.delay === 120);
 
   const row = {
     hop: label,
+    beforeMean: beforeLuma.meanLuma,
     beforeWhite: beforeLuma.nearWhiteRatio,
-    maxWhite: maxWhite.nearWhiteRatio,
-    deltaWhite,
+    maxStepLuma,
+    maxStepWhite,
+    maxJumpFromBefore,
     loadingFlash,
+    usedDisplayNone,
     shellOk,
+    sawLeaving,
+    midOpacity: opacityMid
+      ? { active: opacityMid.activeOpacity, leaving: opacityMid.leavingOpacity }
+      : null,
     loads: loadCount,
-    beforeProbe,
   };
   results.push(row);
 
-  // After warm-up, white spike should stay small; loading text must not appear in active pane
+  // Thresholds: allow content brightness change, forbid sudden spikes & loading blanks
+  // meanLuma is 0-255; step > 40 in one ~16-50ms frame is a "ピカッ"
   const fail =
     !shellOk ||
     loadingFlash ||
+    usedDisplayNone ||
     loadCount !== loadsAfterBoot ||
-    // Timetable→More naturally has higher white content; allow content change but forbid loading flash
-    (Math.abs(deltaWhite) > 0.55 && loadingFlash);
+    maxStepLuma > 42;
+
   if (fail) {
     failures += 1;
-    console.error(`FAIL ${label}`, row);
+    console.error(`FAIL ${label}`, JSON.stringify(row));
   } else {
     console.log(
-      `OK ${label} Δwhite=${deltaWhite.toFixed(3)} loadingFlash=${loadingFlash} loads=${loadCount}`
+      `OK ${label} stepLuma=${maxStepLuma.toFixed(1)} jump=${maxJumpFromBefore.toFixed(1)} leaving=${sawLeaving} mid=${JSON.stringify(row.midOpacity)}`
     );
   }
 }
@@ -219,11 +265,11 @@ fs.writeFileSync(
 
 await browser.close();
 
-if (failures || loadCount !== loadsAfterBoot) {
-  console.error(`FAILED failures=${failures} documentLoads=${loadCount}`);
+if (failures) {
+  console.error(`FAILED count=${failures} documentLoads=${loadCount}`);
   process.exit(1);
 }
 console.log(
-  `OK: no tab white-flash / no remount loading; document loads=${loadCount}`
+  `OK: luminance steps controlled; document loads=${loadCount}; captures=${outDir}`
 );
 process.exit(0);

@@ -12,6 +12,8 @@
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		B1C2D3E41FED79650016851F /* CameraPermissionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E51FED79650016851F /* CameraPermissionPlugin.swift */; };
 		B1C2D3E61FED79650016851F /* CameraPermissionPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E71FED79650016851F /* CameraPermissionPlugin.m */; };
+		F1A5H01A1FED79650016851F /* FlashDiagPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A5H01B1FED79650016851F /* FlashDiagPlugin.swift */; };
+		F1A5H01C1FED79650016851F /* FlashDiagPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = F1A5H01D1FED79650016851F /* FlashDiagPlugin.m */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
@@ -27,6 +29,8 @@
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B1C2D3E51FED79650016851F /* CameraPermissionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionPlugin.swift; sourceTree = "<group>"; };
 		B1C2D3E71FED79650016851F /* CameraPermissionPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CameraPermissionPlugin.m; sourceTree = "<group>"; };
+		F1A5H01B1FED79650016851F /* FlashDiagPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashDiagPlugin.swift; sourceTree = "<group>"; };
+		F1A5H01D1FED79650016851F /* FlashDiagPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FlashDiagPlugin.m; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -83,6 +87,8 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				B1C2D3E51FED79650016851F /* CameraPermissionPlugin.swift */,
 				B1C2D3E71FED79650016851F /* CameraPermissionPlugin.m */,
+				F1A5H01B1FED79650016851F /* FlashDiagPlugin.swift */,
+				F1A5H01D1FED79650016851F /* FlashDiagPlugin.m */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -222,6 +228,8 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				B1C2D3E41FED79650016851F /* CameraPermissionPlugin.swift in Sources */,
 				B1C2D3E61FED79650016851F /* CameraPermissionPlugin.m in Sources */,
+				F1A5H01A1FED79650016851F /* FlashDiagPlugin.swift in Sources */,
+				F1A5H01C1FED79650016851F /* FlashDiagPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

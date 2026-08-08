@@ -445,17 +445,90 @@
   padding: 12px;
 }
 
-/* BottomNav keep-alive: hide inactive tabs without unmounting */
-.tab-keep-alive-pane {
+/* BottomNav keep-alive: opacity crossfade (never display:none — iOS WebView flash) */
+.tab-keep-alive-stack {
+  position: relative;
+  isolation: isolate;
+  background: var(--bg, #f7f9fc);
+  /* Promote a stable compositor layer for WKWebView */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.tab-keep-alive-stack.is-collapsed {
   display: none;
 }
 
+.tab-keep-alive-pane {
+  /* Stay in layout tree; hide with opacity/visibility only */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+  transition:
+    opacity 220ms ease,
+    visibility 0s linear 220ms;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  background: var(--bg, #f7f9fc);
+}
+
 .tab-keep-alive-pane.is-active {
-  display: block;
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 220ms ease,
+    visibility 0s linear 0s;
+}
+
+.tab-keep-alive-pane.is-leaving {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  z-index: 1;
+  opacity: 0;
+  visibility: visible;
+  pointer-events: none;
+  transition:
+    opacity 220ms ease,
+    visibility 0s linear 220ms;
+}
+
+/* Inactive (not leaving): take out of flow but keep GPU layer warm */
+.tab-keep-alive-pane:not(.is-active):not(.is-leaving) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  /* Avoid zero-size destroy; clip without display:none */
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.tab-keep-alive-stack.is-instant .tab-keep-alive-pane,
+.tab-keep-alive-stack.is-instant .tab-keep-alive-pane.is-active,
+.tab-keep-alive-stack.is-instant .tab-keep-alive-pane.is-leaving {
+  transition: none;
 }
 
 .tab-keep-alive-outlet.is-hidden {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-keep-alive-pane,
+  .tab-keep-alive-pane.is-active,
+  .tab-keep-alive-pane.is-leaving {
+    transition: none;
+  }
 }
 
 .spa-placeholder {

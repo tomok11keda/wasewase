@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useSession } from "../lib/session";
 import { logoutRequest, spaLoginPath } from "../features/auth/api";
 import type { MeResponse } from "../lib/api";
+import { SpaDiagSection } from "../components/SpaDiagSection";
 
 function ClassicLink({
   href,
@@ -164,6 +165,8 @@ export function MorePage() {
             </Link>
           </li>
         </ul>
+
+        <SpaDiagSection />
       </main>
     </div>
   );
