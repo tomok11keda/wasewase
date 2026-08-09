@@ -6,6 +6,7 @@ import "./styles/shell.css";
 import "./styles/timeline.css";
 import "./styles/home.css";
 import "./styles/image-pick.css";
+import "./styles/faculty-filter.css";
 import "./styles/community.css";
 import "./styles/flea.css";
 import "./styles/timetable.css";

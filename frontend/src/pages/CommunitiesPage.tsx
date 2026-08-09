@@ -5,9 +5,9 @@ import { spaLoginPath } from "../features/auth/api";
 import {
   createCommunityThread,
   fetchCommunityThreads,
-  type FacultyTab,
   type ThreadSummary,
 } from "../features/community/api";
+import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 export function CommunitiesPage() {
@@ -16,9 +16,9 @@ export function CommunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tag = searchParams.get("tag") || "";
   const qParam = searchParams.get("q") || "";
+  const ownFaculty = me?.user?.department || "";
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [tabs, setTabs] = useState<FacultyTab[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qInput, setQInput] = useState(qParam);
@@ -40,7 +40,6 @@ export function CommunitiesPage() {
           q: qParam || undefined,
         });
         setThreads(data.threads);
-        setTabs(data.faculty_tabs);
         hasDataRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "load_failed");
@@ -117,23 +116,16 @@ export function CommunitiesPage() {
           )}
         </div>
 
-        <div className="faculty-tabs" aria-label="学部タグ">
-          {tabs.map((t) => (
-            <button
-              key={t.value || "all"}
-              type="button"
-              className={`faculty-tab${tag === t.value ? " is-active" : ""}`}
-              onClick={() => {
-                const next = new URLSearchParams();
-                if (t.value) next.set("tag", t.value);
-                if (qParam) next.set("q", qParam);
-                setSearchParams(next);
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <FacultyFilterTabs
+          value={tag}
+          ownFaculty={ownFaculty}
+          onChange={(next) => {
+            const params = new URLSearchParams();
+            if (next) params.set("tag", next);
+            if (qParam) params.set("q", qParam);
+            setSearchParams(params);
+          }}
+        />
 
         <form className="communities-search" onSubmit={onSearch}>
           <input

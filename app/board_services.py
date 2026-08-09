@@ -56,7 +56,12 @@ def build_timeline_posts_queryset(request):
         .prefetch_related("comments__author")
     )
     if active_faculty:
-        timeline_posts = timeline_posts.filter(faculty=active_faculty)
+        # 投稿に付けた学部ではなく、投稿者プロフィールの所属学部で絞り込む。
+        # 旧データ互換として TimelinePost.faculty も OR する。
+        timeline_posts = timeline_posts.filter(
+            Q(author__profile__department=active_faculty)
+            | Q(faculty=active_faculty)
+        )
     if active_tag:
         timeline_posts = timeline_posts.filter(course_name=active_tag)
     if query:
