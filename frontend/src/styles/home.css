@@ -186,7 +186,7 @@
   color: var(--tweet-like, #f91880);
 }
 
-/* Classic compose-fab — timeline post CTA (not brand maroon) */
+/* Classic compose-fab — viewport-fixed CTA (portaled to body; not brand maroon) */
 .compose-fab {
   position: fixed;
   right: 16px;

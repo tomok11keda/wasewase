@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -11,13 +12,17 @@ import {
 } from "../features/timeline/api";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { restoreScrollPosition } from "../features/profile/api";
-import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import {
+  useActiveMainTab,
+  useSoftTabRefetch,
+} from "../layouts/TabKeepAliveLayout";
 import { ImagePickField } from "../components/ImagePickField";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
+  const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
   const feed = (searchParams.get("feed") === "following" ? "following" : "all") as
     | "all"
@@ -42,6 +47,12 @@ export function HomePage() {
   const composeSectionRef = useRef<HTMLDivElement | null>(null);
   const hasDataRef = useRef(false);
   const authenticated = Boolean(me?.authenticated);
+  // Keep-alive panes use transform, so fixed FAB must portal to body.
+  // Show only while the home timeline is the active view.
+  const normalizedPath = location.pathname.replace(/\/$/, "") || "/";
+  const showComposeFab =
+    activeTab === "home" ||
+    (activeTab === null && normalizedPath === "/");
 
   const openCompose = useCallback(() => {
     if (!authenticated) {
@@ -312,14 +323,19 @@ export function HomePage() {
         <p className="empty-message">すべて表示しました</p>
       ) : null}
 
-      <button
-        type="button"
-        className="compose-fab shell-hide-on-desktop"
-        aria-label="投稿する"
-        onClick={openCompose}
-      >
-        ＋
-      </button>
+      {showComposeFab
+        ? createPortal(
+            <button
+              type="button"
+              className="compose-fab shell-hide-on-desktop"
+              aria-label="投稿する"
+              onClick={openCompose}
+            >
+              ＋
+            </button>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
