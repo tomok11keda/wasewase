@@ -47,14 +47,32 @@ def form_field_errors(form) -> dict[str, list[str]]:
 
 
 def safe_next_url(request: HttpRequest, raw: str | None, *, default: str = "/app/") -> str:
+    """Allow only same-origin next; map Classic paths to React ``/app/...``."""
+    from urllib.parse import urlparse
+
+    from .spa_canonical import canonicalize_next_url
+
     next_url = (raw or "").strip()
-    if next_url and url_has_allowed_host_and_scheme(
+    if not next_url:
+        return default
+    if not url_has_allowed_host_and_scheme(
         next_url,
         allowed_hosts={request.get_host()},
         require_https=request.is_secure(),
     ):
-        return next_url
-    return default
+        return default
+
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        # Same-host absolute URL → path only, then canonicalize.
+        path_only = parsed.path or "/"
+        if parsed.query:
+            path_only = f"{path_only}?{parsed.query}"
+        if parsed.fragment:
+            path_only = f"{path_only}#{parsed.fragment}"
+        next_url = path_only
+
+    return canonicalize_next_url(next_url, default=default)
 
 
 def serialize_me(request: HttpRequest) -> dict[str, Any]:

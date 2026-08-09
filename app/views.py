@@ -1032,10 +1032,12 @@ def toggle_follow(request, pk):
         messages.info(request, f"{profile_user.username} さんのフォローを解除しました。")
     else:
         Follow.objects.create(follower=request.user, following=profile_user)
+        from .spa_canonical import user_profile_url
+
         Notification.objects.create(
             recipient=profile_user,
             message=f"「{request.user.username}さんにフォローされました！」",
-            link=reverse("user_profile", kwargs={"pk": request.user.pk}),
+            link=user_profile_url(request.user.pk),
         )
         messages.success(request, f"{profile_user.username} さんをフォローしました。")
 

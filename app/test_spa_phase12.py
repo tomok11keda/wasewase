@@ -30,12 +30,11 @@ class SpaFeatureFlagTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="root"')
 
-    def test_classic_home_unchanged_when_spa_on(self):
+    def test_classic_home_redirects_to_spa_when_spa_on(self):
         with override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False):
             response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        # Classic timeline shell, not the SPA-only root mount alone
-        self.assertNotEqual(response.templates[0].name, "spa.html")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/app/")
 
 
 class ApiV1MeTests(TestCase):

@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def group_room_link(room: ChatRoom) -> str:
-    return reverse("dm_group_room", kwargs={"room_pk": room.pk})
+    from .spa_canonical import group_room_url
+
+    return group_room_url(room.pk)
 
 
 def can_access_group_room(room: ChatRoom, user: AbstractBaseUser) -> bool:
