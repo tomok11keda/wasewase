@@ -653,43 +653,63 @@
 
   /**
    * Prefer explicit data-image-source from dual-button UI.
-   * Falls back to capture attribute, then legacy "prompt".
+   * Capacitor iOS expects uppercase enum raw values: CAMERA | PHOTOS | PROMPT.
+   * Lowercase "camera"/"photos" fail rawValue lookup and silently become PROMPT
+   * (From Photos / Take Picture sheet) — that was the dual-button bug.
    */
   function resolveNativePhotoSource(input) {
     var attr = String(input.getAttribute("data-image-source") || "")
       .trim()
       .toLowerCase();
     if (attr === "camera" || attr === "environment") {
-      return "camera";
+      return "CAMERA";
     }
     if (attr === "photos" || attr === "library" || attr === "photo") {
-      return "photos";
+      return "PHOTOS";
     }
     if (input.hasAttribute("capture")) {
-      return "camera";
+      return "CAMERA";
     }
-    return "prompt";
+    return "PROMPT";
   }
 
-  async function attachNativeCameraPhoto(input) {
+  function normalizeNativePhotoSource(raw) {
+    var value = String(raw || "")
+      .trim()
+      .toUpperCase();
+    if (value === "CAMERA" || value === "ENVIRONMENT") {
+      return "CAMERA";
+    }
+    if (value === "PHOTOS" || value === "LIBRARY" || value === "PHOTO") {
+      return "PHOTOS";
+    }
+    if (value === "PROMPT") {
+      return "PROMPT";
+    }
+    return "";
+  }
+
+  async function attachNativeCameraPhoto(input, sourceOverride) {
     if (input.disabled) {
       return true;
     }
 
-    var preferred = resolveNativePhotoSource(input);
+    var preferred =
+      normalizeNativePhotoSource(sourceOverride) ||
+      resolveNativePhotoSource(input);
     var photoSource = preferred;
     var access = { ok: true, reason: "skip" };
 
-    if (preferred === "photos") {
+    if (preferred === "PHOTOS") {
       var photosOnly = await ensurePhotosAccess();
       if (!photosOnly.ok) {
         return true;
       }
-    } else if (preferred === "camera") {
+    } else if (preferred === "CAMERA") {
       access = await ensureCameraAccess();
       if (!access.ok) {
         if (access.reason === "unavailable") {
-          photoSource = "photos";
+          photoSource = "PHOTOS";
           var photosFallback = await ensurePhotosAccess();
           if (!photosFallback.ok) {
             return true;
@@ -701,11 +721,11 @@
     } else {
       // Legacy single file input: prompt (camera or library)
       access = await ensureCameraAccess();
-      photoSource = "prompt";
+      photoSource = "PROMPT";
 
       if (!access.ok) {
         if (access.reason === "unavailable") {
-          photoSource = "photos";
+          photoSource = "PHOTOS";
           var photosAccess = await ensurePhotosAccess();
           if (!photosAccess.ok) {
             return true;
@@ -765,7 +785,7 @@
       var photo = await Camera.getPhoto({
         quality: 85,
         resultType: "dataUrl",
-        // ハード確認済みなら prompt。カメラ不可時は photos のみ（カメラ起動クラッシュ防止）。
+        // ハード確認済みなら CAMERA / PHOTOS。未指定の単一 input のみ PROMPT。
         source: photoSource,
         saveToGallery: false,
         correctOrientation: true,
@@ -826,6 +846,34 @@
     }
   }
 
+  function findImagePickRoot(fromEl) {
+    return (
+      fromEl.closest(".image-pick-field") ||
+      fromEl.closest(".image-pick") ||
+      null
+    );
+  }
+
+  function findImagePickInputForSource(root, source) {
+    if (!root) return null;
+    var normalized = normalizeNativePhotoSource(source);
+    if (normalized === "CAMERA") {
+      return (
+        root.querySelector('input[type="file"][data-image-source="camera"]') ||
+        root.querySelector('input[type="file"].image-pick__native') ||
+        root.querySelector('input[type="file"][accept*="image"]')
+      );
+    }
+    if (normalized === "PHOTOS") {
+      return (
+        root.querySelector('input[type="file"][data-image-source="photos"]') ||
+        root.querySelector('input[type="file"].image-pick__native') ||
+        root.querySelector('input[type="file"][accept*="image"]')
+      );
+    }
+    return root.querySelector('input[type="file"][accept*="image"]');
+  }
+
   function setupNativeCameraInputGuard() {
     if (!isNativeApp()) {
       return;
@@ -834,6 +882,33 @@
     document.addEventListener(
       "click",
       function (event) {
+        // Dual-button UI: intercept the visible buttons so we never open
+        // WKWebView's combined file picker, and skip React/classic input.click().
+        var pickBtn = event.target.closest("[data-image-pick-source]");
+        if (pickBtn && !pickBtn.disabled) {
+          var pickSource = pickBtn.getAttribute("data-image-pick-source");
+          var pickRoot = findImagePickRoot(pickBtn);
+          var pickInput = findImagePickInputForSource(pickRoot, pickSource);
+          if (pickInput && !pickInput.disabled) {
+            event.preventDefault();
+            event.stopPropagation();
+            var normalizedPick = normalizeNativePhotoSource(pickSource);
+            if (normalizedPick === "CAMERA") {
+              pickInput.setAttribute("capture", "environment");
+              pickInput.setAttribute("data-image-source", "camera");
+            } else if (normalizedPick === "PHOTOS") {
+              pickInput.removeAttribute("capture");
+              pickInput.setAttribute("data-image-source", "photos");
+            }
+            attachNativeCameraPhoto(pickInput, normalizedPick).catch(function (e) {
+              logNativeError("Camera pick-button guard failed", e);
+              alert(JSON.stringify(e, null, 2));
+              alertCameraDebugError(e, "setupNativeCameraInputGuard pickBtn catch");
+            });
+            return;
+          }
+        }
+
         var input = event.target.closest('input[type="file"][accept*="image"]');
         if (!input || input.disabled) {
           return;
