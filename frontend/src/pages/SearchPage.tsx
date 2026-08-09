@@ -13,6 +13,11 @@ import {
   type SearchTab,
   type SearchThreadResult,
 } from "../features/profile/api";
+import {
+  DiscoverPostCard,
+  DiscoverThreadCard,
+} from "../features/search/DiscoverCompactCards";
+import { DiscoverSection } from "../features/search/DiscoverSection";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 const TABS: { key: SearchTab; label: string }[] = [
@@ -21,6 +26,12 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: "users", label: "ユーザー" },
   { key: "products", label: "商品" },
 ];
+
+const DISCOVER_PREVIEW = {
+  trending: 5,
+  faculty: 4,
+  products: 8,
+} as const;
 
 function tabLabel(tab: SearchTab): string {
   return TABS.find((t) => t.key === tab)?.label || "おすすめ";
@@ -111,7 +122,7 @@ type ResultHandlers = {
   onRequireLogin: () => void;
 };
 
-function renderResultRow(row: SearchResultRow, handlers: ResultHandlers) {
+function renderSearchResultRow(row: SearchResultRow, handlers: ResultHandlers) {
   if (row.kind === "post") {
     return (
       <TimelinePostCard
@@ -135,6 +146,107 @@ function renderResultRow(row: SearchResultRow, handlers: ResultHandlers) {
       key={`product-${row.product.id}`}
       product={row.product}
     />
+  );
+}
+
+function renderDiscoverRow(row: SearchResultRow) {
+  if (row.kind === "post") {
+    return <DiscoverPostCard key={`d-post-${row.post.id}`} post={row.post} />;
+  }
+  if (row.kind === "thread") {
+    return (
+      <DiscoverThreadCard key={`d-thread-${row.thread.id}`} thread={row.thread} />
+    );
+  }
+  return null;
+}
+
+function SearchDiscoverView({
+  discover,
+}: {
+  discover: SearchDiscoverPayload;
+}) {
+  const [trendingExpanded, setTrendingExpanded] = useState(false);
+  const [facultyExpanded, setFacultyExpanded] = useState(false);
+  const [productsExpanded, setProductsExpanded] = useState(false);
+
+  useEffect(() => {
+    setTrendingExpanded(false);
+    setFacultyExpanded(false);
+    setProductsExpanded(false);
+  }, [discover]);
+
+  const trendingVisible = trendingExpanded
+    ? discover.trending
+    : discover.trending.slice(0, DISCOVER_PREVIEW.trending);
+  const facultyResults = discover.faculty?.results || [];
+  const facultyVisible = facultyExpanded
+    ? facultyResults
+    : facultyResults.slice(0, DISCOVER_PREVIEW.faculty);
+  const productsVisible = productsExpanded
+    ? discover.products
+    : discover.products.slice(0, DISCOVER_PREVIEW.products);
+
+  const facultyParam = discover.faculty?.faculty
+    ? `?tag=${encodeURIComponent(discover.faculty.faculty)}`
+    : "";
+
+  return (
+    <div className="search-discover">
+      {discover.trending.length > 0 ? (
+        <DiscoverSection
+          title="🔥 今わせわせで話題"
+          visibleCount={trendingVisible.length}
+          totalCount={discover.trending.length}
+          expanded={trendingExpanded}
+          onExpand={() => setTrendingExpanded(true)}
+          moreTo="/"
+          moreLabel="タイムラインをもっと見る"
+        >
+          <div className="discover-compact-list">
+            {trendingVisible.map((row) => renderDiscoverRow(row))}
+          </div>
+        </DiscoverSection>
+      ) : null}
+
+      {discover.faculty && facultyResults.length > 0 ? (
+        <DiscoverSection
+          title={`🏫 ${discover.faculty.title}`}
+          visibleCount={facultyVisible.length}
+          totalCount={facultyResults.length}
+          expanded={facultyExpanded}
+          onExpand={() => setFacultyExpanded(true)}
+          moreTo={`/communities${facultyParam}`}
+          moreLabel="コミュニティをもっと見る"
+        >
+          <div className="discover-compact-list">
+            {facultyVisible.map((row) => renderDiscoverRow(row))}
+          </div>
+        </DiscoverSection>
+      ) : null}
+
+      {discover.products.length > 0 ? (
+        <DiscoverSection
+          title="🛍 フリマで注目"
+          visibleCount={productsVisible.length}
+          totalCount={discover.products.length}
+          expanded={productsExpanded}
+          onExpand={() => setProductsExpanded(true)}
+          moreTo="/flea"
+          moreLabel="フリマをもっと見る"
+        >
+          <div className="search-product-rail">
+            {productsVisible.map((product) => (
+              <SearchProductCard
+                key={product.id}
+                product={product}
+                compact
+              />
+            ))}
+          </div>
+        </DiscoverSection>
+      ) : null}
+    </div>
   );
 }
 
@@ -204,40 +316,18 @@ export function SearchPage() {
   };
 
   const updatePostInResults = (nextPost: TimelinePost) => {
-    const patch = (rows: SearchResultRow[]) =>
-      rows.map((row) =>
+    setResults((prev) =>
+      prev.map((row) =>
         row.kind === "post" && row.post.id === nextPost.id
           ? { ...row, post: nextPost }
           : row
-      );
-    setResults((prev) => patch(prev));
-    setDiscover((prev) =>
-      prev
-        ? {
-            ...prev,
-            trending: patch(prev.trending),
-            faculty: prev.faculty
-              ? { ...prev.faculty, results: patch(prev.faculty.results) }
-              : null,
-          }
-        : prev
+      )
     );
   };
 
   const removePostFromResults = (id: number) => {
-    const drop = (rows: SearchResultRow[]) =>
-      rows.filter((row) => !(row.kind === "post" && row.post.id === id));
-    setResults((prev) => drop(prev));
-    setDiscover((prev) =>
-      prev
-        ? {
-            ...prev,
-            trending: drop(prev.trending),
-            faculty: prev.faculty
-              ? { ...prev.faculty, results: drop(prev.faculty.results) }
-              : null,
-          }
-        : prev
+    setResults((prev) =>
+      prev.filter((row) => !(row.kind === "post" && row.post.id === id))
     );
   };
 
@@ -324,46 +414,7 @@ export function SearchPage() {
           </p>
         ) : showDiscover ? (
           hasDiscoverContent && discover ? (
-            <div className="search-discover">
-              {discover.trending.length > 0 ? (
-                <section className="search-discover__section">
-                  <h2 className="search-discover__title">🔥 今わせわせで話題</h2>
-                  <div className="search-mixed-feed">
-                    {discover.trending.map((row) =>
-                      renderResultRow(row, handlers)
-                    )}
-                  </div>
-                </section>
-              ) : null}
-
-              {discover.faculty && discover.faculty.results.length > 0 ? (
-                <section className="search-discover__section">
-                  <h2 className="search-discover__title">
-                    🏫 {discover.faculty.title}
-                  </h2>
-                  <div className="search-mixed-feed">
-                    {discover.faculty.results.map((row) =>
-                      renderResultRow(row, handlers)
-                    )}
-                  </div>
-                </section>
-              ) : null}
-
-              {discover.products.length > 0 ? (
-                <section className="search-discover__section">
-                  <h2 className="search-discover__title">🛍 フリマで注目</h2>
-                  <div className="search-product-rail">
-                    {discover.products.map((product) => (
-                      <SearchProductCard
-                        key={product.id}
-                        product={product}
-                        compact
-                      />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-            </div>
+            <SearchDiscoverView discover={discover} />
           ) : (
             <p className="search-empty">
               キーワードを入力すると、わせわせ全体を横断検索できます。
@@ -399,7 +450,7 @@ export function SearchPage() {
           )
         ) : results.length ? (
           <div className="search-mixed-feed">
-            {results.map((row) => renderResultRow(row, handlers))}
+            {results.map((row) => renderSearchResultRow(row, handlers))}
           </div>
         ) : (
           <p className="search-empty">{emptyMessage}</p>
