@@ -28,6 +28,7 @@ from .models import (
     TimelinePost,
     TimelineLike,
     TimetableSlot,
+    CalendarEvent,
     TradeMessage,
     Follow,
     FollowRequest,
@@ -193,6 +194,22 @@ class TimetableSlotAdmin(admin.ModelAdmin):
     list_filter = ("slot_key",)
     search_fields = ("user__username", "user__email", "name", "slot_key", "room")
     raw_id_fields = ("user",)
+
+
+@admin.register(CalendarEvent)
+class CalendarEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "date",
+        "start_time",
+        "title",
+        "category",
+        "updated_at",
+    )
+    list_filter = ("category", "date")
+    search_fields = ("user__username", "user__email", "title", "memo")
+    raw_id_fields = ("user",)
+    date_hierarchy = "date"
 
 
 @admin.register(Follow)
