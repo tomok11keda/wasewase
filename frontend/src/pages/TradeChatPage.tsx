@@ -13,6 +13,7 @@ import {
   confirmTrade,
   fetchChatMessages,
   fetchChatRoom,
+  handoverErrorMessage,
   sendChatMessage,
   type ChatMessage,
   type ChatRoomDetail,
@@ -31,8 +32,11 @@ export function TradeChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [handoverDone, setHandoverDone] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
+  const handoverStartedRef = useRef(false);
   roomIdRef.current = roomId;
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
@@ -60,6 +64,9 @@ export function TradeChatPage() {
     setLoading(true);
     setRoom(null);
     setMessages([]);
+    setHandoverDone(false);
+    setActionError(null);
+    handoverStartedRef.current = false;
     latestIdRef.current = 0;
     void (async () => {
       try {
@@ -79,10 +86,10 @@ export function TradeChatPage() {
       }
     })();
     return () => ac.abort();
-  }, [me?.authenticated, roomId, roomPk]);
+  }, [me?.authenticated, roomId, roomPk, navigate]);
 
   useChatPoll(
-    Boolean(me?.authenticated && room && !loading),
+    Boolean(me?.authenticated && room && !loading && !handoverDone),
     TRADE_POLL_MS,
     async (signal) => {
       const id = roomIdRef.current;
@@ -102,25 +109,36 @@ export function TradeChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  useEffect(() => {
+    if (!handoverDone) return;
+    const timer = window.setTimeout(() => {
+      navigate("/flea", { replace: true });
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [handoverDone, navigate]);
+
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send_message) return;
+    if (!body.trim() || !room?.can_send_message || busy) return;
     setBusy(true);
+    setActionError(null);
     try {
       const message = await sendChatMessage(roomId, body.trim());
       appendMessages([message]);
       latestIdRef.current = Math.max(latestIdRef.current, message.id);
       setBody("");
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "送信に失敗しました");
+      setActionError(err instanceof Error ? err.message : "送信に失敗しました");
     } finally {
       setBusy(false);
     }
   };
 
   const onConfirm = async () => {
+    if (busy) return;
     if (!window.confirm("この交渉を取引開始（pending）にしますか？")) return;
     setBusy(true);
+    setActionError(null);
     try {
       const updated = await confirmTrade(roomId);
       setRoom(updated);
@@ -128,25 +146,31 @@ export function TradeChatPage() {
       setMessages(data.messages);
       latestIdRef.current = data.latest_id;
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "取引開始に失敗しました");
+      setActionError(
+        err instanceof Error ? err.message : "取引開始に失敗しました"
+      );
     } finally {
       setBusy(false);
     }
   };
 
   const onHandover = async () => {
+    if (busy || handoverStartedRef.current || handoverDone) return;
     if (!window.confirm("受け渡し完了として売り切れにしますか？")) return;
+    handoverStartedRef.current = true;
     setBusy(true);
+    setActionError(null);
     try {
-      const updated = await completeHandover(roomId);
+      const { room: updated, product_status } = await completeHandover(roomId);
+      if (product_status !== "sold" && updated.product.status !== "sold") {
+        throw new Error("save_failed");
+      }
       setRoom(updated);
-      const data = await fetchChatMessages(roomId);
-      setMessages(data.messages);
-      latestIdRef.current = data.latest_id;
+      setHandoverDone(true);
     } catch (err) {
-      window.alert(
-        err instanceof Error ? err.message : "受け渡し完了に失敗しました"
-      );
+      handoverStartedRef.current = false;
+      const code = err instanceof Error ? err.message : "handover_failed";
+      setActionError(handoverErrorMessage(code));
     } finally {
       setBusy(false);
     }
@@ -170,6 +194,27 @@ export function TradeChatPage() {
             ← フリマへ戻る
           </Link>
           <p>チャットを表示できません（{error || "not_found"}）</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (handoverDone) {
+    return (
+      <div className="trade-chat-page" data-spa-page="フリマ">
+        <div className="main-inner">
+          <div className="trade-complete-card" role="status" aria-live="polite">
+            <p className="trade-complete-title">取引完了！</p>
+            <p className="trade-complete-thanks">(人''▽｀)ありがとう♪</p>
+            <p className="trade-complete-hint">フリマへ戻ります…</p>
+            <button
+              type="button"
+              className="trade-complete-btn"
+              onClick={() => navigate("/flea", { replace: true })}
+            >
+              フリマへ戻る
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -209,10 +254,20 @@ export function TradeChatPage() {
           </div>
         </div>
 
+        {actionError ? (
+          <p className="trade-action-error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+
         {(room.can_confirm_trade || room.can_complete_handover) && (
           <div className="chat-actions">
             {room.can_confirm_trade ? (
-              <button type="button" onClick={() => void onConfirm()} disabled={busy}>
+              <button
+                type="button"
+                onClick={() => void onConfirm()}
+                disabled={busy}
+              >
                 取引を開始する
               </button>
             ) : null}
@@ -222,7 +277,7 @@ export function TradeChatPage() {
                 onClick={() => void onHandover()}
                 disabled={busy}
               >
-                受け渡し完了
+                {busy ? "処理中…" : "受け渡し完了"}
               </button>
             ) : null}
           </div>
@@ -257,6 +312,7 @@ export function TradeChatPage() {
               maxLength={500}
               placeholder="メッセージを入力..."
               aria-label="メッセージ"
+              disabled={busy}
             />
             <button type="submit" disabled={busy || !body.trim()}>
               送信

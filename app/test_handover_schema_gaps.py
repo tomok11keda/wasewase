@@ -171,3 +171,32 @@ class HandoverSchemaGapTests(TransactionTestCase):
                 chat_room=room, is_system=True, sender__isnull=True
             ).exists()
         )
+
+
+class HandoverIdempotentAndResilienceTests(TransactionTestCase):
+    def test_second_handover_same_buyer_is_ok(self):
+        from app.trade_chat_services import complete_handover_by_seller
+
+        seller, _buyer, product, room = _make_pending_trade(email_prefix="idem")
+        complete_handover_by_seller(room, seller)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.SOLD)
+
+        again = complete_handover_by_seller(room, seller)
+        self.assertEqual(again.status, Product.Status.SOLD)
+
+    def test_system_message_failure_keeps_sold(self):
+        from django.db import IntegrityError
+        from unittest.mock import patch
+
+        from app.trade_chat_services import complete_handover_by_seller
+
+        seller, _buyer, product, room = _make_pending_trade(email_prefix="sysfail")
+        with patch(
+            "app.trade_chat_services.post_system_message",
+            side_effect=IntegrityError("sender_id NOT NULL"),
+        ):
+            result = complete_handover_by_seller(room, seller)
+        product.refresh_from_db()
+        self.assertEqual(result.status, Product.Status.SOLD)
+        self.assertEqual(product.status, Product.Status.SOLD)

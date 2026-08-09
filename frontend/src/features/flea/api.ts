@@ -328,15 +328,53 @@ export async function confirmTrade(roomPk: number): Promise<ChatRoomDetail> {
   return data.room as ChatRoomDetail;
 }
 
-export async function completeHandover(roomPk: number): Promise<ChatRoomDetail> {
+export async function completeHandover(
+  roomPk: number
+): Promise<{ room: ChatRoomDetail; product_status: string }> {
   const res = await fetch(`/api/v1/flea/chats/${roomPk}/handover-complete/`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
   });
-  const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "handover_failed");
-  return data.room as ChatRoomDetail;
+  let data: {
+    ok?: boolean;
+    error?: string;
+    message?: string;
+    product_status?: string;
+    room?: ChatRoomDetail;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("handover_failed");
+  }
+  if (!res.ok || !data.ok || !data.room) {
+    throw new Error(data.message || data.error || "handover_failed");
+  }
+  return {
+    room: data.room,
+    product_status: data.product_status || data.room.product?.status || "sold",
+  };
+}
+
+export function handoverErrorMessage(code: string): string {
+  switch (code) {
+    case "not_seller":
+      return "出品者のみ受け渡し完了にできます。";
+    case "already_sold":
+      return "この商品はすでに売り切れです。";
+    case "not_pending":
+    case "not_confirmed":
+    case "buyer_mismatch":
+    case "no_product":
+      return "受け渡し完了にできません。取引状態を確認してください。";
+    case "save_failed":
+      return "受け渡し完了の保存に失敗しました。時間をおいて再度お試しください。";
+    case "forbidden":
+      return "このチャットを操作する権限がありません。";
+    default:
+      return "受け渡し完了に失敗しました。";
+  }
 }
 
 export function purchaseErrorMessage(code: string): string {

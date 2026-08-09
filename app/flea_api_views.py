@@ -412,24 +412,52 @@ def api_v1_flea_chat_handover(request: HttpRequest, room_pk: int) -> JsonRespons
         ChatRoom.objects.select_related("product", "product__seller", "buyer"),
         pk=room_pk,
     )
+    if not can_access_chat_room(room, request.user):
+        return _json_error("forbidden", status=403)
+
     try:
         product = complete_handover_by_seller(room, request.user)
     except ValueError as exc:
-        return _json_error(str(exc), status=400)
+        code = str(exc)
+        logger.info(
+            "flea api handover rejected room=%s user=%s code=%s",
+            room_pk,
+            request.user.pk,
+            code,
+        )
+        return _json_error(code, status=400)
     except (IntegrityError, OperationalError, ProgrammingError) as exc:
         logger.exception("flea api handover schema/db error: %s", exc)
         ensure_product_trade_schema()
         try:
             product = complete_handover_by_seller(room, request.user)
+        except ValueError as exc2:
+            return _json_error(str(exc2), status=400)
         except Exception:
             logger.exception("flea api handover retry failed")
             return _json_error("save_failed", status=500)
-    if product.buyer_id:
-        Notification.objects.create(
-            recipient_id=product.buyer_id,
-            message=f"「{product.name}」の受け渡しが完了しました。",
-            link=chat_room_link(room),
+    except Exception:
+        logger.exception(
+            "flea api handover unexpected error room=%s user=%s",
+            room_pk,
+            request.user.pk,
         )
+        return _json_error("save_failed", status=500)
+
+    if product.buyer_id:
+        try:
+            Notification.objects.create(
+                recipient_id=product.buyer_id,
+                message=f"「{product.name}」の受け渡しが完了しました。",
+                link=chat_room_link(room),
+            )
+        except Exception:
+            logger.exception(
+                "flea api handover notification failed product=%s buyer=%s",
+                product.pk,
+                product.buyer_id,
+            )
+
     room = ChatRoom.objects.select_related(
         "product",
         "product__seller",

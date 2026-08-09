@@ -601,11 +601,17 @@ def complete_product_handover(request, room_pk):
             return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
     if product.buyer_id:
-        Notification.objects.create(
-            recipient_id=product.buyer_id,
-            message=f"「{product.name}」の受け渡しが完了しました。",
-            link=chat_room_link(room),
-        )
+        try:
+            Notification.objects.create(
+                recipient_id=product.buyer_id,
+                message=f"「{product.name}」の受け渡しが完了しました。",
+                link=chat_room_link(room),
+            )
+        except Exception:
+            logger.exception(
+                "complete_product_handover notification failed product=%s",
+                product.pk,
+            )
     messages.success(request, "受け渡し完了として売り切れにしました。")
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
