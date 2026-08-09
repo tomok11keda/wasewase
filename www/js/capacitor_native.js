@@ -597,7 +597,8 @@
 
   /**
    * UIImagePickerController.isSourceTypeAvailable(.camera) 相当のチェック。
-   * シミュレーターやカメラ非搭載端末では false。
+   * CameraPermission プラグインが無い／応答が不明な場合は true（Camera.getPhoto に委ねる）。
+   * ※以前は false 固定で、実機の「写真を撮る」が PHOTOS にフォールバックしていた。
    */
   async function isNativeCameraHardwareAvailable() {
     try {
@@ -613,12 +614,18 @@
         if (result && typeof result.camera === "boolean") {
           return result.camera;
         }
+        if (result && typeof result.cameraAvailable === "boolean") {
+          return result.cameraAvailable;
+        }
+        logNative(
+          "CameraPermission.isCameraAvailable unexpected shape; assuming available",
+          result
+        );
       }
     } catch (error) {
       logNativeError("Camera availability check failed", error);
     }
-    // ネイティブ API が無い古いビルドでは安全側に倒す
-    return false;
+    return true;
   }
 
   async function ensureCameraAccess() {
@@ -708,16 +715,16 @@
     } else if (preferred === "CAMERA") {
       access = await ensureCameraAccess();
       if (!access.ok) {
+        // Explicit 「写真を撮る」: never silently open the photo library.
         if (access.reason === "unavailable") {
-          photoSource = "PHOTOS";
-          var photosFallback = await ensurePhotosAccess();
-          if (!photosFallback.ok) {
-            return true;
-          }
-        } else {
-          return true;
+          showCameraAlert(
+            "この端末ではカメラを起動できません。写真ライブラリから選ぶか、カメラ対応端末でお試しください。"
+          );
         }
+        logNative("CAMERA request aborted without PHOTOS fallback", access);
+        return true;
       }
+      photoSource = "CAMERA";
     } else {
       // Legacy single file input: prompt (camera or library)
       access = await ensureCameraAccess();
