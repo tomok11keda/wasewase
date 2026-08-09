@@ -984,6 +984,61 @@ class UserDirectMessage(models.Model):
         return f"{self.sender}: {self.body[:30]}"
 
 
+class UserDirectMessageRequest(models.Model):
+    """
+    フォロー外ユーザーからの DM をメッセージリクエストとして扱う。
+
+    pending の間は受信者の通常 DM 一覧に出さない。
+    accepted で通常 DM に昇格。declined は一覧から外し、再送で pending に戻せる。
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "リクエスト中"
+        ACCEPTED = "accepted", "承認済み"
+        DECLINED = "declined", "拒否"
+
+    room = models.ForeignKey(
+        UserDirectMessageRoom,
+        on_delete=models.CASCADE,
+        related_name="message_requests",
+    )
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dm_requests_sent",
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dm_requests_received",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "to_user"],
+                name="unique_dm_request_per_room_recipient",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(from_user=models.F("to_user")),
+                name="dm_request_no_self",
+            ),
+        ]
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"dm_request {self.from_user_id}→{self.to_user_id} ({self.status})"
+
+
 class CourseThread(models.Model):
     course_name = models.CharField(
         max_length=120, blank=True, null=True, verbose_name="授業名"

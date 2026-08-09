@@ -130,6 +130,8 @@ def _spa_path_for_item(kind: str, room_pk: int) -> str:
 
 
 def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, Any]:
+    from .dm_request_services import count_pending_dm_requests
+
     active = normalize_inbox_tab(tab)
     all_items = build_inbox_conversations(user)
     filtered = filter_inbox_by_tab(all_items, active)
@@ -146,6 +148,7 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
         "ok": True,
         "tab": active,
         "tab_counts": tab_counts,
+        "message_request_count": count_pending_dm_requests(user),
         "conversations": [serialize_inbox_item(i) for i in filtered],
     }
 
@@ -153,13 +156,34 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
 def build_dm_room_payload(
     room: UserDirectMessageRoom, viewer: AbstractBaseUser
 ) -> dict[str, Any]:
+    from .dm_request_services import (
+        get_pending_dm_request_for_recipient,
+        recipient_can_send_in_dm,
+    )
+
     partner = room.other_user(viewer)
     is_blocked = is_user_blocked(viewer, partner) if partner else False
     messaging_blocked = (
         is_either_blocked(viewer, partner) if partner else False
     )
+    pending = get_pending_dm_request_for_recipient(room, viewer)
+    can_send = (
+        (not messaging_blocked)
+        and recipient_can_send_in_dm(room, viewer)
+    )
     latest_id = mark_dm_room_read(room, viewer)
-    messages = list(room.messages.select_related("sender", "sender__profile").order_by("created_at"))
+    messages = list(
+        room.messages.select_related("sender", "sender__profile").order_by(
+            "created_at"
+        )
+    )
+    request_payload = None
+    if pending is not None:
+        request_payload = {
+            "id": pending.pk,
+            "status": pending.status,
+            "from_user": serialize_author(pending.from_user),
+        }
     return {
         "ok": True,
         "room": {
@@ -167,7 +191,9 @@ def build_dm_room_payload(
             "kind": "dm",
             "partner": serialize_author(partner) if partner else None,
             "is_blocked": is_blocked,
-            "can_send": not messaging_blocked,
+            "can_send": can_send,
+            "request_status": "pending_request" if pending else "active",
+            "message_request": request_payload,
             "latest_id": latest_id or 0,
         },
         "messages": [
@@ -185,6 +211,11 @@ def build_dm_messages_payload(
     *,
     after: str = "",
 ) -> dict[str, Any]:
+    from .dm_request_services import (
+        get_pending_dm_request_for_recipient,
+        recipient_can_send_in_dm,
+    )
+
     qs = room.messages.select_related("sender", "sender__profile").order_by(
         "created_at"
     )
@@ -198,6 +229,8 @@ def build_dm_messages_payload(
     messaging_blocked = (
         is_either_blocked(viewer, partner) if partner else False
     )
+    pending = get_pending_dm_request_for_recipient(room, viewer)
+    can_send = (not messaging_blocked) and recipient_can_send_in_dm(room, viewer)
     mark_dm_room_read(room, viewer)
     return {
         "messages": [
@@ -209,13 +242,19 @@ def build_dm_messages_payload(
         "latest_id": latest_id,
         "read_message_ids": list_dm_read_message_ids_for_sender(room, viewer),
         "is_blocked": is_blocked,
-        "can_send": not messaging_blocked,
+        "can_send": can_send,
+        "request_status": "pending_request" if pending else "active",
     }
 
 
 def send_dm_message(
     room: UserDirectMessageRoom, sender: AbstractBaseUser, body: str
 ) -> UserDirectMessage:
+    from .dm_request_services import (
+        ensure_message_request_after_send,
+        recipient_can_send_in_dm,
+    )
+
     body = (body or "").strip()
     if not body:
         raise ValueError("empty")
@@ -223,6 +262,8 @@ def send_dm_message(
         raise ValueError("too_long")
     if not can_access_dm_room(room, sender):
         raise ValueError("forbidden")
+    if not recipient_can_send_in_dm(room, sender):
+        raise ValueError("request_pending")
     partner = room.other_user(sender)
     if partner and is_either_blocked(sender, partner):
         raise ValueError("blocked")
@@ -231,11 +272,18 @@ def send_dm_message(
     )
     room.save(update_fields=["updated_at"])
     if partner and not is_user_blocked(partner, sender):
-        Notification.objects.create(
-            recipient=partner,
-            message=f"{sender.username} さんから DM: {body[:40]}",
-            link=dm_room_link(room),
+        request = ensure_message_request_after_send(
+            room,
+            sender,
+            partner,
+            preview_body=body,
         )
+        if request is None:
+            Notification.objects.create(
+                recipient=partner,
+                message=f"{sender.username} さんから DM: {body[:40]}",
+                link=dm_room_link(room),
+            )
     return message
 
 

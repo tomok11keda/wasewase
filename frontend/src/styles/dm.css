@@ -227,6 +227,44 @@
   border-color: #d6ebdc;
 }
 
+.dm-request-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #d6ebdc;
+  border-radius: 12px;
+  background: #f5faf7;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dm-request-entry:hover,
+.dm-request-entry:focus-visible {
+  background: #eef8f1;
+}
+
+.dm-request-entry__label {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dm-request-entry__count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent, #c45c7a);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .dm-group-invite-banner {
   margin: 0 0 12px;
   padding: 14px 14px 12px;
