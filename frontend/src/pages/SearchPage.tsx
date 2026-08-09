@@ -7,6 +7,7 @@ import type { TimelinePost } from "../features/timeline/api";
 import {
   fetchSearchPage,
   type ProfileUser,
+  type SearchDiscoverPayload,
   type SearchProductResult,
   type SearchResultRow,
   type SearchTab,
@@ -51,10 +52,19 @@ function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
   );
 }
 
-function SearchProductCard({ product }: { product: SearchProductResult }) {
+function SearchProductCard({
+  product,
+  compact = false,
+}: {
+  product: SearchProductResult;
+  compact?: boolean;
+}) {
   const sellerName = product.seller?.display_name || "出品者";
   return (
-    <Link className="search-product-card" to={`/flea/products/${product.id}`}>
+    <Link
+      className={`search-product-card${compact ? " search-product-card--rail" : ""}`}
+      to={`/flea/products/${product.id}`}
+    >
       <div className="search-product-card__media">
         {product.image_url ? (
           <img src={product.image_url} alt="" loading="lazy" />
@@ -67,7 +77,9 @@ function SearchProductCard({ product }: { product: SearchProductResult }) {
       </div>
       <div className="search-product-card__body">
         <p className="search-product-card__meta">
-          <span className="search-product-card__badge">フリマ</span>
+          {!compact ? (
+            <span className="search-product-card__badge">フリマ</span>
+          ) : null}
           {product.is_sold
             ? "売り切れ"
             : product.is_pending
@@ -75,15 +87,54 @@ function SearchProductCard({ product }: { product: SearchProductResult }) {
               : `¥${product.price.toLocaleString()}`}
         </p>
         <strong className="search-product-card__title">{product.name}</strong>
-        <p className="search-product-card__foot">
-          {sellerName}
-          {product.created_at_label ? ` · ${product.created_at_label}` : ""}
-          {product.handover_campus_label
-            ? ` · ${product.handover_campus_label}`
-            : ""}
-        </p>
+        {!compact ? (
+          <p className="search-product-card__foot">
+            {sellerName}
+            {product.created_at_label ? ` · ${product.created_at_label}` : ""}
+            {product.handover_campus_label
+              ? ` · ${product.handover_campus_label}`
+              : ""}
+          </p>
+        ) : null}
       </div>
     </Link>
+  );
+}
+
+type ResultHandlers = {
+  authenticated: boolean;
+  qParam: string;
+  activeTab: SearchTab;
+  onChangePost: (post: TimelinePost) => void;
+  onRemovePost: (id: number) => void;
+  onQuote: () => void;
+  onRequireLogin: () => void;
+};
+
+function renderResultRow(row: SearchResultRow, handlers: ResultHandlers) {
+  if (row.kind === "post") {
+    return (
+      <TimelinePostCard
+        key={`post-${row.post.id}`}
+        post={row.post}
+        authenticated={handlers.authenticated}
+        onChange={handlers.onChangePost}
+        onRemove={handlers.onRemovePost}
+        onQuote={handlers.onQuote}
+        onRequireLogin={handlers.onRequireLogin}
+      />
+    );
+  }
+  if (row.kind === "thread") {
+    return (
+      <SearchThreadCard key={`thread-${row.thread.id}`} thread={row.thread} />
+    );
+  }
+  return (
+    <SearchProductCard
+      key={`product-${row.product.id}`}
+      product={row.product}
+    />
   );
 }
 
@@ -99,24 +150,27 @@ export function SearchPage() {
   const [qInput, setQInput] = useState(qParam);
   const [results, setResults] = useState<SearchResultRow[]>([]);
   const [users, setUsers] = useState<ProfileUser[]>([]);
+  const [discover, setDiscover] = useState<SearchDiscoverPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!qParam.trim()) {
-      setResults([]);
-      setUsers([]);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
       const data = await fetchSearchPage({
-        q: qParam,
-        tab: activeTab,
+        q: qParam || undefined,
+        tab: qParam ? activeTab : undefined,
       });
-      setResults(data.results || []);
-      setUsers((data.users || []) as ProfileUser[]);
+      if (!qParam.trim()) {
+        setResults([]);
+        setUsers([]);
+        setDiscover(data.discover || null);
+      } else {
+        setDiscover(null);
+        setResults(data.results || []);
+        setUsers((data.users || []) as ProfileUser[]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "search_failed");
     } finally {
@@ -138,7 +192,7 @@ export function SearchPage() {
     e.preventDefault();
     const next = new URLSearchParams();
     if (qInput.trim()) next.set("q", qInput.trim());
-    next.set("tab", activeTab);
+    next.set("tab", activeTab === "all" ? "all" : activeTab);
     setSearchParams(next);
   };
 
@@ -150,19 +204,58 @@ export function SearchPage() {
   };
 
   const updatePostInResults = (nextPost: TimelinePost) => {
-    setResults((prev) =>
-      prev.map((row) =>
+    const patch = (rows: SearchResultRow[]) =>
+      rows.map((row) =>
         row.kind === "post" && row.post.id === nextPost.id
           ? { ...row, post: nextPost }
           : row
-      )
+      );
+    setResults((prev) => patch(prev));
+    setDiscover((prev) =>
+      prev
+        ? {
+            ...prev,
+            trending: patch(prev.trending),
+            faculty: prev.faculty
+              ? { ...prev.faculty, results: patch(prev.faculty.results) }
+              : null,
+          }
+        : prev
     );
   };
 
   const removePostFromResults = (id: number) => {
-    setResults((prev) =>
-      prev.filter((row) => !(row.kind === "post" && row.post.id === id))
+    const drop = (rows: SearchResultRow[]) =>
+      rows.filter((row) => !(row.kind === "post" && row.post.id === id));
+    setResults((prev) => drop(prev));
+    setDiscover((prev) =>
+      prev
+        ? {
+            ...prev,
+            trending: drop(prev.trending),
+            faculty: prev.faculty
+              ? { ...prev.faculty, results: drop(prev.faculty.results) }
+              : null,
+          }
+        : prev
     );
+  };
+
+  const handlers: ResultHandlers = {
+    authenticated: Boolean(me?.authenticated),
+    qParam,
+    activeTab,
+    onChangePost: updatePostInResults,
+    onRemovePost: removePostFromResults,
+    onQuote: () => navigate("/", { state: { openCompose: true } }),
+    onRequireLogin: () =>
+      navigate(
+        spaLoginPath(
+          qParam
+            ? `/app/search?q=${encodeURIComponent(qParam)}&tab=${activeTab}`
+            : "/app/search"
+        )
+      ),
   };
 
   const emptyMessage =
@@ -172,36 +265,46 @@ export function SearchPage() {
         ? "一致する商品はありません。"
         : "一致する結果はありません。";
 
+  const showDiscover = !qParam.trim();
+  const hasDiscoverContent = Boolean(
+    discover &&
+      (discover.trending.length > 0 ||
+        (discover.faculty && discover.faculty.results.length > 0) ||
+        discover.products.length > 0)
+  );
+
   return (
     <div className="search-page" data-spa-page="検索">
       <div className="main-inner">
         <h1 className="search-title">検索</h1>
         <p className="search-lead">
-          わせわせ全体から、タイムライン・コミュニティ・ユーザー・商品を横断検索します。
+          わせわせ全体から探したり、話題の投稿や商品を見つけられます。
         </p>
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="例: ゼミ、教科書、サークル、iPad"
+            placeholder="ゼミ、教科書、先生などを検索"
             aria-label="わせわせ全体検索"
             autoFocus
           />
           <button type="submit">検索</button>
         </form>
 
-        <nav className="search-tabs" aria-label="検索結果の切り替え">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
-              onClick={() => setTab(t.key)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        {!showDiscover ? (
+          <nav className="search-tabs" aria-label="検索結果の切り替え">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
 
         {qParam ? (
           <p className="search-query-label">
@@ -209,14 +312,63 @@ export function SearchPage() {
           </p>
         ) : null}
 
-        {!qParam ? (
+        {loading ? (
           <p className="search-empty">
-            キーワードを入力すると、わせわせ全体を横断検索できます。ページ内だけ探す場合は、各画面の検索バーを使ってください。
+            {showDiscover ? "読み込み中…" : "検索中…"}
           </p>
-        ) : loading ? (
-          <p className="search-empty">検索中…</p>
         ) : error ? (
-          <p className="search-empty">検索に失敗しました（{error}）</p>
+          <p className="search-empty">
+            {showDiscover
+              ? `読み込みに失敗しました（${error}）`
+              : `検索に失敗しました（${error}）`}
+          </p>
+        ) : showDiscover ? (
+          hasDiscoverContent && discover ? (
+            <div className="search-discover">
+              {discover.trending.length > 0 ? (
+                <section className="search-discover__section">
+                  <h2 className="search-discover__title">🔥 今わせわせで話題</h2>
+                  <div className="search-mixed-feed">
+                    {discover.trending.map((row) =>
+                      renderResultRow(row, handlers)
+                    )}
+                  </div>
+                </section>
+              ) : null}
+
+              {discover.faculty && discover.faculty.results.length > 0 ? (
+                <section className="search-discover__section">
+                  <h2 className="search-discover__title">
+                    🏫 {discover.faculty.title}
+                  </h2>
+                  <div className="search-mixed-feed">
+                    {discover.faculty.results.map((row) =>
+                      renderResultRow(row, handlers)
+                    )}
+                  </div>
+                </section>
+              ) : null}
+
+              {discover.products.length > 0 ? (
+                <section className="search-discover__section">
+                  <h2 className="search-discover__title">🛍 フリマで注目</h2>
+                  <div className="search-product-rail">
+                    {discover.products.map((product) => (
+                      <SearchProductCard
+                        key={product.id}
+                        product={product}
+                        compact
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          ) : (
+            <p className="search-empty">
+              キーワードを入力すると、わせわせ全体を横断検索できます。
+            </p>
+          )
         ) : activeTab === "users" ? (
           users.length ? (
             <ul className="search-user-list">
@@ -247,43 +399,7 @@ export function SearchPage() {
           )
         ) : results.length ? (
           <div className="search-mixed-feed">
-            {results.map((row) => {
-              if (row.kind === "post") {
-                return (
-                  <TimelinePostCard
-                    key={`post-${row.post.id}`}
-                    post={row.post}
-                    authenticated={Boolean(me?.authenticated)}
-                    onChange={updatePostInResults}
-                    onRemove={removePostFromResults}
-                    onQuote={() => {
-                      navigate("/", { state: { openCompose: true } });
-                    }}
-                    onRequireLogin={() => {
-                      navigate(
-                        spaLoginPath(
-                          `/app/search?q=${encodeURIComponent(qParam)}&tab=${activeTab}`
-                        )
-                      );
-                    }}
-                  />
-                );
-              }
-              if (row.kind === "thread") {
-                return (
-                  <SearchThreadCard
-                    key={`thread-${row.thread.id}`}
-                    thread={row.thread}
-                  />
-                );
-              }
-              return (
-                <SearchProductCard
-                  key={`product-${row.product.id}`}
-                  product={row.product}
-                />
-              );
-            })}
+            {results.map((row) => renderResultRow(row, handlers))}
           </div>
         ) : (
           <p className="search-empty">{emptyMessage}</p>
