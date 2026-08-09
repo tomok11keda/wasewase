@@ -90,6 +90,20 @@ class ProfileSearchApiTests(TestCase):
         kinds = {r.get("kind") for r in recommended.json().get("results") or []}
         self.assertIn("product", kinds)
 
+    def test_search_discover_empty_query(self):
+        response = self.client.get("/api/v1/search/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("discover", data)
+        discover = data["discover"]
+        self.assertIn("trending", discover)
+        self.assertIn("products", discover)
+        self.assertTrue(isinstance(discover["trending"], list))
+        self.assertTrue(isinstance(discover["products"], list))
+        self.assertGreaterEqual(len(discover["trending"]), 1)
+        self.assertGreaterEqual(len(discover["products"]), 1)
+
     def test_bookmarks_own_only(self):
         denied = self.client.get(f"/api/v1/profile/{self.other.pk}/bookmarks/")
         self.assertEqual(denied.status_code, 403)

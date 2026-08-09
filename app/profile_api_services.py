@@ -6,8 +6,9 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Q
 from django.http import HttpRequest
+from django.utils import timezone
 
 from .board_services import get_profile_timeline_posts
 from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_posts
@@ -20,7 +21,7 @@ from .follow_services import (
     is_account_private,
     toggle_follow_relationship,
 )
-from .models import Product, TimelineLike
+from .models import Product, TimelineLike, TimelinePost
 from .services import (
     get_profile_stats,
     get_user_avatar_url,
@@ -55,6 +56,10 @@ SEARCH_TAB_CHOICES = (
     SEARCH_TAB_PRODUCTS,
 )
 SEARCH_RESULT_LIMIT = 40
+DISCOVER_CANDIDATE_LIMIT = 80
+DISCOVER_TRENDING_LIMIT = 8
+DISCOVER_FACULTY_LIMIT = 6
+DISCOVER_PRODUCT_LIMIT = 12
 
 
 def _search_post_score(post_payload: dict[str, Any]) -> int:
@@ -224,6 +229,174 @@ def toggle_block_for_api(
     return {"ok": True, "is_blocked": blocked}
 
 
+def _discover_timeline_candidates(
+    viewer: AbstractBaseUser | None,
+    *,
+    faculty: str = "",
+    limit: int = DISCOVER_CANDIDATE_LIMIT,
+):
+    from .board_services import annotate_timeline_quote_count
+    from .ugc_services import filter_visible_timeline_posts
+
+    qs = TimelinePost.objects.select_related(
+        "author",
+        "author__profile",
+        "quoted_post",
+        "quoted_post__author",
+        "quoted_post__author__profile",
+    ).prefetch_related("comments__author")
+    qs = filter_visible_timeline_posts(qs, viewer)
+    if faculty:
+        qs = qs.filter(
+            Q(author__profile__department=faculty) | Q(faculty=faculty)
+        )
+    qs = annotate_timeline_quote_count(qs).annotate(
+        feed_comment_count=Count(
+            "comments",
+            filter=Q(comments__is_removed=False),
+            distinct=True,
+        )
+    )
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        qs = qs.annotate(
+            user_has_liked=Exists(
+                TimelineLike.objects.filter(
+                    timeline_post_id=OuterRef("pk"),
+                    user_id=viewer.id,
+                )
+            )
+        )
+    return list(qs.order_by("-created_at")[:limit])
+
+
+def _discover_mixed_rows(
+    posts: list,
+    threads: list,
+    viewer: AbstractBaseUser | None,
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    from .community_api_services import serialize_thread_summary
+    from .feed_ranking import (
+        community_recommend_score,
+        timeline_recommend_score,
+    )
+    from .services import get_following_user_ids
+
+    now = timezone.now()
+    following_ids: set[int] = set()
+    viewer_dept = ""
+    viewer_grade = ""
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        following_ids = set(get_following_user_ids(viewer))
+        profile = getattr(viewer, "profile", None)
+        viewer_dept = (getattr(profile, "department", None) or "") if profile else ""
+        viewer_grade = (getattr(profile, "grade", None) or "") if profile else ""
+
+    prepared_posts = prepare_timeline_posts(posts, viewer)
+    rows: list[dict[str, Any]] = []
+    for post in prepared_posts:
+        score = timeline_recommend_score(
+            post,
+            now=now,
+            following_ids=following_ids,
+            viewer_dept=viewer_dept,
+            viewer_grade=viewer_grade,
+            seen_ids=set(),
+        )
+        payload = serialize_timeline_post(post, viewer)
+        rows.append(
+            {
+                "kind": "post",
+                "created_at": payload.get("created_at") or "",
+                "score": int(score),
+                "post": payload,
+            }
+        )
+    for thread in threads:
+        score = community_recommend_score(
+            thread,
+            now=now,
+            viewer_faculty=viewer_dept,
+        )
+        payload = serialize_thread_summary(thread, viewer)
+        rows.append(
+            {
+                "kind": "thread",
+                "created_at": payload.get("created_at") or "",
+                "score": int(score),
+                "thread": payload,
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            int(row.get("score") or 0),
+            row.get("created_at") or "",
+        ),
+        reverse=True,
+    )
+    return rows[:limit]
+
+
+def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
+    """Search-tab empty state: sectioned discovery (not a mixed ranking dump)."""
+    from .community_services import list_community_threads
+    from .services import get_user_faculty
+
+    viewer = request.user if request.user.is_authenticated else None
+    faculty = get_user_faculty(viewer) if viewer is not None else ""
+
+    trending_posts = _discover_timeline_candidates(viewer)
+    trending_threads = list(list_community_threads(query="", faculty="")[:DISCOVER_CANDIDATE_LIMIT])
+    trending = _discover_mixed_rows(
+        trending_posts,
+        trending_threads,
+        viewer,
+        limit=DISCOVER_TRENDING_LIMIT,
+    )
+
+    faculty_section: dict[str, Any] | None = None
+    if faculty:
+        faculty_posts = _discover_timeline_candidates(viewer, faculty=faculty)
+        faculty_threads = list(
+            list_community_threads(query="", faculty=faculty)[
+                :DISCOVER_CANDIDATE_LIMIT
+            ]
+        )
+        faculty_rows = _discover_mixed_rows(
+            faculty_posts,
+            faculty_threads,
+            viewer,
+            limit=DISCOVER_FACULTY_LIMIT,
+        )
+        if faculty_rows:
+            faculty_section = {
+                "faculty": faculty,
+                "title": f"{faculty}で話題",
+                "results": faculty_rows,
+            }
+
+    product_qs = (
+        filter_visible_products(
+            Product.objects.select_related("seller", "seller__profile").all(),
+            viewer,
+        )
+        .annotate(like_count_ann=Count("likes", distinct=True))
+        .order_by("-like_count_ann", "-created_at")
+    )
+    products_payload: list[dict[str, Any]] = []
+    for product in list(product_qs[:DISCOVER_PRODUCT_LIMIT]):
+        card = serialize_product_card(product)
+        card["like_count"] = int(getattr(product, "like_count_ann", 0) or 0)
+        products_payload.append(card)
+
+    return {
+        "trending": trending,
+        "faculty": faculty_section,
+        "products": products_payload,
+    }
+
+
 def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     from .community_api_services import serialize_thread_summary
     from .community_services import list_community_threads
@@ -239,6 +412,24 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     users_payload: list[dict[str, Any]] = []
     products_payload: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+
+    if not query:
+        return {
+            "ok": True,
+            "q": "",
+            "tab": tab,
+            "results": [],
+            "posts": [],
+            "threads": [],
+            "users": [],
+            "products": [],
+            "post_count": 0,
+            "thread_count": 0,
+            "user_count": 0,
+            "product_count": 0,
+            "result_count": 0,
+            "discover": build_search_discover_payload(request),
+        }
 
     def _load_posts(*, sort: str) -> None:
         nonlocal posts_payload

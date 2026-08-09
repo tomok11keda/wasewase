@@ -130,6 +130,19 @@ export type SearchPageResponse = {
   user_count: number;
   product_count?: number;
   result_count: number;
+  discover?: SearchDiscoverPayload | null;
+};
+
+export type SearchDiscoverFaculty = {
+  faculty: string;
+  title: string;
+  results: SearchResultRow[];
+};
+
+export type SearchDiscoverPayload = {
+  trending: SearchResultRow[];
+  faculty: SearchDiscoverFaculty | null;
+  products: SearchProductResult[];
 };
 
 export type ScopedSearchResult = {
@@ -326,6 +339,17 @@ export async function fetchSearchPage(query: {
     threads: Array.isArray(data.threads) ? data.threads : [],
     users: Array.isArray(data.users) ? data.users : [],
     products: Array.isArray(data.products) ? data.products : [],
+    discover: data.discover
+      ? {
+          trending: Array.isArray(data.discover.trending)
+            ? data.discover.trending
+            : [],
+          faculty: data.discover.faculty || null,
+          products: Array.isArray(data.discover.products)
+            ? data.discover.products
+            : [],
+        }
+      : null,
   } as SearchPageResponse;
 }
 
