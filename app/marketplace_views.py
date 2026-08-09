@@ -49,7 +49,11 @@ from .trade_chat_inbox_services import (
     product_thumbnail_url,
     trade_status_label,
 )
-from .ugc_services import filter_visible_comments, filter_visible_products
+from .ugc_services import (
+    filter_visible_comments,
+    filter_visible_products,
+    get_visible_product_or_404,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -395,7 +399,10 @@ def product_detail(request, pk):
 @require_POST
 def start_product_chat(request, pk):
     """値下げ交渉: 商品専用チャットを開始（ステータスは available のまま）。"""
-    product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
+    product = get_visible_product_or_404(
+        request.user if request.user.is_authenticated else None,
+        pk,
+    )
 
     if not product.seller_id or product.seller_id == request.user.id:
         messages.error(request, "出品者以外のユーザーのみチャットを開始できます。")
@@ -687,7 +694,10 @@ def submit_review(request, pk):
 @login_required
 @require_POST
 def toggle_like(request, pk):
-    product = get_object_or_404(Product, pk=pk)
+    product = get_visible_product_or_404(
+        request.user if request.user.is_authenticated else None,
+        pk,
+    )
     like = Like.objects.filter(user=request.user, product=product).first()
 
     if like:
@@ -714,7 +724,10 @@ def toggle_like(request, pk):
 @require_POST
 def purchase_product(request, pk):
     """即決購入: 専用チャット作成 + pending + 他交渉へ終了通知。"""
-    product = get_object_or_404(Product, pk=pk)
+    product = get_visible_product_or_404(
+        request.user if request.user.is_authenticated else None,
+        pk,
+    )
 
     try:
         room = start_instant_purchase(product, request.user)

@@ -424,7 +424,8 @@ class TimelinePostForm(forms.ModelForm):
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, viewer=None, **kwargs):
+        self.viewer = viewer
         super().__init__(*args, **kwargs)
         self.fields["image"].required = False
 
@@ -437,7 +438,9 @@ class TimelinePostForm(forms.ModelForm):
         value = self.cleaned_data.get("quoted_post_id")
         if not value:
             return None
-        post = TimelinePost.objects.filter(pk=value, is_removed=False).first()
+        from .board_services import get_quotable_post
+
+        post = get_quotable_post(int(value), self.viewer)
         if not post:
             raise ValidationError("リポスト元の投稿が見つかりません。")
         return post.pk

@@ -41,7 +41,10 @@ def serialize_author(user: AbstractBaseUser | None) -> dict[str, Any] | None:
     }
 
 
-def serialize_quoted_post(post: TimelinePost | None) -> dict[str, Any] | None:
+def serialize_quoted_post(
+    post: TimelinePost | None,
+    viewer: AbstractBaseUser | None = None,
+) -> dict[str, Any] | None:
     if post is None:
         return None
     if getattr(post, "is_removed", False):
@@ -53,6 +56,31 @@ def serialize_quoted_post(post: TimelinePost | None) -> dict[str, Any] | None:
             "image_url": None,
             "course_name": "",
         }
+
+    from .follow_services import can_view_private_content
+    from .ugc_services import is_either_blocked
+
+    author = post.author
+    if author is not None and is_either_blocked(viewer, author):
+        return {
+            "id": post.pk,
+            "is_removed": True,
+            "body": "",
+            "author": None,
+            "image_url": None,
+            "course_name": "",
+        }
+    if author is not None and not can_view_private_content(viewer, author):
+        # Keep quote shell metadata-safe: no body/image/course for unauthorized viewers.
+        return {
+            "id": post.pk,
+            "is_removed": True,
+            "body": "",
+            "author": None,
+            "image_url": None,
+            "course_name": "",
+        }
+
     image_url = None
     if post.image:
         try:
@@ -64,7 +92,7 @@ def serialize_quoted_post(post: TimelinePost | None) -> dict[str, Any] | None:
         "id": post.pk,
         "is_removed": False,
         "body": body[:120],
-        "author": serialize_author(post.author),
+        "author": serialize_author(author),
         "image_url": image_url,
         "course_name": post.course_name or "",
     }
@@ -138,7 +166,8 @@ def serialize_timeline_post(
         "can_delete": can_delete,
         "author": serialize_author(post.author),
         "quoted_post": serialize_quoted_post(
-            post.quoted_post if post.quoted_post_id else None
+            post.quoted_post if post.quoted_post_id else None,
+            viewer,
         ),
         "comments": comments_payload,
     }

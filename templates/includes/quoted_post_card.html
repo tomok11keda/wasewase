@@ -1,5 +1,6 @@
 {% load wase_extras %}
-{% if post.is_removed %}
+{% can_view_quoted_post request.user post as quote_visible %}
+{% if post.is_removed or not quote_visible %}
 <div class="quoted-post-card quoted-post-card--unavailable">
   <p class="quoted-post-unavailable">この投稿は表示できません</p>
 </div>

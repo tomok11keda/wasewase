@@ -30,6 +30,7 @@ from .models import (
     TimetableSlot,
     TradeMessage,
     Follow,
+    FollowRequest,
     UserBlock,
     UserProfile,
 )
@@ -169,8 +170,16 @@ class ThreadTipAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "name", "department", "grade", "has_avatar", "is_timetable_public")
-    list_filter = ("department", "grade", "is_timetable_public")
+    list_display = (
+        "user",
+        "name",
+        "department",
+        "grade",
+        "has_avatar",
+        "is_timetable_public",
+        "is_private",
+    )
+    list_filter = ("department", "grade", "is_timetable_public", "is_private")
     search_fields = ("user__username", "user__email", "name")
 
     @admin.display(boolean=True, description="画像あり")
@@ -190,6 +199,12 @@ class TimetableSlotAdmin(admin.ModelAdmin):
 class FollowAdmin(admin.ModelAdmin):
     list_display = ("follower", "following", "created_at")
     raw_id_fields = ("follower", "following")
+
+
+@admin.register(FollowRequest)
+class FollowRequestAdmin(admin.ModelAdmin):
+    list_display = ("from_user", "to_user", "created_at")
+    raw_id_fields = ("from_user", "to_user")
 
 
 @admin.register(ContentReport)

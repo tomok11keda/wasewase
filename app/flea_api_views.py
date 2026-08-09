@@ -49,7 +49,7 @@ from .trade_chat_services import (
     start_instant_purchase,
     start_negotiation,
 )
-from .ugc_services import filter_visible_products
+from .ugc_services import filter_visible_products, get_visible_product_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -76,27 +76,11 @@ def _viewer(request: HttpRequest):
 def _get_visible_product(request: HttpRequest, pk: int) -> Product:
     ensure_product_trade_schema()
     try:
-        return get_object_or_404(
-            filter_visible_products(
-                Product.objects.select_related(
-                    "seller", "seller__profile", "buyer", "buyer__profile"
-                ).prefetch_related("likes"),
-                _viewer(request),
-            ),
-            pk=pk,
-        )
+        return get_visible_product_or_404(_viewer(request), pk)
     except (OperationalError, ProgrammingError) as exc:
         logger.warning("flea api product load failed: %s", exc)
         ensure_product_trade_schema()
-        return get_object_or_404(
-            filter_visible_products(
-                Product.objects.select_related(
-                    "seller", "seller__profile", "buyer", "buyer__profile"
-                ).prefetch_related("likes"),
-                _viewer(request),
-            ),
-            pk=pk,
-        )
+        return get_visible_product_or_404(_viewer(request), pk)
 
 
 @require_GET
@@ -148,7 +132,7 @@ def api_v1_flea_product_detail(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_flea_product_like(request: HttpRequest, pk: int) -> JsonResponse:
-    product = get_object_or_404(Product, pk=pk)
+    product = _get_visible_product(request, pk)
     like = Like.objects.filter(user=request.user, product=product).first()
     if like:
         like.delete()
@@ -200,7 +184,7 @@ def api_v1_flea_product_comment(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_flea_product_purchase(request: HttpRequest, pk: int) -> JsonResponse:
-    product = get_object_or_404(Product, pk=pk)
+    product = _get_visible_product(request, pk)
     try:
         room = start_instant_purchase(product, request.user)
     except ValueError as exc:
@@ -216,7 +200,7 @@ def api_v1_flea_product_purchase(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_flea_product_chat_start(request: HttpRequest, pk: int) -> JsonResponse:
-    product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
+    product = _get_visible_product(request, pk)
     if not product.seller_id or product.seller_id == request.user.id:
         return _json_error("own_product", status=400)
     try:

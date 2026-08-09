@@ -118,7 +118,9 @@ def timeline_post_link(post: TimelinePost) -> str:
 
 
 def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> TimelinePost | None:
-    """リポスト可能な投稿を返す（削除済み・ブロック相手は不可）。"""
+    """リポスト可能な投稿を返す（削除済み・ブロック相手・非公開は不可）。"""
+    from .follow_services import can_view_private_content
+
     post = (
         TimelinePost.objects.select_related(
             "author",
@@ -135,6 +137,8 @@ def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> Timeline
         blocked_ids = get_blocked_user_ids(viewer)
         if post.author_id in blocked_ids:
             return None
+    if post.author_id and not can_view_private_content(viewer, post.author):
+        return None
     return post
 
 

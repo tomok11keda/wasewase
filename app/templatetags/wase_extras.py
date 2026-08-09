@@ -46,3 +46,17 @@ def render_user_avatar(user, size=36, extra_class="", fallback="initial"):
 def linkify_mentions(text):
     """投稿・コメント本文内の @handle をプロフィールリンクに変換する。"""
     return render_mentions_html(text)
+
+
+@register.simple_tag
+def can_view_quoted_post(viewer, post) -> bool:
+    """Whether viewer may see quoted post body (private ACL + block)."""
+    if post is None or getattr(post, "is_removed", False):
+        return False
+    author = getattr(post, "author", None)
+    from app.follow_services import can_view_private_content
+    from app.ugc_services import is_either_blocked
+
+    if author is not None and is_either_blocked(viewer, author):
+        return False
+    return can_view_private_content(viewer, author)
