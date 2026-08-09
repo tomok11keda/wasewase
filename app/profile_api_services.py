@@ -13,7 +13,14 @@ from .board_services import get_profile_timeline_posts
 from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_posts
 from .dm_services import find_dm_room
 from .flea_api_services import serialize_product_card
-from .models import Follow, Product, TimelineLike
+from .follow_services import (
+    can_view_private_content,
+    can_view_timetable_for,
+    get_follow_state,
+    is_account_private,
+    toggle_follow_relationship,
+)
+from .models import Product, TimelineLike
 from .services import (
     get_profile_stats,
     get_user_avatar_url,
@@ -78,6 +85,9 @@ def build_profile_payload(
     blocked = False
     can_send_dm = False
     dm_room_id = None
+    follow_state = get_follow_state(viewer_auth, profile_user)
+    can_view_content = can_view_private_content(viewer_auth, profile_user)
+    account_private = is_account_private(profile_user)
     if viewer_auth and not is_own:
         following = is_following(viewer_auth, profile_user)
         blocked = is_user_blocked(viewer_auth, profile_user)
@@ -98,11 +108,16 @@ def build_profile_payload(
         },
         "is_own": is_own,
         "is_following": following,
+        "is_private": account_private,
+        "follow_state": follow_state,
+        "can_view_content": can_view_content,
         "is_blocked": blocked,
         "can_send_dm": can_send_dm,
         "dm_room_id": dm_room_id,
         "show_safety_menu": bool(viewer_auth and not is_own),
-        "can_view_timetable": is_own or is_public,
+        "can_view_timetable": can_view_timetable_for(
+            viewer_auth, profile_user, is_timetable_public=is_public
+        ),
         "is_timetable_public": is_public,
         "can_view_bookmarks": is_own,
     }
@@ -112,10 +127,13 @@ def list_profile_posts(
     profile_user: AbstractBaseUser,
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
+    if not can_view_private_content(viewer, profile_user):
+        return {"ok": True, "posts": [], "can_view_content": False}
     posts = get_profile_timeline_posts(profile_user, viewer)
     return {
         "ok": True,
         "posts": [serialize_timeline_post(p, viewer) for p in posts],
+        "can_view_content": True,
     }
 
 
@@ -123,6 +141,8 @@ def list_profile_products(
     profile_user: AbstractBaseUser,
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
+    if not can_view_private_content(viewer, profile_user):
+        return {"ok": True, "products": [], "can_view_content": False}
     products = filter_visible_products(
         Product.objects.filter(
             seller=profile_user, status=Product.Status.AVAILABLE
@@ -132,6 +152,7 @@ def list_profile_products(
     return {
         "ok": True,
         "products": [serialize_product_card(p) for p in products],
+        "can_view_content": True,
     }
 
 
@@ -150,30 +171,7 @@ def list_profile_bookmarks(
 def toggle_follow_for_api(
     actor: AbstractBaseUser, target: AbstractBaseUser
 ) -> dict[str, Any]:
-    if actor.pk == target.pk:
-        raise ValueError("own_user")
-    follow = Follow.objects.filter(follower=actor, following=target).first()
-    if follow:
-        follow.delete()
-        following = False
-    else:
-        Follow.objects.create(follower=actor, following=target)
-        from .models import Notification
-        from .spa_canonical import user_profile_url
-
-        Notification.objects.create(
-            recipient=target,
-            message=f"「{actor.username}さんにフォローされました！」",
-            link=user_profile_url(actor.pk),
-        )
-        following = True
-    from .services import count_followers
-
-    return {
-        "ok": True,
-        "is_following": following,
-        "follower_count": count_followers(target),
-    }
+    return toggle_follow_relationship(actor, target)
 
 
 def toggle_block_for_api(

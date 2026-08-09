@@ -93,6 +93,12 @@ export function ProfilePage() {
     if (!profile) return;
     let cancelled = false;
     const run = async () => {
+      if (!profile.can_view_content && (tab === "posts" || tab === "flea")) {
+        setPosts([]);
+        setProducts([]);
+        setTabLoading(false);
+        return;
+      }
       setTabLoading(true);
       try {
         if (tab === "posts") {
@@ -124,17 +130,30 @@ export function ProfilePage() {
       navigate(spaLoginPath(`/app/users/${pk}/posts`));
       return;
     }
+    if (profile.follow_state === "blocked" || profile.follow_state === "self") {
+      return;
+    }
     setBusy(true);
     try {
       const result = await toggleFollow(pk);
+      const canView =
+        profile.is_own ||
+        !profile.is_private ||
+        result.follow_state === "following";
       setProfile({
         ...profile,
         is_following: result.is_following,
+        follow_state: result.follow_state,
+        can_view_content: canView,
         stats: {
           ...profile.stats,
           follower_count: result.follower_count,
         },
       });
+      if (!canView) {
+        setPosts([]);
+        setProducts([]);
+      }
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "フォローに失敗しました");
     } finally {
@@ -156,8 +175,16 @@ export function ProfilePage() {
         ...profile,
         is_blocked: result.is_blocked,
         is_following: result.is_blocked ? false : profile.is_following,
+        follow_state: result.is_blocked ? "blocked" : "none",
+        can_view_content: result.is_blocked
+          ? false
+          : profile.is_own || !profile.is_private,
         can_send_dm: result.is_blocked ? false : profile.can_send_dm,
       });
+      if (result.is_blocked) {
+        setPosts([]);
+        setProducts([]);
+      }
       setMenuOpen(false);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "ブロックに失敗しました");
@@ -216,6 +243,9 @@ export function ProfilePage() {
             <div className="profile-identity">
               <h1 className="profile-name">{u.display_name}</h1>
               <p className="profile-username">@{u.username || u.id}</p>
+              {profile.is_private ? (
+                <p className="profile-private-badge">非公開アカウント</p>
+              ) : null}
             </div>
             {profile.show_safety_menu ? (
               <div className="profile-more">
@@ -292,16 +322,28 @@ export function ProfilePage() {
               </a>
             ) : me?.authenticated ? (
               <>
-                <button
-                  type="button"
-                  className={`btn ${
-                    profile.is_following ? "btn-secondary" : "btn-primary"
-                  }`}
-                  disabled={busy || profile.is_blocked}
-                  onClick={() => void onFollow()}
-                >
-                  {profile.is_following ? "フォロー中" : "フォロー"}
-                </button>
+                {profile.follow_state !== "self" ? (
+                  <button
+                    type="button"
+                    className={`btn ${
+                      profile.follow_state === "none"
+                        ? "btn-primary"
+                        : "btn-secondary"
+                    }`}
+                    disabled={
+                      busy ||
+                      profile.follow_state === "blocked" ||
+                      profile.is_blocked
+                    }
+                    onClick={() => void onFollow()}
+                  >
+                    {profile.follow_state === "following"
+                      ? "フォロー中"
+                      : profile.follow_state === "requested"
+                        ? "リクエスト済み"
+                        : "フォロー"}
+                  </button>
+                ) : null}
                 {profile.can_send_dm ? (
                   <button
                     type="button"
@@ -374,7 +416,16 @@ export function ProfilePage() {
 
         {tabLoading ? <p className="profile-empty">読み込み中…</p> : null}
 
-        {!tabLoading && tab === "posts" ? (
+        {!tabLoading &&
+        !profile.can_view_content &&
+        (tab === "posts" || tab === "flea") ? (
+          <div className="profile-empty profile-locked">
+            <p className="profile-locked__title">このアカウントは非公開です</p>
+            <p>フォローすると投稿や出品を見られます。</p>
+          </div>
+        ) : null}
+
+        {!tabLoading && profile.can_view_content && tab === "posts" ? (
           posts.length ? (
             <div className="timeline-feed">
               {posts.map((post) => (
@@ -432,7 +483,7 @@ export function ProfilePage() {
           )
         ) : null}
 
-        {!tabLoading && tab === "flea" ? (
+        {!tabLoading && profile.can_view_content && tab === "flea" ? (
           products.length ? (
             <div className="product-grid profile-product-grid">
               {products.map((p) => (

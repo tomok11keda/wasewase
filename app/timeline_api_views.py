@@ -26,6 +26,7 @@ from .timeline_api_services import (
     serialize_comment,
     serialize_timeline_post,
 )
+from .ugc_services import get_visible_timeline_post_or_404
 
 
 def _viewer(request: HttpRequest):
@@ -36,6 +37,16 @@ def _json_error(message: str, *, status: int = 400, **extra) -> JsonResponse:
     payload = {"ok": False, "error": message}
     payload.update(extra)
     return JsonResponse(payload, status=status)
+
+
+def _require_visible_post(request: HttpRequest, pk: int) -> TimelinePost | JsonResponse:
+    from django.http import Http404
+
+    try:
+        return get_visible_timeline_post_or_404(_viewer(request), pk)
+    except Http404:
+        return _json_error("not_found", status=404)
+
 
 
 def _parse_offset(request: HttpRequest) -> int | None:
@@ -71,7 +82,7 @@ def api_v1_timeline_list(request: HttpRequest) -> JsonResponse:
 @require_POST
 def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
     """POST multipart: body, image?, quoted_post_id?"""
-    form = TimelinePostForm(request.POST, request.FILES)
+    form = TimelinePostForm(request.POST, request.FILES, viewer=request.user)
     if not form.is_valid():
         return _json_error(
             "validation_failed",
@@ -112,7 +123,10 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_POST
 def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
-    post = get_object_or_404(TimelinePost, pk=pk, is_removed=False)
+    post_or_err = _require_visible_post(request, pk)
+    if isinstance(post_or_err, JsonResponse):
+        return post_or_err
+    post = post_or_err
     like, created = TimelineLike.objects.get_or_create(
         timeline_post=post,
         user=request.user,
@@ -139,7 +153,10 @@ def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_timeline_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
-    post = get_object_or_404(TimelinePost, pk=pk, is_removed=False)
+    post_or_err = _require_visible_post(request, pk)
+    if isinstance(post_or_err, JsonResponse):
+        return post_or_err
+    post = post_or_err
     try:
         bookmarked = toggle_bookmark(request.user, post.pk)
     except BookmarkServiceError:
@@ -150,7 +167,10 @@ def api_v1_timeline_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
-    post = get_object_or_404(TimelinePost, pk=pk, is_removed=False)
+    post_or_err = _require_visible_post(request, pk)
+    if isinstance(post_or_err, JsonResponse):
+        return post_or_err
+    post = post_or_err
     if request.content_type and "application/json" in request.content_type:
         try:
             data = json.loads(request.body.decode("utf-8") or "{}")

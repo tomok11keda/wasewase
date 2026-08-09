@@ -7,7 +7,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
-from .models import Comment, ContentReport, Follow, Product, TimelinePost, UserBlock
+from .models import Comment, ContentReport, Follow, FollowRequest, Product, TimelinePost, UserBlock
 
 User = get_user_model()
 
@@ -55,6 +55,8 @@ def block_user(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> UserBloc
     )
     Follow.objects.filter(follower=blocker, following=blocked).delete()
     Follow.objects.filter(follower=blocked, following=blocker).delete()
+    FollowRequest.objects.filter(from_user=blocker, to_user=blocked).delete()
+    FollowRequest.objects.filter(from_user=blocked, to_user=blocker).delete()
     return block
 
 
@@ -73,6 +75,26 @@ def get_blocked_users(blocker: AbstractBaseUser) -> QuerySet[UserBlock]:
     )
 
 
+def _filter_private_account_owners(
+    qs: QuerySet,
+    viewer: AbstractBaseUser | None,
+    *,
+    user_field: str,
+) -> QuerySet:
+    """Hide rows owned by private accounts the viewer cannot access."""
+    private_q = Q(**{f"{user_field}__profile__is_private": True})
+    null_owner = Q(**{f"{user_field}__isnull": True})
+    if viewer is None or not getattr(viewer, "is_authenticated", False):
+        return qs.filter(null_owner | ~private_q)
+    following_ids = Follow.objects.filter(follower_id=viewer.pk).values("following_id")
+    return qs.filter(
+        null_owner
+        | ~private_q
+        | Q(**{f"{user_field}_id": viewer.pk})
+        | Q(**{f"{user_field}_id__in": following_ids})
+    )
+
+
 def filter_visible_timeline_posts(
     qs: QuerySet[TimelinePost],
     viewer: AbstractBaseUser | None,
@@ -81,7 +103,7 @@ def filter_visible_timeline_posts(
     blocked_ids = get_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(author_id__in=blocked_ids)
-    return qs
+    return _filter_private_account_owners(qs, viewer, user_field="author")
 
 
 def filter_visible_products(
@@ -92,7 +114,41 @@ def filter_visible_products(
     blocked_ids = get_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(seller_id__in=blocked_ids)
-    return qs
+    return _filter_private_account_owners(qs, viewer, user_field="seller")
+
+
+def get_visible_product_or_404(
+    viewer: AbstractBaseUser | None,
+    pk: int,
+) -> Product:
+    """Product detail/mutate helper — Http404 if private/block hides it."""
+    from django.shortcuts import get_object_or_404
+
+    return get_object_or_404(
+        filter_visible_products(
+            Product.objects.select_related(
+                "seller", "seller__profile", "buyer", "buyer__profile"
+            ).prefetch_related("likes"),
+            viewer,
+        ),
+        pk=pk,
+    )
+
+
+def get_visible_timeline_post_or_404(
+    viewer: AbstractBaseUser | None,
+    pk: int,
+) -> TimelinePost:
+    """Timeline mutate helper — Http404 if private/block hides it."""
+    from django.shortcuts import get_object_or_404
+
+    return get_object_or_404(
+        filter_visible_timeline_posts(
+            TimelinePost.objects.select_related("author", "author__profile"),
+            viewer,
+        ),
+        pk=pk,
+    )
 
 
 def filter_visible_comments(

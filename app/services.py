@@ -244,6 +244,20 @@ def is_following(follower: AbstractBaseUser, target: AbstractBaseUser) -> bool:
     return Follow.objects.filter(follower=follower, following=target).exists()
 
 
+def can_view_private_content(viewer, owner) -> bool:
+    """Re-export: see follow_services.can_view_private_content."""
+    from .follow_services import can_view_private_content as _impl
+
+    return _impl(viewer, owner)
+
+
+def get_follow_state(viewer, owner) -> str:
+    """Re-export: see follow_services.get_follow_state."""
+    from .follow_services import get_follow_state as _impl
+
+    return _impl(viewer, owner)
+
+
 def get_profile_stats(user: AbstractBaseUser, from_source: str = "thread") -> dict:
     """プロフィール画面上部の統計。"""
     product_count = count_user_products(user)

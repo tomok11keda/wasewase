@@ -33,6 +33,8 @@ import { CommunitiesPage } from "./pages/CommunitiesPage";
 import { FleaPage } from "./pages/FleaPage";
 import { HomePage } from "./pages/HomePage";
 import { MorePage } from "./pages/tabs";
+import { SettingsPage } from "./pages/SettingsPage";
+import { FollowRequestsPage } from "./pages/FollowRequestsPage";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
@@ -62,6 +64,8 @@ function NestedAppRoutes() {
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
       <Route path="search" element={<SearchPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
+      <Route path="settings" element={<SettingsPage />} />
+      <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
       <Route path="dm" element={<DmInboxPage />} />
       <Route path="dm/groups/new" element={<GroupCreatePage />} />
       <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />

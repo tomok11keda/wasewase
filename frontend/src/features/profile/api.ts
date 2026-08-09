@@ -2,6 +2,13 @@ import { getCsrfToken } from "../timeline/api";
 import type { TimelinePost } from "../timeline/api";
 import type { ProductCard } from "../flea/api";
 
+export type FollowState =
+  | "self"
+  | "following"
+  | "requested"
+  | "none"
+  | "blocked";
+
 export type ProfileUser = {
   id: number;
   username: string;
@@ -27,6 +34,9 @@ export type ProfilePayload = {
   };
   is_own: boolean;
   is_following: boolean;
+  is_private: boolean;
+  follow_state: FollowState;
+  can_view_content: boolean;
   is_blocked: boolean;
   can_send_dm: boolean;
   dm_room_id: number | null;
@@ -64,7 +74,30 @@ export async function fetchProfile(pk: number): Promise<ProfilePayload> {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || `profile_${res.status}`);
-  return data as ProfilePayload;
+  const payload = data as ProfilePayload;
+  const followState =
+    payload.follow_state ||
+    (payload.is_own
+      ? "self"
+      : payload.is_blocked
+        ? "blocked"
+        : payload.is_following
+          ? "following"
+          : "none");
+  return {
+    ...payload,
+    is_private: Boolean(payload.is_private),
+    follow_state: followState,
+    // Missing can_view_content: infer safely (public / own / following → true).
+    can_view_content:
+      typeof payload.can_view_content === "boolean"
+        ? payload.can_view_content
+        : Boolean(
+            payload.is_own ||
+              !payload.is_private ||
+              payload.is_following
+          ),
+  };
 }
 
 export async function fetchProfilePosts(pk: number): Promise<TimelinePost[]> {
@@ -97,9 +130,12 @@ export async function fetchProfileBookmarks(pk: number): Promise<TimelinePost[]>
   return data.posts as TimelinePost[];
 }
 
-export async function toggleFollow(
-  pk: number
-): Promise<{ is_following: boolean; follower_count: number }> {
+export async function toggleFollow(pk: number): Promise<{
+  is_following: boolean;
+  follow_state: FollowState;
+  follower_count: number;
+  action?: string;
+}> {
   const res = await fetch(`/api/v1/profile/${pk}/follow/`, {
     method: "POST",
     credentials: "same-origin",
@@ -109,7 +145,10 @@ export async function toggleFollow(
   if (!res.ok || !data.ok) throw new Error(data.error || "follow_failed");
   return {
     is_following: Boolean(data.is_following),
+    follow_state: (data.follow_state ||
+      (data.is_following ? "following" : "none")) as FollowState,
     follower_count: Number(data.follower_count || 0),
+    action: data.action ? String(data.action) : undefined,
   };
 }
 
@@ -122,6 +161,74 @@ export async function toggleBlock(pk: number): Promise<{ is_blocked: boolean }> 
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "block_failed");
   return { is_blocked: Boolean(data.is_blocked) };
+}
+
+export type FollowRequestItem = {
+  id: number;
+  created_at: string;
+  from_user: {
+    id: number;
+    username: string;
+    display_name: string;
+    avatar_url: string;
+    initial: string;
+  };
+};
+
+export async function fetchFollowRequests(): Promise<FollowRequestItem[]> {
+  const res = await fetch("/api/v1/follow-requests/", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "follow_requests_failed");
+  return (data.requests || []) as FollowRequestItem[];
+}
+
+export async function acceptFollowRequest(
+  id: number
+): Promise<{ ok: boolean; follower_count?: number }> {
+  const res = await fetch(`/api/v1/follow-requests/${id}/accept/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "accept_failed");
+  return data;
+}
+
+export async function rejectFollowRequest(id: number): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/v1/follow-requests/${id}/reject/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "reject_failed");
+  return data;
+}
+
+export async function updatePrivacy(isPrivate: boolean): Promise<{
+  is_private: boolean;
+  auto_accepted_requests: number;
+}> {
+  const res = await fetch("/api/v1/me/privacy/", {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ is_private: isPrivate }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "privacy_failed");
+  return {
+    is_private: Boolean(data.is_private),
+    auto_accepted_requests: Number(data.auto_accepted_requests || 0),
+  };
 }
 
 export async function fetchSearchPage(query: {

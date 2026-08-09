@@ -75,13 +75,23 @@ export function MorePage() {
                 </ClassicLink>
               </li>
               <li>
-                <ClassicLink href="/mypage/settings/">
-                  アカウント設定（退会）
-                </ClassicLink>
+                <Link className="more-link" to="/settings">
+                  アカウント設定
+                </Link>
+              </li>
+              <li>
+                <Link className="more-link" to="/settings/follow-requests">
+                  フォローリクエスト
+                </Link>
               </li>
               <li>
                 <ClassicLink href="/mypage/settings/blocked/">
                   ブロック一覧
+                </ClassicLink>
+              </li>
+              <li>
+                <ClassicLink href="/mypage/settings/">
+                  退会など
                 </ClassicLink>
               </li>
               <li>

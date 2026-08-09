@@ -180,6 +180,7 @@ from .ugc_services import (
     get_blocked_users,
     get_report_target,
     get_reported_user_id,
+    get_visible_timeline_post_or_404,
     is_either_blocked,
     is_user_blocked,
     unblock_user,
@@ -585,7 +586,10 @@ def timetable_user(request, pk):
     owner = get_object_or_404(User, pk=pk)
     is_own = request.user.is_authenticated and request.user.pk == owner.pk
     is_public = is_timetable_public_for(owner)
-    if not is_own and not is_public:
+    from .follow_services import can_view_timetable_for
+
+    viewer = request.user if request.user.is_authenticated else None
+    if not can_view_timetable_for(viewer, owner, is_timetable_public=is_public):
         from django.http import Http404
 
         raise Http404("この時間割は非公開です。")
@@ -663,7 +667,10 @@ def api_timetable_user_slots(request, pk):
     owner = get_object_or_404(User, pk=pk)
     is_own = request.user.is_authenticated and request.user.pk == owner.pk
     is_public = is_timetable_public_for(owner)
-    if not is_own and not is_public:
+    from .follow_services import can_view_timetable_for
+
+    viewer = request.user if request.user.is_authenticated else None
+    if not can_view_timetable_for(viewer, owner, is_timetable_public=is_public):
         return JsonResponse({"ok": False, "error": "private"}, status=404)
     return JsonResponse(
         {
@@ -1020,25 +1027,25 @@ def blocked_users(request):
 @require_POST
 def toggle_follow(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
-    if profile_user == request.user:
+    from .follow_services import FollowForbidden, toggle_follow_relationship
+
+    try:
+        result = toggle_follow_relationship(request.user, profile_user)
+    except FollowForbidden:
+        messages.error(request, "このユーザーをフォローできません。")
+        return redirect(reverse("user_profile", kwargs={"pk": pk}))
+    except ValueError:
         messages.error(request, "自分自身をフォローすることはできません。")
         return redirect(reverse("user_profile", kwargs={"pk": pk}))
 
-    follow = Follow.objects.filter(
-        follower=request.user, following=profile_user
-    ).first()
-    if follow:
-        follow.delete()
+    action = result.get("action")
+    if action == "unfollowed":
         messages.info(request, f"{profile_user.username} さんのフォローを解除しました。")
+    elif action == "request_cancelled":
+        messages.info(request, "フォローリクエストを取り消しました。")
+    elif action == "requested":
+        messages.success(request, "フォローリクエストを送信しました。")
     else:
-        Follow.objects.create(follower=request.user, following=profile_user)
-        from .spa_canonical import user_profile_url
-
-        Notification.objects.create(
-            recipient=profile_user,
-            message=f"「{request.user.username}さんにフォローされました！」",
-            link=user_profile_url(request.user.pk),
-        )
         messages.success(request, f"{profile_user.username} さんをフォローしました。")
 
     next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
@@ -1298,7 +1305,13 @@ def user_profile(request, pk):
 
     is_own_profile = request.user.is_authenticated and request.user.pk == profile_user.pk
     is_timetable_public = is_timetable_public_value(profile)
-    can_view_timetable = is_own_profile or is_timetable_public
+    from .follow_services import can_view_private_content, can_view_timetable_for
+
+    viewer = request.user if request.user.is_authenticated else None
+    can_view_timetable = can_view_timetable_for(
+        viewer, profile_user, is_timetable_public=is_timetable_public
+    )
+    can_view_content = can_view_private_content(viewer, profile_user)
 
     # タブ: posts / timetable / market（bookmarks は自分のみ・サイドバー用）
     # 旧 ?from=market|thread も互換のため解釈する
@@ -1312,12 +1325,16 @@ def user_profile(request, pk):
         profile_tab = "posts"
 
     from_source = "market" if profile_tab == "market" else "thread"
-    available_products = filter_visible_products(
-        Product.objects.filter(
-            seller=profile_user, status=Product.Status.AVAILABLE
-        ).select_related("seller", "seller__profile"),
-        request.user if request.user.is_authenticated else None,
-    )
+    viewer = request.user if request.user.is_authenticated else None
+    if can_view_content:
+        available_products = filter_visible_products(
+            Product.objects.filter(
+                seller=profile_user, status=Product.Status.AVAILABLE
+            ).select_related("seller", "seller__profile"),
+            viewer,
+        )
+    else:
+        available_products = Product.objects.none()
     rating_stats = get_user_rating_stats(profile_user)
     stats = get_profile_stats(profile_user, "thread")
     show_profile_safety_menu = (
@@ -1347,8 +1364,7 @@ def user_profile(request, pk):
         )
 
     profile_posts = []
-    if profile_tab == "posts":
-        viewer = request.user if request.user.is_authenticated else None
+    if profile_tab == "posts" and can_view_content:
         profile_posts = get_profile_timeline_posts(profile_user, viewer)
 
     timetable = (
@@ -2251,7 +2267,7 @@ def _board_redirect(request, *, tag="", post_id=None, extra_query=None):
 @require_POST
 def board_compose(request):
     log_compose_request(request)
-    form = TimelinePostForm(request.POST, request.FILES)
+    form = TimelinePostForm(request.POST, request.FILES, viewer=request.user)
     if form.is_valid():
         post = form.save(commit=False)
         post.author = request.user
@@ -2302,7 +2318,7 @@ def board_compose(request):
 @login_required
 @require_POST
 def board_timeline_like(request, pk):
-    post = get_object_or_404(TimelinePost, pk=pk)
+    post = get_visible_timeline_post_or_404(request.user, pk)
     like, created = TimelineLike.objects.get_or_create(
         timeline_post=post,
         user=request.user,
@@ -2327,7 +2343,7 @@ def board_timeline_like(request, pk):
 @login_required
 @require_POST
 def board_timeline_bookmark(request, pk):
-    post = get_object_or_404(TimelinePost, pk=pk, is_removed=False)
+    post = get_visible_timeline_post_or_404(request.user, pk)
     try:
         bookmarked = toggle_bookmark(request.user, post.pk)
     except BookmarkServiceError:
@@ -2359,7 +2375,7 @@ def board_quote(request, pk):
 @login_required
 @require_POST
 def board_timeline_comment(request, pk):
-    post = get_object_or_404(TimelinePost, pk=pk)
+    post = get_visible_timeline_post_or_404(request.user, pk)
     form = TimelineCommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)

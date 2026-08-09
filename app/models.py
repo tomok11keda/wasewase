@@ -133,6 +133,11 @@ class UserProfile(models.Model):
         default=False,
         help_text="true のとき他ユーザーのプロフィールから時間割を閲覧できる。",
     )
+    is_private = models.BooleanField(
+        "非公開アカウント",
+        default=False,
+        help_text="true のときフォローにはリクエスト承認が必要で、投稿等は承認フォロワーのみ閲覧可。",
+    )
 
     def __str__(self) -> str:
         label = self.name or self.user.username
@@ -195,6 +200,8 @@ class TimetableSlot(models.Model):
 
 
 class Follow(models.Model):
+    """承認済みフォロー関係のみを保持する（pending は FollowRequest）。"""
+
     follower = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -218,6 +225,38 @@ class Follow(models.Model):
 
     def __str__(self) -> str:
         return f"{self.follower_id} → {self.following_id}"
+
+
+class FollowRequest(models.Model):
+    """非公開アカウント向けのフォローリクエスト（pending のみ）。"""
+
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="follow_requests_sent",
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="follow_requests_received",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_user", "to_user"],
+                name="unique_follow_request",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(from_user=models.F("to_user")),
+                name="follow_request_no_self",
+            ),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"request {self.from_user_id} → {self.to_user_id}"
 
 
 class SignupOTP(models.Model):

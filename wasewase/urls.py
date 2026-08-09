@@ -14,6 +14,7 @@ from app import profile_api_views
 from app import dm_api_views
 from app import notification_api_views
 from app import auth_api_views
+from app import follow_api_views
 from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
@@ -75,6 +76,26 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # React SPA (feature-flagged). Classic routes below remain the default UX.
     path("api/v1/me/", spa_views.api_v1_me, name="api_v1_me"),
+    path(
+        "api/v1/me/privacy/",
+        follow_api_views.api_v1_me_privacy,
+        name="api_v1_me_privacy",
+    ),
+    path(
+        "api/v1/follow-requests/",
+        follow_api_views.api_v1_follow_requests,
+        name="api_v1_follow_requests",
+    ),
+    path(
+        "api/v1/follow-requests/<int:pk>/accept/",
+        follow_api_views.api_v1_follow_request_accept,
+        name="api_v1_follow_request_accept",
+    ),
+    path(
+        "api/v1/follow-requests/<int:pk>/reject/",
+        follow_api_views.api_v1_follow_request_reject,
+        name="api_v1_follow_request_reject",
+    ),
     path(
         "api/v1/timeline/",
         timeline_api_views.api_v1_timeline_collection,

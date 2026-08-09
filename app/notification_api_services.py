@@ -39,6 +39,7 @@ _TIMETABLE_USER_RE = re.compile(r"^/timetable/user/(\d+)/?")
 _SEARCH_RE = re.compile(r"^/search/?$")
 _NOTIFICATIONS_RE = re.compile(r"^/notifications/?$")
 _MORE_RE = re.compile(r"^/more/?$")
+_FOLLOW_REQUESTS_RE = re.compile(r"^/settings/follow-requests/?$")
 _LOGIN_RE = re.compile(r"^/login/?$")
 _SIGNUP_RE = re.compile(r"^/signup/?$")
 _VERIFY_RE = re.compile(r"^/verify(?:-otp)?/?$")
@@ -113,6 +114,8 @@ def notification_spa_path(link: str) -> str:
         return "/notifications"
     if _MORE_RE.match(path):
         return "/more"
+    if _FOLLOW_REQUESTS_RE.match(path):
+        return "/settings/follow-requests"
     if _LOGIN_RE.match(path):
         return _with_query_fragment("/login", query, "")
     if _SIGNUP_RE.match(path):

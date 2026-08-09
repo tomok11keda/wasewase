@@ -17,6 +17,7 @@ from .profile_api_services import (
     toggle_block_for_api,
     toggle_follow_for_api,
 )
+from .follow_services import FollowForbidden
 
 User = get_user_model()
 
@@ -66,6 +67,8 @@ def api_v1_profile_follow(request: HttpRequest, pk: int) -> JsonResponse:
     target = get_object_or_404(User, pk=pk)
     try:
         payload = toggle_follow_for_api(request.user, target)
+    except FollowForbidden as exc:
+        return _json_error(exc.code, status=403)
     except ValueError as exc:
         return _json_error(str(exc), status=400)
     return JsonResponse(payload)
