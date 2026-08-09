@@ -901,40 +901,67 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
 }
 
-/*
- * Flex item + block children: width:fit-content often resolves near the
- * container width. Use max-content (clamped by max-width) like Classic
- * content-sized bubbles — short text stays tight, long text wraps at cap.
- */
+/* One message unit: meta outside bubble so short body stays compact */
+.trade-chat-page .chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(78%, 320px);
+  min-width: 0;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.trade-chat-page .chat-item.mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.trade-chat-page .chat-item.theirs {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.trade-chat-page .chat-meta {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--muted);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .trade-chat-page .chat-bubble {
   display: block;
   box-sizing: border-box;
   width: max-content;
-  max-width: min(78%, 320px);
+  max-width: 100%;
   min-width: 0;
   margin: 0;
   padding: 6px 10px;
   border-radius: 14px;
   font-size: 14px;
   line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   flex: 0 0 auto;
-  align-self: flex-start;
 }
 
-.trade-chat-page .chat-bubble.mine {
-  align-self: flex-end;
-  margin-left: 0;
+.trade-chat-page .chat-item.mine .chat-bubble {
   background: #f7edf0;
   color: #222;
   border: 1px solid #e8c4ca;
   border-bottom-right-radius: 4px;
 }
 
-.trade-chat-page .chat-bubble.theirs {
-  align-self: flex-start;
+.trade-chat-page .chat-item.theirs .chat-bubble {
   background: #f0f3f6;
   border-bottom-left-radius: 4px;
 }
@@ -952,20 +979,6 @@
   line-height: 1.35;
   text-align: center;
   border-radius: 999px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.trade-chat-page .chat-meta {
-  margin: 0 0 2px;
-  font-size: 10px;
-  line-height: 1.2;
-  color: var(--muted);
-}
-
-.trade-chat-page .chat-bubble-body {
-  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
