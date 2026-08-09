@@ -495,6 +495,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+.discover-compact-card__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.discover-compact-card__stat .sf-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.discover-compact-card__stat-count {
+  line-height: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .discover-compact-card__thumb {
   flex: 0 0 64px;
   width: 64px;

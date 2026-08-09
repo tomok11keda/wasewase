@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SfIcon } from "../../components/SfIcon";
 import type { TimelinePost } from "../timeline/api";
 import type { SearchThreadResult } from "../profile/api";
 
@@ -71,7 +72,15 @@ export function DiscoverPostCard({ post }: { post: TimelinePost }) {
           <span>💬 {formatCount(post.comment_count)}</span>
           <span>↻ {formatCount(post.quote_count || 0)}</span>
           {post.view_count > 0 ? (
-            <span>👁 {formatCount(post.view_count)}</span>
+            <span
+              className="discover-compact-card__stat discover-compact-card__stat--view"
+              aria-label={`閲覧数 ${post.view_count}`}
+            >
+              <SfIcon name="chart_bar" size={18} />
+              <span className="discover-compact-card__stat-count">
+                {formatCount(post.view_count)}
+              </span>
+            </span>
           ) : null}
         </p>
       </div>
