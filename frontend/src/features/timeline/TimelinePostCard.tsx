@@ -10,6 +10,11 @@ import {
   toggleBookmark,
   toggleLike,
 } from "./api";
+import {
+  hasRecordedImpression,
+  IMPRESSION_DWELL_MS,
+  queueImpression,
+} from "./impressions";
 import { saveScrollPosition } from "../profile/api";
 
 type Props = {
@@ -63,6 +68,9 @@ export function TimelinePostCard({
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const articleRef = useRef<HTMLElement | null>(null);
+  const postRef = useRef(post);
+  postRef.current = post;
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
 
   useEffect(() => {
@@ -75,6 +83,73 @@ export function TimelinePostCard({
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
   }, [menuOpen]);
+
+  // Impression observer (separate from HomePage infinite-scroll sentinel IO)
+  useEffect(() => {
+    const el = articleRef.current;
+    if (!el) return;
+    if (hasRecordedImpression(post.id)) return;
+
+    let dwellTimer: number | null = null;
+    let intersectingEnough = false;
+
+    const clearDwell = () => {
+      if (dwellTimer != null) {
+        window.clearTimeout(dwellTimer);
+        dwellTimer = null;
+      }
+    };
+
+    const tryStartDwell = () => {
+      if (!intersectingEnough) return;
+      if (document.visibilityState !== "visible") return;
+      if (hasRecordedImpression(post.id)) return;
+      if (dwellTimer != null) return;
+      dwellTimer = window.setTimeout(() => {
+        dwellTimer = null;
+        if (document.visibilityState !== "visible") return;
+        if (!intersectingEnough) return;
+        queueImpression(post.id, (_id, viewCount) => {
+          const current = postRef.current;
+          if (current.id !== post.id) return;
+          onChange({ ...current, view_count: viewCount });
+        });
+      }, IMPRESSION_DWELL_MS);
+    };
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        intersectingEnough =
+          entry.isIntersecting && entry.intersectionRatio >= 0.5;
+        if (intersectingEnough) {
+          tryStartDwell();
+        } else {
+          clearDwell();
+        }
+      },
+      { threshold: [0, 0.5, 1] }
+    );
+    obs.observe(el);
+
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        clearDwell();
+        return;
+      }
+      tryStartDwell();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      obs.disconnect();
+      clearDwell();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // onChange is read via postRef / stable enough; avoid re-observe on inline parent callbacks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
 
   const guard = (fn: () => void) => {
     if (!authenticated) {
@@ -97,7 +172,12 @@ export function TimelinePostCard({
   };
 
   return (
-    <article id={`post-${post.id}`} className="tweet-card" data-spa-post={post.id}>
+    <article
+      ref={articleRef}
+      id={`post-${post.id}`}
+      className="tweet-card"
+      data-spa-post={post.id}
+    >
       <div className="tweet-layout">
         {post.author ? (
           <Link
