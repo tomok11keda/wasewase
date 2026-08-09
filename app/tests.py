@@ -244,6 +244,7 @@ class EmailAuthTests(TestCase):
                 {
                     "email": "other@stu.waseda.jp",
                     "nickname": "たろう",
+                    "username": "taro_other",
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
@@ -254,17 +255,44 @@ class EmailAuthTests(TestCase):
         user = get_user_model().objects.get(email="other@stu.waseda.jp")
         profile = UserProfile.objects.get(user=user)
         self.assertEqual(profile.name, "たろう")
+        self.assertEqual(user.username, "taro_other")
+
+    def test_signup_rejects_duplicate_username_case_insensitive(self):
+        get_user_model().objects.create_user(
+            email="owner@waseda.jp",
+            password="password",
+            username="Tanaka_Taro",
+        )
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "email": "new@waseda.jp",
+                "nickname": "別の太郎",
+                "username": "tanaka_taro",
+                "password1": "newpass123",
+                "password2": "newpass123",
+                "faculty": "商学部",
+                "accept_terms": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "すでに使われています")
+        self.assertFalse(
+            get_user_model().objects.filter(email="new@waseda.jp").exists()
+        )
 
     def test_signup_rejects_duplicate_email(self):
         get_user_model().objects.create_user(
             email="dup@waseda.jp",
             password="password",
+            username="dup_handle",
         )
         response = self.client.post(
             reverse("signup"),
             {
                 "email": "dup@waseda.jp",
                 "nickname": "dup_user",
+                "username": "dup_user_new",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
@@ -293,6 +321,7 @@ class EmailAuthTests(TestCase):
             {
                 "email": "user@gmail.com",
                 "nickname": "gmail_user",
+                "username": "gmail_user",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
@@ -317,6 +346,7 @@ class EmailAuthTests(TestCase):
                 {
                     "email": "student@my.waseda.jp",
                     "nickname": "wase_student",
+                    "username": "wase_student",
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
@@ -337,7 +367,8 @@ class EmailAuthTests(TestCase):
             reverse("signup"),
             {
                 "email": "new@waseda.jp",
-                "nickname": "wase_taro",
+                "nickname": "わせ太郎",
+                "username": "wase_taro",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "法学部",
@@ -346,10 +377,10 @@ class EmailAuthTests(TestCase):
         )
         self.assertRedirects(response, reverse("verify_otp"))
         user = get_user_model().objects.get(email="new@waseda.jp")
-        self.assertEqual(user.username, f"user_{user.pk}")
+        self.assertEqual(user.username, "wase_taro")
         self.assertFalse(user.is_active)
         profile = UserProfile.objects.get(user=user)
-        self.assertEqual(profile.name, "wase_taro")
+        self.assertEqual(profile.name, "わせ太郎")
         self.assertEqual(profile.department, "法学部")
         self.assertTrue(profile.terms_accepted)
         self.assertEqual(len(mail.outbox), 1)
@@ -426,6 +457,7 @@ class EmailAuthTests(TestCase):
         get_user_model().objects.create_user(
             email="pending@waseda.jp",
             password="oldpass123",
+            username="pending_old",
             is_active=False,
         )
         response = self.client.post(
@@ -433,6 +465,7 @@ class EmailAuthTests(TestCase):
             {
                 "email": "pending@waseda.jp",
                 "nickname": "pending_user",
+                "username": "pending_new",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
@@ -441,6 +474,8 @@ class EmailAuthTests(TestCase):
         )
         self.assertRedirects(response, reverse("verify_otp"))
         self.assertEqual(len(mail.outbox), 1)
+        user = get_user_model().objects.get(email="pending@waseda.jp")
+        self.assertEqual(user.username, "pending_new")
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
@@ -470,6 +505,7 @@ class EmailAuthTests(TestCase):
             {
                 "email": "bad@gmail.com",
                 "nickname": "bad_user",
+                "username": "bad_user",
                 "password1": "newpass123",
                 "password2": "different",
                 "faculty": "",
@@ -484,6 +520,7 @@ class EmailAuthTests(TestCase):
             {
                 "email": "terms@waseda.jp",
                 "nickname": "terms_user",
+                "username": "terms_user",
                 "password1": "newpass123",
                 "password2": "newpass123",
                 "faculty": "商学部",
@@ -503,7 +540,22 @@ class EmailAuthTests(TestCase):
         self.assertContains(response, "利用規約")
         self.assertContains(response, "プライバシーポリシー")
         self.assertContains(response, 'id="signup-submit" disabled')
+        self.assertContains(response, "@ユーザー名")
 
+    def test_serialize_author_uses_handle_not_email(self):
+        from .timeline_api_services import serialize_author
+
+        user = get_user_model().objects.create_user(
+            email="leak@waseda.jp",
+            password="password",
+            username="public_handle",
+        )
+        UserProfile.objects.create(user=user, name="表示名")
+        payload = serialize_author(user)
+        self.assertEqual(payload["username"], "public_handle")
+        self.assertEqual(payload["display_name"], "表示名")
+        self.assertNotIn("email", payload)
+        self.assertNotEqual(payload["username"], user.email)
 
 class GlobalSearchTests(TestCase):
     def setUp(self):
@@ -1016,7 +1068,7 @@ class SocialFeaturesTests(TestCase):
             f"{reverse('home')}?quote={self.original.pk}",
         )
 
-    def test_signup_assigns_user_pk_handle(self):
+    def test_signup_assigns_chosen_handle(self):
         with self.settings(
             EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
             DEFAULT_FROM_EMAIL="test@waseda.jp",
@@ -1026,6 +1078,7 @@ class SocialFeaturesTests(TestCase):
                 {
                     "email": "handle@waseda.jp",
                     "nickname": "表示名テスト",
+                    "username": "display_test",
                     "password1": "newpass123",
                     "password2": "newpass123",
                     "faculty": "商学部",
@@ -1034,7 +1087,7 @@ class SocialFeaturesTests(TestCase):
             )
         self.assertRedirects(response, reverse("verify_otp"))
         user = get_user_model().objects.get(email="handle@waseda.jp")
-        self.assertEqual(user.username, f"user_{user.pk}")
+        self.assertEqual(user.username, "display_test")
         self.assertEqual(UserProfile.objects.get(user=user).name, "表示名テスト")
 
     def test_mypage_edit_rejects_duplicate_handle(self):

@@ -1858,11 +1858,13 @@ def _persist_signup_user(form):
     faculty = form.cleaned_data["faculty"]
     password = form.cleaned_data["password1"]
     nickname = form.cleaned_data["nickname"]
+    username = form.cleaned_data["username"]
 
     pending = User.objects.filter(email__iexact=email, is_active=False).first()
     if pending:
         pending.set_password(password)
-        pending.save(update_fields=["password"])
+        pending.username = username
+        pending.save(update_fields=["password", "username"])
         user = pending
     else:
         user = form.save()

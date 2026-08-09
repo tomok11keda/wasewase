@@ -49,10 +49,12 @@ SEARCH_TAB_USERS = "users"
 
 
 def serialize_profile_user(user: AbstractBaseUser, profile) -> dict[str, Any]:
+    from .handle_services import public_username
+
     avatar = get_user_avatar_url(user) or ""
     return {
         "id": user.pk,
-        "username": user.get_username(),
+        "username": public_username(user),
         "display_name": user_display_name(user),
         "avatar_url": avatar,
         "initial": user_avatar_initial(user),

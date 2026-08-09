@@ -20,6 +20,7 @@ from .board_services import (
 )
 from .bookmark_services import prepare_timeline_posts
 from .models import Comment, TimelinePost
+from .handle_services import public_username
 from .services import (
     get_user_avatar_url,
     user_avatar_initial,
@@ -34,7 +35,7 @@ def serialize_author(user: AbstractBaseUser | None) -> dict[str, Any] | None:
     avatar = get_user_avatar_url(user) or ""
     return {
         "id": user.pk,
-        "username": user.get_username(),
+        "username": public_username(user),
         "display_name": user_display_name(user),
         "avatar_url": avatar,
         "initial": user_avatar_initial(user),

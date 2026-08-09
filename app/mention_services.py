@@ -6,6 +6,7 @@ from django.utils.html import escape
 from django.utils.safestring import SafeString, mark_safe
 
 from .constants import HANDLE_MENTION_PATTERN
+from .handle_services import resolve_user_by_username
 from .models import Notification, User
 from .services import user_display_name
 from .ugc_services import get_blocked_user_ids, is_user_blocked
@@ -30,7 +31,7 @@ def _mention_recipient_map(usernames: list[str]) -> dict[str, User]:
         return {}
     recipients: dict[str, User] = {}
     for username in usernames:
-        user = User.objects.filter(username__iexact=username).first()
+        user = resolve_user_by_username(username)
         if user:
             recipients[username.lower()] = user
     return recipients
@@ -53,7 +54,7 @@ def notify_mentions(
     actor_label = user_display_name(actor)
 
     for username in usernames:
-        user = User.objects.filter(username__iexact=username).first()
+        user = resolve_user_by_username(username)
         if not user or user.pk in exclude or user.pk in blocked_ids:
             continue
         if is_user_blocked(user, actor):
