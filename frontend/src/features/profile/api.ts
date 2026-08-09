@@ -142,6 +142,7 @@ export type SearchDiscoverFaculty = {
 export type SearchDiscoverPayload = {
   trending: SearchResultRow[];
   faculty: SearchDiscoverFaculty | null;
+  communities: SearchResultRow[];
   products: SearchProductResult[];
 };
 
@@ -345,6 +346,9 @@ export async function fetchSearchPage(query: {
             ? data.discover.trending
             : [],
           faculty: data.discover.faculty || null,
+          communities: Array.isArray(data.discover.communities)
+            ? data.discover.communities
+            : [],
           products: Array.isArray(data.discover.products)
             ? data.discover.products
             : [],
