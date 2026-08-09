@@ -14,6 +14,7 @@ import "./styles/timetable.css";
 import "./styles/profile.css";
 import "./styles/dm.css";
 import "./styles/notifications-auth.css";
+import "./styles/ios-form-zoom.css";
 
 document.body.classList.add("shell-desktop");
 

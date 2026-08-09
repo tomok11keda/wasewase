@@ -1,0 +1,16 @@
+/**
+ * iOS Safari / Capacitor WKWebView: focusing inputs with font-size < 16px
+ * triggers page zoom. Keep intentional pinch-zoom (do not lock viewport).
+ * Desktop (≥1024px) keeps existing form typography.
+ */
+@media screen and (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+      [type="file"]
+    ):not([type="button"]):not([type="submit"]):not([type="reset"]):not(
+      [type="image"]
+    ):not([type="hidden"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
