@@ -52,6 +52,10 @@ export function ExhibitPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!image) {
+      setError("商品画像を1枚以上追加してください");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -63,13 +67,13 @@ export function ExhibitPage() {
       form.set("course_name", courseName);
       form.set("professor_name", professorName);
       form.set("faculty", faculty);
-      if (image) form.set("image", image);
+      form.set("image", image);
       const product = await createProduct(form);
       navigate(`/flea?exhibit_success=1`);
-      // Keep product id available if needed later
       void product;
     } catch (err) {
       setError(err instanceof Error ? err.message : "出品に失敗しました");
+    } finally {
       setBusy(false);
     }
   };
@@ -82,18 +86,19 @@ export function ExhibitPage() {
         </Link>
         <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>商品を出品</h2>
         <p className="form-lead">
-          受け渡しキャンパスは必須です。写真は任意ですが、あると売れやすくなります。
+          受け渡しキャンパスと商品画像は必須です。
         </p>
         {error ? (
           <p style={{ color: "#c62828", fontSize: 14 }}>{error}</p>
         ) : null}
-        <form className="form-card" onSubmit={onSubmit}>
+        <form className="form-card" onSubmit={(e) => void onSubmit(e)}>
           <div className="form-group">
-            <label htmlFor="exhibit-image">写真</label>
+            <label htmlFor="exhibit-image">写真（必須）</label>
             <input
               id="exhibit-image"
               type="file"
               accept="image/*"
+              required
               onChange={(e) => setImage(e.target.files?.[0] || null)}
             />
           </div>
@@ -176,7 +181,7 @@ export function ExhibitPage() {
               ))}
             </select>
           </div>
-          <button className="btn-submit" type="submit" disabled={busy}>
+          <button className="btn-submit" type="submit" disabled={busy || !image}>
             {busy ? "出品中…" : "出品する"}
           </button>
         </form>

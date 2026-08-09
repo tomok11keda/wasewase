@@ -330,7 +330,7 @@
   </header>
 
   <main class="main-inner">
-    <p class="form-lead">教科書以外の雑貨・服なども出品できます。まずは写真と基本情報を入れてください。</p>
+    <p class="form-lead">教科書以外の雑貨・服なども出品できます。商品画像と基本情報を入れてください。</p>
 
     <div class="form-card">
       {% if form.non_field_errors %}
@@ -346,10 +346,10 @@
 
         <div class="field">
           <div class="field-label-row">
-            <label for="{{ form.image.id_for_label }}">{{ form.image.label }}<span class="opt-badge">任意</span></label>
+            <label for="{{ form.image.id_for_label }}">{{ form.image.label }}<span class="req-badge">必須</span></label>
           </div>
           {{ form.image }}
-          <p class="field-hint">JPEG / PNG など。あると売れやすくなります</p>
+          <p class="field-hint">JPEG / PNG など。商品画像を1枚以上追加してください</p>
           {% if form.image.errors %}
           <ul class="field-error">{% for error in form.image.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}

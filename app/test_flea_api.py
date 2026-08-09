@@ -5,10 +5,16 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 
 from .bookmark_services import BookmarkServiceError
 from .models import Product, User
+
+_MINIMAL_GIF = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04"
+    b"\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+)
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -160,8 +166,35 @@ class FleaApiTests(TestCase):
         self.assertEqual(confirm.status_code, 200)
         self.assertEqual(confirm.json()["product_status"], Product.Status.PENDING)
 
+    def test_exhibit_requires_image(self):
+        self.client.force_login(self.seller)
+        before = Product.objects.count()
+        created = self.client.post(
+            "/api/v1/flea/products/",
+            data={
+                "name": "画像なし出品",
+                "price": "800",
+                "handover_campus": "toyama",
+                "description": "軽量",
+                "faculty": "法学部",
+            },
+        )
+        self.assertEqual(created.status_code, 400)
+        body = created.json()
+        self.assertFalse(body.get("ok", True))
+        self.assertEqual(body["error"], "validation_failed")
+        self.assertIn("image", body["errors"])
+        self.assertIn(
+            "商品画像を1枚以上追加してください",
+            body["errors"]["image"][0]["message"],
+        )
+        self.assertEqual(Product.objects.count(), before)
+
     def test_exhibit_and_delete(self):
         self.client.force_login(self.seller)
+        image = SimpleUploadedFile(
+            "stand.gif", _MINIMAL_GIF, content_type="image/gif"
+        )
         created = self.client.post(
             "/api/v1/flea/products/",
             data={
@@ -170,6 +203,7 @@ class FleaApiTests(TestCase):
                 "handover_campus": "toyama",
                 "description": "軽量",
                 "faculty": "法学部",
+                "image": image,
             },
         )
         self.assertEqual(created.status_code, 201)

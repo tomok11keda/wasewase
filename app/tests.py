@@ -1691,6 +1691,11 @@ class FleaSortAndCampusFilterTests(TestCase):
             Product.objects.filter(name="キャンパス必須テスト").exists()
         )
 
+        image = SimpleUploadedFile(
+            "campus.gif",
+            BoardTimelineImageTests._MINIMAL_GIF,
+            content_type="image/gif",
+        )
         ok = self.client.post(
             reverse("exhibit"),
             {
@@ -1701,11 +1706,30 @@ class FleaSortAndCampusFilterTests(TestCase):
                 "handover_campus": "nishi_waseda",
                 "course_name": "",
                 "professor_name": "",
+                "image": image,
             },
         )
         self.assertEqual(ok.status_code, 302)
         product = Product.objects.get(name="キャンパス必須テスト")
         self.assertEqual(product.handover_campus, "nishi_waseda")
+
+    def test_exhibit_requires_image(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(
+            reverse("exhibit"),
+            {
+                "name": "画像必須テスト",
+                "price": "800",
+                "description": "説明",
+                "faculty": "",
+                "handover_campus": "nishi_waseda",
+                "course_name": "",
+                "professor_name": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "商品画像を1枚以上追加してください")
+        self.assertFalse(Product.objects.filter(name="画像必須テスト").exists())
 
     def test_exhibit_form_hides_textbook_details_by_default(self):
         self.client.force_login(self.seller)
