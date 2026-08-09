@@ -48,6 +48,14 @@ export function hasRecordedImpression(postId: number): boolean {
   return memorySeen.has(postId);
 }
 
+/** Recently impressed post IDs (session) — used to demote repeats in おすすめ. */
+export function getImpressedPostIds(limit = 80): number[] {
+  hydrateSeen();
+  const ids = [...memorySeen];
+  if (ids.length <= limit) return ids;
+  return ids.slice(ids.length - limit);
+}
+
 function markSeen(postId: number): void {
   memorySeen.add(postId);
   persistSeen();

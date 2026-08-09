@@ -17,6 +17,9 @@ export function CommunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tag = searchParams.get("tag") || "";
   const qParam = searchParams.get("q") || "";
+  const sort = (
+    searchParams.get("sort") === "latest" ? "latest" : "recommended"
+  ) as "recommended" | "latest";
   const ownFaculty = me?.user?.department || "";
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -50,6 +53,7 @@ export function CommunitiesPage() {
         const data = await fetchCommunityThreads({
           tag: tag || undefined,
           q: qParam || undefined,
+          sort,
         });
         setThreads(data.threads);
         hasDataRef.current = true;
@@ -59,7 +63,7 @@ export function CommunitiesPage() {
         setLoading(false);
       }
     },
-    [tag, qParam]
+    [tag, qParam, sort]
   );
 
   useEffect(() => {
@@ -121,6 +125,23 @@ export function CommunitiesPage() {
           ownFaculty={ownFaculty}
           onChange={(next) => patchParams({ tag: next })}
         />
+
+        <nav className="ranking-sort-tabs" aria-label="コミュニティ並び順">
+          <button
+            type="button"
+            className={`ranking-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+            onClick={() => patchParams({ sort: "" })}
+          >
+            おすすめ
+          </button>
+          <button
+            type="button"
+            className={`ranking-sort-tab${sort === "latest" ? " is-active" : ""}`}
+            onClick={() => patchParams({ sort: "latest" })}
+          >
+            最新
+          </button>
+        </nav>
 
         <LocalSearchBar
           value={qParam}

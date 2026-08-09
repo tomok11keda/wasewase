@@ -37,6 +37,10 @@
   white-space: nowrap;
 }
 
+.communities-header .ranking-sort-tabs {
+  margin: 0 0 10px;
+}
+
 .faculty-tabs {
   display: flex;
   gap: 8px;

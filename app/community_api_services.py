@@ -97,16 +97,28 @@ def serialize_thread_detail(
 
 
 def list_threads_payload(request: HttpRequest) -> dict[str, Any]:
+    from .feed_ranking import (
+        COMMUNITY_SORT_LATEST,
+        parse_community_sort,
+        rank_community_threads,
+    )
+
     faculty_values = {value for value, _ in FACULTY_CHOICES}
     active_tag = request.GET.get("tag", "").strip()
     if active_tag not in faculty_values:
         active_tag = ""
     query = request.GET.get("q", "").strip()
-    threads = list(list_community_threads(query=query, faculty=active_tag))
+    sort = parse_community_sort(request.GET.get("sort"))
     viewer = request.user if request.user.is_authenticated else None
+    thread_qs = list_community_threads(query=query, faculty=active_tag)
+    if sort == COMMUNITY_SORT_LATEST:
+        threads = list(thread_qs)
+    else:
+        threads = rank_community_threads(list(thread_qs), viewer=viewer)
     return {
         "threads": [serialize_thread_summary(t, viewer) for t in threads],
         "faculty_tabs": get_faculty_tag_choices(),
         "active_tag": active_tag,
         "q": query,
+        "sort": sort,
     }

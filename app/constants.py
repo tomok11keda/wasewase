@@ -44,6 +44,7 @@ HANDOVER_CAMPUS_CHOICES = [
 FLEA_ORDER_CHOICES = [
     ("", "おすすめ順"),
     ("newest", "投稿が新しい順"),
+    ("popular", "人気順"),
     ("price_low", "金額の安い順"),
     ("price_high", "金額の高い順"),
 ]

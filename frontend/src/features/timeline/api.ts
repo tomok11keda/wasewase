@@ -49,6 +49,7 @@ export type TimelineFeedResponse = {
   next_offset: number;
   total_count: number;
   feed: string;
+  sort?: "recommended" | "latest";
   q: string;
   faculty: string;
   tag: string;
@@ -70,20 +71,28 @@ export function getCsrfToken(): string {
 
 export type FeedQuery = {
   feed?: "all" | "following";
+  sort?: "recommended" | "latest";
   q?: string;
   faculty?: string;
   tag?: string;
   offset?: number;
+  seen?: number[];
 };
 
 function buildFeedUrl(query: FeedQuery): string {
   const params = new URLSearchParams();
   if (query.feed) params.set("feed", query.feed);
+  if (query.sort && query.sort !== "recommended") {
+    params.set("sort", query.sort);
+  }
   if (query.q) params.set("q", query.q);
   if (query.faculty) params.set("faculty", query.faculty);
   if (query.tag) params.set("tag", query.tag);
   if (typeof query.offset === "number") {
     params.set("offset", String(query.offset));
+  }
+  if (query.seen?.length) {
+    params.set("seen", query.seen.slice(0, 80).join(","));
   }
   const qs = params.toString();
   return qs ? `/api/v1/timeline/?${qs}` : "/api/v1/timeline/";

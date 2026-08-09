@@ -197,29 +197,45 @@ def list_timeline_page(
     Classic feed semantics:
     - no offset → first page size TIMELINE_INITIAL_SIZE (25)
     - with offset → TIMELINE_LOAD_MORE_SIZE (15)
+    - sort=recommended (default) → X-style ranking
+    - sort=latest → chronological
     """
+    from .feed_ranking import (
+        TIMELINE_SORT_LATEST,
+        parse_timeline_sort,
+        rank_timeline_page,
+    )
+
+    sort = parse_timeline_sort(request.GET.get("sort"))
     timeline_qs = build_timeline_posts_queryset(request)
-    total_count = timeline_qs.count()
     if offset is None:
         start = 0
         page_size = TIMELINE_INITIAL_SIZE
     else:
         start = max(0, offset)
         page_size = TIMELINE_LOAD_MORE_SIZE
-    posts = prepare_timeline_posts(
-        list(timeline_qs[start : start + page_size]),
-        request.user,
-    )
+
+    if sort == TIMELINE_SORT_LATEST:
+        total_count = timeline_qs.count()
+        page_posts = list(timeline_qs[start : start + page_size])
+    else:
+        page_posts, total_count = rank_timeline_page(
+            request,
+            timeline_qs,
+            offset=start,
+            page_size=page_size,
+        )
+
+    posts = prepare_timeline_posts(page_posts, request.user)
     next_offset = start + len(posts)
     viewer = request.user if request.user.is_authenticated else None
     return {
-        "posts": [
-            serialize_timeline_post(p, viewer) for p in posts
-        ],
+        "posts": [serialize_timeline_post(p, viewer) for p in posts],
         "has_more": next_offset < total_count,
         "next_offset": next_offset,
         "total_count": total_count,
         "feed": request.GET.get("feed", "all").strip().lower() or "all",
+        "sort": sort,
         "q": request.GET.get("q", "").strip(),
         "faculty": request.GET.get("faculty", "").strip(),
         "tag": request.GET.get("tag", "").strip(),
