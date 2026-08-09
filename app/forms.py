@@ -367,7 +367,10 @@ class ProductExhibitForm(forms.ModelForm):
         self.fields["description"].required = False
         self.fields["course_name"].required = False
         self.fields["professor_name"].required = False
-        self.fields["image"].required = False
+        self.fields["image"].required = True
+        self.fields["image"].error_messages = {
+            "required": "商品画像を1枚以上追加してください",
+        }
 
     def save(self, commit=True):
         product = super().save(commit=False)

@@ -153,7 +153,19 @@ export async function createProduct(form: FormData): Promise<ProductCard> {
     body: form,
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "exhibit_failed");
+  if (!res.ok || !data.ok) {
+    const fieldErrors = data.errors as
+      | Record<string, Array<{ message?: string } | string>>
+      | undefined;
+    const imageMessages = fieldErrors?.image;
+    const firstImage =
+      typeof imageMessages?.[0] === "string"
+        ? imageMessages[0]
+        : imageMessages?.[0]?.message;
+    throw new Error(
+      firstImage || data.message || data.error || "exhibit_failed"
+    );
+  }
   return data.product as ProductCard;
 }
 
