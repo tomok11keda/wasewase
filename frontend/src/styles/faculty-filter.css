@@ -1,0 +1,63 @@
+/* Shared faculty filter chips (timeline / communities / flea) */
+.faculty-filter-section {
+  background: var(--card, #fff);
+  padding: 10px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--shell-border, #eff3f4);
+}
+
+.faculty-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 12px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.faculty-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.faculty-tab {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #e5d3d7;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b5b5f;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.faculty-tab.is-active {
+  background: var(--accent, #891e2b);
+  border-color: var(--accent, #891e2b);
+  color: #fff;
+}
+
+.faculty-tab:hover:not(.is-active),
+.faculty-tab:focus-visible:not(.is-active) {
+  background: #faf6f7;
+}
+
+@media (min-width: 1024px) {
+  .faculty-filter-section {
+    padding: 8px 0;
+  }
+
+  .faculty-tabs {
+    padding: 0 16px;
+  }
+
+  .faculty-tab {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+}

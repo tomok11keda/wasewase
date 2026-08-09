@@ -6,6 +6,7 @@ import {
   type FilterTab,
   type ProductCard,
 } from "../features/flea/api";
+import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { spaLoginPath } from "../features/auth/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
@@ -51,7 +52,6 @@ export function FleaPage() {
   const order = searchParams.get("order") || "";
 
   const [products, setProducts] = useState<ProductCard[]>([]);
-  const [facultyTabs, setFacultyTabs] = useState<FilterTab[]>([]);
   const [campusTabs, setCampusTabs] = useState<FilterTab[]>([]);
   const [orderOptions, setOrderOptions] = useState<FilterTab[]>([]);
   const [userFaculty, setUserFaculty] = useState("");
@@ -62,6 +62,7 @@ export function FleaPage() {
   const [qInput, setQInput] = useState(qParam);
   const exhibitSuccess = searchParams.get("exhibit_success") === "1";
   const hasDataRef = useRef(false);
+  const ownFaculty = me?.user?.department || userFaculty || "";
 
   const patchParams = useCallback(
     (patch: Record<string, string>) => {
@@ -90,7 +91,6 @@ export function FleaPage() {
           order: order || undefined,
         });
         setProducts(data.products);
-        setFacultyTabs(data.faculty_tabs);
         setCampusTabs(data.campus_tabs);
         setOrderOptions(data.order_options);
         setUserFaculty(data.user_faculty);
@@ -129,20 +129,11 @@ export function FleaPage() {
         </ul>
       ) : null}
 
-      <section className="faculty-filter-section" aria-label="学部フィルター">
-        <div className="faculty-tabs">
-          {facultyTabs.map((tab) => (
-            <button
-              key={tab.value || "all"}
-              type="button"
-              className={`faculty-tab${faculty === tab.value ? " is-active" : ""}`}
-              onClick={() => patchParams({ faculty: tab.value })}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </section>
+      <FacultyFilterTabs
+        value={faculty}
+        ownFaculty={ownFaculty}
+        onChange={(next) => patchParams({ faculty: next })}
+      />
 
       <section className="campus-filter-section" aria-label="キャンパスフィルター">
         <p className="campus-filter-label">受け渡しキャンパス</p>

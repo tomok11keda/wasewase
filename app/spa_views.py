@@ -43,6 +43,7 @@ def _initial(user) -> str:
 def api_v1_me(request: HttpRequest) -> JsonResponse:
     """セッション状態のブートストラップ（認証・閲覧モード・バッジ）。"""
     from .handle_services import public_username
+    from .services import get_user_faculty
 
     user = request.user
     authenticated = bool(getattr(user, "is_authenticated", False))
@@ -62,6 +63,7 @@ def api_v1_me(request: HttpRequest) -> JsonResponse:
             "display_name": _display_name(user),
             "avatar_url": _avatar_url(user),
             "initial": _initial(user),
+            "department": get_user_faculty(user),
         }
         payload["unread_notifications"] = get_unread_notification_count(user)
         try:

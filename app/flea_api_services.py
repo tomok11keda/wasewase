@@ -282,7 +282,11 @@ def list_flea_payload(request: HttpRequest) -> dict[str, Any]:
             viewer,
         )
         if active_faculty:
-            products = products.filter(faculty=active_faculty)
+            # 出品者プロフィールの所属学部で絞り込む（商品.faculty も互換のため OR）。
+            products = products.filter(
+                Q(seller__profile__department=active_faculty)
+                | Q(faculty=active_faculty)
+            )
         if active_campus:
             products = products.filter(handover_campus=active_campus)
         if query:

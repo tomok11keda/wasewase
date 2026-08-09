@@ -93,6 +93,7 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
     }
     if authenticated:
         from .handle_services import public_username
+        from .services import get_user_faculty
 
         payload["user"] = {
             "id": user.pk,
@@ -101,6 +102,7 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
             "display_name": _display_name(user),
             "avatar_url": _avatar_url(user),
             "initial": _initial(user),
+            "department": get_user_faculty(user),
         }
         payload["unread_notifications"] = get_unread_notification_count(user)
         try:

@@ -9,6 +9,7 @@ export type MeResponse = {
     display_name: string;
     avatar_url: string;
     initial: string;
+    department?: string;
   };
   unread_notifications: number;
   dm_unread_total: number;

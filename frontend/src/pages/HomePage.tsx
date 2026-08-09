@@ -17,6 +17,7 @@ import {
   useSoftTabRefetch,
 } from "../layouts/TabKeepAliveLayout";
 import { ImagePickField } from "../components/ImagePickField";
+import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -27,6 +28,20 @@ export function HomePage() {
   const feed = (searchParams.get("feed") === "following" ? "following" : "all") as
     | "all"
     | "following";
+  const faculty = searchParams.get("faculty") || "";
+  const ownFaculty = me?.user?.department || "";
+
+  const patchParams = useCallback(
+    (patch: Record<string, string>) => {
+      const next = new URLSearchParams(searchParams);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams]
+  );
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -94,7 +109,10 @@ export function HomePage() {
       }
       setError(null);
       try {
-        const data = await fetchTimeline({ feed });
+        const data = await fetchTimeline({
+          feed,
+          faculty: faculty || undefined,
+        });
         setPosts(data.posts);
         setHasMore(data.has_more);
         setNextOffset(data.next_offset);
@@ -106,7 +124,7 @@ export function HomePage() {
         setLoading(false);
       }
     },
-    [feed]
+    [feed, faculty]
   );
 
   useEffect(() => {
@@ -128,7 +146,11 @@ export function HomePage() {
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         setLoadingMore(true);
-        void fetchTimeline({ feed, offset: nextOffset })
+        void fetchTimeline({
+          feed,
+          faculty: faculty || undefined,
+          offset: nextOffset,
+        })
           .then((data: TimelineFeedResponse) => {
             setPosts((prev) => {
               const seen = new Set(prev.map((p) => p.id));
@@ -147,7 +169,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed, hasMore, loading, loadingMore, nextOffset]);
+  }, [feed, faculty, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -198,22 +220,32 @@ export function HomePage() {
 
   return (
     <div className="main-inner timeline-home" data-spa-page="タイムライン">
+      <FacultyFilterTabs
+        value={faculty}
+        ownFaculty={ownFaculty}
+        onChange={(next) => patchParams({ faculty: next })}
+      />
+
       <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
         <button
           type="button"
           className={`feed-scope-tab${feed === "all" ? " is-active" : ""}`}
-          onClick={() => setSearchParams({})}
+          onClick={() => patchParams({ feed: "" })}
         >
           全体
         </button>
         <button
           type="button"
           className={`feed-scope-tab${feed === "following" ? " is-active" : ""}`}
-          onClick={() => setSearchParams({ feed: "following" })}
+          onClick={() => patchParams({ feed: "following" })}
         >
           フォロー中
         </button>
       </nav>
+
+      {faculty ? (
+        <p className="faculty-hint">🏷 {faculty}のユーザーの投稿を表示中</p>
+      ) : null}
 
       {followingUnauth ? (
         <p className="feed-scope-hint">
