@@ -857,6 +857,7 @@
     return (
       fromEl.closest(".image-pick-field") ||
       fromEl.closest(".image-pick") ||
+      fromEl.closest(".chat-compose-bar") ||
       null
     );
   }
