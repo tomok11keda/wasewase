@@ -1,6 +1,6 @@
 {% comment %}
   report_type / report_id 必須
-  variant: "icon"（既定）| "action"（タイムラインアクションバー）| "sheet"（プロフィール等のメニュー内）
+  variant: "icon"（既定）| "action"（タイムラインアクションバー）| "sheet"（プロフィール等のメニュー内）| "menu"（⋯オーバーフロー）
 {% endcomment %}
 {% url 'submit_report' report_type report_id as report_submit_url %}
 {% if variant == "action" %}
@@ -19,7 +19,22 @@
     <span class="tweet-action-label">通報</span>
   </span>
 </button>
-  {% elif variant == "sheet" %}
+{% elif variant == "menu" %}
+<button
+  type="button"
+  class="tweet-overflow-item"
+  role="menuitem"
+  data-report-open
+  data-report-type="{{ report_type }}"
+  data-report-id="{{ report_id }}"
+  data-report-url="{{ report_submit_url }}"
+  aria-haspopup="dialog"
+  aria-label="この投稿を通報"
+>
+  {% include "includes/sf_symbol_icon.html" with name="flag" %}
+  通報
+</button>
+{% elif variant == "sheet" %}
 <button
   type="button"
   class="profile-sheet__action profile-sheet__action--danger"
@@ -33,7 +48,7 @@
   {% include "includes/sf_symbol_icon.html" with name="flag" %}
   <span>ユーザーを報告する</span>
 </button>
-  {% else %}
+{% else %}
 <button
   type="button"
   class="btn-ugc-report"

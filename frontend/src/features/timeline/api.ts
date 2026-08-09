@@ -33,6 +33,8 @@ export type TimelinePost = {
   image_url: string | null;
   like_count: number;
   comment_count: number;
+  quote_count: number;
+  view_count: number;
   user_has_liked: boolean;
   user_has_bookmarked: boolean;
   can_delete: boolean;

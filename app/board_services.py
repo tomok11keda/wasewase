@@ -1,7 +1,7 @@
 from urllib.parse import quote
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 
 from .constants import FACULTY_CHOICES
@@ -11,6 +11,17 @@ from .ugc_services import filter_visible_timeline_posts, get_blocked_user_ids
 
 TIMELINE_INITIAL_SIZE = 25
 TIMELINE_LOAD_MORE_SIZE = 15
+
+
+def annotate_timeline_quote_count(queryset):
+    """リポスト（quotes）件数を quote_count として付与。"""
+    return queryset.annotate(
+        quote_count=Count(
+            "quotes",
+            filter=Q(quotes__is_removed=False),
+            distinct=True,
+        )
+    )
 
 
 def prepare_timeline_post_for_save(post: TimelinePost) -> TimelinePost:
@@ -62,6 +73,7 @@ def build_timeline_posts_queryset(request):
         timeline_posts,
         request.user if request.user.is_authenticated else None,
     )
+    timeline_posts = annotate_timeline_quote_count(timeline_posts)
     timeline_posts = timeline_posts.order_by("-created_at")
     if request.user.is_authenticated:
         timeline_posts = timeline_posts.annotate(
@@ -98,6 +110,7 @@ def get_profile_timeline_posts(
         queryset,
         viewer if viewer and viewer.is_authenticated else None,
     )
+    queryset = annotate_timeline_quote_count(queryset)
     if viewer and viewer.is_authenticated:
         queryset = queryset.annotate(
             user_has_liked=Exists(

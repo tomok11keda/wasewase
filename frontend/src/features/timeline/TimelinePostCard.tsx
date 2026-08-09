@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
+import { SfIcon } from "../../components/SfIcon";
 import type { TimelinePost } from "./api";
 import {
   addComment,
@@ -42,6 +43,13 @@ function linkifyMentions(text: string): string {
     );
 }
 
+function formatCount(n: number): string {
+  if (!n) return "";
+  if (n < 1000) return String(n);
+  if (n < 10000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}千`;
+  return `${Math.floor(n / 1000)}千`;
+}
+
 export function TimelinePostCard({
   post,
   authenticated,
@@ -53,7 +61,20 @@ export function TimelinePostCard({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [menuOpen]);
 
   const guard = (fn: () => void) => {
     if (!authenticated) {
@@ -162,6 +183,33 @@ export function TimelinePostCard({
                   })
                 }
               />
+              {!(authenticated && post.can_delete) ? (
+                <div className="tweet-overflow" ref={menuRef}>
+                  <button
+                    type="button"
+                    className="tweet-menu-btn tweet-menu-btn--icon"
+                    aria-label="その他"
+                    aria-expanded={menuOpen}
+                    aria-haspopup="menu"
+                    onClick={() => setMenuOpen((v) => !v)}
+                  >
+                    <SfIcon name="ellipsis" />
+                  </button>
+                  {menuOpen ? (
+                    <div className="tweet-overflow-menu" role="menu">
+                      <a
+                        className="tweet-overflow-item"
+                        role="menuitem"
+                        href={`/report/post/${post.id}/`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <SfIcon name="flag" />
+                        通報
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </header>
 
@@ -220,24 +268,34 @@ export function TimelinePostCard({
             <button
               type="button"
               className="tweet-action tweet-action--comment"
+              aria-label={`コメント ${post.comment_count}`}
+              aria-expanded={commentsOpen}
               onClick={() => setCommentsOpen((v) => !v)}
             >
-              <span>コメント</span>
-              <span>{post.comment_count}</span>
+              <SfIcon name="bubble_left" />
+              <span className="tweet-action-count">
+                {formatCount(post.comment_count)}
+              </span>
             </button>
             <button
               type="button"
               className="tweet-action tweet-action--quote"
+              aria-label={`リポスト ${post.quote_count || 0}`}
               disabled={busy}
               onClick={() => guard(() => onQuote(post))}
             >
-              <span>リポスト</span>
+              <SfIcon name="arrow_2_squarepath" />
+              <span className="tweet-action-count">
+                {formatCount(post.quote_count || 0)}
+              </span>
             </button>
             <button
               type="button"
               className={`tweet-action tweet-action--like${
                 post.user_has_liked ? " is-liked" : ""
               }`}
+              aria-label={`いいね ${post.like_count}`}
+              aria-pressed={post.user_has_liked}
               disabled={busy}
               onClick={() =>
                 guard(() => {
@@ -252,12 +310,20 @@ export function TimelinePostCard({
                 })
               }
             >
-              <span>いいね</span>
-              <span>{post.like_count}</span>
+              <SfIcon name={post.user_has_liked ? "heart_fill" : "heart"} />
+              <span className="tweet-action-count">
+                {formatCount(post.like_count)}
+              </span>
             </button>
-            <a className="tweet-action" href={`/report/post/${post.id}/`}>
-              <span>通報</span>
-            </a>
+            <span
+              className="tweet-action tweet-action--view tweet-action--static"
+              aria-label={`閲覧数 ${post.view_count || 0}`}
+            >
+              <SfIcon name="chart_bar" />
+              <span className="tweet-action-count">
+                {formatCount(post.view_count || 0)}
+              </span>
+            </span>
           </div>
 
           {commentsOpen ? (

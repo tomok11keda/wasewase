@@ -26,92 +26,11 @@ export type SpaNavDiagFlags = {
   disableKeepAlive: boolean;
   /** Keep-Alive は維持、opacity crossfade のみオフ */
   disableTransition: boolean;
-  /** 生の diag 文字列（デバッグ表示用） */
+  /** 生の diag 文字列 */
   raw: string;
 };
 
-export type SpaDiagModeId =
-  | "normal"
-  | "no_banner"
-  | "off"
-  | "no_bridge"
-  | "no_analytics"
-  | "no_keepalive"
-  | "no_transition"
-  | "clear";
-
-export type SpaDiagModeOption = {
-  id: SpaDiagModeId;
-  label: string;
-  /** spa_nav_diag に書く値（normal/clear は空扱いでクリア） */
-  navDiag: string;
-  /** spa_flash_diag を付けるか */
-  flashDiag: boolean;
-  description: string;
-};
-
-/** TestFlight 診断パネル用プリセット（本番挙動は normal/clear のみ） */
-export const SPA_DIAG_MODE_OPTIONS: SpaDiagModeOption[] = [
-  {
-    id: "normal",
-    label: "Normal",
-    navDiag: "",
-    flashDiag: false,
-    description: "診断オフ・通常の本番挙動",
-  },
-  {
-    id: "no_banner",
-    label: "no_banner",
-    navDiag: "no_banner",
-    flashDiag: true,
-    description: "AdMob banner reposition のみ無効",
-  },
-  {
-    id: "off",
-    label: "off",
-    navDiag: "off",
-    flashDiag: true,
-    description: "notifySpaNavigation 全体オフ",
-  },
-  {
-    id: "no_bridge",
-    label: "no_bridge",
-    navDiag: "no_bridge",
-    flashDiag: true,
-    description: "NativeSpaBridge 呼び出しオフ",
-  },
-  {
-    id: "no_analytics",
-    label: "no_analytics",
-    navDiag: "no_analytics",
-    flashDiag: true,
-    description: "Analytics のみオフ",
-  },
-  {
-    id: "no_keepalive",
-    label: "no_keepalive",
-    navDiag: "no_keepalive",
-    flashDiag: true,
-    description: "Keep-Alive オフ（通常 remount）",
-  },
-  {
-    id: "no_transition",
-    label: "no_transition",
-    navDiag: "no_transition",
-    flashDiag: true,
-    description: "タブ crossfade のみオフ",
-  },
-  {
-    id: "clear",
-    label: "Clear",
-    navDiag: "clear",
-    flashDiag: false,
-    description: "診断フラグを消去して通常に戻す",
-  },
-];
-
 const STORAGE_KEY = "wase_spa_nav_diag";
-const FLASH_STORAGE_KEY = "wase_flash_diag";
 
 function emptyFlags(raw = ""): SpaNavDiagFlags {
   return {
@@ -173,18 +92,6 @@ function writeStoredRaw(raw: string): void {
   }
 }
 
-function writeFlashDiag(enabled: boolean): void {
-  try {
-    if (enabled) {
-      window.localStorage.setItem(FLASH_STORAGE_KEY, "1");
-    } else {
-      window.localStorage.removeItem(FLASH_STORAGE_KEY);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 /** URL search を優先。あれば localStorage へ同期。 */
 export function readSpaNavDiag(search?: string): SpaNavDiagFlags {
   let raw = "";
@@ -218,57 +125,7 @@ export function withSpaNavDiagSearch(
   return q ? `${pathname}?${q}` : pathname;
 }
 
-export function spaNavDiagActive(flags: SpaNavDiagFlags): boolean {
-  return Boolean(
-    flags.disableAll ||
-      flags.disableAnalytics ||
-      flags.disableAds ||
-      flags.disableBannerReposition ||
-      flags.disableBridge ||
-      flags.disableKeepAlive ||
-      flags.disableTransition
-  );
-}
-
 export function useSpaNavDiag(): SpaNavDiagFlags {
   const { search } = useLocation();
   return useMemo(() => readSpaNavDiag(search), [search]);
-}
-
-/**
- * 診断モードを localStorage に書き、/app/?… へフルリロードして反映。
- * Capacitor WKWebView / capacitor_native.js の既存機構と整合。
- */
-export function applySpaDiagMode(modeId: SpaDiagModeId): void {
-  const mode =
-    SPA_DIAG_MODE_OPTIONS.find((m) => m.id === modeId) ||
-    SPA_DIAG_MODE_OPTIONS[0];
-
-  writeFlashDiag(mode.flashDiag);
-  if (!mode.navDiag || mode.navDiag === "clear") {
-    writeStoredRaw("clear");
-  } else {
-    writeStoredRaw(mode.navDiag);
-  }
-
-  const params = new URLSearchParams();
-  if (mode.flashDiag) {
-    params.set("spa_flash_diag", "1");
-  } else {
-    params.set("spa_flash_diag", "0");
-  }
-  params.set("spa_nav_diag", mode.navDiag || "clear");
-
-  window.location.assign(`/app/?${params.toString()}`);
-}
-
-export function buildSpaDiagAppPath(modeId: SpaDiagModeId): string {
-  const mode =
-    SPA_DIAG_MODE_OPTIONS.find((m) => m.id === modeId) ||
-    SPA_DIAG_MODE_OPTIONS[0];
-  const params = new URLSearchParams();
-  if (mode.flashDiag) params.set("spa_flash_diag", "1");
-  else params.set("spa_flash_diag", "0");
-  params.set("spa_nav_diag", mode.navDiag || "clear");
-  return `/app/?${params.toString()}`;
 }
