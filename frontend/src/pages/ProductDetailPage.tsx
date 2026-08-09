@@ -337,15 +337,6 @@ export function ProductDetailPage() {
                 </button>
               ) : null}
 
-              {product.show_trade_link && product.trade_chat_room_id ? (
-                <Link
-                  className="btn-chat-open"
-                  to={`/flea/chats/${product.trade_chat_room_id}`}
-                >
-                  取引チャットへ
-                </Link>
-              ) : null}
-
               {product.seller_chat_rooms.length > 0 ? (
                 <div className="seller-chat-list">
                   <h3>問い合わせ・取引チャット</h3>
