@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from django.test import Client, TestCase, override_settings
 
+from .bookmark_services import BookmarkServiceError
 from .models import Product, User
 
 
@@ -45,6 +47,40 @@ class FleaApiTests(TestCase):
         product = detail.json()["product"]
         self.assertEqual(product["name"], "線形代数の教科書")
         self.assertFalse(product["can_purchase"])
+        self.assertIn("user_has_bookmarked", product)
+        self.assertFalse(product["user_has_bookmarked"])
+
+    @patch("app.bookmark_services.toggle_product_bookmark", return_value=True)
+    def test_product_bookmark_toggle(self, mock_toggle):
+        self.client.force_login(self.buyer)
+        response = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/bookmark/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertTrue(response.json()["bookmarked"])
+        mock_toggle.assert_called_once_with(self.buyer, self.product.pk)
+
+    @patch(
+        "app.bookmark_services.toggle_product_bookmark",
+        side_effect=BookmarkServiceError("unavailable"),
+    )
+    def test_product_bookmark_unavailable(self, mock_toggle):
+        self.client.force_login(self.buyer)
+        response = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/bookmark/"
+        )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["error"], "bookmark_unavailable")
+        mock_toggle.assert_called_once()
+
+    @patch("app.bookmark_services.is_product_bookmarked", return_value=True)
+    def test_product_detail_reflects_bookmark_state(self, mock_is_bookmarked):
+        self.client.force_login(self.buyer)
+        detail = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue(detail.json()["product"]["user_has_bookmarked"])
+        mock_is_bookmarked.assert_called_once_with(self.buyer, self.product.pk)
 
     def test_purchase_like_comment_chat(self):
         self.client.force_login(self.buyer)

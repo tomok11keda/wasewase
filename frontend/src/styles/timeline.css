@@ -140,6 +140,11 @@
   padding: 8px;
   color: var(--tweet-muted);
 }
+.tweet-menu-btn--icon .sf-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
 .tweet-menu-btn--icon.is-bookmarked {
   color: var(--tweet-bookmark);
 }

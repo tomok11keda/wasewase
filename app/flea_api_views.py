@@ -150,6 +150,19 @@ def api_v1_flea_product_like(request: HttpRequest, pk: int) -> JsonResponse:
     )
 
 
+@login_required
+@require_POST
+def api_v1_flea_product_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
+    from .bookmark_services import BookmarkServiceError, toggle_product_bookmark
+
+    product = _get_visible_product(request, pk)
+    try:
+        bookmarked = toggle_product_bookmark(request.user, product.pk)
+    except BookmarkServiceError:
+        return _json_error("bookmark_unavailable", status=503)
+    return JsonResponse({"ok": True, "bookmarked": bookmarked})
+
+
 @require_POST
 def api_v1_flea_product_comment(request: HttpRequest, pk: int) -> JsonResponse:
     product = _get_visible_product(request, pk)

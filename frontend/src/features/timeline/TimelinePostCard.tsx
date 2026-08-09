@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { BookmarkButton } from "../../components/BookmarkButton";
 import type { TimelinePost } from "./api";
 import {
   addComment,
@@ -149,12 +150,8 @@ export function TimelinePostCard({
                   削除
                 </button>
               ) : null}
-              <button
-                type="button"
-                className={`tweet-menu-btn tweet-menu-btn--icon${
-                  post.user_has_bookmarked ? " is-bookmarked" : ""
-                }`}
-                aria-pressed={post.user_has_bookmarked}
+              <BookmarkButton
+                bookmarked={post.user_has_bookmarked}
                 disabled={busy}
                 onClick={() =>
                   guard(() => {
@@ -164,9 +161,7 @@ export function TimelinePostCard({
                     });
                   })
                 }
-              >
-                {post.user_has_bookmarked ? "★" : "☆"}
-              </button>
+              />
             </div>
           </header>
 

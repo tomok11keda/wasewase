@@ -530,6 +530,7 @@
 .product-detail-page .action-row {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 .product-detail-page .btn {

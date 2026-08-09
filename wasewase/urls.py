@@ -182,6 +182,11 @@ urlpatterns = [
         name="api_v1_flea_product_like",
     ),
     path(
+        "api/v1/flea/products/<int:pk>/bookmark/",
+        flea_api_views.api_v1_flea_product_bookmark,
+        name="api_v1_flea_product_bookmark",
+    ),
+    path(
         "api/v1/flea/products/<int:pk>/comments/",
         flea_api_views.api_v1_flea_product_comment,
         name="api_v1_flea_product_comment",
