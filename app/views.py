@@ -947,7 +947,7 @@ def notification_mark_read(request):
     return JsonResponse(
         {
             "ok": True,
-            "unread_count": 0,
+            "unread_count": get_unread_notification_count(request.user),
             "marked_count": marked_count,
         }
     )
