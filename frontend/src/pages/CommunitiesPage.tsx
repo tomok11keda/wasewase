@@ -15,13 +15,12 @@ export function CommunitiesPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tag = searchParams.get("tag") || "";
-  const qParam = searchParams.get("q") || "";
   const ownFaculty = me?.user?.department || "";
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [qInput, setQInput] = useState(qParam);
+  const [qInput, setQInput] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -37,7 +36,6 @@ export function CommunitiesPage() {
       try {
         const data = await fetchCommunityThreads({
           tag: tag || undefined,
-          q: qParam || undefined,
         });
         setThreads(data.threads);
         hasDataRef.current = true;
@@ -47,7 +45,7 @@ export function CommunitiesPage() {
         setLoading(false);
       }
     },
-    [tag, qParam]
+    [tag]
   );
 
   useEffect(() => {
@@ -56,16 +54,11 @@ export function CommunitiesPage() {
 
   useSoftTabRefetch("communities", () => load("soft"));
 
-  useEffect(() => {
-    setQInput(qParam);
-  }, [qParam]);
-
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
-    const next = new URLSearchParams();
-    if (tag) next.set("tag", tag);
-    if (qInput.trim()) next.set("q", qInput.trim());
-    setSearchParams(next);
+    const q = qInput.trim();
+    if (!q) return;
+    navigate(`/search?q=${encodeURIComponent(q)}&tab=all`);
   };
 
   const onCreate = async (e: FormEvent) => {
@@ -122,7 +115,6 @@ export function CommunitiesPage() {
           onChange={(next) => {
             const params = new URLSearchParams();
             if (next) params.set("tag", next);
-            if (qParam) params.set("q", qParam);
             setSearchParams(params);
           }}
         />
@@ -131,8 +123,8 @@ export function CommunitiesPage() {
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="スレッドを検索"
-            aria-label="スレッド検索"
+            placeholder="タイムライン・コミュニティ・ユーザーを検索"
+            aria-label="横断検索"
           />
           <button type="submit">検索</button>
         </form>

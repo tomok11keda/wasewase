@@ -48,6 +48,7 @@ def _apply_thread_search(queryset, query):
         return queryset
     return queryset.filter(
         Q(title__icontains=query)
+        | Q(body__icontains=query)
         | Q(replies__body__icontains=query, replies__is_removed=False)
     ).distinct()
 
