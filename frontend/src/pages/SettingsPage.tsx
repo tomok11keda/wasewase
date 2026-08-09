@@ -136,16 +136,6 @@ export function SettingsPage() {
         </section>
 
         <section className="settings-card">
-          <h2>フォローリクエスト</h2>
-          <p className="settings-lead">
-            非公開アカウントへのフォロー申請を確認・承認できます。
-          </p>
-          <Link className="btn btn-secondary settings-link-btn" to="/settings/follow-requests">
-            フォローリクエストを見る
-          </Link>
-        </section>
-
-        <section className="settings-card">
           <h2>その他の設定</h2>
           <ul className="more-list settings-classic-list">
             <li>

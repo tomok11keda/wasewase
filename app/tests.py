@@ -3427,6 +3427,47 @@ class NotificationBadgeApiTests(TestCase):
             0,
         )
 
+    def test_badge_includes_pending_follow_requests_without_double_count(self):
+        from .models import FollowRequest, UserProfile
+        from .follow_services import follow_requests_app_url
+
+        User = get_user_model()
+        requester = User.objects.create_user(
+            email="req-badge@example.com",
+            password="pass12345",
+            username="req_badge",
+        )
+        UserProfile.objects.get_or_create(user=self.user)
+        UserProfile.objects.get_or_create(user=requester)
+        # Regular unread already = 2 from setUp
+        FollowRequest.objects.create(from_user=requester, to_user=self.user)
+        # Ping notification that must NOT double-count
+        Notification.objects.create(
+            recipient=self.user,
+            message="「req_badgeさんからフォローリクエストが届きました」",
+            link=follow_requests_app_url(),
+            is_read=False,
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("notification_unread_count"))
+        self.assertEqual(response.status_code, 200)
+        # 2 regular + 1 pending FR (FR Notification excluded)
+        self.assertEqual(response.json()["unread_count"], 3)
+
+        listing = self.client.get("/api/v1/notifications/?mark_read=0")
+        self.assertEqual(listing.status_code, 200)
+        data = listing.json()
+        self.assertEqual(data["pending_follow_request_count"], 1)
+        self.assertEqual(data["unread_count"], 3)
+        # FR ping hidden from list
+        messages = [n["message"] for n in data["notifications"]]
+        self.assertFalse(any("フォローリクエスト" in m for m in messages))
+
+        # Opening notifications (mark_read) clears regular unread, keeps pending
+        marked = self.client.get("/api/v1/notifications/")
+        self.assertEqual(marked.json()["pending_follow_request_count"], 1)
+        self.assertEqual(marked.json()["unread_count"], 1)
+
     def test_home_includes_notification_badge_script(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("home"))

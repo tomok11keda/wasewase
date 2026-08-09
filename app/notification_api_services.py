@@ -10,7 +10,9 @@ from django.utils import timezone
 
 from .models import Notification
 from .notification_services import (
+    get_pending_follow_request_count,
     get_unread_notification_count,
+    is_follow_request_notification,
     mark_all_notifications_read,
 )
 from .spa_canonical import normalize_path_for_spa_mapping
@@ -154,13 +156,22 @@ def build_notifications_payload(
     items = list(
         Notification.objects.filter(recipient=user).order_by("-created_at")[:200]
     )
-    payload_items = [serialize_notification(n) for n in items]
+    # Dedicated inbox row covers follow requests; hide duplicate ping rows.
+    payload_items = [
+        serialize_notification(n)
+        for n in items
+        if not is_follow_request_notification(n)
+    ]
     marked = 0
     if mark_read:
         marked = mark_all_notifications_read(user)
+    pending = get_pending_follow_request_count(user)
+    # After mark_read, regular unread is 0 but pending requests still count.
+    unread = get_unread_notification_count(user)
     return {
         "ok": True,
         "notifications": payload_items,
-        "unread_count": 0 if mark_read else get_unread_notification_count(user),
+        "unread_count": unread,
+        "pending_follow_request_count": pending,
         "marked_count": marked,
     }

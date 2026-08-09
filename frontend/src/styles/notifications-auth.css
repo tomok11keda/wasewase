@@ -6,6 +6,46 @@
   font-weight: 700;
 }
 
+.follow-request-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  color: inherit;
+}
+
+.follow-request-entry__label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.follow-request-entry__badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e53935;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+.follow-request-entry__chevron {
+  color: #999;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 400;
+}
+
 .notification-list {
   margin: 0;
   padding: 0;

@@ -7,6 +7,11 @@ import {
 } from "../features/notifications/api";
 import { spaLoginPath } from "../features/auth/api";
 
+function formatBadgeCount(n: number): string {
+  if (n > 99) return "99+";
+  return String(n);
+}
+
 function NotificationRow({ item }: { item: NotificationItem }) {
   const body = (
     <>
@@ -46,6 +51,7 @@ export function NotificationsPage() {
   const { me, loading: sessionLoading, refresh } = useSession();
   const navigate = useNavigate();
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [pendingFollowRequests, setPendingFollowRequests] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +67,7 @@ export function NotificationsPage() {
       .then((data) => {
         if (ac.signal.aborted) return;
         setItems(data.notifications || []);
+        setPendingFollowRequests(Number(data.pending_follow_request_count || 0));
         setError(null);
         void refresh();
       })
@@ -84,13 +91,36 @@ export function NotificationsPage() {
     );
   }
 
+  const showEmpty = !error && items.length === 0;
+
   return (
     <div className="notifications-page" data-spa-page="通知">
       <main className="main-inner">
         <h1 className="page-title">通知</h1>
+
+        <Link
+          className="follow-request-entry"
+          to="/settings/follow-requests"
+          aria-label={
+            pendingFollowRequests > 0
+              ? `フォローリクエスト、未処理${pendingFollowRequests}件`
+              : "フォローリクエスト"
+          }
+        >
+          <span className="follow-request-entry__label">フォローリクエスト</span>
+          {pendingFollowRequests > 0 ? (
+            <span className="follow-request-entry__badge" aria-hidden="true">
+              {formatBadgeCount(pendingFollowRequests)}
+            </span>
+          ) : null}
+          <span className="follow-request-entry__chevron" aria-hidden="true">
+            ›
+          </span>
+        </Link>
+
         {error ? (
           <p className="empty-message">読み込みに失敗しました（{error}）</p>
-        ) : items.length === 0 ? (
+        ) : showEmpty ? (
           <p className="empty-message">通知はまだありません。</p>
         ) : (
           <ul className="notification-list">

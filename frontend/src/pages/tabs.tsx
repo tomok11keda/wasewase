@@ -80,11 +80,6 @@ export function MorePage() {
                 </Link>
               </li>
               <li>
-                <Link className="more-link" to="/settings/follow-requests">
-                  フォローリクエスト
-                </Link>
-              </li>
-              <li>
                 <ClassicLink href="/mypage/settings/blocked/">
                   ブロック一覧
                 </ClassicLink>

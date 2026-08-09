@@ -33,5 +33,9 @@ def api_v1_notifications_unread(request: HttpRequest) -> JsonResponse:
 def api_v1_notifications_mark_read(request: HttpRequest) -> JsonResponse:
     marked = mark_all_notifications_read(request.user)
     return JsonResponse(
-        {"ok": True, "unread_count": 0, "marked_count": marked}
+        {
+            "ok": True,
+            "unread_count": get_unread_notification_count(request.user),
+            "marked_count": marked,
+        }
     )

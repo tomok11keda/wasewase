@@ -10,7 +10,7 @@ import {
 } from "../features/profile/api";
 
 export function FollowRequestsPage() {
-  const { me, loading: sessionLoading } = useSession();
+  const { me, loading: sessionLoading, refresh } = useSession();
   const navigate = useNavigate();
   const [items, setItems] = useState<FollowRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +47,7 @@ export function FollowRequestsPage() {
       await acceptFollowRequest(id);
       setItems((prev) => prev.filter((r) => r.id !== id));
       setFlash("フォローリクエストを承認しました。");
+      void refresh();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "承認に失敗しました");
     } finally {
@@ -61,6 +62,7 @@ export function FollowRequestsPage() {
       await rejectFollowRequest(id);
       setItems((prev) => prev.filter((r) => r.id !== id));
       setFlash("フォローリクエストを拒否しました。");
+      void refresh();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "拒否に失敗しました");
     } finally {
@@ -81,8 +83,8 @@ export function FollowRequestsPage() {
   return (
     <div className="settings-page" data-spa-page="フォローリクエスト">
       <div className="main-inner">
-        <Link className="profile-back" to="/settings">
-          ← 設定へ戻る
+        <Link className="profile-back" to="/notifications">
+          ← 通知へ戻る
         </Link>
         <h1 className="page-title">フォローリクエスト</h1>
 
