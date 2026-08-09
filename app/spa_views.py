@@ -13,11 +13,14 @@ from .notification_services import get_unread_notification_count
 
 
 def _display_name(user) -> str:
+    from .handle_services import public_username
+
     profile = getattr(user, "profile", None)
     name = (getattr(profile, "name", None) or "").strip()
     if name:
         return name
-    return (user.get_username() or user.email or "ユーザー").strip()
+    # Never fall back to email — public identifier is User.username (handle).
+    return public_username(user) or "ユーザー"
 
 
 def _avatar_url(user) -> str:
@@ -39,6 +42,8 @@ def _initial(user) -> str:
 @require_GET
 def api_v1_me(request: HttpRequest) -> JsonResponse:
     """セッション状態のブートストラップ（認証・閲覧モード・バッジ）。"""
+    from .handle_services import public_username
+
     user = request.user
     authenticated = bool(getattr(user, "is_authenticated", False))
     payload: dict = {
@@ -53,7 +58,7 @@ def api_v1_me(request: HttpRequest) -> JsonResponse:
         payload["user"] = {
             "id": user.pk,
             "email": user.email,
-            "username": user.get_username(),
+            "username": public_username(user),
             "display_name": _display_name(user),
             "avatar_url": _avatar_url(user),
             "initial": _initial(user),

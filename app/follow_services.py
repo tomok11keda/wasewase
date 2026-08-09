@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 
+from .handle_services import public_username
 from .models import Follow, FollowRequest, Notification, UserProfile
 from .services import count_followers, is_following, user_display_name
 from .spa_canonical import app_absolute
@@ -198,7 +199,7 @@ def serialize_follow_request(req: FollowRequest) -> dict[str, Any]:
         "created_at": req.created_at.isoformat(),
         "from_user": {
             "id": u.pk,
-            "username": u.get_username(),
+            "username": public_username(u),
             "display_name": user_display_name(u),
             "avatar_url": get_user_avatar_url(u) or "",
             "initial": user_avatar_initial(u),

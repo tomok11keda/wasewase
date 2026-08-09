@@ -15,6 +15,7 @@ export function SignupPage() {
   );
   const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
+  const [username, setUsername] = useState("");
   const [faculty, setFaculty] = useState("");
   const [password1, setPassword1] = useState("");
   const [password2, setPassword2] = useState("");
@@ -46,6 +47,7 @@ export function SignupPage() {
       const { res, data } = await signupRequest({
         email,
         nickname,
+        username,
         faculty,
         password1,
         password2,
@@ -96,16 +98,33 @@ export function SignupPage() {
             @waseda.jp または @〇〇.waseda.jp のアドレスのみ登録できます。
           </p>
 
-          <label htmlFor="su-nick">ニックネーム（表示名）</label>
+          <label htmlFor="su-nick">ユーザー名（表示名）</label>
           <input
             id="su-nick"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder="例：わせ太郎"
+            placeholder="例：田中太郎"
             autoComplete="nickname"
             required
           />
           {err("nickname")}
+          <p className="hint">タイムラインなどに表示される名前です。</p>
+
+          <label htmlFor="su-username">@ユーザー名</label>
+          <input
+            id="su-username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="例：tanaka_taro"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+          />
+          {err("username")}
+          <p className="hint">
+            英数字と _ のみ、3〜30文字。他のユーザーには @付きで表示されます（メールアドレスは公開されません）。
+          </p>
 
           <label htmlFor="su-faculty">学部（わせわせ認証バッジ）</label>
           <select

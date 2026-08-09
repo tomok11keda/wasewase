@@ -6,11 +6,11 @@ from django.db import transaction
 
 from .constants import (
     FACULTY_CHOICES,
-    HANDLE_PATTERN,
     HANDOVER_CAMPUS_CHOICES,
     WASEDA_EMAIL_ERROR,
     is_waseda_email,
 )
+from .handle_services import clean_unique_handle
 from .media_services import validate_timeline_image_file
 from .models import (
     Comment,
@@ -50,15 +50,30 @@ class EmailAuthenticationForm(AuthenticationForm):
 
 class SignUpForm(UserCreationForm):
     nickname = forms.CharField(
-        label="ニックネーム（表示名）",
+        label="ユーザー名（表示名）",
         max_length=80,
         required=True,
         widget=forms.TextInput(
             attrs={
-                "placeholder": "例：わせ太郎",
+                "placeholder": "例：田中太郎",
                 "autocomplete": "nickname",
             }
         ),
+    )
+    username = forms.CharField(
+        label="@ユーザー名",
+        max_length=30,
+        min_length=3,
+        required=True,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "例：tanaka_taro",
+                "autocomplete": "off",
+                "autocapitalize": "none",
+                "spellcheck": "false",
+            }
+        ),
+        help_text="英数字とアンダースコア（_）のみ、3〜30文字。他のユーザーに @ 付きで表示されます。",
     )
     faculty = forms.ChoiceField(
         label="学部",
@@ -76,7 +91,7 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("email",)
+        fields = ("email", "username")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -86,14 +101,29 @@ class SignUpForm(UserCreationForm):
                 "autocomplete": "email",
             }
         )
-        if "username" in self.fields:
-            del self.fields["username"]
+        # UserCreationForm のデフォルト username ラベルを上書き
+        self.fields["username"].label = "@ユーザー名"
+        self.fields["username"].help_text = (
+            "英数字とアンダースコア（_）のみ、3〜30文字。他のユーザーに @ 付きで表示されます。"
+        )
 
     def clean_nickname(self):
         nickname = (self.cleaned_data.get("nickname") or "").strip()
         if not nickname:
-            raise ValidationError("ニックネームを入力してください。")
+            raise ValidationError("ユーザー名（表示名）を入力してください。")
         return nickname
+
+    def clean_username(self):
+        email = (self.data.get("email") or "").strip().lower()
+        exclude_pk = None
+        if email:
+            pending = User.objects.filter(email__iexact=email, is_active=False).first()
+            if pending:
+                exclude_pk = pending.pk
+        return clean_unique_handle(
+            self.cleaned_data.get("username"),
+            exclude_user_pk=exclude_pk,
+        )
 
     def clean_faculty(self):
         faculty = self.cleaned_data.get("faculty")
@@ -113,13 +143,21 @@ class SignUpForm(UserCreationForm):
     def validate_unique(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
         if User.objects.filter(email__iexact=email, is_active=False).exists():
+            # 未認証の仮登録は再登録を許可するため、email の unique をスキップ。
+            # username の重複は clean_username でチェック済み。
+            exclude = self._get_validation_exclusions()
+            self.instance.email = self.cleaned_data.get("email", self.instance.email)
+            try:
+                self.instance.validate_unique(exclude=exclude | {"email", "username"})
+            except ValidationError as e:
+                self._update_errors(e)
             return
         super().validate_unique()
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data["email"].strip().lower()
-        user.username = ""
+        user.username = self.cleaned_data["username"]
         user.is_active = False
         if commit:
             user.save()
@@ -203,27 +241,29 @@ class PasswordResetSetForm(forms.Form):
 
 
 class AccountProfileForm(forms.ModelForm):
-    """マイページからニックネーム・ハンドル・プロフィールを編集する。"""
+    """マイページから表示名・@ユーザー名・プロフィールを編集する。"""
 
     user_id = forms.CharField(
-        label="ハンドル（@ID）",
+        label="@ユーザー名",
         max_length=30,
         min_length=3,
         required=True,
         widget=forms.TextInput(
             attrs={
-                "placeholder": "例：wase_taro",
+                "placeholder": "例：tanaka_taro",
                 "autocomplete": "off",
+                "autocapitalize": "none",
+                "spellcheck": "false",
             }
         ),
-        help_text="英数字とアンダースコア（_）のみ、3〜30文字。プロフィールで @ の後ろに表示されます。",
+        help_text="英数字とアンダースコア（_）のみ、3〜30文字。他のユーザーに @ 付きで表示されます。",
     )
 
     class Meta:
         model = UserProfile
         fields = ("name", "bio", "avatar", "department", "grade")
         labels = {
-            "name": "ニックネーム（表示名）",
+            "name": "表示名",
             "bio": "自己紹介",
             "avatar": "プロフィール画像",
             "department": "学部",
@@ -232,7 +272,7 @@ class AccountProfileForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "placeholder": "例：わせ太郎",
+                    "placeholder": "例：田中太郎",
                     "autocomplete": "nickname",
                 }
             ),
@@ -247,7 +287,7 @@ class AccountProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["name"].required = False
         self.fields["name"].help_text = (
-            "タイムラインなどに表示されるニックネームです。空欄の場合はハンドルが表示されます。"
+            "タイムラインなどに表示される名前です。空欄の場合は @ユーザー名が表示されます。"
         )
         if user is not None:
             self.fields["user_id"].initial = user.username
@@ -265,25 +305,11 @@ class AccountProfileForm(forms.ModelForm):
         return self.clean_username(self.cleaned_data.get("user_id"))
 
     def clean_username(self, value=None):
-        """ハンドル変更時の形式・一意性チェック。"""
+        """@ユーザー名変更時の形式・一意性チェック。"""
         if value is None:
             value = self.cleaned_data.get("user_id")
-        return self._clean_handle(value)
-
-    def _clean_handle(self, raw_value: str | None) -> str:
-        handle = (raw_value or "").strip()
-        if not handle:
-            raise ValidationError("ハンドルを入力してください。")
-        if not HANDLE_PATTERN.match(handle):
-            raise ValidationError(
-                "ハンドルは英数字とアンダースコア（_）のみ、3〜30文字で入力してください。"
-            )
-        qs = User.objects.filter(username__iexact=handle)
-        if self.account_user:
-            qs = qs.exclude(pk=self.account_user.pk)
-        if qs.exists():
-            raise ValidationError("このハンドルはすでに使われています。")
-        return handle
+        exclude_pk = self.account_user.pk if self.account_user else None
+        return clean_unique_handle(value, exclude_user_pk=exclude_pk)
 
     def save(self, commit=True):
         profile = super().save(commit=False)

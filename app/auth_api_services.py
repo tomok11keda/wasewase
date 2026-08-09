@@ -92,10 +92,12 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         ),
     }
     if authenticated:
+        from .handle_services import public_username
+
         payload["user"] = {
             "id": user.pk,
             "email": user.email,
-            "username": user.get_username(),
+            "username": public_username(user),
             "display_name": _display_name(user),
             "avatar_url": _avatar_url(user),
             "initial": _initial(user),
@@ -129,11 +131,13 @@ def _persist_signup_user(form: SignUpForm) -> AbstractBaseUser:
     faculty = form.cleaned_data["faculty"]
     password = form.cleaned_data["password1"]
     nickname = form.cleaned_data["nickname"]
+    username = form.cleaned_data["username"]
 
     pending = User.objects.filter(email__iexact=email, is_active=False).first()
     if pending:
         pending.set_password(password)
-        pending.save(update_fields=["password"])
+        pending.username = username
+        pending.save(update_fields=["password", "username"])
         user = pending
     else:
         user = form.save()
@@ -230,6 +234,7 @@ def signup_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
         {
             "email": data.get("email") or "",
             "nickname": data.get("nickname") or "",
+            "username": data.get("username") or "",
             "faculty": data.get("faculty") or "",
             "password1": data.get("password1") or "",
             "password2": data.get("password2") or "",
