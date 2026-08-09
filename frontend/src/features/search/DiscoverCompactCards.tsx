@@ -153,17 +153,44 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
   );
 }
 
-/** Compact discovery card for flea products (mixed trending feed). */
+/** Compact discovery card for flea products. */
 export function DiscoverProductCard({
   product,
+  layout = "inline",
 }: {
   product: SearchProductResult;
+  /** `stack` = portrait image-first card for trending mosaic right column. */
+  layout?: "inline" | "stack";
 }) {
   const priceLabel = product.is_sold
     ? "売り切れ"
     : product.is_pending
       ? "取引中"
       : `¥${product.price.toLocaleString()}`;
+
+  if (layout === "stack") {
+    return (
+      <Link
+        className="discover-product-stack"
+        to={`/flea/products/${product.id}`}
+      >
+        <div className="discover-product-stack__media">
+          {product.image_url ? (
+            <img src={product.image_url} alt="" loading="lazy" />
+          ) : (
+            <span className="discover-product-stack__empty">No Image</span>
+          )}
+          {product.is_sold || product.is_pending ? (
+            <span className="discover-product-stack__mask" aria-hidden="true" />
+          ) : null}
+        </div>
+        <div className="discover-product-stack__body">
+          <strong className="discover-product-stack__title">{product.name}</strong>
+          <p className="discover-product-stack__price">{priceLabel}</p>
+        </div>
+      </Link>
+    );
+  }
 
   return (
     <Link
