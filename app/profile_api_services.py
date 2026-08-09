@@ -58,8 +58,10 @@ SEARCH_TAB_CHOICES = (
 SEARCH_RESULT_LIMIT = 40
 DISCOVER_CANDIDATE_LIMIT = 80
 DISCOVER_TRENDING_LIMIT = 12
+DISCOVER_COMMUNITY_LIMIT = 8
 DISCOVER_FACULTY_LIMIT = 10
 DISCOVER_PRODUCT_LIMIT = 16
+DISCOVER_MIX_PRODUCT_CANDIDATE_LIMIT = 24
 
 
 def _search_post_score(post_payload: dict[str, Any]) -> int:
@@ -269,12 +271,96 @@ def _discover_timeline_candidates(
     return list(qs.order_by("-created_at")[:limit])
 
 
+def _product_discover_score(product, *, like_count: int, now) -> int:
+    """Score flea items on a scale comparable to timeline/community recommend."""
+    score = int(like_count or 0) * 12
+    if getattr(product, "is_available", False):
+        score += 20
+    elif getattr(product, "is_pending", False):
+        score += 4
+    created = getattr(product, "created_at", None)
+    if created is not None:
+        hours = max((now - created).total_seconds() / 3600.0, 0.0)
+        if hours < 6:
+            score += 25
+        elif hours < 24:
+            score += 15
+        elif hours < 72:
+            score += 8
+    return int(score)
+
+
+def _discover_row_variety_key(row: dict[str, Any]) -> str:
+    """Visual variety key: photo posts count separately from text posts."""
+    kind = row.get("kind") or ""
+    if kind == "post":
+        post = row.get("post") or {}
+        if post.get("image_url"):
+            return "post_photo"
+        return "post"
+    return str(kind)
+
+
+def _diversify_discover_rows(
+    rows: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """
+    Prefer high scores while avoiding long runs of the same content type.
+    Photo posts, text posts, threads, and products are treated as distinct.
+    """
+    if not rows or limit <= 0:
+        return []
+
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        key = _discover_row_variety_key(row)
+        buckets.setdefault(key, []).append(row)
+    for key, items in buckets.items():
+        items.sort(
+            key=lambda row: (
+                int(row.get("score") or 0),
+                row.get("created_at") or "",
+            ),
+            reverse=True,
+        )
+
+    pointers = {key: 0 for key in buckets}
+    result: list[dict[str, Any]] = []
+    last_key: str | None = None
+    while len(result) < limit:
+        candidates: list[tuple[str, dict[str, Any]]] = []
+        for key, items in buckets.items():
+            idx = pointers[key]
+            if idx < len(items):
+                candidates.append((key, items[idx]))
+        if not candidates:
+            break
+        preferred = [c for c in candidates if c[0] != last_key]
+        pool = preferred if preferred else candidates
+        pool.sort(
+            key=lambda item: (
+                int(item[1].get("score") or 0),
+                item[1].get("created_at") or "",
+            ),
+            reverse=True,
+        )
+        key, row = pool[0]
+        result.append(row)
+        pointers[key] += 1
+        last_key = key
+    return result
+
+
 def _discover_mixed_rows(
     posts: list,
     threads: list,
     viewer: AbstractBaseUser | None,
     *,
     limit: int,
+    products: list | None = None,
+    diversify: bool = False,
 ) -> list[dict[str, Any]]:
     from .community_api_services import serialize_thread_summary
     from .feed_ranking import (
@@ -328,6 +414,21 @@ def _discover_mixed_rows(
                 "thread": payload,
             }
         )
+    for product in products or []:
+        like_count = int(getattr(product, "like_count_ann", 0) or 0)
+        score = _product_discover_score(
+            product, like_count=like_count, now=now
+        )
+        payload = serialize_product_card(product)
+        payload["like_count"] = like_count
+        rows.append(
+            {
+                "kind": "product",
+                "created_at": payload.get("created_at") or "",
+                "score": int(score),
+                "product": payload,
+            }
+        )
     rows.sort(
         key=lambda row: (
             int(row.get("score") or 0),
@@ -335,11 +436,13 @@ def _discover_mixed_rows(
         ),
         reverse=True,
     )
+    if diversify:
+        return _diversify_discover_rows(rows, limit=limit)
     return rows[:limit]
 
 
 def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
-    """Search-tab empty state: sectioned discovery (not a mixed ranking dump)."""
+    """Search-tab empty state: mixed discovery on top, category sections below."""
     from .community_services import list_community_threads
     from .services import get_user_faculty
 
@@ -347,12 +450,38 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
     faculty = get_user_faculty(viewer) if viewer is not None else ""
 
     trending_posts = _discover_timeline_candidates(viewer)
-    trending_threads = list(list_community_threads(query="", faculty="")[:DISCOVER_CANDIDATE_LIMIT])
+    trending_threads = list(
+        list_community_threads(query="", faculty="")[:DISCOVER_CANDIDATE_LIMIT]
+    )
+
+    product_fetch_limit = max(
+        DISCOVER_PRODUCT_LIMIT, DISCOVER_MIX_PRODUCT_CANDIDATE_LIMIT
+    )
+    product_qs = (
+        filter_visible_products(
+            Product.objects.select_related("seller", "seller__profile").all(),
+            viewer,
+        )
+        .annotate(like_count_ann=Count("likes", distinct=True))
+        .order_by("-like_count_ann", "-created_at")
+    )
+    product_candidates = list(product_qs[:product_fetch_limit])
+    mix_products = product_candidates[:DISCOVER_MIX_PRODUCT_CANDIDATE_LIMIT]
+
     trending = _discover_mixed_rows(
         trending_posts,
         trending_threads,
         viewer,
         limit=DISCOVER_TRENDING_LIMIT,
+        products=mix_products,
+        diversify=True,
+    )
+
+    communities = _discover_mixed_rows(
+        [],
+        trending_threads,
+        viewer,
+        limit=DISCOVER_COMMUNITY_LIMIT,
     )
 
     faculty_section: dict[str, Any] | None = None
@@ -376,16 +505,8 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
                 "results": faculty_rows,
             }
 
-    product_qs = (
-        filter_visible_products(
-            Product.objects.select_related("seller", "seller__profile").all(),
-            viewer,
-        )
-        .annotate(like_count_ann=Count("likes", distinct=True))
-        .order_by("-like_count_ann", "-created_at")
-    )
     products_payload: list[dict[str, Any]] = []
-    for product in list(product_qs[:DISCOVER_PRODUCT_LIMIT]):
+    for product in product_candidates[:DISCOVER_PRODUCT_LIMIT]:
         card = serialize_product_card(product)
         card["like_count"] = int(getattr(product, "like_count_ann", 0) or 0)
         products_payload.append(card)
@@ -393,6 +514,7 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
     return {
         "trending": trending,
         "faculty": faculty_section,
+        "communities": communities,
         "products": products_payload,
     }
 

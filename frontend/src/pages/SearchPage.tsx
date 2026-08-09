@@ -15,6 +15,7 @@ import {
 } from "../features/profile/api";
 import {
   DiscoverPostCard,
+  DiscoverProductCard,
   DiscoverThreadCard,
 } from "../features/search/DiscoverCompactCards";
 import { DiscoverSection } from "../features/search/DiscoverSection";
@@ -28,8 +29,9 @@ const TABS: { key: SearchTab; label: string }[] = [
 ];
 
 const DISCOVER_PREVIEW = {
-  trending: 5,
+  trending: 8,
   faculty: 4,
+  communities: 4,
   products: 8,
 } as const;
 
@@ -158,6 +160,14 @@ function renderDiscoverRow(row: SearchResultRow) {
       <DiscoverThreadCard key={`d-thread-${row.thread.id}`} thread={row.thread} />
     );
   }
+  if (row.kind === "product") {
+    return (
+      <DiscoverProductCard
+        key={`d-product-${row.product.id}`}
+        product={row.product}
+      />
+    );
+  }
   return null;
 }
 
@@ -168,11 +178,13 @@ function SearchDiscoverView({
 }) {
   const [trendingExpanded, setTrendingExpanded] = useState(false);
   const [facultyExpanded, setFacultyExpanded] = useState(false);
+  const [communitiesExpanded, setCommunitiesExpanded] = useState(false);
   const [productsExpanded, setProductsExpanded] = useState(false);
 
   useEffect(() => {
     setTrendingExpanded(false);
     setFacultyExpanded(false);
+    setCommunitiesExpanded(false);
     setProductsExpanded(false);
   }, [discover]);
 
@@ -183,6 +195,10 @@ function SearchDiscoverView({
   const facultyVisible = facultyExpanded
     ? facultyResults
     : facultyResults.slice(0, DISCOVER_PREVIEW.faculty);
+  const communities = discover.communities || [];
+  const communitiesVisible = communitiesExpanded
+    ? communities
+    : communities.slice(0, DISCOVER_PREVIEW.communities);
   const productsVisible = productsExpanded
     ? discover.products
     : discover.products.slice(0, DISCOVER_PREVIEW.products);
@@ -200,10 +216,8 @@ function SearchDiscoverView({
           totalCount={discover.trending.length}
           expanded={trendingExpanded}
           onExpand={() => setTrendingExpanded(true)}
-          moreTo="/"
-          moreLabel="タイムラインをもっと見る"
         >
-          <div className="discover-compact-list">
+          <div className="discover-compact-list discover-compact-list--mixed">
             {trendingVisible.map((row) => renderDiscoverRow(row))}
           </div>
         </DiscoverSection>
@@ -221,6 +235,22 @@ function SearchDiscoverView({
         >
           <div className="discover-compact-list">
             {facultyVisible.map((row) => renderDiscoverRow(row))}
+          </div>
+        </DiscoverSection>
+      ) : null}
+
+      {communities.length > 0 ? (
+        <DiscoverSection
+          title="💬 コミュニティで話題"
+          visibleCount={communitiesVisible.length}
+          totalCount={communities.length}
+          expanded={communitiesExpanded}
+          onExpand={() => setCommunitiesExpanded(true)}
+          moreTo="/communities"
+          moreLabel="コミュニティをもっと見る"
+        >
+          <div className="discover-compact-list">
+            {communitiesVisible.map((row) => renderDiscoverRow(row))}
           </div>
         </DiscoverSection>
       ) : null}
@@ -360,6 +390,7 @@ export function SearchPage() {
     discover &&
       (discover.trending.length > 0 ||
         (discover.faculty && discover.faculty.results.length > 0) ||
+        (discover.communities && discover.communities.length > 0) ||
         discover.products.length > 0)
   );
 

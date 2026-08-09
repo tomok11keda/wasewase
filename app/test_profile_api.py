@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.test import Client, TestCase, override_settings
 
-from .models import Product, TimelinePost, User, UserProfile
+from .models import Community, CommunityThread, Product, TimelinePost, User, UserProfile
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -37,6 +37,21 @@ class ProfileSearchApiTests(TestCase):
             category="未分類",
             handover_campus="waseda",
             status=Product.Status.AVAILABLE,
+        )
+        community = Community.objects.filter(is_active=True).first()
+        if community is None:
+            community = Community.objects.create(
+                slug="prof-search-board",
+                name="検索テスト板",
+                description="test",
+                category=Community.Category.GENERAL,
+                is_active=True,
+            )
+        CommunityThread.objects.create(
+            community=community,
+            author=self.other,
+            title="検索対象スレ",
+            body="コミュニティの話題です",
         )
         self.client = Client()
 
@@ -98,11 +113,23 @@ class ProfileSearchApiTests(TestCase):
         self.assertIn("discover", data)
         discover = data["discover"]
         self.assertIn("trending", discover)
+        self.assertIn("communities", discover)
         self.assertIn("products", discover)
         self.assertTrue(isinstance(discover["trending"], list))
+        self.assertTrue(isinstance(discover["communities"], list))
         self.assertTrue(isinstance(discover["products"], list))
         self.assertGreaterEqual(len(discover["trending"]), 1)
         self.assertGreaterEqual(len(discover["products"]), 1)
+        self.assertGreaterEqual(len(discover["communities"]), 1)
+        trending_kinds = {row.get("kind") for row in discover["trending"]}
+        self.assertTrue({"post", "product", "thread"}.issubset(trending_kinds))
+        # With multiple kinds available, diversified feed should not open with a long same-kind run.
+        kinds_seq = [row.get("kind") for row in discover["trending"]]
+        if len(kinds_seq) >= 2:
+            self.assertNotEqual(kinds_seq[0], kinds_seq[1])
+        self.assertTrue(
+            all(row.get("kind") == "thread" for row in discover["communities"])
+        )
 
     def test_bookmarks_own_only(self):
         denied = self.client.get(f"/api/v1/profile/{self.other.pk}/bookmarks/")

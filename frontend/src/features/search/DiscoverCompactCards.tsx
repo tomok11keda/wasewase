@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
 import type { TimelinePost } from "../timeline/api";
-import type { SearchThreadResult } from "../profile/api";
+import type {
+  SearchProductResult,
+  SearchThreadResult,
+} from "../profile/api";
 
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime();
@@ -145,6 +148,41 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
         <p className="discover-compact-card__stats" aria-label="反応">
           <span>💬 返信 {formatCount(thread.replies_count)}</span>
         </p>
+      </div>
+    </Link>
+  );
+}
+
+/** Compact discovery card for flea products (mixed trending feed). */
+export function DiscoverProductCard({
+  product,
+}: {
+  product: SearchProductResult;
+}) {
+  const priceLabel = product.is_sold
+    ? "売り切れ"
+    : product.is_pending
+      ? "取引中"
+      : `¥${product.price.toLocaleString()}`;
+
+  return (
+    <Link
+      className="discover-compact-card discover-compact-card--product"
+      to={`/flea/products/${product.id}`}
+    >
+      <div className="discover-compact-card__thumb is-product">
+        {product.image_url ? (
+          <img src={product.image_url} alt="" loading="lazy" />
+        ) : (
+          <span className="discover-compact-card__thumb-empty">No Image</span>
+        )}
+      </div>
+      <div className="discover-compact-card__main">
+        <p className="discover-compact-card__badge-row">
+          <span className="discover-compact-card__badge is-flea">フリマ</span>
+        </p>
+        <strong className="discover-compact-card__title">{product.name}</strong>
+        <p className="discover-compact-card__price">{priceLabel}</p>
       </div>
     </Link>
   );
