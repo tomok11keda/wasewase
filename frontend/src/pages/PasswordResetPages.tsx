@@ -245,6 +245,9 @@ export function PasswordResetSetPage() {
             パスワードを再設定
           </button>
         </form>
+        <p className="footer-link">
+          <Link to="/login">ログイン画面に戻る</Link>
+        </p>
       </div>
     </main>
   );
