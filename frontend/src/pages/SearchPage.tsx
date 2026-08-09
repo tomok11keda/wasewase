@@ -14,9 +14,9 @@ import {
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 const TABS: { key: SearchTab; label: string }[] = [
-  { key: "all", label: "TOP" },
-  { key: "latest", label: "LATEST" },
-  { key: "users", label: "PEOPLE" },
+  { key: "all", label: "おすすめ" },
+  { key: "latest", label: "最新" },
+  { key: "users", label: "ユーザー" },
 ];
 
 function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
@@ -158,17 +158,17 @@ export function SearchPage() {
           <p className="search-query-label">
             「{qParam}」の検索結果
             {activeTab === "all"
-              ? " · TOP"
+              ? " · おすすめ"
               : activeTab === "latest"
-                ? " · LATEST"
-                : " · PEOPLE"}
+                ? " · 最新"
+                : " · ユーザー"}
           </p>
         ) : null}
 
         {!qParam ? (
           <p className="search-empty">
             キーワードを入力すると、タイムラインとコミュニティを横断検索できます。ユーザーは
-            PEOPLE タブから探せます。
+            「ユーザー」タブから探せます。
           </p>
         ) : loading ? (
           <p className="search-empty">検索中…</p>
