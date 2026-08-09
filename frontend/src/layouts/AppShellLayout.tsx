@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AccountDrawer } from "../components/AccountDrawer";
 import { BottomNav } from "../components/BottomNav";
@@ -7,7 +7,7 @@ import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
 import { useSession } from "../lib/session";
-import { TAB_ROUTES } from "../lib/tabs";
+import { shouldHideBottomNav, TAB_ROUTES } from "../lib/tabs";
 
 function titleForPath(pathname: string): string {
   const normalized = pathname.replace(/\/$/, "") || "/";
@@ -28,9 +28,17 @@ export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
   const title = titleForPath(location.pathname);
+  const hideBottomNav = shouldHideBottomNav(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const openMenu = useCallback(() => setMenuOpen(true), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    document.body.classList.toggle("shell-hide-bottom-nav", hideBottomNav);
+    return () => {
+      document.body.classList.remove("shell-hide-bottom-nav");
+    };
+  }, [hideBottomNav]);
 
   return (
     <>
@@ -58,9 +66,11 @@ export function AppShellLayout() {
         </aside>
       </div>
 
-      <div className="shell-hide-on-desktop">
-        <BottomNav />
-      </div>
+      {!hideBottomNav ? (
+        <div className="shell-hide-on-desktop">
+          <BottomNav />
+        </div>
+      ) : null}
 
       <AccountDrawer open={menuOpen} onClose={closeMenu} />
     </>

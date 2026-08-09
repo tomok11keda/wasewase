@@ -38,6 +38,11 @@ body.shell-desktop {
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
 }
 
+/* Chat rooms: free the space normally reserved for the fixed bottom tab bar. */
+body.shell-desktop.shell-hide-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;
