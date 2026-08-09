@@ -47,6 +47,23 @@
             </button>
           </form>
           {% endif %}
+          {% if ugc_report_enabled and post.author_id and post.author_id != user.id or not user.is_authenticated %}
+          <details class="tweet-overflow">
+            <summary class="tweet-menu-btn tweet-menu-btn--icon" aria-label="その他">
+              {% include "includes/sf_symbol_icon.html" with name="ellipsis" %}
+            </summary>
+            <div class="tweet-overflow-menu" role="menu">
+              {% if ugc_report_enabled and post.author_id and post.author_id != user.id %}
+              {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk variant="menu" %}
+              {% else %}
+              <a class="tweet-overflow-item" role="menuitem" href="{% url 'login' %}?next={{ request.path|urlencode }}" data-requires-login>
+                {% include "includes/sf_symbol_icon.html" with name="flag" %}
+                通報
+              </a>
+              {% endif %}
+            </div>
+          </details>
+          {% endif %}
         </div>
       </header>
 
@@ -81,20 +98,16 @@
           data-toggle-comments
           aria-expanded="false"
           aria-controls="comments-post-{{ post.pk }}"
+          aria-label="コメント{% if post.comments.count %} {{ post.comments.count }}{% endif %}"
         >
           {% include "includes/sf_symbol_icon.html" with name="bubble_left" %}
-          <span class="tweet-action-meta">
-            <span class="tweet-action-label">コメント</span>
-            <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
-          </span>
+          <span class="tweet-action-count">{% if post.comments.count %}{{ post.comments.count }}{% endif %}</span>
         </button>
 
         {% if user.is_authenticated %}
-        <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}" aria-label="リポスト">
+        <a class="tweet-action tweet-action--quote" href="{% url 'board_quote' post.pk %}" aria-label="リポスト{% if post.quote_count %} {{ post.quote_count }}{% endif %}">
           {% include "includes/sf_symbol_icon.html" with name="arrow_2_squarepath" %}
-          <span class="tweet-action-meta">
-            <span class="tweet-action-label">リポスト</span>
-          </span>
+          <span class="tweet-action-count">{% if post.quote_count %}{{ post.quote_count }}{% endif %}</span>
         </a>
 
         <form class="tweet-action-form" method="post" action="{% url 'board_timeline_like' post.pk %}">
@@ -103,46 +116,31 @@
             type="submit"
             class="tweet-action tweet-action--like{% if post.user_has_liked %} is-liked{% endif %}"
             aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}"
-            aria-label="いいね"
+            aria-label="いいね{% if post.like_count %} {{ post.like_count }}{% endif %}"
           >
             {% if post.user_has_liked %}
             {% include "includes/sf_symbol_icon.html" with name="heart_fill" %}
             {% else %}
             {% include "includes/sf_symbol_icon.html" with name="heart" %}
             {% endif %}
-            <span class="tweet-action-meta">
-              <span class="tweet-action-label">いいね</span>
-              <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
-            </span>
+            <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
           </button>
         </form>
-
-        {% if ugc_report_enabled and post.author_id and post.author_id != user.id %}
-        {% include "includes/ugc_report_button.html" with report_type="post" report_id=post.pk variant="action" %}
-        {% else %}
-        <span class="tweet-action tweet-action--spacer" aria-hidden="true"></span>
-        {% endif %}
         {% else %}
         <button type="button" class="tweet-action tweet-action--quote" data-requires-login aria-label="リポスト">
           {% include "includes/sf_symbol_icon.html" with name="arrow_2_squarepath" %}
-          <span class="tweet-action-meta">
-            <span class="tweet-action-label">リポスト</span>
-          </span>
+          <span class="tweet-action-count">{% if post.quote_count %}{{ post.quote_count }}{% endif %}</span>
         </button>
         <button type="button" class="tweet-action tweet-action--like" data-requires-login aria-label="いいね">
           {% include "includes/sf_symbol_icon.html" with name="heart" %}
-          <span class="tweet-action-meta">
-            <span class="tweet-action-label">いいね</span>
-            <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
-          </span>
-        </button>
-        <button type="button" class="tweet-action tweet-action--report" data-requires-login aria-label="通報">
-          {% include "includes/sf_symbol_icon.html" with name="flag" %}
-          <span class="tweet-action-meta">
-            <span class="tweet-action-label">通報</span>
-          </span>
+          <span class="tweet-action-count">{% if post.like_count %}{{ post.like_count }}{% endif %}</span>
         </button>
         {% endif %}
+
+        <span class="tweet-action tweet-action--view tweet-action--static" aria-label="閲覧数">
+          {% include "includes/sf_symbol_icon.html" with name="chart_bar" %}
+          <span class="tweet-action-count"></span>
+        </span>
       </div>
 
       <div class="timeline-comments" id="comments-post-{{ post.pk }}">

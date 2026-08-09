@@ -151,6 +151,13 @@ def serialize_timeline_post(
     else:
         comment_count = comments_qs.count()
 
+    quote_count = getattr(post, "quote_count", None)
+    if quote_count is None:
+        quote_count = post.quotes.filter(is_removed=False).count()
+
+    # 閲覧数カウント処理は未導入。既存処理を変えず表示用に 0 を返す。
+    view_count = int(getattr(post, "view_count", 0) or 0)
+
     return {
         "id": post.pk,
         "body": post.body,
@@ -161,6 +168,8 @@ def serialize_timeline_post(
         "image_url": image_url,
         "like_count": int(post.like_count or 0),
         "comment_count": comment_count,
+        "quote_count": int(quote_count or 0),
+        "view_count": view_count,
         "user_has_liked": bool(getattr(post, "user_has_liked", False)),
         "user_has_bookmarked": bool(getattr(post, "user_has_bookmarked", False)),
         "can_delete": can_delete,

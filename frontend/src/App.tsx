@@ -8,7 +8,6 @@ import { AuthLayout } from "./layouts/AuthLayout";
 import { SessionProvider } from "./lib/session";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
-import { SpaNavDiagBadge } from "./components/SpaNavDiagBadge";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmInboxPage } from "./pages/DmInboxPage";
 import { DmRoomPage } from "./pages/DmRoomPage";
@@ -44,7 +43,6 @@ function SpaRuntimeHooks() {
     <>
       <UnauthorizedRedirect />
       <NativeSpaBridge />
-      <SpaNavDiagBadge />
     </>
   );
 }
