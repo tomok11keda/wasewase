@@ -199,3 +199,52 @@ export async function fetchQuotable(
   if (!res.ok || !data.ok) throw new Error(data.error || "quote_failed");
   return data.quoted_post as TimelinePost;
 }
+
+/** Classic UGC report reasons (matches static/js/ugc_report.js). */
+export const REPORT_REASONS = [
+  { value: "inappropriate", label: "不適切なコンテンツ" },
+  { value: "harassment", label: "嫌がらせ" },
+  { value: "spam", label: "スパム" },
+] as const;
+
+export type ReportReason = (typeof REPORT_REASONS)[number]["value"];
+
+/**
+ * POST /report/<type>/<id>/ — reuses classic submit_report (JSON).
+ * Sends moderation email via existing notify_moderation_team_of_report.
+ */
+export async function submitContentReport(
+  targetType: "post" | "comment" | "user" | "product",
+  targetId: number,
+  reason: ReportReason | string
+): Promise<string> {
+  const body = new URLSearchParams();
+  body.set("reason", reason);
+  const res = await fetch(`/report/${targetType}/${targetId}/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      "X-CSRFToken": getCsrfToken(),
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body,
+  });
+  let data: { ok?: boolean; message?: string; error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(
+      "通報に失敗しました。時間をおいてもう一度お試しください。"
+    );
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      data.message ||
+        data.error ||
+        "通報に失敗しました。時間をおいてもう一度お試しください。"
+    );
+  }
+  return data.message || "通報しました";
+}
