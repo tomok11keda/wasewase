@@ -19,6 +19,7 @@ import {
   type ChatRoomDetail,
 } from "../features/flea/api";
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
+import { ChatComposeBar } from "../components/ChatComposeBar";
 
 export function TradeChatPage() {
   const { roomPk } = useParams();
@@ -305,19 +306,12 @@ export function TradeChatPage() {
         </div>
 
         {room.can_send_message ? (
-          <form className="chat-compose" onSubmit={(e) => void onSend(e)}>
-            <input
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              maxLength={500}
-              placeholder="メッセージを入力..."
-              aria-label="メッセージ"
-              disabled={busy}
-            />
-            <button type="submit" disabled={busy || !body.trim()}>
-              送信
-            </button>
-          </form>
+          <ChatComposeBar
+            value={body}
+            onChange={setBody}
+            onSend={onSend}
+            busy={busy}
+          />
         ) : (
           <p className="chat-status">このチャットはメッセージ送信できません。</p>
         )}

@@ -18,6 +18,7 @@ import {
   type DmRoomDetail,
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
+import { ChatComposeBar } from "../components/ChatComposeBar";
 
 export function DmRoomPage() {
   const { roomPk } = useParams();
@@ -329,36 +330,20 @@ export function DmRoomPage() {
             <div ref={bottomRef} />
           </div>
 
-          <form
-            className={`chat-form${room.can_send ? "" : " chat-form--blocked"}`}
-            onSubmit={(e) => void onSend(e)}
-            aria-disabled={!room.can_send}
-          >
-            <input
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              maxLength={500}
-              placeholder={
-                room.is_blocked
-                  ? "このユーザーはブロック中です"
-                  : room.can_send
-                    ? "メッセージを入力..."
-                    : "メッセージを送信できません"
-              }
-              disabled={!room.can_send}
-              autoComplete="off"
-              aria-label="メッセージ"
-            />
-            {room.can_send ? (
-              <button type="submit" disabled={busy || !body.trim()}>
-                送信
-              </button>
-            ) : (
-              <button type="button" disabled>
-                送信
-              </button>
-            )}
-          </form>
+          <ChatComposeBar
+            value={body}
+            onChange={setBody}
+            onSend={onSend}
+            busy={busy}
+            disabled={!room.can_send}
+            placeholder={
+              room.is_blocked
+                ? "このユーザーはブロック中です"
+                : room.can_send
+                  ? "メッセージを入力..."
+                  : "メッセージを送信できません"
+            }
+          />
         </section>
       </main>
     </div>

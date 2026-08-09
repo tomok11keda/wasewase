@@ -18,6 +18,7 @@ import {
   type GroupRoomDetail,
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
+import { ChatComposeBar } from "../components/ChatComposeBar";
 
 export function GroupRoomPage() {
   const { roomPk } = useParams();
@@ -280,19 +281,12 @@ export function GroupRoomPage() {
           </div>
 
           {canSend ? (
-            <form className="chat-form" onSubmit={(e) => void onSend(e)}>
-              <input
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                maxLength={500}
-                placeholder="メッセージを入力..."
-                aria-label="メッセージ"
-                autoComplete="off"
-              />
-              <button type="submit" disabled={busy || !body.trim()}>
-                送信
-              </button>
-            </form>
+            <ChatComposeBar
+              value={body}
+              onChange={setBody}
+              onSend={onSend}
+              busy={busy}
+            />
           ) : isPending ? (
             <p className="dm-group-invite-locked">
               参加するとメッセージを送信できます。
