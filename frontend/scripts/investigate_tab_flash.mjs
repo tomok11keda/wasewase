@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Investigate white flash on BottomNav tab switches (read-only diagnostics).
  * Usage: node scripts/investigate_tab_flash.mjs [baseUrl]
  */
@@ -52,12 +52,12 @@ await page.addInitScript(() => {
 });
 
 await page.goto(`${baseUrl}/app/`, { waitUntil: "domcontentloaded", timeout: 120000 });
-await page.waitForSelector('[data-spa-page="ホーム"], [data-spa-page="ログイン"]', {
+await page.waitForSelector('[data-spa-page="タイムライン"], [data-spa-page="ログイン"]', {
   timeout: 60000,
 });
 if (await page.locator('[data-spa-page="ログイン"]').count()) {
   await page.locator("button.linkish", { hasText: "閲覧モード" }).click();
-  await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
+  await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 30000 });
 }
 
 // Instrument DOM for remount / emptiness
@@ -108,8 +108,7 @@ const hops = [
   ["コミュニティ", "コミュニティ"],
   ["フリマ", "フリマ"],
   ["時間割", "時間割"],
-  ["その他", "その他"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
 ];
 
 const flashReports = [];

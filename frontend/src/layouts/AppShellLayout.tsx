@@ -1,4 +1,6 @@
+import { useCallback, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { AccountDrawer } from "../components/AccountDrawer";
 import { BottomNav } from "../components/BottomNav";
 import { BrowseModeBanner } from "../components/BrowseModeBanner";
 import { MobileShellHeader } from "../components/MobileShellHeader";
@@ -13,6 +15,8 @@ function titleForPath(pathname: string): string {
   if (normalized.startsWith("/search")) return "検索";
   if (normalized.startsWith("/notifications")) return "通知";
   if (normalized.startsWith("/dm")) return "メッセージ";
+  if (normalized === "/more") return "メニュー";
+  if (normalized.startsWith("/settings")) return "設定";
   const hit = TAB_ROUTES.find((tab) => {
     if (tab.path === "/") return normalized === "/" || normalized === "";
     return normalized === tab.path || normalized.startsWith(`${tab.path}/`);
@@ -24,6 +28,9 @@ export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
   const title = titleForPath(location.pathname);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const openMenu = useCallback(() => setMenuOpen(true), []);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   return (
     <>
@@ -33,7 +40,7 @@ export function AppShellLayout() {
         </aside>
 
         <div className="main-column">
-          <MobileShellHeader title={title} />
+          <MobileShellHeader title={title} onOpenMenu={openMenu} />
           <BrowseModeBanner />
           {loading ? (
             <div className="main-inner">
@@ -54,6 +61,8 @@ export function AppShellLayout() {
       <div className="shell-hide-on-desktop">
         <BottomNav />
       </div>
+
+      <AccountDrawer open={menuOpen} onClose={closeMenu} />
     </>
   );
 }

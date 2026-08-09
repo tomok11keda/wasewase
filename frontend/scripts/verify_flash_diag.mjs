@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Automated flash-cause isolation across spa_nav_diag modes.
  *
  * Compares JS (and mocked Capacitor) event timelines per mode.
@@ -38,7 +38,7 @@ const TAB_HOPS = [
   ["コミュニティ", "コミュニティ"],
   ["フリマ", "フリマ"],
   ["時間割", "時間割"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
 ];
 
 const SIGNAL_EVENTS = [
@@ -220,12 +220,12 @@ async function runMode(browser, mode) {
     timeout: 120000,
   });
   await page.waitForSelector(
-    '[data-spa-page="ホーム"], [data-spa-page="ログイン"]',
+    '[data-spa-page="タイムライン"], [data-spa-page="ログイン"]',
     { timeout: 60000 }
   );
   if (await page.locator('[data-spa-page="ログイン"]').count()) {
     await page.locator("button.linkish", { hasText: "閲覧モード" }).click();
-    await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
+    await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 30000 });
   }
 
   // Ensure flash diag + force banner tracking after native bootstrap settles

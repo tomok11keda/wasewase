@@ -8,14 +8,19 @@ const SEARCH_ICON =
   "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z";
 const NOTIFY_ICON =
   "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z";
+const DM_ICON =
+  "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z";
 const BOOKMARK_ICON =
   "M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z";
+const SETTINGS_ICON =
+  "M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
 const COMPOSE_ICON = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z";
 
 export function SidebarNav() {
   const { me, setMeFromAuth, refresh } = useSession();
   const navigate = useNavigate();
   const unread = me?.unread_notifications || 0;
+  const dmUnread = me?.dm_unread_total || 0;
   const user = me?.user;
 
   const onLogout = async () => {
@@ -93,6 +98,24 @@ export function SidebarNav() {
             ) : null}
           </NavLink>
         </li>
+        <li>
+          <NavLink
+            to="/dm"
+            className={({ isActive }) =>
+              isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+            }
+          >
+            <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+              <path d={DM_ICON} />
+            </svg>
+            <span className="sidebar-nav__label">メッセージ</span>
+            {dmUnread > 0 ? (
+              <span className="sidebar-nav__badge" aria-label={`未読 ${dmUnread}`}>
+                {dmUnread}
+              </span>
+            ) : null}
+          </NavLink>
+        </li>
         {user ? (
           <li>
             <NavLink
@@ -108,6 +131,19 @@ export function SidebarNav() {
             </NavLink>
           </li>
         ) : null}
+        <li>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
+            }
+          >
+            <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
+              <path d={SETTINGS_ICON} />
+            </svg>
+            <span className="sidebar-nav__label">アカウント設定</span>
+          </NavLink>
+        </li>
       </ul>
 
       {me?.authenticated ? (

@@ -215,11 +215,11 @@ export function FleaPage() {
           </form>
           {me?.authenticated ? (
             <Link className="btn-exhibit" to="/flea/exhibit">
-              出品
+              商品を出品
             </Link>
           ) : (
             <Link className="btn-exhibit" to={spaLoginPath("/app/flea/exhibit")}>
-              出品
+              商品を出品
             </Link>
           )}
         </div>

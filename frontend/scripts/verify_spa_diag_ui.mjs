@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Smoke: SpaDiagSection only on Capacitor native; no_banner / clear work.
  * Usage: node scripts/verify_spa_diag_ui.mjs [baseUrl]
  */
