@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Verify React Router tab switches do not trigger full document reloads.
  * Requires: Django runserver with WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False
  * Usage (from frontend/): node scripts/verify_spa_nav.mjs [baseUrl]
@@ -40,15 +40,14 @@ page.on("load", () => {
 });
 
 await page.goto(spaUrl, { waitUntil: "networkidle" });
-await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 15000 });
+await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 15000 });
 let loadsAfterFirst = loadCount;
 
 const tabs = [
   { label: "コミュニティ", heading: "コミュニティ" },
   { label: "フリマ", heading: "フリマ" },
   { label: "時間割", heading: "時間割" },
-  { label: "その他", heading: "その他" },
-  { label: "ホーム", heading: "ホーム" },
+  { label: "タイムライン", heading: "タイムライン" },
 ];
 
 for (const tab of tabs) {
@@ -78,8 +77,8 @@ if ((await productLink.count()) > 0) {
   console.log("skip flea detail: no products in list");
 }
 
-await page.locator("nav.bottom-nav a.nav-item", { hasText: "ホーム" }).click();
-await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 10000 });
+await page.locator("nav.bottom-nav a.nav-item", { hasText: "タイムライン" }).click();
+await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 const authorLink = page.locator("a.tweet-author").first();
 if ((await authorLink.count()) > 0) {
   await authorLink.click();
@@ -93,7 +92,7 @@ if ((await authorLink.count()) > 0) {
   await page.waitForURL(/\/app\/users\/\d+\/posts/, { timeout: 10000 });
   console.log(`profile posts tab -> ${page.url()}`);
   await page.locator("a.profile-back").click();
-  await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 10000 });
+  await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
   console.log(`back home -> ${page.url()}`);
 } else {
   console.log("skip profile hop: no timeline authors");
@@ -104,8 +103,8 @@ await page.setViewportSize({ width: 1200, height: 800 });
 await page.locator('a.sidebar-nav__item', { hasText: "検索" }).click();
 await page.waitForSelector('[data-spa-page="検索"]', { timeout: 10000 });
 console.log(`search -> ${page.url()}`);
-await page.locator('a.sidebar-nav__item', { hasText: "ホーム" }).click();
-await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 10000 });
+await page.locator('a.sidebar-nav__item', { hasText: "タイムライン" }).click();
+await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 console.log(`search back home -> ${page.url()}`);
 
 // P1-1 / P1-3: Sidebar compose must stay in SPA (no full reload)
@@ -122,7 +121,7 @@ if ((await composeCtl.count()) > 0) {
   if (afterCompose.includes("/app/login")) {
     console.log("compose redirected to SPA login (unauthenticated) — OK");
     await page.goto(spaUrl, { waitUntil: "networkidle" });
-    await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 15000 });
+    await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 15000 });
     // Returning to /app via goto counts as an expected load; reset baseline.
     loadsAfterFirst = loadCount;
   } else {

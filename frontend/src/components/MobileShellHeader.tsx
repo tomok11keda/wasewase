@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { useSession } from "../lib/session";
-import { spaLoginPath } from "../features/auth/api";
 
 type Props = {
   title: string;
+  onOpenMenu: () => void;
 };
 
 const DM_ICON =
@@ -11,7 +11,7 @@ const DM_ICON =
 const NOTIFY_ICON =
   "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z";
 
-export function MobileShellHeader({ title }: Props) {
+export function MobileShellHeader({ title, onOpenMenu }: Props) {
   const { me } = useSession();
   const user = me?.user;
   const dmUnread = me?.dm_unread_total || 0;
@@ -21,23 +21,16 @@ export function MobileShellHeader({ title }: Props) {
     <header className="site-header mobile-only">
       <div className="shell-header-row">
         <div className="shell-header-start">
-          {user ? (
-            <Link
-              className="shell-header-profile"
-              to={`/users/${user.id}/posts`}
-              aria-label="マイページ"
-            >
-              <span className="shell-header-avatar">{user.initial}</span>
-            </Link>
-          ) : (
-            <Link
-              className="shell-header-profile"
-              to={spaLoginPath("/app/")}
-              aria-label="ログイン"
-            >
-              <span className="shell-header-avatar">?</span>
-            </Link>
-          )}
+          <button
+            type="button"
+            className="shell-header-profile"
+            onClick={onOpenMenu}
+            aria-label={user ? "アカウントメニューを開く" : "メニューを開く"}
+          >
+            <span className="shell-header-avatar">
+              {user ? user.initial : "?"}
+            </span>
+          </button>
         </div>
         <h1 className="shell-header-title">{title}</h1>
         <div className="shell-header-end">

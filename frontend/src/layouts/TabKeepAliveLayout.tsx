@@ -13,7 +13,6 @@ import { CommunitiesPage } from "../pages/CommunitiesPage";
 import { FleaPage } from "../pages/FleaPage";
 import { HomePage } from "../pages/HomePage";
 import { TimetablePage } from "../pages/TimetablePage";
-import { MorePage } from "../pages/tabs";
 import { matchMainTab, type MainTabId } from "../lib/tabs";
 import { useSpaNavDiag } from "../lib/spaNavDiag";
 import { flashDiagMark } from "../lib/flashDiag";
@@ -221,15 +220,6 @@ export function TabKeepAliveLayout() {
             leaving={leaving === "timetable"}
           >
             <TimetablePage />
-          </TabPane>
-        ) : null}
-        {mounted.more ? (
-          <TabPane
-            tabId="more"
-            active={active === "more"}
-            leaving={leaving === "more"}
-          >
-            <MorePage />
           </TabPane>
         ) : null}
       </div>

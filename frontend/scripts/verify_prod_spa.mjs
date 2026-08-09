@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Production soft-launch verification for React SPA on Render.
  *
  * Usage:
@@ -100,7 +100,7 @@ page.on("load", () => {
 // Cold start (Render free tier may sleep)
 await page.goto(spaUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
 try {
-  await page.waitForSelector('[data-spa-page="ホーム"], [data-spa-page="ログイン"]', {
+  await page.waitForSelector('[data-spa-page="タイムライン"], [data-spa-page="ログイン"]', {
     timeout: 60000,
   });
 } catch (err) {
@@ -134,7 +134,7 @@ if (onLogin > 0 && !me.authenticated) {
       hasText: "閲覧モード",
     })
     .click();
-  await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
+  await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 30000 });
   note("browse-mode→home");
   baselineLoads = loadCount;
 }
@@ -156,8 +156,7 @@ const tabs = [
   ["コミュニティ", "コミュニティ"],
   ["フリマ", "フリマ"],
   ["時間割", "時間割"],
-  ["その他", "その他"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
 ];
 for (const [label, heading] of tabs) {
   await expectNoReload(`bottomnav:${label}`, async () => {
@@ -208,8 +207,8 @@ if ((await thread.count()) > 0) {
 }
 
 // Timeline → Profile
-await page.locator("nav.bottom-nav a.nav-item", { hasText: "ホーム" }).click();
-await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 20000 });
+await page.locator("nav.bottom-nav a.nav-item", { hasText: "タイムライン" }).click();
+await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 20000 });
 const author = page.locator("a.tweet-author").first();
 if ((await author.count()) > 0) {
   await expectNoReload("timeline→profile", async () => {

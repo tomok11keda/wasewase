@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 8: login → DM open/switch/leave and assert poll counter returns to 0.
  * Requires runserver with WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False.
  *
@@ -56,7 +56,7 @@ await Promise.all([
 ]);
 
 await page.goto(`${baseUrl}/app/`, { waitUntil: "networkidle" });
-await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 15000 });
+await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 15000 });
 const loadsAfterFirst = loadCount;
 
 await page.locator("a.shell-header-dm").click();

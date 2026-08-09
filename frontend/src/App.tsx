@@ -107,7 +107,7 @@ function AppRoutes() {
             <Route path="communities" element={<MainTabRoute />} />
             <Route path="flea" element={<MainTabRoute />} />
             <Route path="timetable" element={<MainTabRoute />} />
-            <Route path="more" element={<MainTabRoute />} />
+            <Route path="more" element={<MorePage />} />
             {NestedAppRoutes()}
           </Route>
         </Route>

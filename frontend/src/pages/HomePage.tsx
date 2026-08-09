@@ -197,7 +197,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="main-inner timeline-home" data-spa-page="ホーム">
+    <div className="main-inner timeline-home" data-spa-page="タイムライン">
       <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
         <button
           type="button"

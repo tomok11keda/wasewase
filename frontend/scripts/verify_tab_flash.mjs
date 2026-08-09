@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Measure tab-switch luminance jumps (not just loadingFlash).
  * After warm-up, each hop samples frames across the crossfade window
  * and reports max frame-to-frame Δluma / near-white.
@@ -55,12 +55,12 @@ await page.goto(`${baseUrl}/app/`, {
   timeout: 120000,
 });
 await page.waitForSelector(
-  '[data-spa-page="ホーム"], [data-spa-page="ログイン"]',
+  '[data-spa-page="タイムライン"], [data-spa-page="ログイン"]',
   { timeout: 60000 }
 );
 if (await page.locator('[data-spa-page="ログイン"]').count()) {
   await page.locator("button.linkish", { hasText: "閲覧モード" }).click();
-  await page.waitForSelector('[data-spa-page="ホーム"]', { timeout: 30000 });
+  await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 30000 });
 }
 const loadsAfterBoot = loadCount;
 
@@ -68,8 +68,7 @@ const tabs = [
   ["コミュニティ", "コミュニティ"],
   ["フリマ", "フリマ"],
   ["時間割", "時間割"],
-  ["その他", "その他"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
 ];
 
 console.log("warm-up…");
@@ -156,12 +155,11 @@ async function lumaFromFile(file) {
 const hops = [
   ...tabs,
   ["時間割", "時間割"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
   ["時間割", "時間割"],
-  ["その他", "その他"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
   ["フリマ", "フリマ"],
-  ["ホーム", "ホーム"],
+  ["タイムライン", "タイムライン"],
 ];
 
 const results = [];

@@ -2,8 +2,8 @@ export const TAB_ROUTES = [
   {
     id: "home",
     path: "/",
-    label: "ホーム",
-    title: "ホーム",
+    label: "タイムライン",
+    title: "タイムライン",
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z",
   },
   {
@@ -27,13 +27,6 @@ export const TAB_ROUTES = [
     title: "時間割",
     icon: "M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zM7 12h5v5H7v-5z",
   },
-  {
-    id: "more",
-    path: "/more",
-    label: "その他",
-    title: "その他",
-    icon: "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
-  },
 ] as const;
 
 export type TabId = (typeof TAB_ROUTES)[number]["id"];
@@ -44,6 +37,7 @@ export type MainTabId = TabId;
 /**
  * Exact main-tab match. Nested routes like /flea/products/1 return null
  * so they render through <Outlet /> while keep-alive panes stay mounted (hidden).
+ * /more is no longer a bottom tab — it renders via Outlet when visited.
  */
 export function matchMainTab(pathname: string): MainTabId | null {
   const normalized = pathname.replace(/\/$/, "") || "/";
@@ -51,6 +45,5 @@ export function matchMainTab(pathname: string): MainTabId | null {
   if (normalized === "/communities") return "communities";
   if (normalized === "/flea") return "flea";
   if (normalized === "/timetable") return "timetable";
-  if (normalized === "/more") return "more";
   return null;
 }
