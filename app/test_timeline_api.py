@@ -106,3 +106,58 @@ class TimelineApiTests(TestCase):
         data = response.json()
         self.assertEqual(data["posts"], [])
         self.assertTrue(data["feed_following_unauthenticated"])
+
+    def test_list_includes_view_count_zero(self):
+        response = self.client.get("/api/v1/timeline/")
+        self.assertEqual(response.status_code, 200)
+        matched = next(p for p in response.json()["posts"] if p["id"] == self.post.pk)
+        self.assertEqual(matched["view_count"], 0)
+
+    def test_impressions_batch_increments_once_per_id(self):
+        other = TimelinePost.objects.create(
+            author=self.other,
+            body="second post",
+            like_count=0,
+            view_count=0,
+        )
+        response = self.client.post(
+            "/api/v1/timeline/impressions/",
+            data=json.dumps(
+                {"post_ids": [self.post.pk, self.post.pk, other.pk, 999999]}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["counts"][str(self.post.pk)], 1)
+        self.assertEqual(data["counts"][str(other.pk)], 1)
+        self.assertNotIn("999999", data["counts"])
+
+        self.post.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(self.post.view_count, 1)
+        self.assertEqual(other.view_count, 1)
+
+        # Second request increments again (server has no session dedupe)
+        again = self.client.post(
+            "/api/v1/timeline/impressions/",
+            data=json.dumps({"post_ids": [self.post.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(again.status_code, 200)
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.view_count, 2)
+
+    def test_impressions_skips_removed_posts(self):
+        self.post.is_removed = True
+        self.post.save(update_fields=["is_removed"])
+        response = self.client.post(
+            "/api/v1/timeline/impressions/",
+            data=json.dumps({"post_ids": [self.post.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["counts"], {})
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.view_count, 0)

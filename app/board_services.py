@@ -28,6 +28,8 @@ def prepare_timeline_post_for_save(post: TimelinePost) -> TimelinePost:
     """保存前にカウンタ系フィールドへデフォルト値を明示的にセットする。"""
     if post.like_count is None:
         post.like_count = 0
+    if post.view_count is None:
+        post.view_count = 0
     return post
 
 

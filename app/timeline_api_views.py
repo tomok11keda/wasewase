@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import F
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -118,6 +119,60 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
         {"ok": True, "post": serialize_timeline_post(post, request.user)},
         status=201,
     )
+
+
+_IMPRESSION_BATCH_MAX = 50
+
+
+@require_POST
+def api_v1_timeline_impressions(request: HttpRequest) -> JsonResponse:
+    """POST /api/v1/timeline/impressions/  body: { "post_ids": [1, 2, ...] }
+
+    同一リクエスト内の重複 ID は1回だけ加算。履歴テーブルは作らない。
+    重複排除（セッション単位）はクライアント側で行う。
+    """
+    if request.content_type and "application/json" in request.content_type:
+        try:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return _json_error("invalid_json")
+    else:
+        data = request.POST
+
+    raw_ids = data.get("post_ids") if hasattr(data, "get") else None
+    if raw_ids is None:
+        raw_ids = []
+    if not isinstance(raw_ids, (list, tuple)):
+        return _json_error("invalid_post_ids")
+
+    seen: set[int] = set()
+    post_ids: list[int] = []
+    for raw in raw_ids:
+        try:
+            pk = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if pk <= 0 or pk in seen:
+            continue
+        seen.add(pk)
+        post_ids.append(pk)
+        if len(post_ids) >= _IMPRESSION_BATCH_MAX:
+            break
+
+    if not post_ids:
+        return JsonResponse({"ok": True, "counts": {}})
+
+    # 存在する・未削除の投稿のみ atomic に +1
+    TimelinePost.objects.filter(pk__in=post_ids, is_removed=False).update(
+        view_count=F("view_count") + 1
+    )
+    counts = {
+        str(row.pk): int(row.view_count or 0)
+        for row in TimelinePost.objects.filter(
+            pk__in=post_ids, is_removed=False
+        ).only("pk", "view_count")
+    }
+    return JsonResponse({"ok": True, "counts": counts})
 
 
 @login_required
