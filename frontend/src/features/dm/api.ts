@@ -9,7 +9,7 @@ export type Author = {
 };
 
 export type InboxItem = {
-  kind: "dm" | "group" | "trade";
+  kind: "dm" | "group" | "group_invite" | "trade";
   room_id: number;
   display_name: string;
   subtitle: string;
@@ -47,6 +47,13 @@ export type DmRoomDetail = {
   latest_id: number;
 };
 
+export type GroupInvitation = {
+  id: number;
+  status: "pending" | "accepted" | "declined" | string;
+  inviter: Author | null;
+  created_at?: string;
+};
+
 export type GroupRoomDetail = {
   id: number;
   kind: "group";
@@ -54,6 +61,14 @@ export type GroupRoomDetail = {
   members: Author[];
   member_count: number;
   can_send: boolean;
+  membership_status: "member" | "pending_invite" | "none" | string;
+  invitation: GroupInvitation | null;
+  pending_invites: Array<{
+    id: number;
+    invitee: Author | null;
+    inviter: Author | null;
+    status: string;
+  }>;
   latest_id: number;
 };
 
@@ -142,14 +157,17 @@ export async function sendDmMessage(
   return data.message as ChatMessage;
 }
 
-export async function fetchGroupFollowees(): Promise<Author[]> {
-  const res = await fetch("/api/v1/dm/groups/", {
+export async function fetchGroupFollowees(query?: string): Promise<Author[]> {
+  const qs = query?.trim()
+    ? `?q=${encodeURIComponent(query.trim())}`
+    : "";
+  const res = await fetch(`/api/v1/dm/groups/${qs}`, {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "following_failed");
-  return data.following as Author[];
+  return (data.candidates || data.following || []) as Author[];
 }
 
 export async function createGroup(
@@ -179,7 +197,18 @@ export async function fetchGroupRoom(roomPk: number, signal?: AbortSignal) {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "group_failed");
-  return data as { room: GroupRoomDetail; messages: ChatMessage[] };
+  const room = data.room as GroupRoomDetail;
+  return {
+    room: {
+      ...room,
+      membership_status: room.membership_status || "member",
+      invitation: room.invitation || null,
+      pending_invites: Array.isArray(room.pending_invites)
+        ? room.pending_invites
+        : [],
+    },
+    messages: (data.messages || []) as ChatMessage[],
+  };
 }
 
 export async function pollGroupMessages(
@@ -194,7 +223,11 @@ export async function pollGroupMessages(
     signal,
   });
   if (!res.ok) throw new Error(`poll_${res.status}`);
-  return res.json() as Promise<{ messages: ChatMessage[]; latest_id: number }>;
+  return res.json() as Promise<{
+    messages: ChatMessage[];
+    latest_id: number;
+    can_send?: boolean;
+  }>;
 }
 
 export async function sendGroupMessage(
@@ -214,4 +247,61 @@ export async function sendGroupMessage(
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
   return data.message as ChatMessage;
+}
+
+export async function inviteToGroup(
+  roomPk: number,
+  memberIds: number[]
+): Promise<number> {
+  const res = await fetch(`/api/v1/dm/groups/${roomPk}/invite/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ member_ids: memberIds }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "invite_failed");
+  return Number(data.invited_count || 0);
+}
+
+export async function acceptGroupInvitation(roomPk: number) {
+  const res = await fetch(
+    `/api/v1/dm/groups/${roomPk}/invitations/accept/`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-CSRFToken": getCsrfToken(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "accept_failed");
+  return data as { room: GroupRoomDetail; messages: ChatMessage[] };
+}
+
+export async function declineGroupInvitation(roomPk: number) {
+  const res = await fetch(
+    `/api/v1/dm/groups/${roomPk}/invitations/decline/`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-CSRFToken": getCsrfToken(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "decline_failed");
+  return data as { ok: boolean; spa_path?: string };
 }

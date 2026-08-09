@@ -16,7 +16,7 @@ import { spaLoginPath } from "../features/auth/api";
 export function GroupCreatePage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
-  const [following, setFollowing] = useState<Author[]>([]);
+  const [candidates, setCandidates] = useState<Author[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
@@ -24,11 +24,11 @@ export function GroupCreatePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (q: string) => {
     setLoading(true);
     try {
-      const list = await fetchGroupFollowees();
-      setFollowing(list);
+      const list = await fetchGroupFollowees(q);
+      setCandidates(list);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "load_failed");
@@ -43,17 +43,11 @@ export function GroupCreatePage() {
       navigate(spaLoginPath("/app/dm/groups/new"), { replace: true });
       return;
     }
-    void load();
-  }, [sessionLoading, me?.authenticated, load]);
-
-  const filtered = following.filter((u) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      u.display_name.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q)
-    );
-  });
+    const handle = window.setTimeout(() => {
+      void load(query.trim());
+    }, query.trim() ? 250 : 0);
+    return () => window.clearTimeout(handle);
+  }, [sessionLoading, me?.authenticated, load, query]);
 
   const toggle = (id: number) => {
     setSelected((prev) => {
@@ -67,7 +61,7 @@ export function GroupCreatePage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!selected.size) {
-      window.alert("メンバーを1人以上選択してください。");
+      window.alert("招待するユーザーを1人以上選択してください。");
       return;
     }
     setBusy(true);
@@ -81,7 +75,7 @@ export function GroupCreatePage() {
     }
   };
 
-  if (sessionLoading || loading) {
+  if (sessionLoading) {
     return (
       <div className="dm-page" data-spa-page="メッセージ">
         <div className="main-inner">
@@ -95,8 +89,10 @@ export function GroupCreatePage() {
     <div className="dm-page" data-spa-page="メッセージ">
       <main className="main-inner" aria-label="グループ作成">
         <div className="dm-group-header">
-          <h1>フォロー中ユーザーから選択</h1>
-          <p>相手は複数選択できます。検索バーで絞り込んでください。</p>
+          <h1>グループを作成して招待</h1>
+          <p>
+            誰でも招待できます。招待された相手は参加するまでメンバーにはなりません。
+          </p>
         </div>
 
         {error ? <p className="dm-empty">読み込みに失敗しました（{error}）</p> : null}
@@ -116,19 +112,23 @@ export function GroupCreatePage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ユーザー名で検索（表示名 / @username）"
+            placeholder="ユーザーを検索（表示名 / @username）"
             autoComplete="off"
           />
 
           <ul className="dm-user-list">
-            {filtered.length === 0 ? (
+            {loading ? (
               <li className="dm-user-item" style={{ color: "var(--dm-muted)" }}>
-                {following.length === 0
-                  ? "フォロー中のユーザーがいません。"
-                  : "該当するユーザーがいません。"}
+                検索中…
+              </li>
+            ) : candidates.length === 0 ? (
+              <li className="dm-user-item" style={{ color: "var(--dm-muted)" }}>
+                {query.trim()
+                  ? "該当するユーザーがいません。"
+                  : "フォロー中のユーザーがいません。検索して招待できます。"}
               </li>
             ) : (
-              filtered.map((u) => (
+              candidates.map((u) => (
                 <li key={u.id ?? u.username} className="dm-user-item">
                   <label>
                     <input
@@ -155,7 +155,7 @@ export function GroupCreatePage() {
               type="submit"
               disabled={busy || selected.size === 0}
             >
-              作成
+              作成して招待
             </button>
           </div>
         </form>

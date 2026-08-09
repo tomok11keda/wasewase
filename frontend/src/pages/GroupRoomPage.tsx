@@ -9,6 +9,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
+  acceptGroupInvitation,
+  declineGroupInvitation,
   fetchGroupRoom,
   pollGroupMessages,
   sendGroupMessage,
@@ -29,6 +31,7 @@ export function GroupRoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
@@ -75,6 +78,9 @@ export function GroupRoomPage() {
     return () => ac.abort();
   }, [me?.authenticated, sessionLoading, roomId, roomPk]);
 
+  const isPending = room?.membership_status === "pending_invite";
+  const canSend = Boolean(room?.can_send && !isPending);
+
   useChatPoll(
     Boolean(me?.authenticated && room && !loading),
     DM_POLL_MS,
@@ -96,7 +102,7 @@ export function GroupRoomPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send) return;
+    if (!body.trim() || !canSend) return;
     setBusy(true);
     try {
       const message = await sendGroupMessage(roomId, body.trim());
@@ -107,6 +113,40 @@ export function GroupRoomPage() {
       window.alert(err instanceof Error ? err.message : "送信に失敗しました");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onAccept = async () => {
+    setInviteBusy(true);
+    try {
+      const data = await acceptGroupInvitation(roomId);
+      setRoom({
+        ...data.room,
+        membership_status: data.room.membership_status || "member",
+        invitation: data.room.invitation || null,
+        pending_invites: Array.isArray(data.room.pending_invites)
+          ? data.room.pending_invites
+          : [],
+      });
+      setMessages(data.messages || []);
+      latestIdRef.current = data.room.latest_id || latestIdRef.current;
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "参加に失敗しました");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const onDecline = async () => {
+    if (!window.confirm("このグループへの招待を辞退しますか？")) return;
+    setInviteBusy(true);
+    try {
+      await declineGroupInvitation(roomId);
+      navigate("/dm", { replace: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "辞退に失敗しました");
+    } finally {
+      setInviteBusy(false);
     }
   };
 
@@ -133,6 +173,11 @@ export function GroupRoomPage() {
     );
   }
 
+  const inviterName =
+    room.invitation?.inviter?.display_name ||
+    room.invitation?.inviter?.username ||
+    "ユーザー";
+
   return (
     <div className="dm-page dm-room-page" data-spa-page="メッセージ">
       <main className="main-inner dm-room-main">
@@ -152,8 +197,43 @@ export function GroupRoomPage() {
                   .map((m) => m.display_name)
                   .join("、")}${room.members.length > 5 ? "…" : ""}`
               : ""}
+            {room.pending_invites?.length
+              ? ` · 招待中 ${room.pending_invites.length}人`
+              : ""}
           </p>
         </section>
+
+        {isPending ? (
+          <section className="dm-group-invite-banner" aria-label="グループ招待">
+            <p className="dm-group-invite-banner__lead">
+              {inviterName}さんから招待されています
+            </p>
+            <strong className="dm-group-invite-banner__question">
+              このグループに参加しますか？
+            </strong>
+            <p className="dm-group-invite-banner__hint">
+              参加するまでメッセージは送信できません。内容は確認できます。
+            </p>
+            <div className="dm-group-invite-banner__actions">
+              <button
+                type="button"
+                className="dm-btn dm-btn-primary"
+                disabled={inviteBusy}
+                onClick={() => void onAccept()}
+              >
+                参加する
+              </button>
+              <button
+                type="button"
+                className="dm-btn dm-btn-ghost"
+                disabled={inviteBusy}
+                onClick={() => void onDecline()}
+              >
+                辞退する
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="chat-panel" aria-label="グループチャット">
           <h2>メッセージ</h2>
@@ -199,19 +279,25 @@ export function GroupRoomPage() {
             <div ref={bottomRef} />
           </div>
 
-          <form className="chat-form" onSubmit={(e) => void onSend(e)}>
-            <input
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              maxLength={500}
-              placeholder="メッセージを入力..."
-              aria-label="メッセージ"
-              autoComplete="off"
-            />
-            <button type="submit" disabled={busy || !body.trim()}>
-              送信
-            </button>
-          </form>
+          {canSend ? (
+            <form className="chat-form" onSubmit={(e) => void onSend(e)}>
+              <input
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={500}
+                placeholder="メッセージを入力..."
+                aria-label="メッセージ"
+                autoComplete="off"
+              />
+              <button type="submit" disabled={busy || !body.trim()}>
+                送信
+              </button>
+            </form>
+          ) : isPending ? (
+            <p className="dm-group-invite-locked">
+              参加するとメッセージを送信できます。
+            </p>
+          ) : null}
         </section>
       </main>
     </div>

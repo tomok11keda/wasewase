@@ -782,6 +782,61 @@ class ChatRoomMembership(models.Model):
         return f"{self.user_id} in room {self.room_id} ({self.role})"
 
 
+class ChatRoomInvitation(models.Model):
+    """
+    グループチャット招待（承認制）。
+
+    pending の間はメンバーではない。accepted で ChatRoomMembership を作成する。
+    declined 後は同一 (room, invitee) を pending に戻して再招待できる。
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "招待中"
+        ACCEPTED = "accepted", "参加済み"
+        DECLINED = "declined", "辞退"
+
+    room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    inviter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_invitations_sent",
+    )
+    invitee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_invitations_received",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "invitee"],
+                name="unique_chat_room_invitation_per_invitee",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(inviter=models.F("invitee")),
+                name="chat_room_invitation_no_self",
+            ),
+        ]
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"invite room={self.room_id} → {self.invitee_id} ({self.status})"
+
+
 class ChatMessage(models.Model):
     """グループチャット用のメッセージ。"""
 

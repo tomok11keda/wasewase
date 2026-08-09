@@ -21,10 +21,15 @@ def group_room_link(room: ChatRoom) -> str:
     return group_room_url(room.pk)
 
 
-def can_access_group_room(room: ChatRoom, user: AbstractBaseUser) -> bool:
-    if not user.is_authenticated or room.kind != ChatRoom.Kind.GROUP:
+def is_group_member(room: ChatRoom, user: AbstractBaseUser) -> bool:
+    if not getattr(user, "is_authenticated", False) or room.kind != ChatRoom.Kind.GROUP:
         return False
     return ChatRoomMembership.objects.filter(room=room, user=user).exists()
+
+
+def can_access_group_room(room: ChatRoom, user: AbstractBaseUser) -> bool:
+    """正式メンバーのみ（メッセージ送信・メンバー操作）。閲覧は can_view_group_room。"""
+    return is_group_member(room, user)
 
 
 def assign_default_group_name(room: ChatRoom) -> str:
