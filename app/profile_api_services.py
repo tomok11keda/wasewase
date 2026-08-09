@@ -159,12 +159,12 @@ def toggle_follow_for_api(
     else:
         Follow.objects.create(follower=actor, following=target)
         from .models import Notification
-        from django.urls import reverse
+        from .spa_canonical import user_profile_url
 
         Notification.objects.create(
             recipient=target,
             message=f"「{actor.username}さんにフォローされました！」",
-            link=reverse("user_profile", kwargs={"pk": actor.pk}),
+            link=user_profile_url(actor.pk),
         )
         following = True
     from .services import count_followers

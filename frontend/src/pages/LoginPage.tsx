@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import {
@@ -7,6 +7,29 @@ import {
   loginRequest,
 } from "../features/auth/api";
 import type { MeResponse } from "../lib/api";
+
+/**
+ * After auth: stay in SPA for /app/… ; full navigation otherwise so Django
+ * spa_get_redirect can map Classic next (e.g. /chat/123/) → /app/flea/chats/123.
+ * Unmapped Classic islands (/mypage/…) stay on Classic via full load.
+ */
+function goAfterAuth(
+  redirect: string,
+  navigate: ReturnType<typeof useNavigate>
+) {
+  const target = (redirect || "/app/").trim() || "/app/";
+  if (target.startsWith("/app/") || target === "/app") {
+    navigate(target === "/app" ? "/" : target.slice(4) || "/", {
+      replace: true,
+    });
+    return;
+  }
+  if (target.startsWith("/")) {
+    window.location.replace(target);
+    return;
+  }
+  navigate("/", { replace: true });
+}
 
 export function LoginPage() {
   const { me, loading, setMeFromAuth, refresh } = useSession();
@@ -17,6 +40,8 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Avoid racing raw `next` full-load after login API already returned /app/…. */
+  const skipQueryNextRedirect = useRef(false);
 
   useEffect(() => {
     void ensureAuthCsrf();
@@ -24,12 +49,8 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!loading && me?.authenticated) {
-      const target = next.startsWith("/app")
-        ? next.slice(4) || "/"
-        : next.startsWith("/")
-          ? next
-          : "/";
-      navigate(target || "/", { replace: true });
+      if (skipQueryNextRedirect.current) return;
+      goAfterAuth(next, navigate);
     }
   }, [loading, me?.authenticated, navigate, next]);
 
@@ -40,20 +61,19 @@ export function LoginPage() {
     try {
       const { res, data } = await loginRequest({ email, password, next });
       if (!res.ok || !data.ok) {
-        setError(data.message || "メールアドレスまたはパスワードが正しくありません。");
+        setError(
+          data.message || "メールアドレスまたはパスワードが正しくありません。"
+        );
         return;
       }
+      skipQueryNextRedirect.current = true;
       if (data.me) {
         setMeFromAuth(data.me as MeResponse);
       } else {
         await refresh();
       }
       const redirect = (data.redirect as string) || next;
-      if (redirect.startsWith("/app")) {
-        navigate(redirect.slice(4) || "/", { replace: true });
-      } else {
-        window.location.href = redirect;
-      }
+      goAfterAuth(redirect, navigate);
     } catch {
       setError("ログインに失敗しました。");
     } finally {
@@ -65,14 +85,11 @@ export function LoginPage() {
     setBusy(true);
     try {
       const { data } = await browseRequest(next);
+      skipQueryNextRedirect.current = true;
       if (data.me) setMeFromAuth(data.me as MeResponse);
       else await refresh();
       const redirect = (data.redirect as string) || "/app/";
-      if (redirect.startsWith("/app")) {
-        navigate(redirect.slice(4) || "/", { replace: true });
-      } else {
-        window.location.href = redirect;
-      }
+      goAfterAuth(redirect, navigate);
     } catch {
       setError("閲覧モードの開始に失敗しました。");
     } finally {

@@ -282,11 +282,15 @@ def can_access_chat_room(chat_room, user: AbstractBaseUser) -> bool:
 
 
 def chat_room_link(chat_room) -> str:
-    return reverse("chat_room", kwargs={"room_pk": chat_room.pk})
+    from .spa_canonical import trade_chat_url
+
+    return trade_chat_url(chat_room.pk)
 
 
 def product_detail_path(product: Product) -> str:
-    return reverse("product_detail", kwargs={"pk": product.pk})
+    from .spa_canonical import product_detail_url
+
+    return product_detail_url(product.pk)
 
 
 def get_user_rating_stats(user: AbstractBaseUser) -> dict:

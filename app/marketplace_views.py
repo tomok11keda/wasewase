@@ -816,10 +816,12 @@ def send_trade_message(request, pk):
 
     partner = product.buyer if request.user.id == product.seller_id else product.seller
     if partner:
+        from .spa_canonical import product_detail_url
+
         Notification.objects.create(
             recipient=partner,
             message=f"「{product.name}」の手渡しチャット: {body}",
-            link=reverse("product_trade", kwargs={"pk": pk}),
+            link=product_detail_url(pk),
         )
 
     return redirect(reverse("product_trade", kwargs={"pk": pk}))
@@ -857,6 +859,8 @@ def complete_trade(request, pk):
 
     partner = product.buyer if request.user.id == product.seller_id else product.seller
     update_fields = ["seller_trade_completed", "buyer_trade_completed"]
+    from .spa_canonical import product_detail_url
+
     if product.seller_trade_completed and product.buyer_trade_completed:
         product.status = Product.Status.SOLD
         update_fields.append("status")
@@ -865,7 +869,7 @@ def complete_trade(request, pk):
             Notification.objects.create(
                 recipient=partner,
                 message=f"「{product.name}」の取引が完了しました。",
-                link=reverse("product_trade", kwargs={"pk": pk}),
+                link=product_detail_url(pk),
             )
     else:
         messages.success(request, "取引完了の確認を送信しました。相手の確認を待っています。")
@@ -873,7 +877,7 @@ def complete_trade(request, pk):
             Notification.objects.create(
                 recipient=partner,
                 message=f"{request.user.username}さんが「{product.name}」の取引完了を確認しました。",
-                link=reverse("product_trade", kwargs={"pk": pk}),
+                link=product_detail_url(pk),
             )
 
     product.save(update_fields=update_fields)

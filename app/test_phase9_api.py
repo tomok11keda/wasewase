@@ -48,6 +48,7 @@ class NotificationApiTests(TestCase):
         self.assertEqual(notification_spa_path("/user/5/"), "/users/5/posts")
         self.assertEqual(notification_spa_path("/dm/3/"), "/dm/3")
         self.assertEqual(notification_spa_path("/chat/7/"), "/flea/chats/7")
+        self.assertEqual(notification_spa_path("/app/flea/chats/7"), "/flea/chats/7")
         self.assertEqual(notification_spa_path("/product/4/"), "/flea/products/4")
         self.assertEqual(notification_spa_path("/#post-12"), "/#post-12")
         self.assertEqual(
@@ -56,9 +57,12 @@ class NotificationApiTests(TestCase):
         )
         self.assertEqual(notification_spa_path("/communities/"), "/communities")
         self.assertEqual(notification_spa_path("/flea/"), "/flea")
+        self.assertEqual(notification_spa_path("/exhibit/"), "/flea/exhibit")
+        self.assertEqual(notification_spa_path("/more/"), "/more")
         self.assertEqual(notification_spa_path("/timetable/"), "/timetable")
         self.assertEqual(notification_spa_path("/notifications/"), "/notifications")
         self.assertEqual(notification_spa_path("/dm/"), "/dm")
+        self.assertEqual(notification_spa_path("/mypage/settings/"), "")
 
     def test_list_marks_read(self):
         self.client.force_login(self.user)

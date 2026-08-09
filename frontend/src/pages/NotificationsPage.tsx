@@ -23,7 +23,20 @@ function NotificationRow({ item }: { item: NotificationItem }) {
       </Link>
     );
   }
+  // Prefer in-SPA navigation when link is already under /app/
+  if (item.link?.startsWith("/app/") || item.link === "/app" || item.link?.startsWith("/app?")) {
+    const raw = item.link === "/app" ? "/" : item.link.replace(/^\/app/, "") || "/";
+    const [pathAndQuery, hash] = raw.split("#");
+    const [path, query] = pathAndQuery.split("?");
+    const to = query ? `${path || "/"}?${query}` : path || "/";
+    return (
+      <Link to={to} state={hash ? { hash } : undefined}>
+        {body}
+      </Link>
+    );
+  }
   if (item.link) {
+    // Classic paths: Django redirects GET → /app/… when WASE_REACT_SPA is on
     return <a href={item.link}>{body}</a>;
   }
   return <div className="notification-static">{body}</div>;

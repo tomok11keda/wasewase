@@ -14,8 +14,56 @@ from app import profile_api_views
 from app import dm_api_views
 from app import notification_api_views
 from app import auth_api_views
+from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
+
+# Classic GET pages → React routes (App.tsx). Views/templates kept for WASE_REACT_SPA=False.
+_spa = spa_get_redirect
+_home = _spa(lambda request, **kw: "/")(app_views.index)
+_search = _spa(lambda request, **kw: "/search")(app_views.search)
+_flea = _spa(lambda request, **kw: "/flea")(flea_views.flea_index)
+_more = _spa(lambda request, **kw: "/more")(app_views.more_index)
+_timetable = _spa(lambda request, **kw: "/timetable")(app_views.timetable_index)
+_timetable_user = _spa(lambda request, pk, **kw: f"/timetable/user/{pk}")(
+    app_views.timetable_user
+)
+_communities = _spa(lambda request, **kw: "/communities")(app_views.communities_index)
+_community_thread = _spa(
+    lambda request, slug, thread_pk, **kw: f"/communities/{slug}/threads/{thread_pk}"
+)(app_views.community_thread_detail)
+_exhibit = _spa(lambda request, **kw: "/flea/exhibit")(flea_views.exhibit)
+_product = _spa(lambda request, pk, **kw: f"/flea/products/{pk}")(
+    flea_views.product_detail
+)
+_product_trade = _spa(lambda request, pk, **kw: f"/flea/products/{pk}")(
+    flea_views.product_trade
+)
+_chat = _spa(lambda request, room_pk, **kw: f"/flea/chats/{room_pk}")(
+    flea_views.chat_room
+)
+_user_profile = _spa(lambda request, pk, **kw: f"/users/{pk}")(app_views.user_profile)
+_dm_inbox = _spa(lambda request, **kw: "/dm")(app_views.user_dm_inbox)
+_dm_room = _spa(lambda request, room_pk, **kw: f"/dm/{room_pk}")(app_views.user_dm_room)
+_dm_group_create = _spa(lambda request, **kw: "/dm/groups/new")(
+    app_views.dm_group_create
+)
+_dm_group_room = _spa(lambda request, room_pk, **kw: f"/dm/groups/{room_pk}")(
+    app_views.dm_group_room
+)
+_notifications = _spa(lambda request, **kw: "/notifications")(app_views.notifications)
+_login = _spa(lambda request, **kw: "/login")(app_views.AppLoginView.as_view())
+_signup = _spa(lambda request, **kw: "/signup")(app_views.signup)
+_verify_otp = _spa(lambda request, **kw: "/verify")(app_views.verify_otp)
+_password_reset = _spa(lambda request, **kw: "/password-reset")(
+    app_views.password_reset_request
+)
+_password_reset_verify = _spa(lambda request, **kw: "/password-reset/verify")(
+    app_views.password_reset_verify
+)
+_password_reset_set = _spa(lambda request, **kw: "/password-reset/set")(
+    app_views.password_reset_set
+)
 
 urlpatterns = [
     path("manifest.json", app_views.pwa_manifest, name="pwa_manifest"),
@@ -329,13 +377,13 @@ urlpatterns = [
     ),
     path("app/", spa_views.spa_app, name="spa_app"),
     path("app/<path:rest>", spa_views.spa_app, name="spa_app_path"),
-    path("", app_views.index, name="home"),
-    path("search/", app_views.search, name="search"),
+    path("", _home, name="home"),
+    path("search/", _search, name="search"),
     path("api/search/", app_views.api_search, name="api_search"),
-    path("flea/", flea_views.flea_index, name="flea_index"),
-    path("more/", app_views.more_index, name="more_index"),
-    path("timetable/", app_views.timetable_index, name="timetable_index"),
-    path("timetable/user/<int:pk>/", app_views.timetable_user, name="timetable_user"),
+    path("flea/", _flea, name="flea_index"),
+    path("more/", _more, name="more_index"),
+    path("timetable/", _timetable, name="timetable_index"),
+    path("timetable/user/<int:pk>/", _timetable_user, name="timetable_user"),
     path(
         "api/timetable/visibility/",
         app_views.api_timetable_visibility,
@@ -356,7 +404,7 @@ urlpatterns = [
         app_views.api_timetable_slot,
         name="api_timetable_slot",
     ),
-    path("communities/", app_views.communities_index, name="communities_index"),
+    path("communities/", _communities, name="communities_index"),
     path("communities/thread/", app_views.create_community_thread, name="create_community_thread"),
     path(
         "communities/<slug:slug>/",
@@ -365,7 +413,7 @@ urlpatterns = [
     ),
     path(
         "communities/<slug:slug>/threads/<int:thread_pk>/",
-        app_views.community_thread_detail,
+        _community_thread,
         name="community_thread_detail",
     ),
     path(
@@ -389,8 +437,8 @@ urlpatterns = [
         name="edit_community_thread_reply",
     ),
     # フリマ機能
-    path("exhibit/", flea_views.exhibit, name="exhibit"),
-    path("product/<int:pk>/", flea_views.product_detail, name="product_detail"),
+    path("exhibit/", _exhibit, name="exhibit"),
+    path("product/<int:pk>/", _product, name="product_detail"),
     path("product/<int:pk>/delete/", flea_views.delete_product, name="delete_product"),
     path("product/<int:pk>/like/", flea_views.toggle_like, name="toggle_like"),
     path(
@@ -400,7 +448,7 @@ urlpatterns = [
     ),
     path("product/<int:pk>/purchase/", flea_views.purchase_product, name="purchase_product"),
     path("product/<int:pk>/chat/start/", flea_views.start_product_chat, name="start_product_chat"),
-    path("chat/<int:room_pk>/", flea_views.chat_room, name="chat_room"),
+    path("chat/<int:room_pk>/", _chat, name="chat_room"),
     path("chat/<int:room_pk>/messages/", flea_views.chat_room_messages, name="chat_room_messages"),
     path("chat/<int:room_pk>/message/", flea_views.send_chat_message, name="send_chat_message"),
     path(
@@ -413,23 +461,23 @@ urlpatterns = [
         flea_views.complete_product_handover,
         name="complete_product_handover",
     ),
-    path("product/<int:pk>/trade/", flea_views.product_trade, name="product_trade"),
+    path("product/<int:pk>/trade/", _product_trade, name="product_trade"),
     path("product/<int:pk>/trade/complete/", flea_views.complete_trade, name="complete_trade"),
     path("product/<int:pk>/review/", flea_views.submit_review, name="submit_review"),
     path("product/<int:pk>/trade-message/", flea_views.send_trade_message, name="send_trade_message"),
-    path("user/<int:pk>/", app_views.user_profile, name="user_profile"),
+    path("user/<int:pk>/", _user_profile, name="user_profile"),
     path("user/<int:pk>/dm/start/", app_views.start_user_dm, name="start_user_dm"),
-    path("dm/", app_views.user_dm_inbox, name="user_dm_inbox"),
+    path("dm/", _dm_inbox, name="user_dm_inbox"),
     path("api/dm/unread-summary/", app_views.dm_unread_summary, name="dm_unread_summary"),
-    path("dm/<int:room_pk>/", app_views.user_dm_room, name="user_dm_room"),
+    path("dm/<int:room_pk>/", _dm_room, name="user_dm_room"),
     path(
         "dm/groups/create/",
-        app_views.dm_group_create,
+        _dm_group_create,
         name="dm_group_create",
     ),
     path(
         "dm/groups/<int:room_pk>/",
-        app_views.dm_group_room,
+        _dm_group_room,
         name="dm_group_room",
     ),
     path(
@@ -452,7 +500,7 @@ urlpatterns = [
         app_views.send_user_dm_message,
         name="send_user_dm_message",
     ),
-    path("notifications/", app_views.notifications, name="notifications"),
+    path("notifications/", _notifications, name="notifications"),
     path(
         "api/notifications/unread-count/",
         app_views.notification_unread_count,
@@ -496,20 +544,20 @@ urlpatterns = [
         name="delete_timeline_post",
     ),
     path("comment/<int:pk>/delete/", app_views.delete_comment, name="delete_comment"),
-    path("login/", app_views.AppLoginView.as_view(), name="login"),
+    path("login/", _login, name="login"),
     path("logout/", app_views.logout_view, name="logout"),
     path("browse/", app_views.enter_browse_mode, name="enter_browse_mode"),
-    path("signup/", app_views.signup, name="signup"),
-    path("verify-otp/", app_views.verify_otp, name="verify_otp"),
+    path("signup/", _signup, name="signup"),
+    path("verify-otp/", _verify_otp, name="verify_otp"),
     path("verify-otp/resend/", app_views.verify_otp_resend, name="verify_otp_resend"),
     path(
         "password-reset/",
-        app_views.password_reset_request,
+        _password_reset,
         name="password_reset_request",
     ),
     path(
         "password-reset/verify/",
-        app_views.password_reset_verify,
+        _password_reset_verify,
         name="password_reset_verify",
     ),
     path(
@@ -519,7 +567,7 @@ urlpatterns = [
     ),
     path(
         "password-reset/set/",
-        app_views.password_reset_set,
+        _password_reset_set,
         name="password_reset_set",
     ),
     path("api/push-token/", app_views.register_push_token, name="register_push_token"),

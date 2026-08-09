@@ -49,7 +49,9 @@ def can_access_dm_room(room: UserDirectMessageRoom, user: AbstractBaseUser) -> b
 
 
 def dm_room_link(room: UserDirectMessageRoom) -> str:
-    return reverse("user_dm_room", kwargs={"room_pk": room.pk})
+    from .spa_canonical import dm_room_url
+
+    return dm_room_url(room.pk)
 
 
 def ensure_dm_message_is_read_column() -> None:
