@@ -88,6 +88,17 @@ export type GroupRoomDetail = {
   latest_id: number;
 };
 
+async function parseJsonResponse(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // Safari/WebKit: res.json() on HTML 500 → "The string did not match the expected pattern"
+    throw new Error(`inbox_bad_json_${res.status}`);
+  }
+}
+
 export async function fetchDmInbox(
   tab: string = "all",
   signal?: AbortSignal
@@ -102,12 +113,19 @@ export async function fetchDmInbox(
     headers: { Accept: "application/json" },
     signal,
   });
-  const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "inbox_failed");
+  const data = await parseJsonResponse(res);
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      typeof data.error === "string" ? data.error : `inbox_failed_${res.status}`
+    );
+  }
   return {
-    ...data,
+    tab: String(data.tab || tab),
+    tab_counts: (data.tab_counts || {}) as Record<string, number>,
     message_request_count: Number(data.message_request_count || 0),
-    conversations: Array.isArray(data.conversations) ? data.conversations : [],
+    conversations: Array.isArray(data.conversations)
+      ? (data.conversations as InboxItem[])
+      : [],
   };
 }
 

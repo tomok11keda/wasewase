@@ -144,11 +144,16 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
             if i.get("kind") in ("dm", "group", "group_invite")
         ),
     }
+    try:
+        message_request_count = count_pending_dm_requests(user)
+    except Exception:
+        # count_pending already soft-fails DB errors; keep inbox resilient.
+        message_request_count = 0
     return {
         "ok": True,
         "tab": active,
         "tab_counts": tab_counts,
-        "message_request_count": count_pending_dm_requests(user),
+        "message_request_count": message_request_count,
         "conversations": [serialize_inbox_item(i) for i in filtered],
     }
 
