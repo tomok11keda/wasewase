@@ -565,8 +565,9 @@
 
   .app-shell {
     display: grid;
+    /* Keep left rail wide enough for icon + Japanese labels (avoid 88px icon-only collapse). */
     grid-template-columns:
-      minmax(88px, var(--sidebar-left-w))
+      var(--sidebar-left-w)
       minmax(0, var(--feed-max-w))
       minmax(0, var(--sidebar-right-w));
     justify-content: center;
@@ -588,7 +589,10 @@
   }
 
   .sidebar-left {
-    padding: 0 8px 0 20px;
+    padding: 0 8px 0 12px;
+    min-width: var(--sidebar-left-w);
+    width: var(--sidebar-left-w);
+    overflow-x: hidden;
   }
 
   .sidebar-left-inner {
@@ -600,7 +604,36 @@
   .sidebar-nav__item,
   .sidebar-nav__compose,
   .sidebar-user {
-    max-width: 275px;
+    max-width: 100%;
+  }
+
+  /* Icon + text: slightly tighter type so the rail stays readable without growing. */
+  .sidebar-nav__item {
+    gap: 14px;
+    padding: 10px 12px;
+    min-height: 48px;
+    font-size: 17px;
+  }
+
+  .sidebar-nav__label,
+  .sidebar-brand__text,
+  .sidebar-nav__compose-label {
+    display: inline;
+  }
+
+  .sidebar-nav__compose {
+    margin-top: 16px;
+    font-size: 16px;
+  }
+
+  .sidebar-nav__compose-label {
+    white-space: nowrap;
+  }
+
+  .sidebar-brand {
+    gap: 10px;
+    padding: 10px 12px;
+    font-size: 19px;
   }
 
   .sidebar-right {
