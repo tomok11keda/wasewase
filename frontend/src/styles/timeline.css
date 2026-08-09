@@ -378,12 +378,19 @@
   top: calc(100% + 4px);
   right: 0;
   z-index: 20;
-  min-width: 140px;
+  min-width: 168px;
   padding: 6px 0;
   border: 1px solid var(--tweet-border);
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 4px 16px rgba(15, 20, 25, 0.12);
+}
+.tweet-overflow-heading {
+  margin: 0;
+  padding: 6px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tweet-muted);
 }
 .tweet-overflow-item {
   display: flex;
@@ -402,9 +409,23 @@
   box-sizing: border-box;
   text-align: left;
 }
+.tweet-overflow-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tweet-overflow-item--muted {
+  color: var(--tweet-muted);
+  font-weight: 600;
+  border-top: 1px solid var(--tweet-border);
+  margin-top: 4px;
+}
 .tweet-overflow-item:hover,
 .tweet-overflow-item:focus-visible {
   background: var(--tweet-report-bg);
+}
+.tweet-overflow-item--muted:hover,
+.tweet-overflow-item--muted:focus-visible {
+  background: #f7f9f9;
 }
 .tweet-overflow-item .sf-icon {
   width: 16px;

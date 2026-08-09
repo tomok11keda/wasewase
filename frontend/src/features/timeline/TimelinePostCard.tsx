@@ -7,6 +7,8 @@ import {
   addComment,
   deleteComment,
   deletePost,
+  REPORT_REASONS,
+  submitContentReport,
   toggleBookmark,
   toggleLike,
 } from "./api";
@@ -67,6 +69,7 @@ export function TimelinePostCard({
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportChoosing, setReportChoosing] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const articleRef = useRef<HTMLElement | null>(null);
   const postRef = useRef(post);
@@ -74,7 +77,10 @@ export function TimelinePostCard({
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) {
+      setReportChoosing(false);
+      return;
+    }
     const onPointer = (e: MouseEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) {
         setMenuOpen(false);
@@ -277,15 +283,58 @@ export function TimelinePostCard({
                   </button>
                   {menuOpen ? (
                     <div className="tweet-overflow-menu" role="menu">
-                      <a
-                        className="tweet-overflow-item"
-                        role="menuitem"
-                        href={`/report/post/${post.id}/`}
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <SfIcon name="flag" />
-                        通報
-                      </a>
+                      {reportChoosing ? (
+                        <>
+                          <p className="tweet-overflow-heading">通報理由</p>
+                          {REPORT_REASONS.map((reason) => (
+                            <button
+                              key={reason.value}
+                              type="button"
+                              className="tweet-overflow-item"
+                              role="menuitem"
+                              disabled={busy}
+                              onClick={() =>
+                                guard(() => {
+                                  void run(async () => {
+                                    const message = await submitContentReport(
+                                      "post",
+                                      post.id,
+                                      reason.value
+                                    );
+                                    setMenuOpen(false);
+                                    setReportChoosing(false);
+                                    window.alert(message);
+                                  });
+                                })
+                              }
+                            >
+                              {reason.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className="tweet-overflow-item tweet-overflow-item--muted"
+                            role="menuitem"
+                            onClick={() => setReportChoosing(false)}
+                          >
+                            戻る
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="tweet-overflow-item"
+                          role="menuitem"
+                          onClick={() =>
+                            guard(() => {
+                              setReportChoosing(true);
+                            })
+                          }
+                        >
+                          <SfIcon name="flag" />
+                          通報
+                        </button>
+                      )}
                     </div>
                   ) : null}
                 </div>
