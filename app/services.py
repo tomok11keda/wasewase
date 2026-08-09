@@ -88,12 +88,15 @@ def build_search_url(query: str = "", tab: str = SEARCH_TAB_ALL) -> str:
 
 
 def search_products(query: str, viewer=None):
-    """フリマ商品を名前・説明で検索。"""
+    """フリマ商品を名前・説明・授業名・教員名で検索（フリマ一覧と同じ対象）。"""
     qs = Product.objects.select_related("seller", "seller__profile")
     if not query:
         return qs.none()
     qs = qs.filter(
-        Q(name__icontains=query) | Q(description__icontains=query)
+        Q(name__icontains=query)
+        | Q(description__icontains=query)
+        | Q(course_name__icontains=query)
+        | Q(professor_name__icontains=query)
     ).order_by("-created_at")
     return filter_visible_products(qs, viewer)
 

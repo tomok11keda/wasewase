@@ -339,15 +339,23 @@
 
 .search-tab {
   flex: 1;
-  padding: 12px 8px;
+  padding: 12px 4px;
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--muted);
   border-bottom: 3px solid transparent;
   cursor: pointer;
   font-family: inherit;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .search-tab {
+    padding: 12px 8px;
+    font-size: 14px;
+  }
 }
 
 .search-tab.is-active {
@@ -427,6 +435,91 @@
 }
 
 .search-thread-card__foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.search-product-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+
+.search-product-card:hover,
+.search-product-card:focus-visible {
+  background: #f7f9f9;
+}
+
+.search-product-card__media {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f2f2f2;
+}
+
+.search-product-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.search-product-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 11px;
+  color: #999;
+}
+
+.search-product-card__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.search-product-card__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.search-product-card__meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.search-product-card__badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef6f0;
+  color: #1b7a3d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.search-product-card__title {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.search-product-card__foot {
   margin: 0;
   font-size: 12px;
   color: var(--muted);

@@ -7,6 +7,7 @@ import type { TimelinePost } from "../features/timeline/api";
 import {
   fetchSearchPage,
   type ProfileUser,
+  type SearchProductResult,
   type SearchResultRow,
   type SearchTab,
   type SearchThreadResult,
@@ -17,7 +18,12 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
   { key: "latest", label: "最新" },
   { key: "users", label: "ユーザー" },
+  { key: "products", label: "商品" },
 ];
+
+function tabLabel(tab: SearchTab): string {
+  return TABS.find((t) => t.key === tab)?.label || "おすすめ";
+}
 
 function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
   const authorName = thread.author?.display_name || "ユーザー";
@@ -45,6 +51,42 @@ function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
   );
 }
 
+function SearchProductCard({ product }: { product: SearchProductResult }) {
+  const sellerName = product.seller?.display_name || "出品者";
+  return (
+    <Link className="search-product-card" to={`/flea/products/${product.id}`}>
+      <div className="search-product-card__media">
+        {product.image_url ? (
+          <img src={product.image_url} alt="" loading="lazy" />
+        ) : (
+          <span className="search-product-card__placeholder">No Image</span>
+        )}
+        {product.is_sold || product.is_pending ? (
+          <span className="search-product-card__mask" aria-hidden="true" />
+        ) : null}
+      </div>
+      <div className="search-product-card__body">
+        <p className="search-product-card__meta">
+          <span className="search-product-card__badge">フリマ</span>
+          {product.is_sold
+            ? "売り切れ"
+            : product.is_pending
+              ? "取引中"
+              : `¥${product.price.toLocaleString()}`}
+        </p>
+        <strong className="search-product-card__title">{product.name}</strong>
+        <p className="search-product-card__foot">
+          {sellerName}
+          {product.created_at_label ? ` · ${product.created_at_label}` : ""}
+          {product.handover_campus_label
+            ? ` · ${product.handover_campus_label}`
+            : ""}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 export function SearchPage() {
   const { me } = useSession();
   const navigate = useNavigate();
@@ -52,7 +94,7 @@ export function SearchPage() {
   const qParam = searchParams.get("q") || "";
   const tab = (searchParams.get("tab") as SearchTab) || "all";
   const activeTab: SearchTab =
-    tab === "latest" || tab === "users" ? tab : "all";
+    tab === "latest" || tab === "users" || tab === "products" ? tab : "all";
 
   const [qInput, setQInput] = useState(qParam);
   const [results, setResults] = useState<SearchResultRow[]>([]);
@@ -123,25 +165,32 @@ export function SearchPage() {
     );
   };
 
+  const emptyMessage =
+    activeTab === "users"
+      ? "一致するユーザーはいません。"
+      : activeTab === "products"
+        ? "一致する商品はありません。"
+        : "一致する結果はありません。";
+
   return (
     <div className="search-page" data-spa-page="検索">
       <div className="main-inner">
         <h1 className="search-title">検索</h1>
         <p className="search-lead">
-          わせわせ全体から、タイムライン・コミュニティ・ユーザーを横断検索します。
+          わせわせ全体から、タイムライン・コミュニティ・ユーザー・商品を横断検索します。
         </p>
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="例: ゼミ、履修、サークル"
-            aria-label="全体検索"
+            placeholder="例: ゼミ、教科書、サークル、iPad"
+            aria-label="わせわせ全体検索"
             autoFocus
           />
           <button type="submit">検索</button>
         </form>
 
-        <nav className="search-tabs" aria-label="検索タブ">
+        <nav className="search-tabs" aria-label="検索結果の切り替え">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -156,19 +205,13 @@ export function SearchPage() {
 
         {qParam ? (
           <p className="search-query-label">
-            「{qParam}」の検索結果
-            {activeTab === "all"
-              ? " · おすすめ"
-              : activeTab === "latest"
-                ? " · 最新"
-                : " · ユーザー"}
+            「{qParam}」の検索結果 · {tabLabel(activeTab)}
           </p>
         ) : null}
 
         {!qParam ? (
           <p className="search-empty">
-            キーワードを入力すると、タイムラインとコミュニティを横断検索できます。ユーザーは
-            「ユーザー」タブから探せます。
+            キーワードを入力すると、わせわせ全体を横断検索できます。ページ内だけ探す場合は、各画面の検索バーを使ってください。
           </p>
         ) : loading ? (
           <p className="search-empty">検索中…</p>
@@ -200,39 +243,50 @@ export function SearchPage() {
               ))}
             </ul>
           ) : (
-            <p className="search-empty">一致するユーザーはいません。</p>
+            <p className="search-empty">{emptyMessage}</p>
           )
         ) : results.length ? (
           <div className="search-mixed-feed">
-            {results.map((row) =>
-              row.kind === "post" ? (
-                <TimelinePostCard
-                  key={`post-${row.post.id}`}
-                  post={row.post}
-                  authenticated={Boolean(me?.authenticated)}
-                  onChange={updatePostInResults}
-                  onRemove={removePostFromResults}
-                  onQuote={() => {
-                    navigate("/", { state: { openCompose: true } });
-                  }}
-                  onRequireLogin={() => {
-                    navigate(
-                      spaLoginPath(
-                        `/app/search?q=${encodeURIComponent(qParam)}&tab=${activeTab}`
-                      )
-                    );
-                  }}
+            {results.map((row) => {
+              if (row.kind === "post") {
+                return (
+                  <TimelinePostCard
+                    key={`post-${row.post.id}`}
+                    post={row.post}
+                    authenticated={Boolean(me?.authenticated)}
+                    onChange={updatePostInResults}
+                    onRemove={removePostFromResults}
+                    onQuote={() => {
+                      navigate("/", { state: { openCompose: true } });
+                    }}
+                    onRequireLogin={() => {
+                      navigate(
+                        spaLoginPath(
+                          `/app/search?q=${encodeURIComponent(qParam)}&tab=${activeTab}`
+                        )
+                      );
+                    }}
+                  />
+                );
+              }
+              if (row.kind === "thread") {
+                return (
+                  <SearchThreadCard
+                    key={`thread-${row.thread.id}`}
+                    thread={row.thread}
+                  />
+                );
+              }
+              return (
+                <SearchProductCard
+                  key={`product-${row.product.id}`}
+                  product={row.product}
                 />
-              ) : (
-                <SearchThreadCard
-                  key={`thread-${row.thread.id}`}
-                  thread={row.thread}
-                />
-              )
-            )}
+              );
+            })}
           </div>
         ) : (
-          <p className="search-empty">一致する投稿はありません。</p>
+          <p className="search-empty">{emptyMessage}</p>
         )}
       </div>
     </div>

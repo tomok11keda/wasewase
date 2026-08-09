@@ -6,7 +6,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 from django.http import HttpRequest
 
 from .board_services import get_profile_timeline_posts
@@ -25,6 +25,7 @@ from .services import (
     get_profile_stats,
     get_user_avatar_url,
     is_following,
+    search_products,
     search_timeline_posts,
     search_users,
     user_avatar_initial,
@@ -46,6 +47,13 @@ User = get_user_model()
 SEARCH_TAB_ALL = "all"
 SEARCH_TAB_LATEST = "latest"
 SEARCH_TAB_USERS = "users"
+SEARCH_TAB_PRODUCTS = "products"
+SEARCH_TAB_CHOICES = (
+    SEARCH_TAB_ALL,
+    SEARCH_TAB_LATEST,
+    SEARCH_TAB_USERS,
+    SEARCH_TAB_PRODUCTS,
+)
 SEARCH_RESULT_LIMIT = 40
 
 
@@ -60,6 +68,16 @@ def _search_post_score(post_payload: dict[str, Any]) -> int:
 
 def _search_thread_score(thread_payload: dict[str, Any]) -> int:
     return int(thread_payload.get("replies_count") or 0) * 3
+
+
+def _search_product_score(product_payload: dict[str, Any]) -> int:
+    likes = int(product_payload.get("like_count") or 0)
+    score = likes * 3
+    if product_payload.get("is_available"):
+        score += 8
+    elif product_payload.get("is_pending"):
+        score += 2
+    return score
 
 
 def serialize_profile_user(user: AbstractBaseUser, profile) -> dict[str, Any]:
@@ -212,53 +230,75 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
 
     query = request.GET.get("q", "").strip()
     tab = (request.GET.get("tab") or SEARCH_TAB_ALL).strip().lower()
-    if tab not in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST, SEARCH_TAB_USERS):
+    if tab not in SEARCH_TAB_CHOICES:
         tab = SEARCH_TAB_ALL
     viewer = request.user if request.user.is_authenticated else None
 
     posts_payload: list[dict[str, Any]] = []
     threads_payload: list[dict[str, Any]] = []
     users_payload: list[dict[str, Any]] = []
+    products_payload: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
 
-    if query:
-        if tab in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST):
-            sort = "popular" if tab == SEARCH_TAB_ALL else "latest"
-            timeline_qs = (
-                search_timeline_posts(query, viewer=viewer, sort=sort)
-                .select_related(
-                    "author",
-                    "author__profile",
-                    "quoted_post",
-                    "quoted_post__author",
-                )
-                .prefetch_related("comments__author")
+    def _load_posts(*, sort: str) -> None:
+        nonlocal posts_payload
+        timeline_qs = (
+            search_timeline_posts(query, viewer=viewer, sort=sort)
+            .select_related(
+                "author",
+                "author__profile",
+                "quoted_post",
+                "quoted_post__author",
             )
-            if viewer is not None and getattr(viewer, "is_authenticated", False):
-                timeline_qs = timeline_qs.annotate(
-                    user_has_liked=Exists(
-                        TimelineLike.objects.filter(
-                            timeline_post_id=OuterRef("pk"),
-                            user_id=viewer.id,
-                        )
+            .prefetch_related("comments__author")
+        )
+        if viewer is not None and getattr(viewer, "is_authenticated", False):
+            timeline_qs = timeline_qs.annotate(
+                user_has_liked=Exists(
+                    TimelineLike.objects.filter(
+                        timeline_post_id=OuterRef("pk"),
+                        user_id=viewer.id,
                     )
                 )
-            posts = prepare_timeline_posts(
-                list(timeline_qs[:SEARCH_RESULT_LIMIT]),
-                viewer,
             )
-            posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
+        posts = prepare_timeline_posts(
+            list(timeline_qs[:SEARCH_RESULT_LIMIT]),
+            viewer,
+        )
+        posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
 
-            thread_qs = list_community_threads(query=query, faculty="")
-            if tab == SEARCH_TAB_ALL:
-                thread_qs = thread_qs.order_by("-replies_count", "-updated_at")
-            else:
-                thread_qs = thread_qs.order_by("-created_at")
-            threads = list(thread_qs[:SEARCH_RESULT_LIMIT])
-            threads_payload = [
-                serialize_thread_summary(thread, viewer) for thread in threads
-            ]
+    def _load_threads(*, recommended: bool) -> None:
+        nonlocal threads_payload
+        thread_qs = list_community_threads(query=query, faculty="")
+        if recommended:
+            thread_qs = thread_qs.order_by("-replies_count", "-updated_at")
+        else:
+            thread_qs = thread_qs.order_by("-created_at")
+        threads = list(thread_qs[:SEARCH_RESULT_LIMIT])
+        threads_payload = [
+            serialize_thread_summary(thread, viewer) for thread in threads
+        ]
 
+    def _load_products(*, recommended: bool) -> None:
+        nonlocal products_payload
+        product_qs = search_products(query, viewer=viewer).annotate(
+            like_count_ann=Count("likes", distinct=True)
+        )
+        if recommended:
+            product_qs = product_qs.order_by("-like_count_ann", "-created_at")
+        else:
+            product_qs = product_qs.order_by("-created_at")
+        products = list(product_qs[:SEARCH_RESULT_LIMIT])
+        for product in products:
+            card = serialize_product_card(product)
+            card["like_count"] = int(getattr(product, "like_count_ann", 0) or 0)
+            products_payload.append(card)
+
+    if query:
+        if tab == SEARCH_TAB_ALL:
+            _load_posts(sort="popular")
+            _load_threads(recommended=True)
+            _load_products(recommended=True)
             for post in posts_payload:
                 results.append(
                     {
@@ -277,22 +317,67 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                         "thread": thread,
                     }
                 )
-            if tab == SEARCH_TAB_LATEST:
-                results.sort(
-                    key=lambda row: row.get("created_at") or "",
-                    reverse=True,
+            for product in products_payload:
+                results.append(
+                    {
+                        "kind": "product",
+                        "created_at": product.get("created_at") or "",
+                        "score": _search_product_score(product),
+                        "product": product,
+                    }
                 )
-            else:
-                results.sort(
-                    key=lambda row: (
-                        int(row.get("score") or 0),
-                        row.get("created_at") or "",
-                    ),
-                    reverse=True,
+            results.sort(
+                key=lambda row: (
+                    int(row.get("score") or 0),
+                    row.get("created_at") or "",
+                ),
+                reverse=True,
+            )
+        elif tab == SEARCH_TAB_LATEST:
+            # 最新: タイムライン＋コミュニティのみ（商品は「商品」タブへ）
+            _load_posts(sort="latest")
+            _load_threads(recommended=False)
+            for post in posts_payload:
+                results.append(
+                    {
+                        "kind": "post",
+                        "created_at": post.get("created_at") or "",
+                        "score": _search_post_score(post),
+                        "post": post,
+                    }
                 )
+            for thread in threads_payload:
+                results.append(
+                    {
+                        "kind": "thread",
+                        "created_at": thread.get("created_at") or "",
+                        "score": _search_thread_score(thread),
+                        "thread": thread,
+                    }
+                )
+            results.sort(
+                key=lambda row: row.get("created_at") or "",
+                reverse=True,
+            )
         elif tab == SEARCH_TAB_USERS:
             for user in list(search_users(query, viewer=viewer)[:50]):
                 users_payload.append(serialize_author(user))
+        elif tab == SEARCH_TAB_PRODUCTS:
+            _load_products(recommended=False)
+            for product in products_payload:
+                results.append(
+                    {
+                        "kind": "product",
+                        "created_at": product.get("created_at") or "",
+                        "score": _search_product_score(product),
+                        "product": product,
+                    }
+                )
+
+    if tab == SEARCH_TAB_USERS:
+        result_count = len(users_payload)
+    else:
+        result_count = len(results)
 
     return {
         "ok": True,
@@ -302,10 +387,10 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         "posts": posts_payload,
         "threads": threads_payload,
         "users": users_payload,
+        "products": products_payload,
         "post_count": len(posts_payload),
         "thread_count": len(threads_payload),
         "user_count": len(users_payload),
-        "result_count": (
-            len(results) if tab != SEARCH_TAB_USERS else len(users_payload)
-        ),
+        "product_count": len(products_payload),
+        "result_count": result_count,
     }

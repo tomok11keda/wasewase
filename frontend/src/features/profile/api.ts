@@ -46,7 +46,7 @@ export type ProfilePayload = {
   can_view_bookmarks: boolean;
 };
 
-export type SearchTab = "all" | "latest" | "users";
+export type SearchTab = "all" | "latest" | "users" | "products";
 
 export type SearchThreadResult = {
   id: number;
@@ -71,6 +71,31 @@ export type SearchThreadResult = {
   };
 };
 
+export type SearchProductResult = {
+  id: number;
+  name: string;
+  price: number;
+  status: string;
+  is_sold: boolean;
+  is_pending: boolean;
+  is_available: boolean;
+  faculty: string;
+  handover_campus_label: string;
+  course_name: string;
+  professor_name: string;
+  created_at: string;
+  created_at_label: string;
+  image_url: string;
+  like_count?: number;
+  seller: {
+    id: number | null;
+    username: string;
+    display_name: string;
+    avatar_url: string;
+    initial: string;
+  } | null;
+};
+
 export type SearchResultRow =
   | {
       kind: "post";
@@ -83,6 +108,12 @@ export type SearchResultRow =
       created_at: string;
       score: number;
       thread: SearchThreadResult;
+    }
+  | {
+      kind: "product";
+      created_at: string;
+      score: number;
+      product: SearchProductResult;
     };
 
 export type SearchPageResponse = {
@@ -93,9 +124,11 @@ export type SearchPageResponse = {
   posts: TimelinePost[];
   threads: SearchThreadResult[];
   users: ProfileUser[];
+  products?: SearchProductResult[];
   post_count: number;
   thread_count: number;
   user_count: number;
+  product_count?: number;
   result_count: number;
 };
 
@@ -292,6 +325,7 @@ export async function fetchSearchPage(query: {
     posts: Array.isArray(data.posts) ? data.posts : [],
     threads: Array.isArray(data.threads) ? data.threads : [],
     users: Array.isArray(data.users) ? data.users : [],
+    products: Array.isArray(data.products) ? data.products : [],
   } as SearchPageResponse;
 }
 

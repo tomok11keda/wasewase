@@ -78,6 +78,18 @@ class ProfileSearchApiTests(TestCase):
             any(u and u.get("display_name") == "プロフ他人" for u in users.json()["users"])
         )
 
+        products = self.client.get("/api/v1/search/", {"q": "プロフ出品", "tab": "products"})
+        self.assertEqual(products.status_code, 200)
+        pdata = products.json()
+        self.assertGreaterEqual(pdata.get("product_count", 0), 1)
+        self.assertTrue(
+            any(r.get("kind") == "product" for r in pdata.get("results") or [])
+        )
+
+        recommended = self.client.get("/api/v1/search/", {"q": "プロフ", "tab": "all"})
+        kinds = {r.get("kind") for r in recommended.json().get("results") or []}
+        self.assertIn("product", kinds)
+
     def test_bookmarks_own_only(self):
         denied = self.client.get(f"/api/v1/profile/{self.other.pk}/bookmarks/")
         self.assertEqual(denied.status_code, 403)
