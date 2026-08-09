@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.db import connection
 from django.db.models import Q
+from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 
 from .dm_services import dm_room_link
@@ -18,37 +21,70 @@ from .models import (
 from .services import is_following, user_display_name
 from .ugc_services import is_user_blocked
 
+logger = logging.getLogger(__name__)
+
+
+def ensure_user_direct_message_request_table() -> None:
+    """本番 DB にメッセージリクエスト表が無い場合に作成する（起動時セーフティネット）。"""
+    table = UserDirectMessageRequest._meta.db_table
+    try:
+        with connection.cursor() as cursor:
+            if table in connection.introspection.table_names(cursor):
+                return
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(UserDirectMessageRequest)
+        logger.warning("Created missing %s table on startup", table)
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message or "duplicate" in message:
+            return
+        logger.warning("DM message request table repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("DM message request table repair failed: %s", exc)
+
 
 def get_pending_dm_request_for_recipient(
     room: UserDirectMessageRoom, user: AbstractBaseUser
 ) -> UserDirectMessageRequest | None:
     if not getattr(user, "is_authenticated", False):
         return None
-    return (
-        UserDirectMessageRequest.objects.filter(
-            room=room,
-            to_user=user,
-            status=UserDirectMessageRequest.Status.PENDING,
+    try:
+        return (
+            UserDirectMessageRequest.objects.filter(
+                room=room,
+                to_user=user,
+                status=UserDirectMessageRequest.Status.PENDING,
+            )
+            .select_related("from_user", "from_user__profile")
+            .first()
         )
-        .select_related("from_user", "from_user__profile")
-        .first()
-    )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM request lookup failed: %s", exc)
+        return None
 
 
 def pending_dm_request_room_ids_for(user: AbstractBaseUser) -> set[int]:
-    return set(
-        UserDirectMessageRequest.objects.filter(
-            to_user=user,
-            status=UserDirectMessageRequest.Status.PENDING,
-        ).values_list("room_id", flat=True)
-    )
+    try:
+        return set(
+            UserDirectMessageRequest.objects.filter(
+                to_user=user,
+                status=UserDirectMessageRequest.Status.PENDING,
+            ).values_list("room_id", flat=True)
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM pending room ids lookup failed: %s", exc)
+        return set()
 
 
 def count_pending_dm_requests(user: AbstractBaseUser) -> int:
-    return UserDirectMessageRequest.objects.filter(
-        to_user=user,
-        status=UserDirectMessageRequest.Status.PENDING,
-    ).count()
+    try:
+        return UserDirectMessageRequest.objects.filter(
+            to_user=user,
+            status=UserDirectMessageRequest.Status.PENDING,
+        ).count()
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM pending request count failed: %s", exc)
+        return 0
 
 
 def ensure_message_request_after_send(
@@ -65,45 +101,62 @@ def ensure_message_request_after_send(
     if not recipient or is_user_blocked(recipient, sender):
         return None
 
-    existing = UserDirectMessageRequest.objects.filter(
-        room=room, to_user=recipient
-    ).first()
+    try:
+        ensure_user_direct_message_request_table()
+        existing = UserDirectMessageRequest.objects.filter(
+            room=room, to_user=recipient
+        ).first()
 
-    if existing and existing.status == UserDirectMessageRequest.Status.ACCEPTED:
-        return None
+        if existing and existing.status == UserDirectMessageRequest.Status.ACCEPTED:
+            return None
 
-    if is_following(recipient, sender):
+        if is_following(recipient, sender):
+            if existing and existing.status == UserDirectMessageRequest.Status.PENDING:
+                # フォロー後の未処理リクエストは通常 DM へ自動昇格
+                existing.status = UserDirectMessageRequest.Status.ACCEPTED
+                existing.responded_at = timezone.now()
+                existing.save(update_fields=["status", "responded_at", "updated_at"])
+            return None
+
+        # 既存ルームでリクエスト未作成かつ過去メッセージあり → 通常（grandfather）
+        prior_count = UserDirectMessage.objects.filter(room=room).count()
+        # 直前に作った 1 通を含む。2 通以上なら既存会話。
+        if prior_count > 1 and existing is None:
+            return None
+
         if existing and existing.status == UserDirectMessageRequest.Status.PENDING:
-            # フォロー後の未処理リクエストは通常 DM へ自動昇格
-            existing.status = UserDirectMessageRequest.Status.ACCEPTED
-            existing.responded_at = timezone.now()
-            existing.save(update_fields=["status", "responded_at", "updated_at"])
-        return None
+            existing.from_user = sender
+            existing.save(update_fields=["from_user", "updated_at"])
+            _notify_message_request(
+                recipient=recipient,
+                sender=sender,
+                room=room,
+                preview_body=preview_body,
+                is_follow_up=True,
+            )
+            return existing
 
-    # 既存ルームでリクエスト未作成かつ過去メッセージあり → 通常（grandfather）
-    prior_count = UserDirectMessage.objects.filter(room=room).count()
-    # 直前に作った 1 通を含む。2 通以上なら既存会話。
-    if prior_count > 1 and existing is None:
-        return None
+        if existing and existing.status == UserDirectMessageRequest.Status.DECLINED:
+            existing.status = UserDirectMessageRequest.Status.PENDING
+            existing.from_user = sender
+            existing.responded_at = None
+            existing.save(
+                update_fields=["status", "from_user", "responded_at", "updated_at"]
+            )
+            _notify_message_request(
+                recipient=recipient,
+                sender=sender,
+                room=room,
+                preview_body=preview_body,
+                is_follow_up=False,
+            )
+            return existing
 
-    if existing and existing.status == UserDirectMessageRequest.Status.PENDING:
-        existing.from_user = sender
-        existing.save(update_fields=["from_user", "updated_at"])
-        _notify_message_request(
-            recipient=recipient,
-            sender=sender,
+        request = UserDirectMessageRequest.objects.create(
             room=room,
-            preview_body=preview_body,
-            is_follow_up=True,
-        )
-        return existing
-
-    if existing and existing.status == UserDirectMessageRequest.Status.DECLINED:
-        existing.status = UserDirectMessageRequest.Status.PENDING
-        existing.from_user = sender
-        existing.responded_at = None
-        existing.save(
-            update_fields=["status", "from_user", "responded_at", "updated_at"]
+            from_user=sender,
+            to_user=recipient,
+            status=UserDirectMessageRequest.Status.PENDING,
         )
         _notify_message_request(
             recipient=recipient,
@@ -112,22 +165,10 @@ def ensure_message_request_after_send(
             preview_body=preview_body,
             is_follow_up=False,
         )
-        return existing
-
-    request = UserDirectMessageRequest.objects.create(
-        room=room,
-        from_user=sender,
-        to_user=recipient,
-        status=UserDirectMessageRequest.Status.PENDING,
-    )
-    _notify_message_request(
-        recipient=recipient,
-        sender=sender,
-        room=room,
-        preview_body=preview_body,
-        is_follow_up=False,
-    )
-    return request
+        return request
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("ensure_message_request_after_send failed: %s", exc)
+        return None
 
 
 def _notify_message_request(
@@ -208,12 +249,16 @@ def can_access_dm_room_for_viewer(
 
     if not can_access_dm_room(room, user):
         return False
-    declined = UserDirectMessageRequest.objects.filter(
-        room=room,
-        to_user=user,
-        status=UserDirectMessageRequest.Status.DECLINED,
-    ).exists()
-    return not declined
+    try:
+        declined = UserDirectMessageRequest.objects.filter(
+            room=room,
+            to_user=user,
+            status=UserDirectMessageRequest.Status.DECLINED,
+        ).exists()
+        return not declined
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("DM request access check failed: %s", exc)
+        return True
 
 
 def recipient_can_send_in_dm(
@@ -258,19 +303,23 @@ def serialize_dm_request_item(
 def list_pending_dm_requests_payload(
     user: AbstractBaseUser,
 ) -> dict[str, Any]:
-    rows = (
-        UserDirectMessageRequest.objects.filter(
-            to_user=user,
-            status=UserDirectMessageRequest.Status.PENDING,
+    try:
+        rows = (
+            UserDirectMessageRequest.objects.filter(
+                to_user=user,
+                status=UserDirectMessageRequest.Status.PENDING,
+            )
+            .select_related(
+                "from_user",
+                "from_user__profile",
+                "room",
+            )
+            .order_by("-updated_at")
         )
-        .select_related(
-            "from_user",
-            "from_user__profile",
-            "room",
-        )
-        .order_by("-updated_at")
-    )
-    items = [serialize_dm_request_item(row) for row in rows]
+        items = [serialize_dm_request_item(row) for row in rows]
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning("list_pending_dm_requests failed: %s", exc)
+        items = []
     return {
         "ok": True,
         "count": len(items),

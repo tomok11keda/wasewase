@@ -19,6 +19,7 @@ class AppConfig(AppConfig):
             log_userprofile_db_schema,
         )
         from app.dm_services import ensure_dm_read_state_table, ensure_dm_message_is_read_column
+        from app.dm_request_services import ensure_user_direct_message_request_table
         from app.chat_schema_services import (
             ensure_chatroom_group_chat_schema,
             ensure_chatroom_invitation_table,
@@ -32,6 +33,7 @@ class AppConfig(AppConfig):
         ensure_timelinepost_author_nullable()
         ensure_dm_read_state_table()
         ensure_dm_message_is_read_column()
+        ensure_user_direct_message_request_table()
         ensure_chatroom_group_chat_schema()
         ensure_chatroom_invitation_table()
         ensure_timetable_slot_table()

@@ -156,3 +156,23 @@ class MessageRequestApiTests(TestCase):
         self.assertEqual(inbox["message_request_count"], 0)
         forbidden = self.client.get(f"/api/v1/dm/rooms/{room_id}/")
         self.assertEqual(forbidden.status_code, 403)
+
+    def test_inbox_survives_missing_request_table(self):
+        """本番で 0043 未適用でも inbox が HTML 500 にならないこと。"""
+        from unittest.mock import patch
+
+        from django.db.utils import ProgrammingError
+
+        self.client.force_login(self.bob)
+        with patch(
+            "app.dm_request_services.UserDirectMessageRequest.objects.filter",
+            side_effect=ProgrammingError(
+                "no such table: app_userdirectmessagerequest"
+            ),
+        ):
+            inbox = self.client.get("/api/v1/dm/inbox/")
+        self.assertEqual(inbox.status_code, 200)
+        data = inbox.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["message_request_count"], 0)
+        self.assertIn("conversations", data)
