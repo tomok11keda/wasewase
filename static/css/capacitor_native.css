@@ -295,6 +295,22 @@ html.is-native-capacitor.has-native-bottom-banner body.shell-desktop {
   padding-bottom: calc(var(--nav-h, 56px) + 60px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Conversation screens: no tab-bar gutter (composer + keyboard need the space). */
+html.is-native-capacitor body.shell-desktop.shell-hide-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+html.is-native-capacitor.has-native-bottom-banner body.shell-desktop.shell-hide-bottom-nav {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.is-native-capacitor body.shell-hide-bottom-nav .bottom-nav,
+html.is-native-capacitor.shell-hide-bottom-nav .bottom-nav {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 html.is-native-capacitor.has-native-bottom-banner .bottom-nav {
   bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }

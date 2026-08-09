@@ -57,15 +57,53 @@ export function matchMainTab(pathname: string): MainTabId | null {
 }
 
 /**
+ * Normalize SPA pathnames.
+ * React Router usually strips basename `/app`, but Capacitor / deep links
+ * may still surface `/app/...` — strip it so conversation matching is reliable.
+ */
+export function normalizeSpaPath(pathname: string): string {
+  let p = (pathname || "/").replace(/\/$/, "") || "/";
+  if (p === "/app") return "/";
+  if (p.startsWith("/app/")) p = p.slice(4) || "/";
+  return p;
+}
+
+/**
+ * Conversation / chat screens: message reading & composing.
+ * Shared layout rule — keep inbox / request list / group create visible.
+ */
+export function isConversationPath(pathname: string): boolean {
+  const p = normalizeSpaPath(pathname);
+
+  // Trade chat (flea buyer/seller messaging)
+  if (/^\/flea\/chats\/[^/]+$/.test(p)) return true;
+
+  // Group create keeps bottom nav
+  if (p === "/dm/groups/new") return false;
+
+  // Group chat room
+  if (/^\/dm\/groups\/[^/]+$/.test(p)) return true;
+
+  // DM inbox & message-request list keep bottom nav
+  if (p === "/dm" || p === "/dm/requests") return false;
+
+  // 1:1 DM / message-request detail (numeric room id)
+  if (/^\/dm\/\d+$/.test(p)) return true;
+
+  // Any other /dm/:segment room-like path (future chat types)
+  if (p.startsWith("/dm/")) {
+    const rest = p.slice("/dm/".length);
+    if (!rest || rest === "requests" || rest.startsWith("groups")) return false;
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Conversation screens hide the mobile bottom tab bar so the composer +
  * keyboard can use the full height. Inbox / request list / group create keep it.
  */
 export function shouldHideBottomNav(pathname: string): boolean {
-  const p = pathname.replace(/\/$/, "") || "/";
-  if (/^\/flea\/chats\/[^/]+$/.test(p)) return true;
-  if (p === "/dm/groups/new") return false;
-  if (p.startsWith("/dm/groups/")) return true;
-  if (p === "/dm" || p === "/dm/requests") return false;
-  if (p.startsWith("/dm/")) return true;
-  return false;
+  return isConversationPath(pathname);
 }
