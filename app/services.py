@@ -99,7 +99,7 @@ def search_products(query: str, viewer=None):
 
 
 def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
-    """タイムライン投稿を本文で検索。
+    """タイムライン投稿を本文・授業名・教員名で検索。
 
     sort:
       - \"latest\": 投稿日時の新しい順
@@ -108,7 +108,11 @@ def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
     qs = TimelinePost.objects.select_related("author", "author__profile")
     if not query:
         return qs.none()
-    qs = qs.filter(Q(body__icontains=query))
+    qs = qs.filter(
+        Q(body__icontains=query)
+        | Q(course_name__icontains=query)
+        | Q(professor_name__icontains=query)
+    )
     if sort == "popular":
         qs = qs.order_by("-like_count", "-created_at")
     else:

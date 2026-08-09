@@ -46,6 +46,20 @@ User = get_user_model()
 SEARCH_TAB_ALL = "all"
 SEARCH_TAB_LATEST = "latest"
 SEARCH_TAB_USERS = "users"
+SEARCH_RESULT_LIMIT = 40
+
+
+def _search_post_score(post_payload: dict[str, Any]) -> int:
+    return (
+        int(post_payload.get("like_count") or 0) * 3
+        + int(post_payload.get("comment_count") or 0) * 2
+        + int(post_payload.get("quote_count") or 0) * 2
+        + int(post_payload.get("view_count") or 0) // 10
+    )
+
+
+def _search_thread_score(thread_payload: dict[str, Any]) -> int:
+    return int(thread_payload.get("replies_count") or 0) * 3
 
 
 def serialize_profile_user(user: AbstractBaseUser, profile) -> dict[str, Any]:
@@ -193,6 +207,9 @@ def toggle_block_for_api(
 
 
 def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
+    from .community_api_services import serialize_thread_summary
+    from .community_services import list_community_threads
+
     query = request.GET.get("q", "").strip()
     tab = (request.GET.get("tab") or SEARCH_TAB_ALL).strip().lower()
     if tab not in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST, SEARCH_TAB_USERS):
@@ -200,7 +217,9 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     viewer = request.user if request.user.is_authenticated else None
 
     posts_payload: list[dict[str, Any]] = []
+    threads_payload: list[dict[str, Any]] = []
     users_payload: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     if query:
         if tab in (SEARCH_TAB_ALL, SEARCH_TAB_LATEST):
@@ -224,8 +243,53 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                         )
                     )
                 )
-            posts = prepare_timeline_posts(list(timeline_qs), viewer)
+            posts = prepare_timeline_posts(
+                list(timeline_qs[:SEARCH_RESULT_LIMIT]),
+                viewer,
+            )
             posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
+
+            thread_qs = list_community_threads(query=query, faculty="")
+            if tab == SEARCH_TAB_ALL:
+                thread_qs = thread_qs.order_by("-replies_count", "-updated_at")
+            else:
+                thread_qs = thread_qs.order_by("-created_at")
+            threads = list(thread_qs[:SEARCH_RESULT_LIMIT])
+            threads_payload = [
+                serialize_thread_summary(thread, viewer) for thread in threads
+            ]
+
+            for post in posts_payload:
+                results.append(
+                    {
+                        "kind": "post",
+                        "created_at": post.get("created_at") or "",
+                        "score": _search_post_score(post),
+                        "post": post,
+                    }
+                )
+            for thread in threads_payload:
+                results.append(
+                    {
+                        "kind": "thread",
+                        "created_at": thread.get("created_at") or "",
+                        "score": _search_thread_score(thread),
+                        "thread": thread,
+                    }
+                )
+            if tab == SEARCH_TAB_LATEST:
+                results.sort(
+                    key=lambda row: row.get("created_at") or "",
+                    reverse=True,
+                )
+            else:
+                results.sort(
+                    key=lambda row: (
+                        int(row.get("score") or 0),
+                        row.get("created_at") or "",
+                    ),
+                    reverse=True,
+                )
         elif tab == SEARCH_TAB_USERS:
             for user in list(search_users(query, viewer=viewer)[:50]):
                 users_payload.append(serialize_author(user))
@@ -234,8 +298,14 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         "ok": True,
         "q": query,
         "tab": tab,
+        "results": results,
         "posts": posts_payload,
+        "threads": threads_payload,
         "users": users_payload,
         "post_count": len(posts_payload),
+        "thread_count": len(threads_payload),
         "user_count": len(users_payload),
+        "result_count": (
+            len(results) if tab != SEARCH_TAB_USERS else len(users_payload)
+        ),
     }

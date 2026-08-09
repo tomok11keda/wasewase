@@ -7,14 +7,42 @@ import type { TimelinePost } from "../features/timeline/api";
 import {
   fetchSearchPage,
   type ProfileUser,
+  type SearchResultRow,
   type SearchTab,
+  type SearchThreadResult,
 } from "../features/profile/api";
 
 const TABS: { key: SearchTab; label: string }[] = [
-  { key: "all", label: "すべて" },
-  { key: "latest", label: "最新" },
-  { key: "users", label: "ユーザー" },
+  { key: "all", label: "TOP" },
+  { key: "latest", label: "LATEST" },
+  { key: "users", label: "PEOPLE" },
 ];
+
+function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
+  const authorName = thread.author?.display_name || "ユーザー";
+  const handle = thread.author?.username ? `@${thread.author.username}` : "";
+  return (
+    <Link
+      className="search-thread-card"
+      to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+    >
+      <p className="search-thread-card__meta">
+        <span className="search-thread-card__badge">コミュニティ</span>
+        {thread.community.name}
+        {thread.community.faculty ? ` · ${thread.community.faculty}` : ""}
+      </p>
+      <strong className="search-thread-card__title">{thread.title}</strong>
+      <p className="search-thread-card__preview">
+        {thread.body_preview || thread.body}
+      </p>
+      <p className="search-thread-card__foot">
+        {authorName}
+        {handle ? ` ${handle}` : ""}
+        {` · 返信 ${thread.replies_count}`}
+      </p>
+    </Link>
+  );
+}
 
 export function SearchPage() {
   const { me } = useSession();
@@ -22,16 +50,18 @@ export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") || "";
   const tab = (searchParams.get("tab") as SearchTab) || "all";
+  const activeTab: SearchTab =
+    tab === "latest" || tab === "users" ? tab : "all";
 
   const [qInput, setQInput] = useState(qParam);
-  const [posts, setPosts] = useState<TimelinePost[]>([]);
+  const [results, setResults] = useState<SearchResultRow[]>([]);
   const [users, setUsers] = useState<ProfileUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!qParam.trim()) {
-      setPosts([]);
+      setResults([]);
       setUsers([]);
       return;
     }
@@ -40,16 +70,16 @@ export function SearchPage() {
     try {
       const data = await fetchSearchPage({
         q: qParam,
-        tab: tab === "latest" || tab === "users" ? tab : "all",
+        tab: activeTab,
       });
-      setPosts(data.posts || []);
+      setResults(data.results || []);
       setUsers((data.users || []) as ProfileUser[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "search_failed");
     } finally {
       setLoading(false);
     }
-  }, [qParam, tab]);
+  }, [qParam, activeTab]);
 
   useEffect(() => {
     void load();
@@ -63,7 +93,7 @@ export function SearchPage() {
     e.preventDefault();
     const next = new URLSearchParams();
     if (qInput.trim()) next.set("q", qInput.trim());
-    next.set("tab", tab === "latest" || tab === "users" ? tab : "all");
+    next.set("tab", activeTab);
     setSearchParams(next);
   };
 
@@ -74,6 +104,22 @@ export function SearchPage() {
     setSearchParams(next);
   };
 
+  const updatePostInResults = (nextPost: TimelinePost) => {
+    setResults((prev) =>
+      prev.map((row) =>
+        row.kind === "post" && row.post.id === nextPost.id
+          ? { ...row, post: nextPost }
+          : row
+      )
+    );
+  };
+
+  const removePostFromResults = (id: number) => {
+    setResults((prev) =>
+      prev.filter((row) => !(row.kind === "post" && row.post.id === id))
+    );
+  };
+
   return (
     <div className="search-page" data-spa-page="検索">
       <div className="main-inner">
@@ -82,7 +128,7 @@ export function SearchPage() {
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="投稿・ユーザーを検索"
+            placeholder="タイムライン・コミュニティ・ユーザーを検索"
             aria-label="検索"
           />
           <button type="submit">検索</button>
@@ -93,7 +139,7 @@ export function SearchPage() {
             <button
               key={t.key}
               type="button"
-              className={`search-tab${tab === t.key ? " is-active" : ""}`}
+              className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
               onClick={() => setTab(t.key)}
             >
               {t.label}
@@ -101,13 +147,26 @@ export function SearchPage() {
           ))}
         </nav>
 
+        {qParam ? (
+          <p className="search-query-label">
+            「{qParam}」の検索結果
+            {activeTab === "all"
+              ? " · TOP"
+              : activeTab === "latest"
+                ? " · LATEST"
+                : " · PEOPLE"}
+          </p>
+        ) : null}
+
         {!qParam ? (
-          <p className="search-empty">キーワードを入力して検索してください。</p>
+          <p className="search-empty">
+            キーワードを入力して、タイムライン・コミュニティ・ユーザーを横断検索できます。
+          </p>
         ) : loading ? (
           <p className="search-empty">検索中…</p>
         ) : error ? (
           <p className="search-empty">検索に失敗しました（{error}）</p>
-        ) : tab === "users" ? (
+        ) : activeTab === "users" ? (
           users.length ? (
             <ul className="search-user-list">
               {users.map((u) => (
@@ -133,38 +192,39 @@ export function SearchPage() {
               ))}
             </ul>
           ) : (
-            <p className="search-empty">該当するユーザーはいません。</p>
+            <p className="search-empty">一致するユーザーはいません。</p>
           )
-        ) : posts.length ? (
-          <div className="timeline-feed">
-            {posts.map((post) => (
-              <TimelinePostCard
-                key={post.id}
-                post={post}
-                authenticated={Boolean(me?.authenticated)}
-                onChange={(next) =>
-                  setPosts((prev) =>
-                    prev.map((p) => (p.id === next.id ? next : p))
-                  )
-                }
-                onRemove={(id) =>
-                  setPosts((prev) => prev.filter((p) => p.id !== id))
-                }
-                onQuote={() => {
-                  navigate("/", { state: { openCompose: true } });
-                }}
-                onRequireLogin={() => {
-                  navigate(
-                    spaLoginPath(
-                      `/app/search?q=${encodeURIComponent(qParam)}&tab=${tab}`
-                    )
-                  );
-                }}
-              />
-            ))}
+        ) : results.length ? (
+          <div className="search-mixed-feed">
+            {results.map((row) =>
+              row.kind === "post" ? (
+                <TimelinePostCard
+                  key={`post-${row.post.id}`}
+                  post={row.post}
+                  authenticated={Boolean(me?.authenticated)}
+                  onChange={updatePostInResults}
+                  onRemove={removePostFromResults}
+                  onQuote={() => {
+                    navigate("/", { state: { openCompose: true } });
+                  }}
+                  onRequireLogin={() => {
+                    navigate(
+                      spaLoginPath(
+                        `/app/search?q=${encodeURIComponent(qParam)}&tab=${activeTab}`
+                      )
+                    );
+                  }}
+                />
+              ) : (
+                <SearchThreadCard
+                  key={`thread-${row.thread.id}`}
+                  thread={row.thread}
+                />
+              )
+            )}
           </div>
         ) : (
-          <p className="search-empty">該当する投稿はありません。</p>
+          <p className="search-empty">一致する投稿はありません。</p>
         )}
       </div>
     </div>

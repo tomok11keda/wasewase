@@ -199,8 +199,8 @@ export function FleaPage() {
             <input
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
-              placeholder="商品名・教科書名で検索"
-              aria-label="商品検索"
+              placeholder="商品名・教科書名で検索（フリマのみ）"
+              aria-label="フリマ商品検索"
             />
             <button type="submit">検索</button>
           </form>

@@ -355,6 +355,76 @@
   font-size: 14px;
 }
 
+.search-query-label {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.search-mixed-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-thread-card {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+
+.search-thread-card:hover,
+.search-thread-card:focus-visible {
+  background: #f7f9f9;
+}
+
+.search-thread-card__meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.search-thread-card__badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f7edf0;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.search-thread-card__title {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.search-thread-card__preview {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #536471;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-thread-card__foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .search-user-list {
   list-style: none;
   margin: 0;

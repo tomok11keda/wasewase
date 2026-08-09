@@ -48,14 +48,55 @@ export type ProfilePayload = {
 
 export type SearchTab = "all" | "latest" | "users";
 
+export type SearchThreadResult = {
+  id: number;
+  title: string;
+  body: string;
+  body_preview: string;
+  created_at: string;
+  updated_at: string;
+  replies_count: number;
+  author: {
+    id: number;
+    username: string;
+    display_name: string;
+    avatar_url: string;
+    initial: string;
+  } | null;
+  community: {
+    id: number;
+    slug: string;
+    name: string;
+    faculty: string;
+  };
+};
+
+export type SearchResultRow =
+  | {
+      kind: "post";
+      created_at: string;
+      score: number;
+      post: TimelinePost;
+    }
+  | {
+      kind: "thread";
+      created_at: string;
+      score: number;
+      thread: SearchThreadResult;
+    };
+
 export type SearchPageResponse = {
   ok: boolean;
   q: string;
   tab: SearchTab;
+  results: SearchResultRow[];
   posts: TimelinePost[];
+  threads: SearchThreadResult[];
   users: ProfileUser[];
   post_count: number;
+  thread_count: number;
   user_count: number;
+  result_count: number;
 };
 
 export type ScopedSearchResult = {
@@ -245,7 +286,13 @@ export async function fetchSearchPage(query: {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "search_failed");
-  return data as SearchPageResponse;
+  return {
+    ...data,
+    results: Array.isArray(data.results) ? data.results : [],
+    posts: Array.isArray(data.posts) ? data.posts : [],
+    threads: Array.isArray(data.threads) ? data.threads : [],
+    users: Array.isArray(data.users) ? data.users : [],
+  } as SearchPageResponse;
 }
 
 /** Existing scoped search used by classic search bar. */
