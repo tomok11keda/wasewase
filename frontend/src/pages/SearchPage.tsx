@@ -15,10 +15,13 @@ import {
 } from "../features/profile/api";
 import {
   DiscoverPostCard,
-  DiscoverProductCard,
   DiscoverThreadCard,
 } from "../features/search/DiscoverCompactCards";
 import { DiscoverSection } from "../features/search/DiscoverSection";
+import {
+  DiscoverTrendingMosaic,
+  splitTrendingForMosaic,
+} from "../features/search/DiscoverTrendingMosaic";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 const TABS: { key: SearchTab; label: string }[] = [
@@ -29,7 +32,8 @@ const TABS: { key: SearchTab; label: string }[] = [
 ];
 
 const DISCOVER_PREVIEW = {
-  trending: 8,
+  trendingPosts: 4,
+  trendingProducts: 5,
   faculty: 4,
   communities: 4,
   products: 8,
@@ -160,14 +164,6 @@ function renderDiscoverRow(row: SearchResultRow) {
       <DiscoverThreadCard key={`d-thread-${row.thread.id}`} thread={row.thread} />
     );
   }
-  if (row.kind === "product") {
-    return (
-      <DiscoverProductCard
-        key={`d-product-${row.product.id}`}
-        product={row.product}
-      />
-    );
-  }
   return null;
 }
 
@@ -188,9 +184,23 @@ function SearchDiscoverView({
     setProductsExpanded(false);
   }, [discover]);
 
-  const trendingVisible = trendingExpanded
-    ? discover.trending
-    : discover.trending.slice(0, DISCOVER_PREVIEW.trending);
+  const mosaic = splitTrendingForMosaic(
+    discover.trending,
+    discover.products
+  );
+  const mosaicPosts = trendingExpanded
+    ? mosaic.posts
+    : mosaic.posts.slice(0, DISCOVER_PREVIEW.trendingPosts);
+  const mosaicProducts = trendingExpanded
+    ? mosaic.products.slice(0, DISCOVER_PREVIEW.trendingProducts + 3)
+    : mosaic.products.slice(0, DISCOVER_PREVIEW.trendingProducts);
+  const mosaicVisibleCount = mosaicPosts.length + mosaicProducts.length;
+  const mosaicTotalCount =
+    mosaic.posts.length +
+    Math.min(
+      mosaic.products.length,
+      DISCOVER_PREVIEW.trendingProducts + 3
+    );
   const facultyResults = discover.faculty?.results || [];
   const facultyVisible = facultyExpanded
     ? facultyResults
@@ -207,19 +217,23 @@ function SearchDiscoverView({
     ? `?tag=${encodeURIComponent(discover.faculty.faculty)}`
     : "";
 
+  const showTrending =
+    mosaic.posts.length > 0 || mosaic.products.length > 0;
+
   return (
     <div className="search-discover">
-      {discover.trending.length > 0 ? (
+      {showTrending ? (
         <DiscoverSection
           title="🔥 今わせわせで話題"
-          visibleCount={trendingVisible.length}
-          totalCount={discover.trending.length}
+          visibleCount={mosaicVisibleCount}
+          totalCount={mosaicTotalCount}
           expanded={trendingExpanded}
           onExpand={() => setTrendingExpanded(true)}
         >
-          <div className="discover-compact-list discover-compact-list--mixed">
-            {trendingVisible.map((row) => renderDiscoverRow(row))}
-          </div>
+          <DiscoverTrendingMosaic
+            posts={mosaicPosts}
+            products={mosaicProducts}
+          />
         </DiscoverSection>
       ) : null}
 
