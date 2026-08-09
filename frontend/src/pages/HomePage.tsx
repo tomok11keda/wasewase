@@ -18,6 +18,7 @@ import {
 } from "../layouts/TabKeepAliveLayout";
 import { ImagePickField } from "../components/ImagePickField";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
+import { LocalSearchBar } from "../components/LocalSearchBar";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -29,6 +30,7 @@ export function HomePage() {
     | "all"
     | "following";
   const faculty = searchParams.get("faculty") || "";
+  const qParam = searchParams.get("q") || "";
   const ownFaculty = me?.user?.department || "";
 
   const patchParams = useCallback(
@@ -112,6 +114,7 @@ export function HomePage() {
         const data = await fetchTimeline({
           feed,
           faculty: faculty || undefined,
+          q: qParam || undefined,
         });
         setPosts(data.posts);
         setHasMore(data.has_more);
@@ -124,7 +127,7 @@ export function HomePage() {
         setLoading(false);
       }
     },
-    [feed, faculty]
+    [feed, faculty, qParam]
   );
 
   useEffect(() => {
@@ -149,6 +152,7 @@ export function HomePage() {
         void fetchTimeline({
           feed,
           faculty: faculty || undefined,
+          q: qParam || undefined,
           offset: nextOffset,
         })
           .then((data: TimelineFeedResponse) => {
@@ -169,7 +173,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed, faculty, hasMore, loading, loadingMore, nextOffset]);
+  }, [feed, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -225,6 +229,19 @@ export function HomePage() {
         ownFaculty={ownFaculty}
         onChange={(next) => patchParams({ faculty: next })}
       />
+
+      <LocalSearchBar
+        value={qParam}
+        placeholder="タイムライン投稿を検索"
+        ariaLabel="タイムライン内検索"
+        onSubmit={(q) => patchParams({ q })}
+        onClear={() => patchParams({ q: "" })}
+      />
+      {qParam ? (
+        <p className="local-search-hint">
+          「{qParam}」のタイムライン検索結果（コミュニティ・フリマは含みません）
+        </p>
+      ) : null}
 
       <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
         <button
@@ -326,7 +343,11 @@ export function HomePage() {
       ) : error && posts.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : posts.length === 0 ? (
-        <p className="empty-message">まだ投稿がありません。</p>
+        <p className="empty-message">
+          {qParam
+            ? "一致する投稿はありません。"
+            : "まだ投稿がありません。"}
+        </p>
       ) : (
         <div className="timeline-list" id="timeline-list">
           {posts.map((post) => (

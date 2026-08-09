@@ -8,6 +8,7 @@ import {
   type ThreadSummary,
 } from "../features/community/api";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
+import { LocalSearchBar } from "../components/LocalSearchBar";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 export function CommunitiesPage() {
@@ -15,17 +16,29 @@ export function CommunitiesPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tag = searchParams.get("tag") || "";
+  const qParam = searchParams.get("q") || "";
   const ownFaculty = me?.user?.department || "";
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [qInput, setQInput] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const hasDataRef = useRef(false);
+
+  const patchParams = useCallback(
+    (patch: Record<string, string>) => {
+      const next = new URLSearchParams(searchParams);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams]
+  );
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
@@ -36,6 +49,7 @@ export function CommunitiesPage() {
       try {
         const data = await fetchCommunityThreads({
           tag: tag || undefined,
+          q: qParam || undefined,
         });
         setThreads(data.threads);
         hasDataRef.current = true;
@@ -45,7 +59,7 @@ export function CommunitiesPage() {
         setLoading(false);
       }
     },
-    [tag]
+    [tag, qParam]
   );
 
   useEffect(() => {
@@ -53,13 +67,6 @@ export function CommunitiesPage() {
   }, [load]);
 
   useSoftTabRefetch("communities", () => load("soft"));
-
-  const onSearch = (e: FormEvent) => {
-    e.preventDefault();
-    const q = qInput.trim();
-    if (!q) return;
-    navigate(`/search?q=${encodeURIComponent(q)}&tab=all`);
-  };
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -112,22 +119,21 @@ export function CommunitiesPage() {
         <FacultyFilterTabs
           value={tag}
           ownFaculty={ownFaculty}
-          onChange={(next) => {
-            const params = new URLSearchParams();
-            if (next) params.set("tag", next);
-            setSearchParams(params);
-          }}
+          onChange={(next) => patchParams({ tag: next })}
         />
 
-        <form className="communities-search" onSubmit={onSearch}>
-          <input
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            placeholder="タイムライン・コミュニティ・ユーザーを検索"
-            aria-label="横断検索"
-          />
-          <button type="submit">検索</button>
-        </form>
+        <LocalSearchBar
+          value={qParam}
+          placeholder="コミュニティのスレッドを検索"
+          ariaLabel="コミュニティ内検索"
+          onSubmit={(q) => patchParams({ q })}
+          onClear={() => patchParams({ q: "" })}
+        />
+        {qParam ? (
+          <p className="local-search-hint">
+            「{qParam}」のコミュニティ検索結果（タイムライン・フリマは含みません）
+          </p>
+        ) : null}
       </div>
 
       {composeOpen ? (
@@ -158,7 +164,11 @@ export function CommunitiesPage() {
       ) : error && threads.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : threads.length === 0 ? (
-        <p className="empty-message">スレッドがありません。</p>
+        <p className="empty-message">
+          {qParam
+            ? "一致するスレッドはありません。"
+            : "スレッドがありません。"}
+        </p>
       ) : (
         <ul className="thread-list">
           {threads.map((thread) => (

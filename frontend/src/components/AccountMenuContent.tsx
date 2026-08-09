@@ -35,11 +35,11 @@ type Props = {
 
 /**
  * Account + utility links formerly under 「その他」.
- * Does not list the 4 primary bottom-nav destinations.
+ * Does not list primary bottom-nav destinations (検索 is a main tab).
  */
 export function AccountMenuContent({
   onNavigate,
-  showSearchLink = true,
+  showSearchLink = false,
 }: Props) {
   const { me, setMeFromAuth, refresh } = useSession();
   const navigate = useNavigate();

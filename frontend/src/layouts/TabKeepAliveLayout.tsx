@@ -12,6 +12,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { CommunitiesPage } from "../pages/CommunitiesPage";
 import { FleaPage } from "../pages/FleaPage";
 import { HomePage } from "../pages/HomePage";
+import { SearchPage } from "../pages/SearchPage";
 import { TimetablePage } from "../pages/TimetablePage";
 import { matchMainTab, type MainTabId } from "../lib/tabs";
 import { useSpaNavDiag } from "../lib/spaNavDiag";
@@ -202,6 +203,15 @@ export function TabKeepAliveLayout() {
             leaving={leaving === "communities"}
           >
             <CommunitiesPage />
+          </TabPane>
+        ) : null}
+        {mounted.search ? (
+          <TabPane
+            tabId="search"
+            active={active === "search"}
+            leaving={leaving === "search"}
+          >
+            <SearchPage />
           </TabPane>
         ) : null}
         {mounted.flea ? (

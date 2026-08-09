@@ -11,6 +11,7 @@ import {
   type SearchTab,
   type SearchThreadResult,
 } from "../features/profile/api";
+import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "TOP" },
@@ -85,6 +86,8 @@ export function SearchPage() {
     void load();
   }, [load]);
 
+  useSoftTabRefetch("search", () => load());
+
   useEffect(() => {
     setQInput(qParam);
   }, [qParam]);
@@ -124,12 +127,16 @@ export function SearchPage() {
     <div className="search-page" data-spa-page="検索">
       <div className="main-inner">
         <h1 className="search-title">検索</h1>
-        <form className="search-form" onSubmit={onSearch}>
+        <p className="search-lead">
+          わせわせ全体から、タイムライン・コミュニティ・ユーザーを横断検索します。
+        </p>
+        <form className="search-form" onSubmit={onSearch} role="search">
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="タイムライン・コミュニティ・ユーザーを検索"
-            aria-label="検索"
+            placeholder="例: ゼミ、履修、サークル"
+            aria-label="全体検索"
+            autoFocus
           />
           <button type="submit">検索</button>
         </form>
@@ -160,7 +167,8 @@ export function SearchPage() {
 
         {!qParam ? (
           <p className="search-empty">
-            キーワードを入力して、タイムライン・コミュニティ・ユーザーを横断検索できます。
+            キーワードを入力すると、タイムラインとコミュニティを横断検索できます。ユーザーは
+            PEOPLE タブから探せます。
           </p>
         ) : loading ? (
           <p className="search-empty">検索中…</p>
