@@ -39,6 +39,7 @@ export type ProductDetail = ProductCard & {
   description: string;
   like_count: number;
   user_liked: boolean;
+  user_has_bookmarked: boolean;
   comments: ProductComment[];
   can_purchase: boolean;
   can_negotiate: boolean;
@@ -167,6 +168,17 @@ export async function toggleProductLike(
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "like_failed");
   return { liked: data.liked, like_count: data.like_count };
+}
+
+export async function toggleProductBookmark(pk: number): Promise<boolean> {
+  const res = await fetch(`/api/v1/flea/products/${pk}/bookmark/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "bookmark_failed");
+  return Boolean(data.bookmarked);
 }
 
 export async function postProductComment(

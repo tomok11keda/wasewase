@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { BookmarkButton } from "../components/BookmarkButton";
 import { useSession } from "../lib/session";
 import {
   deleteProduct,
@@ -10,6 +11,7 @@ import {
   shareProductToTimeline,
   startProductChat,
   submitProductReview,
+  toggleProductBookmark,
   toggleProductLike,
   type ProductDetail,
 } from "../features/flea/api";
@@ -74,6 +76,29 @@ export function ProductDetailPage() {
       setFlash({
         type: "error",
         text: err instanceof Error ? err.message : "いいねに失敗しました",
+      });
+    }
+  };
+
+  const onBookmark = async () => {
+    if (!product) return;
+    if (!me?.authenticated) {
+      requireLogin(`/app/flea/products/${product.id}`);
+      return;
+    }
+    try {
+      const bookmarked = await toggleProductBookmark(product.id);
+      setProduct({
+        ...product,
+        user_has_bookmarked: bookmarked,
+      });
+    } catch (err) {
+      setFlash({
+        type: "error",
+        text:
+          err instanceof Error && err.message === "bookmark_unavailable"
+            ? "保存機能を一時的に利用できません。"
+            : "保存に失敗しました",
       });
     }
   };
@@ -296,6 +321,11 @@ export function ProductDetailPage() {
                 >
                   {product.user_liked ? "♥" : "♡"} {product.like_count}
                 </button>
+                <BookmarkButton
+                  bookmarked={Boolean(product.user_has_bookmarked)}
+                  disabled={busy}
+                  onClick={() => void onBookmark()}
+                />
                 {product.can_purchase ? (
                   <button
                     type="button"

@@ -27,6 +27,10 @@ def _bookmarks_path(user: AbstractBaseUser) -> str:
     return f"users/{_bookmark_user_id(user)}/bookmarks"
 
 
+def _product_bookmarks_path(user: AbstractBaseUser) -> str:
+    return f"users/{_bookmark_user_id(user)}/product_bookmarks"
+
+
 def _log_bookmark(message: str, user_pk: int, *, level: str = "info") -> None:
     full = f"[WASE BOOKMARK user={user_pk}] {message}"
     print(full, flush=True)
@@ -55,6 +59,14 @@ def _bookmarks_collection(db, user: AbstractBaseUser):
         db.collection("users")
         .document(_bookmark_user_id(user))
         .collection("bookmarks")
+    )
+
+
+def _product_bookmarks_collection(db, user: AbstractBaseUser):
+    return (
+        db.collection("users")
+        .document(_bookmark_user_id(user))
+        .collection("product_bookmarks")
     )
 
 
@@ -161,14 +173,69 @@ def is_post_bookmarked(user: AbstractBaseUser, post_id: int) -> bool:
 
 def toggle_bookmark(user: AbstractBaseUser, post_id: int) -> bool:
     """ブックマークをトグルし、操作後にブックマーク済みなら True を返す。"""
+    return _toggle_firestore_bookmark(
+        user,
+        collection_factory=_bookmarks_collection,
+        path_prefix=_bookmarks_path(user),
+        doc_id=str(post_id),
+        payload_key="postId",
+        payload_id=post_id,
+        entity_label="post",
+    )
+
+
+def is_product_bookmarked(user: AbstractBaseUser, product_id: int) -> bool:
+    """商品が保存済みなら True。Firestore 未設定時は False。"""
+    db = get_firestore_client()
+    if db is None:
+        return False
+    path = f"{_product_bookmarks_path(user)}/{product_id}"
+    try:
+        doc = _product_bookmarks_collection(db, user).document(str(product_id)).get()
+        exists = doc.exists
+        _log_bookmark(f"Check {path}: exists={exists}", user.pk)
+        return exists
+    except Exception:
+        _log_bookmark(f"Failed to check {path}", user.pk, level="error")
+        logger.exception(
+            "Failed to check product bookmark for user %s product %s",
+            user.pk,
+            product_id,
+        )
+        return False
+
+
+def toggle_product_bookmark(user: AbstractBaseUser, product_id: int) -> bool:
+    """商品の保存をトグルし、操作後に保存済みなら True を返す。"""
+    return _toggle_firestore_bookmark(
+        user,
+        collection_factory=_product_bookmarks_collection,
+        path_prefix=_product_bookmarks_path(user),
+        doc_id=str(product_id),
+        payload_key="productId",
+        payload_id=product_id,
+        entity_label="product",
+    )
+
+
+def _toggle_firestore_bookmark(
+    user: AbstractBaseUser,
+    *,
+    collection_factory,
+    path_prefix: str,
+    doc_id: str,
+    payload_key: str,
+    payload_id: int,
+    entity_label: str,
+) -> bool:
     db = get_firestore_client()
     if db is None:
         raise BookmarkServiceError("Firestore is not configured.")
 
     from firebase_admin import firestore
 
-    path = f"{_bookmarks_path(user)}/{post_id}"
-    ref = _bookmarks_collection(db, user).document(str(post_id))
+    path = f"{path_prefix}/{doc_id}"
+    ref = collection_factory(db, user).document(doc_id)
     try:
         if ref.get().exists:
             ref.delete()
@@ -176,7 +243,7 @@ def toggle_bookmark(user: AbstractBaseUser, post_id: int) -> bool:
             return False
         ref.set(
             {
-                "postId": post_id,
+                payload_key: payload_id,
                 "createdAt": firestore.SERVER_TIMESTAMP,
             }
         )
@@ -186,7 +253,12 @@ def toggle_bookmark(user: AbstractBaseUser, post_id: int) -> bool:
         raise
     except Exception as exc:
         _log_bookmark(f"Toggle failed at {path}: {exc}", user.pk, level="error")
-        logger.exception("Failed to toggle bookmark for user %s post %s", user.pk, post_id)
+        logger.exception(
+            "Failed to toggle bookmark for user %s %s %s",
+            user.pk,
+            entity_label,
+            payload_id,
+        )
         raise BookmarkServiceError("Bookmark toggle failed.") from exc
 
 

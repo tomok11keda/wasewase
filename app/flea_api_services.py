@@ -167,12 +167,19 @@ def serialize_product_detail(
         and product.seller_id == viewer.id
     )
 
+    user_has_bookmarked = False
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        from .bookmark_services import is_product_bookmarked
+
+        user_has_bookmarked = is_product_bookmarked(viewer, product.pk)
+
     card = serialize_product_card(product)
     card.update(
         {
             "description": product.description or "",
             "like_count": like_count,
             "user_liked": user_liked,
+            "user_has_bookmarked": user_has_bookmarked,
             "comments": [serialize_comment(c) for c in comments],
             "can_purchase": can_purchase,
             "can_negotiate": can_negotiate,
