@@ -39,8 +39,23 @@ export function HomePage() {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const composeSectionRef = useRef<HTMLDivElement | null>(null);
   const hasDataRef = useRef(false);
   const authenticated = Boolean(me?.authenticated);
+
+  const openCompose = useCallback(() => {
+    if (!authenticated) {
+      navigate(spaLoginPath("/app/?compose=1"));
+      return;
+    }
+    setComposeOpen(true);
+    window.requestAnimationFrame(() => {
+      composeSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [authenticated, navigate]);
 
   // Open compose from Search / Sidebar without full reload
   useEffect(() => {
@@ -200,12 +215,12 @@ export function HomePage() {
       ) : null}
 
       {authenticated ? (
-        <div className="spa-compose">
+        <div className="spa-compose" ref={composeSectionRef}>
           {!composeOpen ? (
             <button
               type="button"
               className="spa-compose__open"
-              onClick={() => setComposeOpen(true)}
+              onClick={openCompose}
             >
               いまどうしてる？
             </button>
@@ -296,6 +311,15 @@ export function HomePage() {
       {!hasMore && posts.length > 0 ? (
         <p className="empty-message">すべて表示しました</p>
       ) : null}
+
+      <button
+        type="button"
+        className="compose-fab shell-hide-on-desktop"
+        aria-label="投稿する"
+        onClick={openCompose}
+      >
+        ＋
+      </button>
     </div>
   );
 }
