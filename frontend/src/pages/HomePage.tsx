@@ -27,9 +27,6 @@ export function HomePage() {
   const location = useLocation();
   const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
-  const feed = (searchParams.get("feed") === "following" ? "following" : "all") as
-    | "all"
-    | "following";
   const sort = (
     searchParams.get("sort") === "latest" ? "latest" : "recommended"
   ) as "recommended" | "latest";
@@ -44,10 +41,20 @@ export function HomePage() {
         if (value) next.set(key, value);
         else next.delete(key);
       });
+      // Timeline no longer uses feed=following; drop leftover deep links.
+      next.delete("feed");
       setSearchParams(next);
     },
     [searchParams, setSearchParams]
   );
+
+  // Clear obsolete feed= query from bookmarks / old links.
+  useEffect(() => {
+    if (!searchParams.has("feed")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("feed");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -55,7 +62,6 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [followingUnauth, setFollowingUnauth] = useState(false);
 
   const [composeBody, setComposeBody] = useState("");
   const [composeImage, setComposeImage] = useState<File | null>(null);
@@ -116,7 +122,6 @@ export function HomePage() {
       setError(null);
       try {
         const data = await fetchTimeline({
-          feed,
           sort,
           faculty: faculty || undefined,
           q: qParam || undefined,
@@ -125,7 +130,6 @@ export function HomePage() {
         setPosts(data.posts);
         setHasMore(data.has_more);
         setNextOffset(data.next_offset);
-        setFollowingUnauth(Boolean(data.feed_following_unauthenticated));
         hasDataRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "load_failed");
@@ -133,7 +137,7 @@ export function HomePage() {
         setLoading(false);
       }
     },
-    [feed, sort, faculty, qParam]
+    [sort, faculty, qParam]
   );
 
   useEffect(() => {
@@ -156,7 +160,6 @@ export function HomePage() {
         if (!entries[0]?.isIntersecting) return;
         setLoadingMore(true);
         void fetchTimeline({
-          feed,
           sort,
           faculty: faculty || undefined,
           q: qParam || undefined,
@@ -181,7 +184,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed, sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
+  }, [sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -268,35 +271,8 @@ export function HomePage() {
         </button>
       </nav>
 
-      <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
-        <button
-          type="button"
-          className={`feed-scope-tab${feed === "all" ? " is-active" : ""}`}
-          onClick={() => patchParams({ feed: "" })}
-        >
-          全体
-        </button>
-        <button
-          type="button"
-          className={`feed-scope-tab${feed === "following" ? " is-active" : ""}`}
-          onClick={() => patchParams({ feed: "following" })}
-        >
-          フォロー中
-        </button>
-      </nav>
-
       {faculty ? (
         <p className="faculty-hint">🏷 {faculty}のユーザーの投稿を表示中</p>
-      ) : null}
-
-      {followingUnauth ? (
-        <p className="feed-scope-hint">
-          フォロー中の投稿を見るには
-          <Link to={spaLoginPath("/app/?feed=following")}>
-            ログイン
-          </Link>
-          してください。
-        </p>
       ) : null}
 
       {authenticated ? (
