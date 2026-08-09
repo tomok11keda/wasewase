@@ -55,3 +55,17 @@ export function matchMainTab(pathname: string): MainTabId | null {
   if (normalized === "/timetable") return "timetable";
   return null;
 }
+
+/**
+ * Conversation screens hide the mobile bottom tab bar so the composer +
+ * keyboard can use the full height. Inbox / request list / group create keep it.
+ */
+export function shouldHideBottomNav(pathname: string): boolean {
+  const p = pathname.replace(/\/$/, "") || "/";
+  if (/^\/flea\/chats\/[^/]+$/.test(p)) return true;
+  if (p === "/dm/groups/new") return false;
+  if (p.startsWith("/dm/groups/")) return true;
+  if (p === "/dm" || p === "/dm/requests") return false;
+  if (p.startsWith("/dm/")) return true;
+  return false;
+}
