@@ -1,11 +1,15 @@
 """商品専用チャットでの即決購入・値下げ交渉・受け渡し完了。"""
 from __future__ import annotations
 
+import logging
+
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import transaction
 from django.utils import timezone
 
 from .models import ChatRoom, Message, Product
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_MSG_INSTANT_BUY = (
     "即決購入が成立しました。受け渡し場所と時間を相談してください"
@@ -164,7 +168,12 @@ def confirm_negotiation_trade(room: ChatRoom, seller: AbstractBaseUser) -> ChatR
 
 @transaction.atomic
 def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Product:
-    """出品者が受け渡し完了 → sold。"""
+    """出品者が受け渡し完了 → sold。
+
+    システムメッセージ投稿はベストエフォート。
+    メッセージ用スキーマ不備で IntegrityError になっても、売り切れ更新は確定させる
+    （atomic 内で一緒に失敗してロールバックされないよう、メッセージは savepoint 分離）。
+    """
     room = (
         ChatRoom.objects.select_for_update()
         .select_related("product")
@@ -176,7 +185,10 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
 
     if product.seller_id != seller.id:
         raise ValueError("not_seller")
+    # 二重完了: 同じ取引の売り切れ済みなら成功扱い（idempotent）
     if product.is_sold:
+        if product.buyer_id == room.buyer_id:
+            return product
         raise ValueError("already_sold")
     if not product.is_pending:
         raise ValueError("not_pending")
@@ -191,7 +203,19 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
     product.save(
         update_fields=["status", "seller_trade_completed", "buyer_trade_completed"]
     )
-    post_system_message(room, SYSTEM_MSG_HANDOVER_DONE)
+
+    sid = transaction.savepoint()
+    try:
+        post_system_message(room, SYSTEM_MSG_HANDOVER_DONE)
+        transaction.savepoint_commit(sid)
+    except Exception:
+        transaction.savepoint_rollback(sid)
+        logger.exception(
+            "handover system message failed (product=%s room=%s); sale kept",
+            product.pk,
+            room.pk,
+        )
+
     return product
 
 

@@ -143,6 +143,14 @@ class FleaApiTests(TestCase):
         self.product.refresh_from_db()
         self.assertTrue(self.product.is_sold)
 
+        # Idempotent: second complete must not 500
+        handover2 = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(handover2.status_code, 200)
+        self.assertEqual(handover2.json()["product_status"], Product.Status.SOLD)
+        self.assertTrue(handover2.json()["ok"])
+
     def test_cannot_buy_own_product(self):
         self.client.force_login(self.seller)
         response = self.client.post(
