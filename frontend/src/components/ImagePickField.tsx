@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { SfIcon } from "./SfIcon";
+import { isNativeCapacitorApp } from "../lib/nativeApp";
 
 type Props = {
   id?: string;
@@ -14,7 +15,8 @@ type Props = {
 
 /**
  * Mobile-friendly image picker: camera vs library.
- * Keeps native file inputs (hidden) so Capacitor / browser pickers still work.
+ * Web: hidden file inputs (capture vs library).
+ * Native Capacitor: data-image-pick-source buttons → Camera plugin CAMERA/PHOTOS.
  */
 export function ImagePickField({
   id,
@@ -76,8 +78,14 @@ export function ImagePickField({
         <button
           type="button"
           className="image-pick__btn"
+          data-image-pick-source="camera"
           disabled={disabled}
-          onClick={() => cameraRef.current?.click()}
+          onClick={() => {
+            // Native: capacitor_native.js capture handler opens CAMERA directly.
+            // Web: fall through to capture=environment file input.
+            if (isNativeCapacitorApp()) return;
+            cameraRef.current?.click();
+          }}
         >
           <span className="image-pick__btn-icon" aria-hidden="true">
             <SfIcon name="camera" size={22} />
@@ -87,8 +95,12 @@ export function ImagePickField({
         <button
           type="button"
           className="image-pick__btn"
+          data-image-pick-source="photos"
           disabled={disabled}
-          onClick={() => libraryRef.current?.click()}
+          onClick={() => {
+            if (isNativeCapacitorApp()) return;
+            libraryRef.current?.click();
+          }}
         >
           <span className="image-pick__btn-icon" aria-hidden="true">
             <SfIcon name="photo" size={22} />
