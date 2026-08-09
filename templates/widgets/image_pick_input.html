@@ -1,0 +1,49 @@
+{% comment %}Django ClearableFileInput with mobile-friendly pick UI{% endcomment %}
+<div class="image-pick-field">
+  {% if widget.is_initial %}
+  <p class="image-pick__initial">
+    {{ widget.initial_text }}:
+    <a href="{{ widget.value.url }}">{{ widget.value }}</a>
+  </p>
+  {% if not widget.required %}
+  <div class="image-pick__clear-initial">
+    <input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}"{% if widget.attrs.disabled %} disabled{% endif %}>
+    <label for="{{ widget.checkbox_id }}">{{ widget.clear_checkbox_label }}</label>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <input type="{{ widget.type }}" name="{{ widget.name }}"{% for attr_name, attr_value in widget.attrs.items %}{% if attr_value is not False %} {{ attr_name }}{% if attr_value is not True %}="{{ attr_value|stringformat:'s' }}"{% endif %}{% endif %}{% endfor %}>
+
+  <div class="image-pick" data-image-pick>
+    <div class="image-pick__actions" role="group" aria-label="画像を追加">
+      <button
+        type="button"
+        class="image-pick__btn"
+        data-image-pick-source="camera"
+        {% if widget.attrs.disabled %}disabled{% endif %}
+      >
+        <span class="image-pick__btn-icon" aria-hidden="true">
+          <svg class="sf-icon" viewBox="0 0 24 24" width="22" height="22" focusable="false">
+            <path fill="currentColor" d="M9 3.75A.75.75 0 0 1 9.75 3h4.5a.75.75 0 0 1 .75.75V5.25h1.5A2.25 2.25 0 0 1 18.75 7.5v10.5A2.25 2.25 0 0 1 16.5 20.25h-9A2.25 2.25 0 0 1 5.25 18V7.5A2.25 2.25 0 0 1 7.5 5.25H9V3.75ZM12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z"/>
+          </svg>
+        </span>
+        <span class="image-pick__btn-label">写真を撮る</span>
+      </button>
+      <button
+        type="button"
+        class="image-pick__btn"
+        data-image-pick-source="photos"
+        {% if widget.attrs.disabled %}disabled{% endif %}
+      >
+        <span class="image-pick__btn-icon" aria-hidden="true">
+          <svg class="sf-icon" viewBox="0 0 24 24" width="22" height="22" focusable="false">
+            <path fill="currentColor" d="M4.5 4.5A2.25 2.25 0 0 0 2.25 6.75v10.5A2.25 2.25 0 0 0 4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15Zm1.28 11.97 3.22-3.22a.75.75 0 0 1 1.06 0l1.72 1.72 3.47-3.47a.75.75 0 0 1 1.06 0l3.41 3.41v.81a.75.75 0 0 1-.75.75H6.53a.75.75 0 0 1-.75-.75v-.25Zm9.47-7.22a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z"/>
+          </svg>
+        </span>
+        <span class="image-pick__btn-label">写真を選ぶ</span>
+      </button>
+    </div>
+    <p class="image-pick__filename" data-image-pick-filename hidden></p>
+  </div>
+</div>

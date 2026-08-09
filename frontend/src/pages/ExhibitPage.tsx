@@ -7,6 +7,7 @@ import {
   type FilterTab,
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
+import { ImagePickField } from "../components/ImagePickField";
 
 export function ExhibitPage() {
   const { me, loading: sessionLoading } = useSession();
@@ -94,12 +95,12 @@ export function ExhibitPage() {
         <form className="form-card" onSubmit={(e) => void onSubmit(e)}>
           <div className="form-group">
             <label htmlFor="exhibit-image">写真（必須）</label>
-            <input
+            <ImagePickField
               id="exhibit-image"
-              type="file"
-              accept="image/*"
-              required
-              onChange={(e) => setImage(e.target.files?.[0] || null)}
+              value={image}
+              onChange={setImage}
+              disabled={busy}
+              hint="JPEG / PNG など。商品画像を1枚追加してください"
             />
           </div>
           <div className="form-group">

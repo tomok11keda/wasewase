@@ -12,6 +12,7 @@ import {
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { restoreScrollPosition } from "../features/profile/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import { ImagePickField } from "../components/ImagePickField";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -235,13 +236,15 @@ export function HomePage() {
                 </div>
               ) : null}
               <div className="spa-compose__actions">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setComposeImage(e.target.files?.[0] || null)
-                  }
-                />
+                <div className="spa-compose__image">
+                  <ImagePickField
+                    id="compose-image"
+                    value={composeImage}
+                    onChange={setComposeImage}
+                    disabled={composeBusy}
+                    hint="JPEG / PNG / GIF / WebP（任意）"
+                  />
+                </div>
                 <button type="button" onClick={() => setComposeOpen(false)}>
                   閉じる
                 </button>

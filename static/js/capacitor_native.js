@@ -651,33 +651,76 @@
     }
   }
 
+  /**
+   * Prefer explicit data-image-source from dual-button UI.
+   * Falls back to capture attribute, then legacy "prompt".
+   */
+  function resolveNativePhotoSource(input) {
+    var attr = String(input.getAttribute("data-image-source") || "")
+      .trim()
+      .toLowerCase();
+    if (attr === "camera" || attr === "environment") {
+      return "camera";
+    }
+    if (attr === "photos" || attr === "library" || attr === "photo") {
+      return "photos";
+    }
+    if (input.hasAttribute("capture")) {
+      return "camera";
+    }
+    return "prompt";
+  }
+
   async function attachNativeCameraPhoto(input) {
     if (input.disabled) {
       return true;
     }
 
-    var access = await ensureCameraAccess();
-    var photoSource = "prompt";
+    var preferred = resolveNativePhotoSource(input);
+    var photoSource = preferred;
+    var access = { ok: true, reason: "skip" };
 
-    if (!access.ok) {
-      if (access.reason === "unavailable") {
-        // カメラ非対応環境ではアラートせず、そのままフォトライブラリへ進む
-        photoSource = "photos";
-        var photosAccess = await ensurePhotosAccess();
-        if (!photosAccess.ok) {
+    if (preferred === "photos") {
+      var photosOnly = await ensurePhotosAccess();
+      if (!photosOnly.ok) {
+        return true;
+      }
+    } else if (preferred === "camera") {
+      access = await ensureCameraAccess();
+      if (!access.ok) {
+        if (access.reason === "unavailable") {
+          photoSource = "photos";
+          var photosFallback = await ensurePhotosAccess();
+          if (!photosFallback.ok) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+    } else {
+      // Legacy single file input: prompt (camera or library)
+      access = await ensureCameraAccess();
+      photoSource = "prompt";
+
+      if (!access.ok) {
+        if (access.reason === "unavailable") {
+          photoSource = "photos";
+          var photosAccess = await ensurePhotosAccess();
+          if (!photosAccess.ok) {
+            return true;
+          }
+        } else {
           return true;
         }
       } else {
-        return true;
-      }
-    } else {
-      // prompt の「ライブラリ」選択用に写真権限も要求（拒否でもカメラ撮影は続行）
-      try {
-        await requestNativePhotosAuthorization();
-      } catch (e) {
-        logNativeError("Photos permission request failed", e);
-        alert(JSON.stringify(e, null, 2));
-        alertCameraDebugError(e, "requestNativePhotosAuthorization catch");
+        try {
+          await requestNativePhotosAuthorization();
+        } catch (e) {
+          logNativeError("Photos permission request failed", e);
+          alert(JSON.stringify(e, null, 2));
+          alertCameraDebugError(e, "requestNativePhotosAuthorization catch");
+        }
       }
     }
 
