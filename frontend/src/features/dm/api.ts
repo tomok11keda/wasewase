@@ -44,7 +44,23 @@ export type DmRoomDetail = {
   partner: Author | null;
   is_blocked: boolean;
   can_send: boolean;
+  request_status?: "active" | "pending_request" | string;
+  message_request?: {
+    id: number;
+    status: string;
+    from_user: Author | null;
+  } | null;
   latest_id: number;
+};
+
+export type MessageRequestItem = {
+  id: number;
+  room_id: number;
+  status: string;
+  from_user: Author & { department?: string; grade?: string };
+  preview: string;
+  updated_at: string;
+  spa_path: string;
 };
 
 export type GroupInvitation = {
@@ -78,6 +94,7 @@ export async function fetchDmInbox(
 ): Promise<{
   tab: string;
   tab_counts: Record<string, number>;
+  message_request_count: number;
   conversations: InboxItem[];
 }> {
   const res = await fetch(`/api/v1/dm/inbox/?tab=${encodeURIComponent(tab)}`, {
@@ -87,7 +104,11 @@ export async function fetchDmInbox(
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "inbox_failed");
-  return data;
+  return {
+    ...data,
+    message_request_count: Number(data.message_request_count || 0),
+    conversations: Array.isArray(data.conversations) ? data.conversations : [],
+  };
 }
 
 export async function startDm(userId: number): Promise<number> {
@@ -301,6 +322,52 @@ export async function declineGroupInvitation(roomPk: number) {
       body: "{}",
     }
   );
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "decline_failed");
+  return data as { ok: boolean; spa_path?: string };
+}
+
+export async function fetchMessageRequests(signal?: AbortSignal) {
+  const res = await fetch("/api/v1/dm/message-requests/", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "requests_failed");
+  return {
+    count: Number(data.count || 0),
+    requests: (data.requests || []) as MessageRequestItem[],
+  };
+}
+
+export async function acceptMessageRequest(roomPk: number) {
+  const res = await fetch(`/api/v1/dm/rooms/${roomPk}/requests/accept/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "accept_failed");
+  return data as { room: DmRoomDetail; messages: ChatMessage[] };
+}
+
+export async function declineMessageRequest(roomPk: number) {
+  const res = await fetch(`/api/v1/dm/rooms/${roomPk}/requests/decline/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "decline_failed");
   return data as { ok: boolean; spa_path?: string };

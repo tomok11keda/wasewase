@@ -10,6 +10,22 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .dm_services import can_access_dm_room  # noqa: F401 — kept for start_dm paths
+from .group_chat_services import can_access_group_room
+from .group_invite_services import (
+    accept_group_invitation,
+    can_view_group_room,
+    create_or_refresh_invitations,
+    decline_group_invitation,
+    list_invite_candidates,
+)
+from .dm_request_services import (
+    accept_dm_request,
+    can_access_dm_room_for_viewer,
+    decline_dm_request,
+    list_pending_dm_requests_payload,
+)
+from .models import ChatRoom, UserDirectMessageRoom
 from .dm_api_services import (
     build_dm_messages_payload,
     build_dm_room_payload,
@@ -24,16 +40,6 @@ from .dm_api_services import (
     serialize_group_message,
     start_dm,
 )
-from .dm_services import can_access_dm_room
-from .group_chat_services import can_access_group_room
-from .group_invite_services import (
-    accept_group_invitation,
-    can_view_group_room,
-    create_or_refresh_invitations,
-    decline_group_invitation,
-    list_invite_candidates,
-)
-from .models import ChatRoom, UserDirectMessageRoom
 
 User = get_user_model()
 
@@ -101,7 +107,7 @@ def api_v1_dm_room(request: HttpRequest, room_pk: int) -> JsonResponse:
         ),
         pk=room_pk,
     )
-    if not can_access_dm_room(room, request.user):
+    if not can_access_dm_room_for_viewer(room, request.user):
         return _json_error("forbidden", status=403)
     return JsonResponse(build_dm_room_payload(room, request.user))
 
@@ -113,7 +119,7 @@ def api_v1_dm_messages(request: HttpRequest, room_pk: int) -> JsonResponse:
         UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
         pk=room_pk,
     )
-    if not can_access_dm_room(room, request.user):
+    if not can_access_dm_room_for_viewer(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
     return JsonResponse(
         build_dm_messages_payload(
@@ -135,7 +141,7 @@ def api_v1_dm_send(request: HttpRequest, room_pk: int) -> JsonResponse:
         message = send_dm_message(room, request.user, body)
     except ValueError as exc:
         code = str(exc)
-        status = 403 if code in ("forbidden", "blocked") else 400
+        status = 403 if code in ("forbidden", "blocked", "request_pending") else 400
         return _json_error(code, status=status)
     message = (
         type(message)
@@ -282,6 +288,39 @@ def api_v1_dm_group_decline(request: HttpRequest, room_pk: int) -> JsonResponse:
     room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
     try:
         decline_group_invitation(room, request.user)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    return JsonResponse({"ok": True, "declined": True, "spa_path": "/dm"})
+
+
+@login_required
+@require_GET
+def api_v1_dm_message_requests(request: HttpRequest) -> JsonResponse:
+    return JsonResponse(list_pending_dm_requests_payload(request.user))
+
+
+@login_required
+@require_POST
+def api_v1_dm_request_accept(request: HttpRequest, room_pk: int) -> JsonResponse:
+    room = get_object_or_404(
+        UserDirectMessageRoom.objects.select_related(
+            "user_a", "user_a__profile", "user_b", "user_b__profile"
+        ),
+        pk=room_pk,
+    )
+    try:
+        accept_dm_request(room, request.user)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    return JsonResponse(build_dm_room_payload(room, request.user))
+
+
+@login_required
+@require_POST
+def api_v1_dm_request_decline(request: HttpRequest, room_pk: int) -> JsonResponse:
+    room = get_object_or_404(UserDirectMessageRoom, pk=room_pk)
+    try:
+        decline_dm_request(room, request.user)
     except ValueError as exc:
         return _json_error(str(exc), status=400)
     return JsonResponse({"ok": True, "declined": True, "spa_path": "/dm"})

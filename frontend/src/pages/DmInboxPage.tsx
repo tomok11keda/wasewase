@@ -56,6 +56,7 @@ export function DmInboxPage() {
   const tab = searchParams.get("tab") || "all";
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [requestCount, setRequestCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +70,7 @@ export function DmInboxPage() {
         if (signal?.aborted) return;
         setItems(data.conversations || []);
         setCounts(data.tab_counts || {});
+        setRequestCount(Number(data.message_request_count || 0));
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "load_failed");
@@ -127,6 +129,17 @@ export function DmInboxPage() {
             ))}
           </nav>
         </header>
+
+        {!loading && requestCount > 0 ? (
+          <Link className="dm-request-entry" to="/dm/requests">
+            <span className="dm-request-entry__label">
+              💬 メッセージリクエスト
+            </span>
+            <span className="dm-request-entry__count" aria-label={`${requestCount}件`}>
+              {requestCount}
+            </span>
+          </Link>
+        ) : null}
 
         {loading ? (
           <p className="dm-inbox-empty">読み込み中…</p>

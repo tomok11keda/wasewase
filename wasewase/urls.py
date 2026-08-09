@@ -292,6 +292,11 @@ urlpatterns = [
         name="api_v1_dm_start",
     ),
     path(
+        "api/v1/dm/message-requests/",
+        dm_api_views.api_v1_dm_message_requests,
+        name="api_v1_dm_message_requests",
+    ),
+    path(
         "api/v1/dm/rooms/<int:room_pk>/",
         dm_api_views.api_v1_dm_room,
         name="api_v1_dm_room",
@@ -305,6 +310,16 @@ urlpatterns = [
         "api/v1/dm/rooms/<int:room_pk>/messages/send/",
         dm_api_views.api_v1_dm_send,
         name="api_v1_dm_send",
+    ),
+    path(
+        "api/v1/dm/rooms/<int:room_pk>/requests/accept/",
+        dm_api_views.api_v1_dm_request_accept,
+        name="api_v1_dm_request_accept",
+    ),
+    path(
+        "api/v1/dm/rooms/<int:room_pk>/requests/decline/",
+        dm_api_views.api_v1_dm_request_decline,
+        name="api_v1_dm_request_decline",
     ),
     path(
         "api/v1/dm/groups/",

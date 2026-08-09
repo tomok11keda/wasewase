@@ -9,6 +9,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
+  acceptMessageRequest,
+  declineMessageRequest,
   fetchDmRoom,
   pollDmMessages,
   sendDmMessage,
@@ -29,6 +31,7 @@ export function DmRoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [requestBusy, setRequestBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
@@ -130,6 +133,39 @@ export function DmRoomPage() {
     }
   };
 
+  const isPendingRequest = room?.request_status === "pending_request";
+
+  const onAcceptRequest = async () => {
+    setRequestBusy(true);
+    try {
+      const data = await acceptMessageRequest(roomId);
+      setRoom({
+        ...data.room,
+        request_status: data.room.request_status || "active",
+        message_request: data.room.message_request || null,
+      });
+      setMessages(data.messages || []);
+      latestIdRef.current = data.room.latest_id || latestIdRef.current;
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "承認に失敗しました");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
+
+  const onDeclineRequest = async () => {
+    if (!window.confirm("このメッセージリクエストを拒否しますか？")) return;
+    setRequestBusy(true);
+    try {
+      await declineMessageRequest(roomId);
+      navigate("/dm", { replace: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "拒否に失敗しました");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
+
   if (loading || sessionLoading) {
     return (
       <div className="dm-page" data-spa-page="メッセージ">
@@ -199,6 +235,40 @@ export function DmRoomPage() {
                   ) : null}
                 </p>
               </div>
+            </div>
+          </section>
+        ) : null}
+
+        {isPendingRequest ? (
+          <section className="dm-group-invite-banner" aria-label="メッセージリクエスト">
+            <p className="dm-group-invite-banner__lead">
+              {(room.message_request?.from_user?.display_name ||
+                room.partner?.display_name ||
+                "ユーザー") + "さんからメッセージリクエストが届いています"}
+            </p>
+            <strong className="dm-group-invite-banner__question">
+              チャットを開始しますか？
+            </strong>
+            <p className="dm-group-invite-banner__hint">
+              開始するまで通常のDM一覧には表示されません。拒否すると一覧から消えます。
+            </p>
+            <div className="dm-group-invite-banner__actions">
+              <button
+                type="button"
+                className="dm-btn dm-btn-primary"
+                disabled={requestBusy}
+                onClick={() => void onAcceptRequest()}
+              >
+                チャットを開始
+              </button>
+              <button
+                type="button"
+                className="dm-btn dm-btn-ghost"
+                disabled={requestBusy}
+                onClick={() => void onDeclineRequest()}
+              >
+                拒否
+              </button>
             </div>
           </section>
         ) : null}

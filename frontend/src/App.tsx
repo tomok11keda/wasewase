@@ -11,6 +11,7 @@ import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmInboxPage } from "./pages/DmInboxPage";
 import { DmRoomPage } from "./pages/DmRoomPage";
+import { MessageRequestsPage } from "./pages/MessageRequestsPage";
 import { ExhibitPage } from "./pages/ExhibitPage";
 import { GroupCreatePage } from "./pages/GroupCreatePage";
 import { GroupRoomPage } from "./pages/GroupRoomPage";
@@ -64,6 +65,7 @@ function NestedAppRoutes() {
       <Route path="settings" element={<SettingsPage />} />
       <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
       <Route path="dm" element={<DmInboxPage />} />
+      <Route path="dm/requests" element={<MessageRequestsPage />} />
       <Route path="dm/groups/new" element={<GroupCreatePage />} />
       <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />
       <Route path="dm/:roomPk" element={<DmRoomPage />} />

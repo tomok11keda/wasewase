@@ -1699,20 +1699,19 @@ def send_user_dm_message(request, room_pk):
         messages.error(request, "メッセージが長すぎます（500文字以内）。")
         return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 
-    UserDirectMessage.objects.create(
-        room=room,
-        sender=request.user,
-        body=body,
-    )
-    room.save(update_fields=["updated_at"])
+    try:
+        from .dm_api_services import send_dm_message
 
-    recipient = room.other_user(request.user)
-    if recipient and not is_user_blocked(recipient, request.user):
-        Notification.objects.create(
-            recipient=recipient,
-            message=f"{request.user.username} さんから DM: {body[:40]}",
-            link=dm_room_link(room),
-        )
+        send_dm_message(room, request.user, body)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "request_pending":
+            messages.error(request, "メッセージリクエストの承認後に送信できます。")
+        elif code == "blocked":
+            messages.error(request, "このユーザーとはメッセージを送れません。")
+        else:
+            messages.error(request, "送信に失敗しました。")
+        return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 
     return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 

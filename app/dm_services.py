@@ -214,7 +214,11 @@ def list_dm_rooms_for_user(user: AbstractBaseUser):
 
 def build_dm_conversations(user: AbstractBaseUser) -> list[dict]:
     """インボックス表示用にルーム・相手・最新メッセージ・未読件数をまとめる。"""
+    from .dm_request_services import pending_dm_request_room_ids_for
+
     rooms = list(list_dm_rooms_for_user(user))
+    pending_ids = pending_dm_request_room_ids_for(user)
+    rooms = [room for room in rooms if room.pk not in pending_ids]
     unread_map = get_unread_dm_counts_for_rooms(user, rooms)
     conversations = []
     for room in rooms:
