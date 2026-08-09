@@ -229,25 +229,23 @@ export function TradeChatPage() {
         )}
 
         <div className="chat-messages" aria-live="polite">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`chat-bubble${
-                m.is_system ? " system" : m.is_mine ? " mine" : " theirs"
-              }`}
-            >
-              {m.is_system ? (
-                m.body
-              ) : (
-                <>
-                  <div className="chat-meta">
-                    {m.sender_name} · {m.created_at}
-                  </div>
-                  <div className="chat-bubble-body">{m.body}</div>
-                </>
-              )}
-            </div>
-          ))}
+          {messages.map((m) =>
+            m.is_system ? (
+              <div key={m.id} className="chat-bubble system">
+                {m.body}
+              </div>
+            ) : (
+              <div
+                key={m.id}
+                className={`chat-item${m.is_mine ? " mine" : " theirs"}`}
+              >
+                <div className="chat-meta">
+                  {m.sender_name} · {m.created_at}
+                </div>
+                <div className="chat-bubble">{m.body}</div>
+              </div>
+            )
+          )}
           <div ref={bottomRef} />
         </div>
 
