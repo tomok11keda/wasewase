@@ -60,7 +60,6 @@ function NestedAppRoutes() {
       <Route path="timetable/user/:userPk" element={<TimetablePage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
-      <Route path="search" element={<SearchPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
@@ -95,6 +94,7 @@ function AppRoutes() {
         <Route element={<AppShellLayout />}>
           <Route index element={<HomePage />} />
           <Route path="communities" element={<CommunitiesPage />} />
+          <Route path="search" element={<SearchPage />} />
           <Route path="flea" element={<FleaPage />} />
           <Route path="timetable" element={<TimetablePage />} />
           <Route path="more" element={<MorePage />} />
@@ -105,6 +105,7 @@ function AppRoutes() {
           <Route element={<TabKeepAliveLayout />}>
             <Route index element={<MainTabRoute />} />
             <Route path="communities" element={<MainTabRoute />} />
+            <Route path="search" element={<MainTabRoute />} />
             <Route path="flea" element={<MainTabRoute />} />
             <Route path="timetable" element={<MainTabRoute />} />
             <Route path="more" element={<MorePage />} />
