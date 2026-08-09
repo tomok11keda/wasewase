@@ -208,6 +208,50 @@ class TimetableSlot(models.Model):
         return f"{self.user_id}:{self.slot_key} {label}"
 
 
+class CalendarEvent(models.Model):
+    """ユーザー個人のカレンダー予定（時間割タブのカレンダービュー用）。"""
+
+    class Category(models.TextChoices):
+        CLASS = "class", "授業"
+        ASSIGNMENT = "assignment", "課題"
+        EXAM = "exam", "テスト"
+        SEMINAR = "seminar", "ゼミ"
+        CLUB = "club", "サークル"
+        OTHER = "other", "その他"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+        verbose_name="ユーザー",
+    )
+    title = models.CharField("予定名", max_length=120)
+    date = models.DateField("日付", db_index=True)
+    start_time = models.TimeField("開始時刻", null=True, blank=True)
+    end_time = models.TimeField("終了時刻", null=True, blank=True)
+    memo = models.TextField("メモ", blank=True)
+    category = models.CharField(
+        "カテゴリ",
+        max_length=20,
+        choices=Category.choices,
+        default=Category.OTHER,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "カレンダー予定"
+        verbose_name_plural = "カレンダー予定"
+        ordering = ["date", "start_time", "pk"]
+        indexes = [
+            models.Index(fields=["user", "date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.date} {self.title}"
+
+
 class Follow(models.Model):
     """承認済みフォロー関係のみを保持する（pending は FollowRequest）。"""
 

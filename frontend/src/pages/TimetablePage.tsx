@@ -22,6 +22,15 @@ import {
   type SlotsMap,
 } from "../features/timetable/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import { TimetableCalendarView } from "../features/calendar/TimetableCalendarView";
+
+type TimetableSectionId = "timetable" | "calendar";
+
+const SECTION_TABS: Array<{ id: TimetableSectionId; label: string }> = [
+  { id: "timetable", label: "時間割" },
+  { id: "calendar", label: "カレンダー" },
+  // Future: { id: "coupon", label: "クーポン" },
+];
 
 type ModalState = {
   slotKey: string;
@@ -100,6 +109,8 @@ export function TimetablePage({
   const [modal, setModal] = useState<ModalState | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<SlotEntry>(emptyEntry());
+  const [section, setSection] = useState<TimetableSectionId>("timetable");
+  const showSectionTabs = !embedded && !viewingOther;
 
   const getEntry = useCallback(
     (slotKey: string): SlotEntry => {
@@ -346,6 +357,24 @@ export function TimetablePage({
           </div>
         ) : null}
 
+        {showSectionTabs ? (
+          <nav className="tt-section-tabs" aria-label="時間割の表示切替">
+            {SECTION_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`tt-section-tabs__btn${
+                  section === tab.id ? " is-active" : ""
+                }`}
+                aria-pressed={section === tab.id}
+                onClick={() => setSection(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
+
         {(loading || sessionLoading) && !ready ? (
           <p className="timetable-note">読み込み中…</p>
         ) : error && !ready ? (
@@ -353,6 +382,11 @@ export function TimetablePage({
             読み込みに失敗しました（{error}）
             {error === "private" ? "。この時間割は非公開です。" : ""}
           </p>
+        ) : showSectionTabs && section === "calendar" ? (
+          <TimetableCalendarView
+            slots={slots}
+            authenticated={Boolean(me?.authenticated)}
+          />
         ) : (
           <section className="timetable-board" aria-label="週間時間割">
             <div className="timetable-scroll">
@@ -390,7 +424,8 @@ export function TimetablePage({
           </section>
         )}
 
-        {readOnly && viewingOther ? (
+        {showSectionTabs && section === "calendar" ? null : readOnly &&
+          viewingOther ? (
           <p className="timetable-note">公開中の時間割です（閲覧のみ）。</p>
         ) : (
           <p className="timetable-note">

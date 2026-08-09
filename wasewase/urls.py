@@ -12,6 +12,7 @@ from app import community_api_views
 from app import flea_api_views
 from app import profile_api_views
 from app import dm_api_views
+from app import calendar_api_views
 from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
@@ -280,6 +281,26 @@ urlpatterns = [
         "api/v1/search/",
         profile_api_views.api_v1_search,
         name="api_v1_search",
+    ),
+    path(
+        "api/v1/calendar/events/",
+        calendar_api_views.api_v1_calendar_events,
+        name="api_v1_calendar_events",
+    ),
+    path(
+        "api/v1/calendar/events/create/",
+        calendar_api_views.api_v1_calendar_event_create,
+        name="api_v1_calendar_event_create",
+    ),
+    path(
+        "api/v1/calendar/events/<int:event_pk>/",
+        calendar_api_views.api_v1_calendar_event_update,
+        name="api_v1_calendar_event_update",
+    ),
+    path(
+        "api/v1/calendar/events/<int:event_pk>/delete/",
+        calendar_api_views.api_v1_calendar_event_delete,
+        name="api_v1_calendar_event_delete",
     ),
     path(
         "api/v1/dm/inbox/",
