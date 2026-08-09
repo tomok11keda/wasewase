@@ -34,7 +34,11 @@ def filter_inbox_by_tab(items: list[dict], tab: str) -> list[dict]:
     if tab == INBOX_TAB_TRADE:
         return [item for item in items if item.get("kind") == "trade"]
     if tab == INBOX_TAB_DM:
-        return [item for item in items if item.get("kind") in ("dm", "group")]
+        return [
+            item
+            for item in items
+            if item.get("kind") in ("dm", "group", "group_invite")
+        ]
     return items
 
 
@@ -127,6 +131,21 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
             )
         except Exception as exc:
             logger.warning("Skipping broken group conversation: %s", exc)
+            continue
+
+    try:
+        from .group_invite_services import build_group_invite_conversations
+
+        invite_conversations = build_group_invite_conversations(user)
+    except Exception as exc:
+        logger.warning("build_group_invite_conversations failed: %s", exc)
+        invite_conversations = []
+
+    for invite in invite_conversations:
+        try:
+            items.append(invite)
+        except Exception as exc:
+            logger.warning("Skipping broken group invite: %s", exc)
             continue
 
     try:

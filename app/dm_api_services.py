@@ -33,7 +33,6 @@ from .models import (
     UserDirectMessageRoom,
 )
 from .services import (
-    get_following_user_ids,
     get_user_avatar_url,
     user_avatar_initial,
     user_display_name,
@@ -125,7 +124,7 @@ def serialize_inbox_item(item: dict) -> dict[str, Any]:
 def _spa_path_for_item(kind: str, room_pk: int) -> str:
     if kind == "trade":
         return f"/flea/chats/{room_pk}"
-    if kind == "group":
+    if kind in ("group", "group_invite"):
         return f"/dm/groups/{room_pk}"
     return f"/dm/{room_pk}"
 
@@ -137,7 +136,11 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
     tab_counts = {
         "all": len(all_items),
         "trade": sum(1 for i in all_items if i.get("kind") == "trade"),
-        "dm": sum(1 for i in all_items if i.get("kind") in ("dm", "group")),
+        "dm": sum(
+            1
+            for i in all_items
+            if i.get("kind") in ("dm", "group", "group_invite")
+        ),
     }
     return {
         "ok": True,
@@ -246,18 +249,89 @@ def start_dm(
     return get_or_create_dm_room(actor, partner)
 
 
+def create_group_chat(
+    creator: AbstractBaseUser,
+    *,
+    name: str,
+    member_ids: list[int],
+) -> ChatRoom:
+    """
+    グループを作成し、選択ユーザーには membership ではなく招待を送る。
+    作成者のみが最初の正式メンバー（OWNER）。
+    """
+    from django.db import IntegrityError, transaction
+
+    from .group_invite_services import create_or_refresh_invitations
+
+    selected = {int(x) for x in member_ids if int(x) != creator.id}
+    if not selected:
+        raise ValueError("no_members")
+    group_name = (name or "").strip()[:120]
+    try:
+        with transaction.atomic():
+            room = ChatRoom.objects.create(
+                kind=ChatRoom.Kind.GROUP,
+                created_by=creator,
+                name=group_name,
+            )
+            ChatRoomMembership.objects.create(
+                room=room,
+                user=creator,
+                role=ChatRoomMembership.Role.OWNER,
+            )
+            if not group_name:
+                assign_default_group_name(room)
+            invitations = create_or_refresh_invitations(
+                room, creator, list(selected)
+            )
+            if not invitations:
+                raise ValueError("no_invitees")
+    except IntegrityError as exc:
+        raise ValueError("create_failed") from exc
+    except ValueError:
+        raise
+    return room
+
+
+def list_following_for_group(creator: AbstractBaseUser) -> list[dict[str, Any]]:
+    from .group_invite_services import list_invite_candidates
+
+    return list_invite_candidates(creator, query="")
+
+
 def build_group_room_payload(
     room: ChatRoom, viewer: AbstractBaseUser
 ) -> dict[str, Any]:
-    latest_id = mark_group_room_read(room, viewer)
+    from .group_invite_services import (
+        get_pending_invitation,
+        list_pending_invites_for_room,
+        serialize_invitation,
+    )
+
+    is_member = can_access_group_room(room, viewer)
+    pending = None if is_member else get_pending_invitation(room, viewer)
+    if is_member:
+        latest_id = mark_group_room_read(room, viewer)
+    else:
+        latest_id = (
+            room.chat_messages.order_by("-pk").values_list("pk", flat=True).first()
+            or 0
+        )
+
     members = [
         serialize_author(m.user)
-        for m in room.memberships.select_related("user", "user__profile")
+        for m in room.memberships.select_related("user", "user__profile").order_by(
+            "joined_at"
+        )
     ]
     messages = list(
         room.chat_messages.select_related("sender", "sender__profile").order_by(
             "created_at"
         )
+    )
+    pending_invites = list_pending_invites_for_room(room) if is_member else []
+    membership_status = (
+        "member" if is_member else ("pending_invite" if pending else "none")
     )
     return {
         "ok": True,
@@ -267,12 +341,13 @@ def build_group_room_payload(
             "name": room.name or f"グループ #{room.pk}",
             "members": members,
             "member_count": len(members),
-            "can_send": True,
+            "can_send": is_member,
+            "membership_status": membership_status,
+            "invitation": serialize_invitation(pending) if pending else None,
+            "pending_invites": pending_invites,
             "latest_id": latest_id or 0,
         },
-        "messages": [
-            serialize_group_message(m, viewer.id) for m in messages
-        ],
+        "messages": [serialize_group_message(m, viewer.id) for m in messages],
     }
 
 
@@ -288,10 +363,12 @@ def build_group_messages_payload(
         room.chat_messages.order_by("-pk").values_list("pk", flat=True).first()
         or 0
     )
-    mark_group_room_read(room, viewer)
+    if can_access_group_room(room, viewer):
+        mark_group_room_read(room, viewer)
     return {
         "messages": [serialize_group_message(m, viewer.id) for m in qs],
         "latest_id": latest_id,
+        "can_send": can_access_group_room(room, viewer),
     }
 
 
@@ -305,65 +382,6 @@ def send_group_chat_message(
         raise ValueError("too_long")
     if not can_access_group_room(room, sender):
         raise ValueError("forbidden")
-    message = ChatMessage.objects.create(
-        room=room, sender=sender, body=body
-    )
+    message = ChatMessage.objects.create(room=room, sender=sender, body=body)
     room.save(update_fields=["updated_at"])
     return message
-
-
-def create_group_chat(
-    creator: AbstractBaseUser,
-    *,
-    name: str,
-    member_ids: list[int],
-) -> ChatRoom:
-    from django.db import transaction
-    from django.db import IntegrityError
-
-    following_ids = set(get_following_user_ids(creator))
-    following_ids.discard(creator.id)
-    selected = {int(x) for x in member_ids if int(x) != creator.id}
-    if not selected:
-        raise ValueError("no_members")
-    if not selected.issubset(following_ids):
-        raise ValueError("invalid_members")
-    group_name = (name or "").strip()[:120]
-    try:
-        with transaction.atomic():
-            room = ChatRoom.objects.create(
-                kind=ChatRoom.Kind.GROUP,
-                created_by=creator,
-                name=group_name,
-            )
-            memberships = [
-                ChatRoomMembership(
-                    room=room,
-                    user=creator,
-                    role=ChatRoomMembership.Role.OWNER,
-                )
-            ]
-            for user_id in selected:
-                memberships.append(
-                    ChatRoomMembership(
-                        room=room,
-                        user_id=user_id,
-                        role=ChatRoomMembership.Role.MEMBER,
-                    )
-                )
-            ChatRoomMembership.objects.bulk_create(memberships)
-            if not group_name:
-                assign_default_group_name(room)
-    except IntegrityError as exc:
-        raise ValueError("create_failed") from exc
-    return room
-
-
-def list_following_for_group(creator: AbstractBaseUser) -> list[dict[str, Any]]:
-    following_ids = set(get_following_user_ids(creator))
-    following_ids.discard(creator.id)
-    from django.contrib.auth import get_user_model
-
-    User = get_user_model()
-    users = User.objects.filter(id__in=following_ids).select_related("profile")
-    return [serialize_author(u) for u in users]

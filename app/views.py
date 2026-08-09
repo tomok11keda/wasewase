@@ -57,6 +57,7 @@ from .group_chat_services import (
     group_room_link,
     mark_group_room_read,
 )
+from .group_invite_services import can_view_group_room
 from .inbox_services import (
     INBOX_TAB_ALL,
     INBOX_TAB_DM,
@@ -1479,62 +1480,50 @@ def dm_group_create(request):
     """
     1対1 DM（UserDirectMessage）とは独立した、グループチャット作成用エンドポイント。
 
-    最低限のグループ作成フロー（部屋作成・参加者追加）だけを実装し、
-    既存 DM のロジックは一切変更しません。
+    選択ユーザーには招待を送り、承認後に正式メンバーになる。
     """
+    from .dm_api_services import create_group_chat
+    from .spa_canonical import group_room_url
 
     following_ids = set(get_following_user_ids(request.user))
     following_ids.discard(request.user.id)
 
     if request.method == "POST":
         selected_raw = request.POST.getlist("member_ids")
-        selected_ids: set[int] = set()
+        selected_ids: list[int] = []
         for raw in selected_raw:
             if str(raw).isdigit():
-                selected_ids.add(int(raw))
+                uid = int(raw)
+                if uid != request.user.id:
+                    selected_ids.append(uid)
 
-        # フォロー中ユーザーだけ許可（自己除外）
-        selected_ids.discard(request.user.id)
         if not selected_ids:
-            messages.error(request, "グループに追加するユーザーを選択してください。")
-            return redirect(reverse("dm_group_create"))
-
-        if not selected_ids.issubset(following_ids):
-            messages.error(request, "選択されたユーザーの一部が不正です。")
+            messages.error(request, "招待するユーザーを選択してください。")
             return redirect(reverse("dm_group_create"))
 
         try:
-            with transaction.atomic():
-                group_name = request.POST.get("name", "").strip()[:120]
-                room = ChatRoom.objects.create(
-                    kind=ChatRoom.Kind.GROUP,
-                    created_by=request.user,
-                    name=group_name,
+            room = create_group_chat(
+                request.user,
+                name=request.POST.get("name", ""),
+                member_ids=selected_ids,
+            )
+        except ValueError as exc:
+            code = str(exc)
+            if code in ("no_members", "no_invitees"):
+                messages.error(request, "招待できるユーザーがいません。")
+            elif code == "rate_limited":
+                messages.error(
+                    request,
+                    "招待の送信上限に達しました。しばらくしてから再度お試しください。",
                 )
-                memberships = [
-                    ChatRoomMembership(
-                        room=room,
-                        user=request.user,
-                        role=ChatRoomMembership.Role.OWNER,
-                    )
-                ]
-                for user_id in selected_ids:
-                    memberships.append(
-                        ChatRoomMembership(
-                            room=room,
-                            user_id=user_id,
-                            role=ChatRoomMembership.Role.MEMBER,
-                        )
-                    )
-                ChatRoomMembership.objects.bulk_create(memberships)
-                if not group_name:
-                    assign_default_group_name(room)
-        except IntegrityError:
-            messages.error(request, "グループ作成に失敗しました（重複など）。")
+            elif code == "too_many_invites":
+                messages.error(request, "一度に招待できる人数を超えています。")
+            else:
+                messages.error(request, "グループ作成に失敗しました。")
             return redirect(reverse("dm_group_create"))
 
-        messages.success(request, "グループチャットを作成しました。")
-        return redirect(group_room_link(room))
+        messages.success(request, "グループを作成し、招待を送りました。")
+        return redirect(group_room_url(room.pk))
 
     following_users = list(
         User.objects.filter(id__in=following_ids).order_by("id")
@@ -1560,7 +1549,7 @@ def dm_group_room(request, room_pk):
         pk=room_pk,
         kind=ChatRoom.Kind.GROUP,
     )
-    if not can_access_group_room(room, request.user):
+    if not can_view_group_room(room, request.user):
         messages.error(request, "このグループチャットにはアクセスできません。")
         return redirect(reverse("user_dm_inbox"))
 
@@ -1569,7 +1558,9 @@ def dm_group_room(request, room_pk):
         for membership in room.memberships.select_related("user", "user__profile")
     ]
     group_messages = room.chat_messages.select_related("sender")
-    latest_message_id = mark_group_room_read(room, request.user)
+    latest_message_id = 0
+    if can_access_group_room(room, request.user):
+        latest_message_id = mark_group_room_read(room, request.user)
     display_name = room.name or f"グループ #{room.pk}"
 
     return render(
@@ -1620,11 +1611,12 @@ def send_group_message(request, room_pk):
 @require_GET
 def dm_group_room_messages(request, room_pk):
     room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
-    if not can_access_group_room(room, request.user):
+    if not can_view_group_room(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
 
     response = _group_messages_json(request, room)
-    mark_group_room_read(room, request.user)
+    if can_access_group_room(room, request.user):
+        mark_group_room_read(room, request.user)
     return response
 
 

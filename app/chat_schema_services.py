@@ -117,3 +117,59 @@ def ensure_chatroom_group_chat_schema() -> None:
         logger.warning("ChatRoom schema repair failed: %s", exc)
     except Exception as exc:
         logger.warning("ChatRoom schema repair failed: %s", exc)
+
+
+def ensure_chatroom_invitation_table() -> None:
+    """ChatRoomInvitation テーブルが無い本番 DB を修復する。"""
+    table = "app_chatroominvitation"
+    try:
+        with connection.cursor() as cursor:
+            tables = connection.introspection.table_names(cursor)
+            if table in tables:
+                return
+            user_table = get_user_model()._meta.db_table
+            if connection.vendor == "postgresql":
+                cursor.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {table} (
+                        id bigserial PRIMARY KEY,
+                        status varchar(16) NOT NULL DEFAULT 'pending',
+                        created_at timestamptz NOT NULL DEFAULT NOW(),
+                        responded_at timestamptz NULL,
+                        updated_at timestamptz NOT NULL DEFAULT NOW(),
+                        invitee_id bigint NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+                        inviter_id bigint NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+                        room_id bigint NOT NULL REFERENCES app_chatroom(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+                        CONSTRAINT unique_chat_room_invitation_per_invitee UNIQUE (room_id, invitee_id),
+                        CONSTRAINT chat_room_invitation_no_self CHECK (inviter_id <> invitee_id)
+                    )
+                    """
+                )
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS {table}_status_idx ON {table} (status)"
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {table} (
+                        id integer PRIMARY KEY AUTOINCREMENT,
+                        status varchar(16) NOT NULL DEFAULT 'pending',
+                        created_at datetime NOT NULL,
+                        responded_at datetime NULL,
+                        updated_at datetime NOT NULL,
+                        invitee_id integer NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE,
+                        inviter_id integer NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE,
+                        room_id integer NOT NULL REFERENCES app_chatroom(id) ON DELETE CASCADE,
+                        UNIQUE (room_id, invitee_id),
+                        CHECK (inviter_id <> invitee_id)
+                    )
+                    """
+                )
+            logger.warning("Created missing %s table", table)
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message:
+            return
+        logger.warning("ChatRoomInvitation schema repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("ChatRoomInvitation schema repair failed: %s", exc)

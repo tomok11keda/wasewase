@@ -2598,16 +2598,16 @@ class GroupChatTests(TestCase):
         )
         Follow.objects.create(follower=self.owner, following=self.member)
 
-    def test_group_create_requires_following(self):
+    def test_group_create_requires_invitees(self):
         self.client.force_login(self.owner)
         response = self.client.post(
             reverse("dm_group_create"),
-            {"member_ids": [str(self.other.pk)]},
+            {"member_ids": []},
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(ChatRoom.objects.filter(kind=ChatRoom.Kind.GROUP).count(), 0)
 
-    def test_group_create_adds_owner_and_members(self):
+    def test_group_create_invites_without_membership(self):
         self.client.force_login(self.owner)
         response = self.client.post(
             reverse("dm_group_create"),
@@ -2621,7 +2621,7 @@ class GroupChatTests(TestCase):
         self.assertEqual(room.name, "テストグループ")
         self.assertEqual(
             ChatRoomMembership.objects.filter(room=room).count(),
-            2,
+            1,
         )
         self.assertTrue(
             ChatRoomMembership.objects.filter(
@@ -2630,6 +2630,32 @@ class GroupChatTests(TestCase):
                 role=ChatRoomMembership.Role.OWNER,
             ).exists()
         )
+        from .models import ChatRoomInvitation
+
+        invite = ChatRoomInvitation.objects.get(room=room, invitee=self.member)
+        self.assertEqual(invite.status, ChatRoomInvitation.Status.PENDING)
+        self.assertFalse(
+            ChatRoomMembership.objects.filter(room=room, user=self.member).exists()
+        )
+
+    def test_group_create_can_invite_non_following(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("dm_group_create"),
+            {"name": "部外者招待", "member_ids": [str(self.other.pk)]},
+        )
+        self.assertEqual(response.status_code, 302)
+        room = ChatRoom.objects.get(kind=ChatRoom.Kind.GROUP, name="部外者招待")
+        from .models import ChatRoomInvitation
+
+        self.assertTrue(
+            ChatRoomInvitation.objects.filter(
+                room=room,
+                invitee=self.other,
+                status=ChatRoomInvitation.Status.PENDING,
+            ).exists()
+        )
+        self.assertEqual(ChatRoomMembership.objects.filter(room=room).count(), 1)
 
     def test_group_room_shows_messages_and_allows_send(self):
         room = ChatRoom.objects.create(

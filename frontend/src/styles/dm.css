@@ -218,6 +218,60 @@
   color: #9a6700;
 }
 
+.dm-inbox-status.is-invite {
+  background: #eef6f0;
+  color: #1b7a3d;
+}
+
+.dm-inbox-item.is-invite {
+  border-color: #d6ebdc;
+}
+
+.dm-group-invite-banner {
+  margin: 0 0 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid #d6ebdc;
+  border-radius: 12px;
+  background: #f5faf7;
+}
+
+.dm-group-invite-banner__lead {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--dm-muted, #536471);
+}
+
+.dm-group-invite-banner__question {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.dm-group-invite-banner__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--dm-muted, #536471);
+  line-height: 1.4;
+}
+
+.dm-group-invite-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dm-group-invite-locked {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7f9f9;
+  color: var(--dm-muted, #536471);
+  font-size: 13px;
+  text-align: center;
+}
+
 .dm-inbox-preview {
   margin: 0;
   font-size: 14px;

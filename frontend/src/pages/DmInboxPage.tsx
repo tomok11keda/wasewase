@@ -24,7 +24,7 @@ function avatarContent(item: InboxItem) {
     }
     return "🛒";
   }
-  if (item.kind === "group") return "👥";
+  if (item.kind === "group" || item.kind === "group_invite") return "👥";
   if (item.is_blocked) return "?";
   const name = item.partner?.display_name || item.display_name || "?";
   return name.slice(0, 1);
@@ -144,12 +144,12 @@ export function DmInboxPage() {
                 <Link
                   className={`dm-inbox-item${
                     item.unread_count > 0 ? " has-unread" : ""
-                  }`}
+                  }${item.kind === "group_invite" ? " is-invite" : ""}`}
                   to={item.spa_path}
                 >
                   <span
                     className={`dm-inbox-avatar${
-                      item.kind === "group"
+                      item.kind === "group" || item.kind === "group_invite"
                         ? " is-group"
                         : item.kind === "trade"
                           ? " is-trade"
@@ -180,10 +180,21 @@ export function DmInboxPage() {
                           </span>
                         ) : null}
                       </>
+                    ) : item.kind === "group_invite" ? (
+                      <>
+                        <span className="dm-inbox-status is-invite">
+                          {item.status_label || "招待あり"}
+                        </span>
+                        <span className="dm-inbox-handle">{item.subtitle}</span>
+                      </>
                     ) : (
                       <span className="dm-inbox-handle">{item.subtitle}</span>
                     )}
-                    {item.latest_body ? (
+                    {item.kind === "group_invite" ? (
+                      <p className="dm-inbox-preview">
+                        タップして参加するか辞退してください
+                      </p>
+                    ) : item.latest_body ? (
                       <p className="dm-inbox-preview">
                         {item.latest_sender_name ? (
                           <span className="dm-inbox-preview-prefix">

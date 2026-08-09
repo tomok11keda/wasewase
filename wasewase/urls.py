@@ -327,6 +327,21 @@ urlpatterns = [
         name="api_v1_dm_group_send",
     ),
     path(
+        "api/v1/dm/groups/<int:room_pk>/invite/",
+        dm_api_views.api_v1_dm_group_invite,
+        name="api_v1_dm_group_invite",
+    ),
+    path(
+        "api/v1/dm/groups/<int:room_pk>/invitations/accept/",
+        dm_api_views.api_v1_dm_group_accept,
+        name="api_v1_dm_group_accept",
+    ),
+    path(
+        "api/v1/dm/groups/<int:room_pk>/invitations/decline/",
+        dm_api_views.api_v1_dm_group_decline,
+        name="api_v1_dm_group_decline",
+    ),
+    path(
         "api/v1/notifications/",
         notification_api_views.api_v1_notifications_list,
         name="api_v1_notifications_list",

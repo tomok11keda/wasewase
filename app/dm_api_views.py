@@ -26,6 +26,13 @@ from .dm_api_services import (
 )
 from .dm_services import can_access_dm_room
 from .group_chat_services import can_access_group_room
+from .group_invite_services import (
+    accept_group_invitation,
+    can_view_group_room,
+    create_or_refresh_invitations,
+    decline_group_invitation,
+    list_invite_candidates,
+)
 from .models import ChatRoom, UserDirectMessageRoom
 
 User = get_user_model()
@@ -44,6 +51,20 @@ def _parse_json(request: HttpRequest) -> dict:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def _parse_id_list(raw_ids) -> list[int]:
+    ids: list[int] = []
+    if raw_ids is None:
+        return ids
+    if not isinstance(raw_ids, (list, tuple)):
+        raw_ids = [raw_ids]
+    for raw in raw_ids:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return ids
 
 
 @login_required
@@ -134,17 +155,21 @@ def api_v1_dm_send(request: HttpRequest, room_pk: int) -> JsonResponse:
 @require_http_methods(["GET", "POST"])
 def api_v1_dm_groups(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
+        query = (request.GET.get("q") or "").strip()
+        if query:
+            candidates = list_invite_candidates(request.user, query=query)
+        else:
+            candidates = list_following_for_group(request.user)
         return JsonResponse(
-            {"ok": True, "following": list_following_for_group(request.user)}
+            {
+                "ok": True,
+                "following": candidates,
+                "candidates": candidates,
+            }
         )
     data = _parse_json(request)
     member_ids = data.get("member_ids") or request.POST.getlist("member_ids")
-    ids: list[int] = []
-    for raw in member_ids:
-        try:
-            ids.append(int(raw))
-        except (TypeError, ValueError):
-            continue
+    ids = _parse_id_list(member_ids)
     name = str(data.get("name") if data else request.POST.get("name", ""))
     try:
         room = create_group_chat(request.user, name=name, member_ids=ids)
@@ -168,7 +193,7 @@ def api_v1_dm_group_room(request: HttpRequest, room_pk: int) -> JsonResponse:
         pk=room_pk,
         kind=ChatRoom.Kind.GROUP,
     )
-    if not can_access_group_room(room, request.user):
+    if not can_view_group_room(room, request.user):
         return _json_error("forbidden", status=403)
     return JsonResponse(build_group_room_payload(room, request.user))
 
@@ -177,7 +202,7 @@ def api_v1_dm_group_room(request: HttpRequest, room_pk: int) -> JsonResponse:
 @require_GET
 def api_v1_dm_group_messages(request: HttpRequest, room_pk: int) -> JsonResponse:
     room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
-    if not can_access_group_room(room, request.user):
+    if not can_view_group_room(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
     return JsonResponse(
         build_group_messages_payload(
@@ -210,3 +235,53 @@ def api_v1_dm_group_send(request: HttpRequest, room_pk: int) -> JsonResponse:
         },
         status=201,
     )
+
+
+@login_required
+@require_POST
+def api_v1_dm_group_invite(request: HttpRequest, room_pk: int) -> JsonResponse:
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    if not can_access_group_room(room, request.user):
+        return _json_error("forbidden", status=403)
+    data = _parse_json(request)
+    invitee_ids = _parse_id_list(
+        data.get("member_ids")
+        or data.get("invitee_ids")
+        or request.POST.getlist("member_ids")
+    )
+    try:
+        invitations = create_or_refresh_invitations(
+            room, request.user, invitee_ids
+        )
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    return JsonResponse(
+        {
+            "ok": True,
+            "invited_count": len(invitations),
+            "invitation_ids": [inv.pk for inv in invitations],
+        },
+        status=201,
+    )
+
+
+@login_required
+@require_POST
+def api_v1_dm_group_accept(request: HttpRequest, room_pk: int) -> JsonResponse:
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    try:
+        accept_group_invitation(room, request.user)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    return JsonResponse(build_group_room_payload(room, request.user))
+
+
+@login_required
+@require_POST
+def api_v1_dm_group_decline(request: HttpRequest, room_pk: int) -> JsonResponse:
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    try:
+        decline_group_invitation(room, request.user)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    return JsonResponse({"ok": True, "declined": True, "spa_path": "/dm"})
