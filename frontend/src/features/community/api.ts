@@ -58,15 +58,20 @@ export type ThreadsListResponse = {
   faculty_tabs: FacultyTab[];
   active_tag: string;
   q: string;
+  sort?: "recommended" | "latest";
 };
 
 export async function fetchCommunityThreads(query: {
   tag?: string;
   q?: string;
+  sort?: "recommended" | "latest";
 }): Promise<ThreadsListResponse> {
   const params = new URLSearchParams();
   if (query.tag) params.set("tag", query.tag);
   if (query.q) params.set("q", query.q);
+  if (query.sort && query.sort !== "recommended") {
+    params.set("sort", query.sort);
+  }
   const qs = params.toString();
   const res = await fetch(
     qs ? `/api/v1/communities/threads/?${qs}` : "/api/v1/communities/threads/",

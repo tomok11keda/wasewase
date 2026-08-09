@@ -1,4 +1,39 @@
 /* Home timeline chrome — matches classic feed-scope / compose spacing */
+.ranking-sort-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0 0 10px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.ranking-sort-tab {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--muted, #536471);
+  cursor: pointer;
+  position: relative;
+}
+
+.ranking-sort-tab.is-active {
+  color: var(--text, #0f1419);
+}
+
+.ranking-sort-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent, #891e2b);
+}
+
 .feed-scope-tabs {
   display: flex;
   gap: 8px;

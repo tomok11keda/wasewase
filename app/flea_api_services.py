@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import HttpRequest
 from django.utils.timesince import timesince
@@ -310,6 +310,10 @@ def list_flea_payload(request: HttpRequest) -> dict[str, Any]:
             products = products.order_by("-price", "-created_at")
         elif active_order == "newest":
             products = products.order_by("-created_at")
+        elif active_order == "popular":
+            products = products.annotate(
+                like_count_ann=Count("likes", distinct=True)
+            ).order_by("-like_count_ann", "-created_at")
         elif (
             feed_scope != "following"
             and request.user.is_authenticated

@@ -232,7 +232,17 @@ export function FleaPage() {
         </div>
 
         <h2 className="section-title">
-          {qParam ? `「${qParam}」の検索結果` : "おすすめ商品"}
+          {qParam
+            ? `「${qParam}」の検索結果`
+            : order === "newest"
+              ? "新着の商品"
+              : order === "popular"
+                ? "人気の商品"
+                : order === "price_low"
+                  ? "安い順の商品"
+                  : order === "price_high"
+                    ? "高い順の商品"
+                    : "商品一覧"}
         </h2>
 
         {loading && products.length === 0 ? (

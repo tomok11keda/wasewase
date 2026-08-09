@@ -19,6 +19,7 @@ import {
 import { ImagePickField } from "../components/ImagePickField";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { LocalSearchBar } from "../components/LocalSearchBar";
+import { getImpressedPostIds } from "../features/timeline/impressions";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -29,6 +30,9 @@ export function HomePage() {
   const feed = (searchParams.get("feed") === "following" ? "following" : "all") as
     | "all"
     | "following";
+  const sort = (
+    searchParams.get("sort") === "latest" ? "latest" : "recommended"
+  ) as "recommended" | "latest";
   const faculty = searchParams.get("faculty") || "";
   const qParam = searchParams.get("q") || "";
   const ownFaculty = me?.user?.department || "";
@@ -113,8 +117,10 @@ export function HomePage() {
       try {
         const data = await fetchTimeline({
           feed,
+          sort,
           faculty: faculty || undefined,
           q: qParam || undefined,
+          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         });
         setPosts(data.posts);
         setHasMore(data.has_more);
@@ -127,7 +133,7 @@ export function HomePage() {
         setLoading(false);
       }
     },
-    [feed, faculty, qParam]
+    [feed, sort, faculty, qParam]
   );
 
   useEffect(() => {
@@ -151,9 +157,11 @@ export function HomePage() {
         setLoadingMore(true);
         void fetchTimeline({
           feed,
+          sort,
           faculty: faculty || undefined,
           q: qParam || undefined,
           offset: nextOffset,
+          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         })
           .then((data: TimelineFeedResponse) => {
             setPosts((prev) => {
@@ -173,7 +181,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [feed, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
+  }, [feed, sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -242,6 +250,23 @@ export function HomePage() {
           「{qParam}」のタイムライン検索結果（コミュニティ・フリマは含みません）
         </p>
       ) : null}
+
+      <nav className="ranking-sort-tabs" aria-label="タイムライン並び順">
+        <button
+          type="button"
+          className={`ranking-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+          onClick={() => patchParams({ sort: "" })}
+        >
+          おすすめ
+        </button>
+        <button
+          type="button"
+          className={`ranking-sort-tab${sort === "latest" ? " is-active" : ""}`}
+          onClick={() => patchParams({ sort: "latest" })}
+        >
+          最新
+        </button>
+      </nav>
 
       <nav className="feed-scope-tabs" aria-label="タイムライン表示範囲">
         <button
