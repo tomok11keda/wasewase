@@ -22,6 +22,7 @@ from .models import (
     TimelinePost,
     UserProfile,
 )
+from .widgets import ImagePickWidget
 
 User = get_user_model()
 
@@ -238,7 +239,7 @@ class AccountProfileForm(forms.ModelForm):
             "bio": forms.Textarea(
                 attrs={"rows": 4, "placeholder": "自己紹介や取引の希望など（任意）"}
             ),
-            "avatar": forms.ClearableFileInput(attrs={"accept": "image/*"}),
+            "avatar": ImagePickWidget(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -349,7 +350,7 @@ class ProductExhibitForm(forms.ModelForm):
             "professor_name": forms.TextInput(
                 attrs={"placeholder": "例：山田太郎（任意）"}
             ),
-            "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
+            "image": ImagePickWidget(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -424,7 +425,7 @@ class TimelinePostForm(forms.ModelForm):
                     "maxlength": 280,
                 }
             ),
-            "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
+            "image": ImagePickWidget(attrs={"accept": "image/*"}),
         }
 
     def __init__(self, *args, viewer=None, **kwargs):
