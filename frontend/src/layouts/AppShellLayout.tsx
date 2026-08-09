@@ -35,8 +35,13 @@ export function AppShellLayout() {
 
   useEffect(() => {
     document.body.classList.toggle("shell-hide-bottom-nav", hideBottomNav);
+    document.documentElement.classList.toggle(
+      "shell-hide-bottom-nav",
+      hideBottomNav
+    );
     return () => {
       document.body.classList.remove("shell-hide-bottom-nav");
+      document.documentElement.classList.remove("shell-hide-bottom-nav");
     };
   }, [hideBottomNav]);
 

@@ -43,6 +43,14 @@ body.shell-desktop.shell-hide-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Belt-and-suspenders: never show bottom tabs on conversation screens. */
+body.shell-hide-bottom-nav .bottom-nav,
+body.shell-hide-bottom-nav .shell-hide-on-desktop:has(.bottom-nav) {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;
