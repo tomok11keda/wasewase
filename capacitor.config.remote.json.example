@@ -1,7 +1,8 @@
 {
-  "_comment": "本番 URL を WebView で直接開く設定。有効にする場合は server ブロックを capacitor.config.json にマージしてください。",
+  "_comment": "本番 SPA を WebView で直接開く server ブロック。capacitor.config.json に同内容をマージ済み。",
+  "_local_www": "www スタブを起動したいときは capacitor.config.json から server キー全体を削除（またはコメント相当で除去）し、npx cap sync ios を再実行する。",
   "server": {
-    "url": "https://wasewase.onrender.com",
+    "url": "https://wasewase.onrender.com/app/",
     "cleartext": false,
     "androidScheme": "https"
   }
