@@ -1,7 +1,7 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 require 'fileutils'
 
-platform :ios, '14.0'
+platform :ios, '15.0'
 use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires
@@ -65,5 +65,15 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  # App target is iOS 15+; keep all CocoaPods targets aligned so embedded
+  # frameworks/bundles ship MinimumOSVersion >= 15.0 after Archive.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      deployment_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f
+      if deployment_target < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
   apply_wasewase_ios_patches!
 end
