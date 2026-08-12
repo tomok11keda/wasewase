@@ -421,7 +421,6 @@ export function SearchPage() {
             onChange={(e) => setQInput(e.target.value)}
             placeholder="ゼミ、教科書、先生などを検索"
             aria-label="わせわせ全体検索"
-            autoFocus
           />
           <button type="submit">検索</button>
         </form>
