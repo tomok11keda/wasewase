@@ -3,6 +3,11 @@
   "appName": "わせわせ",
   "webDir": "www",
   "backgroundColor": "#891E2B",
+  "server": {
+    "url": "https://wasewase.onrender.com/app/",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
   "ios": {
     "contentInset": "never",
     "allowsLinkPreview": false,

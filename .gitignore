@@ -9,3 +9,7 @@ node_modules/
 .capacitor/
 frontend/dist/
 frontend/node_modules/
+.DS_Store
+
+# Firebase iOS config (local only — public repo)
+GoogleService-Info.plist
