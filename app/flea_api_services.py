@@ -23,7 +23,10 @@ from .services import (
 )
 from .timeline_api_services import serialize_author
 from .trade_chat_inbox_services import product_thumbnail_url, trade_status_label
-from .trade_chat_services import get_confirmed_room_for_product
+from .trade_chat_services import (
+    get_confirmed_room_for_product,
+    seller_can_complete_handover,
+)
 from .ugc_services import filter_visible_comments, filter_visible_products
 
 logger = logging.getLogger(__name__)
@@ -218,12 +221,7 @@ def serialize_chat_room(
     can_confirm_trade = (
         is_seller and room.is_negotiating and product.is_available
     )
-    can_complete_handover = (
-        is_seller
-        and room.is_confirmed
-        and product.is_pending
-        and product.buyer_id == room.buyer_id
-    )
+    can_complete_handover = seller_can_complete_handover(room, product, viewer)
     return {
         "id": room.pk,
         "deal_status": room.deal_status,

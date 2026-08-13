@@ -372,6 +372,9 @@ export function handoverErrorMessage(code: string): string {
       return "受け渡し完了の保存に失敗しました。時間をおいて再度お試しください。";
     case "forbidden":
       return "このチャットを操作する権限がありません。";
+    case "unauthorized":
+    case "authentication_required":
+      return "ログインが必要です。再度ログインしてからお試しください。";
     default:
       return "受け渡し完了に失敗しました。";
   }

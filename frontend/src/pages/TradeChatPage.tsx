@@ -163,7 +163,12 @@ export function TradeChatPage() {
     setActionError(null);
     try {
       const { room: updated, product_status } = await completeHandover(roomId);
-      if (product_status !== "sold" && updated.product.status !== "sold") {
+      const status = product_status || updated.product.status;
+      const soldOk =
+        updated.product.is_sold ||
+        status === "sold" ||
+        status === "sold_out";
+      if (!soldOk) {
         throw new Error("save_failed");
       }
       setRoom(updated);

@@ -39,6 +39,7 @@ from .services import (
 from .product_trade_schema_services import ensure_product_trade_schema
 from .trade_chat_services import (
     complete_handover_by_seller,
+    seller_can_complete_handover,
     confirm_negotiation_trade,
     get_confirmed_room_for_product,
     start_instant_purchase,
@@ -459,11 +460,8 @@ def chat_room(request, room_pk):
         and room.is_negotiating
         and room.product.is_available
     )
-    can_complete_handover = (
-        is_seller
-        and room.is_confirmed
-        and room.product.is_pending
-        and room.product.buyer_id == room.buyer_id
+    can_complete_handover = seller_can_complete_handover(
+        room, room.product, request.user
     )
 
     return render(

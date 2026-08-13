@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 
 from .bookmark_services import BookmarkServiceError
-from .models import Product, User
+from .models import ChatRoom, Message, Product, User
 
 _MINIMAL_GIF = (
     b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04"
@@ -173,6 +173,111 @@ class FleaApiTests(TestCase):
         confirm = self.client.post(f"/api/v1/flea/chats/{room_id}/confirm/")
         self.assertEqual(confirm.status_code, 200)
         self.assertEqual(confirm.json()["product_status"], Product.Status.PENDING)
+
+    def _make_pending_negotiating_room(self):
+        """0036 移行ギャップ再現: 商品は取引中だが deal_status が negotiating。"""
+        self.product.status = Product.Status.PENDING
+        self.product.buyer = self.buyer
+        self.product.save(update_fields=["status", "buyer"])
+        return ChatRoom.objects.create(
+            product=self.product,
+            buyer=self.buyer,
+            deal_status=ChatRoom.DealStatus.NEGOTIATING,
+        )
+
+    def test_seller_handover_heals_pending_negotiating_room(self):
+        room = self._make_pending_negotiating_room()
+
+        self.client.force_login(self.seller)
+        detail = self.client.get(f"/api/v1/flea/chats/{room.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue(detail.json()["room"]["can_complete_handover"])
+        self.assertFalse(detail.json()["room"]["can_confirm_trade"])
+
+        handover = self.client.post(
+            f"/api/v1/flea/chats/{room.pk}/handover-complete/"
+        )
+        self.assertEqual(handover.status_code, 200)
+        self.assertEqual(handover.json()["product_status"], Product.Status.SOLD)
+        self.product.refresh_from_db()
+        room.refresh_from_db()
+        self.assertTrue(self.product.is_sold)
+        self.assertEqual(room.deal_status, ChatRoom.DealStatus.CONFIRMED)
+
+    def test_negotiating_available_room_cannot_handover(self):
+        """値下げ交渉中（available）は受け渡し完了不可。取引開始が必要。"""
+        self.client.force_login(self.buyer)
+        start = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/chat/start/"
+        )
+        room_id = start.json()["room_id"]
+
+        self.client.force_login(self.seller)
+        detail = self.client.get(f"/api/v1/flea/chats/{room_id}/")
+        self.assertTrue(detail.json()["room"]["can_confirm_trade"])
+        self.assertFalse(detail.json()["room"]["can_complete_handover"])
+        bad = self.client.post(f"/api/v1/flea/chats/{room_id}/handover-complete/")
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(bad.json()["error"], "not_pending")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+
+    def test_handover_rejects_buyer_and_outsider(self):
+        self.client.force_login(self.buyer)
+        purchase = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/purchase/"
+        )
+        room_id = purchase.json()["room_id"]
+
+        buyer_try = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(buyer_try.status_code, 400)
+        self.assertEqual(buyer_try.json()["error"], "not_seller")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.PENDING)
+
+        outsider = User.objects.create_user(
+            email="flea-outsider@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.client.force_login(outsider)
+        outsider_try = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(outsider_try.status_code, 403)
+        self.assertEqual(outsider_try.json()["error"], "forbidden")
+
+    def test_handover_does_not_double_complete_and_chat_still_readable(self):
+        self.client.force_login(self.buyer)
+        purchase = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/purchase/"
+        )
+        room_id = purchase.json()["room_id"]
+        self.client.post(
+            f"/api/v1/flea/chats/{room_id}/messages/send/",
+            data=json.dumps({"body": "まだあります"}),
+            content_type="application/json",
+        )
+
+        self.client.force_login(self.seller)
+        first = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(first.status_code, 200)
+        second = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["product_status"], Product.Status.SOLD)
+
+        msgs = self.client.get(f"/api/v1/flea/chats/{room_id}/messages/")
+        self.assertEqual(msgs.status_code, 200)
+        bodies = [m["body"] for m in msgs.json()["messages"]]
+        self.assertTrue(any("まだあります" in b for b in bodies))
+        self.assertTrue(
+            Message.objects.filter(chat_room_id=room_id, is_system=True).exists()
+        )
 
     def test_exhibit_requires_image(self):
         self.client.force_login(self.seller)
