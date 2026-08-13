@@ -9,6 +9,7 @@ import {
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { spaLoginPath } from "../features/auth/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import { analytics } from "../lib/analytics/events";
 
 function ProductGridCard({ product }: { product: ProductCard }) {
   const sellerName = product.seller?.display_name || "出品者";
@@ -109,6 +110,10 @@ export function FleaPage() {
   useEffect(() => {
     void load(hasDataRef.current ? "soft" : "initial");
   }, [load]);
+
+  useEffect(() => {
+    analytics.fleaViewed();
+  }, []);
 
   useSoftTabRefetch("flea", () => load("soft"));
 

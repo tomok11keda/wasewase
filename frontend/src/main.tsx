@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { PostHogAppProvider } from "./lib/analytics/PostHogAppProvider";
 import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/timeline.css";
@@ -20,6 +21,8 @@ document.body.classList.add("shell-desktop");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <PostHogAppProvider>
+      <App />
+    </PostHogAppProvider>
   </StrictMode>
 );

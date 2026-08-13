@@ -20,6 +20,7 @@ import {
 } from "../features/flea/api";
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { analytics } from "../lib/analytics/events";
 
 export function TradeChatPage() {
   const { roomPk } = useParams();
@@ -142,6 +143,7 @@ export function TradeChatPage() {
     setActionError(null);
     try {
       const updated = await confirmTrade(roomId);
+      analytics.tradeStarted({ method: "confirm_negotiation" });
       setRoom(updated);
       const data = await fetchChatMessages(roomId);
       setMessages(data.messages);
@@ -172,6 +174,7 @@ export function TradeChatPage() {
         throw new Error("save_failed");
       }
       setRoom(updated);
+      analytics.tradeCompleted();
       setHandoverDone(true);
     } catch (err) {
       handoverStartedRef.current = false;

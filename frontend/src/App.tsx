@@ -6,6 +6,7 @@ import {
 } from "./layouts/TabKeepAliveLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { SessionProvider } from "./lib/session";
+import { PostHogIdentitySync } from "./lib/analytics/PostHogAppProvider";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
@@ -42,6 +43,7 @@ const BASENAME = "/app";
 function SpaRuntimeHooks() {
   return (
     <>
+      <PostHogIdentitySync />
       <UnauthorizedRedirect />
       <NativeSpaBridge />
     </>

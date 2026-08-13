@@ -21,6 +21,7 @@ import {
 } from "../features/profile/api";
 import { startDm } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
+import { analytics } from "../lib/analytics/events";
 import { TimetablePage } from "./TimetablePage";
 
 const TABS = [
@@ -358,6 +359,7 @@ export function ProfilePage() {
                         setBusy(true);
                         try {
                           const roomId = await startDm(u.id);
+                          analytics.dmStarted({ created_new: true });
                           navigate(`/dm/${roomId}`);
                         } catch (err) {
                           window.alert(

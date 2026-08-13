@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useSession } from "../lib/session";
 import { logoutRequest, spaLoginPath } from "../features/auth/api";
+import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
 
 function ClassicLink({
@@ -60,6 +61,7 @@ export function AccountMenuContent({
     } catch {
       /* ignore */
     }
+    analyticsLogout();
     setMeFromAuth({
       authenticated: false,
       is_browse_mode: false,

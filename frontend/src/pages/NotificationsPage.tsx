@@ -6,6 +6,7 @@ import {
   type NotificationItem,
 } from "../features/notifications/api";
 import { spaLoginPath } from "../features/auth/api";
+import { analytics } from "../lib/analytics/events";
 
 function formatBadgeCount(n: number): string {
   if (n > 99) return "99+";
@@ -23,7 +24,11 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   if (item.spa_path) {
     const [path, hash] = item.spa_path.split("#");
     return (
-      <Link to={path || "/"} state={hash ? { hash } : undefined}>
+      <Link
+        to={path || "/"}
+        state={hash ? { hash } : undefined}
+        onClick={() => analytics.notificationOpened()}
+      >
         {body}
       </Link>
     );
@@ -35,14 +40,22 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     const [path, query] = pathAndQuery.split("?");
     const to = query ? `${path || "/"}?${query}` : path || "/";
     return (
-      <Link to={to} state={hash ? { hash } : undefined}>
+      <Link
+        to={to}
+        state={hash ? { hash } : undefined}
+        onClick={() => analytics.notificationOpened()}
+      >
         {body}
       </Link>
     );
   }
   if (item.link) {
     // Classic paths: Django redirects GET → /app/… when WASE_REACT_SPA is on
-    return <a href={item.link}>{body}</a>;
+    return (
+      <a href={item.link} onClick={() => analytics.notificationOpened()}>
+        {body}
+      </a>
+    );
   }
   return <div className="notification-static">{body}</div>;
 }

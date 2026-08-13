@@ -6,6 +6,7 @@ import {
   ensureAuthCsrf,
   loginRequest,
 } from "../features/auth/api";
+import { analytics } from "../lib/analytics/events";
 import type { MeResponse } from "../lib/api";
 
 /**
@@ -72,6 +73,7 @@ export function LoginPage() {
       } else {
         await refresh();
       }
+      analytics.loginCompleted();
       const redirect = (data.redirect as string) || next;
       goAfterAuth(redirect, navigate);
     } catch {

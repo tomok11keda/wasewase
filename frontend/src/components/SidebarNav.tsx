@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { logoutRequest, spaLoginPath } from "../features/auth/api";
+import { analyticsLogout } from "../lib/analytics/client";
 import { TAB_ROUTES } from "../lib/tabs";
 import type { MeResponse } from "../lib/api";
 
@@ -27,6 +28,7 @@ export function SidebarNav() {
     } catch {
       /* ignore */
     }
+    analyticsLogout();
     setMeFromAuth({
       authenticated: false,
       is_browse_mode: false,

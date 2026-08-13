@@ -10,6 +10,7 @@ import {
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { LocalSearchBar } from "../components/LocalSearchBar";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import { analytics } from "../lib/analytics/events";
 
 export function CommunitiesPage() {
   const { me } = useSession();
@@ -70,6 +71,10 @@ export function CommunitiesPage() {
     void load(hasDataRef.current ? "soft" : "initial");
   }, [load]);
 
+  useEffect(() => {
+    analytics.communityViewed();
+  }, []);
+
   useSoftTabRefetch("communities", () => load("soft"));
 
   const onCreate = async (e: FormEvent) => {
@@ -85,6 +90,7 @@ export function CommunitiesPage() {
         body: body.trim(),
         tag: tag || undefined,
       });
+      analytics.communityPostCreated();
       setThreads((prev) => [thread, ...prev]);
       setTitle("");
       setBody("");

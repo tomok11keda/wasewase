@@ -6,7 +6,9 @@ import {
   verifyOtpRequest,
   verifyOtpResend,
 } from "../features/auth/api";
+import { EmailDeliveryHint } from "../components/EmailDeliveryHint";
 import { useSession } from "../lib/session";
+import { analytics } from "../lib/analytics/events";
 import type { MeResponse } from "../lib/api";
 
 export function VerifyOtpPage() {
@@ -42,6 +44,7 @@ export function VerifyOtpPage() {
       }
       if (data.me) setMeFromAuth(data.me as MeResponse);
       else await refresh();
+      analytics.signupCompleted();
       navigate("/?login_success=1", { replace: true });
     } catch {
       setError("認証に失敗しました。");
@@ -74,6 +77,7 @@ export function VerifyOtpPage() {
         {masked ? (
           <p className="hint">{masked} に送った6桁のコードを入力してください。</p>
         ) : null}
+        <EmailDeliveryHint />
         {info ? (
           <ul className="messages">
             <li className="info">{info}</li>
@@ -106,6 +110,7 @@ export function VerifyOtpPage() {
             コードを再送信
           </button>
         </p>
+        <EmailDeliveryHint compact />
         <p className="footer-link">
           <Link to="/signup">新規登録に戻る</Link>
         </p>

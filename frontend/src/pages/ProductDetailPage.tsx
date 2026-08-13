@@ -16,6 +16,7 @@ import {
   type ProductDetail,
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
+import { analytics } from "../lib/analytics/events";
 
 export function ProductDetailPage() {
   const { pk } = useParams();
@@ -54,6 +55,17 @@ export function ProductDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!product) return;
+    analytics.fleaItemViewed({
+      status: product.status,
+      faculty: product.faculty || undefined,
+      campus: product.handover_campus || undefined,
+    });
+    // Track once per product id (not on every soft refresh of fields).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [product?.id]);
 
   const requireLogin = (next: string) => {
     navigate(spaLoginPath(next));
@@ -114,6 +126,7 @@ export function ProductDetailPage() {
     setFlash(null);
     try {
       const roomId = await purchaseProduct(product.id);
+      analytics.tradeStarted({ method: "instant_purchase" });
       const refreshed = await fetchProductDetail(product.id);
       setProduct(refreshed);
       setFlash({
@@ -139,6 +152,7 @@ export function ProductDetailPage() {
     setBusy(true);
     try {
       const roomId = await startProductChat(product.id);
+      analytics.fleaInquiryCreated();
       navigate(`/flea/chats/${roomId}`);
     } catch (err) {
       setFlash({

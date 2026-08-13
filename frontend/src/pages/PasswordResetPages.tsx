@@ -8,6 +8,7 @@ import {
   passwordResetSet,
   passwordResetVerify,
 } from "../features/auth/api";
+import { EmailDeliveryHint } from "../components/EmailDeliveryHint";
 
 export function PasswordResetRequestPage() {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export function PasswordResetRequestPage() {
             autoComplete="email"
             required
           />
+          <EmailDeliveryHint />
           <button type="submit" className="btn" disabled={busy}>
             確認コードを送る
           </button>
@@ -127,6 +129,7 @@ export function PasswordResetVerifyPage() {
       <div className="form-card">
         <h1>確認コード入力</h1>
         {masked ? <p className="hint">{masked} に送ったコードを入力してください。</p> : null}
+        <EmailDeliveryHint />
         {info ? (
           <ul className="messages">
             <li className="info">{info}</li>
@@ -153,6 +156,7 @@ export function PasswordResetVerifyPage() {
             コードを再送信
           </button>
         </p>
+        <EmailDeliveryHint compact />
         <p className="footer-link">
           <Link to="/password-reset">メール入力に戻る</Link>
         </p>

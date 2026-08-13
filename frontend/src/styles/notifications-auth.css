@@ -505,3 +505,53 @@
 .follow-request-actions .btn {
   min-width: 72px;
 }
+
+/* Email OTP delivery tip (spam folder) */
+.auth-page .email-delivery-hint,
+.email-delivery-hint {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #f0d6a8;
+  background: #fff8e8;
+  color: #5c4a1f;
+}
+
+.auth-page .email-delivery-hint__title,
+.email-delivery-hint__title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #3d3114;
+}
+
+.auth-page .email-delivery-hint__body,
+.email-delivery-hint__body {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.auth-page .email-delivery-hint__warn,
+.email-delivery-hint__warn {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #6b4e16;
+}
+
+.auth-page .email-delivery-hint--compact,
+.email-delivery-hint--compact {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  border-radius: 8px;
+  border: 1px solid #f0d6a8;
+  background: #fff8e8;
+  color: #6b4e16;
+}
+
