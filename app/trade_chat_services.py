@@ -24,6 +24,29 @@ SYSTEM_MSG_OTHER_CONFIRMED = (
 SYSTEM_MSG_HANDOVER_DONE = "受け渡しが完了し、商品は売り切れになりました"
 
 
+def seller_can_complete_handover(
+    room: ChatRoom,
+    product: Product,
+    seller: AbstractBaseUser,
+) -> bool:
+    """出品者が受け渡し完了できる取引か。
+
+    正常系は deal_status=confirmed + product=pending。
+    0036 / schema repair で deal_status が negotiating のまま残った
+    「取引中」商品も、buyer が一致していれば完了対象とする（仕様変更ではなく整合修復）。
+    """
+    if product.seller_id != seller.id:
+        return False
+    if not product.is_pending:
+        return False
+    if product.buyer_id != room.buyer_id:
+        return False
+    return room.deal_status in (
+        ChatRoom.DealStatus.CONFIRMED,
+        ChatRoom.DealStatus.NEGOTIATING,
+    )
+
+
 def post_system_message(room: ChatRoom, body: str) -> Message:
     message = Message.objects.create(
         chat_room=room,
@@ -192,10 +215,14 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
         raise ValueError("already_sold")
     if not product.is_pending:
         raise ValueError("not_pending")
-    if room.deal_status != ChatRoom.DealStatus.CONFIRMED:
-        raise ValueError("not_confirmed")
     if product.buyer_id != room.buyer_id:
         raise ValueError("buyer_mismatch")
+    # 0036 以前の進行中取引など、pending なのに negotiating のままのルームを修復
+    if room.deal_status == ChatRoom.DealStatus.NEGOTIATING:
+        room.deal_status = ChatRoom.DealStatus.CONFIRMED
+        room.save(update_fields=["deal_status", "updated_at"])
+    elif room.deal_status != ChatRoom.DealStatus.CONFIRMED:
+        raise ValueError("not_confirmed")
 
     product.status = Product.Status.SOLD
     product.seller_trade_completed = True
