@@ -23,6 +23,7 @@ import {
 } from "../features/timetable/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { TimetableCalendarView } from "../features/calendar/TimetableCalendarView";
+import { analytics } from "../lib/analytics/events";
 
 type TimetableSectionId = "timetable" | "calendar";
 
@@ -185,6 +186,10 @@ export function TimetablePage({
     void load(readyRef.current ? "soft" : "initial");
   }, [sessionLoading, load]);
 
+  useEffect(() => {
+    analytics.timetableViewed();
+  }, []);
+
   useSoftTabRefetch("timetable", () => {
     if (!viewingOther && !embedded) {
       void load("soft");
@@ -261,6 +266,9 @@ export function TimetablePage({
     }
     const result = await saveSlot(slotKey, entry);
     applyLocal(slotKey, result.entry);
+    analytics.timetableSlotSaved({
+      filled: Boolean((result.entry.name || "").trim()),
+    });
     return result.entry;
   };
 

@@ -135,6 +135,7 @@
         </label>
         {% for error in form.accept_terms.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
 
+        {% include "includes/email_delivery_hint.html" %}
         <button type="submit" class="btn" id="signup-submit" disabled>登録して認証メールを送信</button>
       </form>
       <p class="footer-link">すでにアカウントをお持ちの方は <a href="{% url 'login' %}">ログイン</a></p>

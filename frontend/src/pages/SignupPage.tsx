@@ -5,6 +5,7 @@ import {
   fetchSignupMeta,
   signupRequest,
 } from "../features/auth/api";
+import { EmailDeliveryHint } from "../components/EmailDeliveryHint";
 import { useSession } from "../lib/session";
 
 export function SignupPage() {
@@ -183,6 +184,7 @@ export function SignupPage() {
           </label>
           {err("accept_terms")}
 
+          <EmailDeliveryHint />
           <button type="submit" className="btn" disabled={busy || !acceptTerms}>
             認証コードを送る
           </button>

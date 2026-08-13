@@ -12,6 +12,7 @@ import {
   type Author,
 } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
+import { analytics } from "../lib/analytics/events";
 
 export function GroupCreatePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -67,6 +68,7 @@ export function GroupCreatePage() {
     setBusy(true);
     try {
       const roomId = await createGroup(name.trim(), [...selected]);
+      analytics.groupChatStarted();
       navigate(`/dm/groups/${roomId}`);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "作成に失敗しました");

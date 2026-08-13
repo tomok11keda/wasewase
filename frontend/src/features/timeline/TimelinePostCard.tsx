@@ -18,6 +18,7 @@ import {
   queueImpression,
 } from "./impressions";
 import { saveScrollPosition } from "../profile/api";
+import { analytics } from "../../lib/analytics/events";
 
 type Props = {
   post: TimelinePost;
@@ -430,6 +431,7 @@ export function TimelinePostCard({
                 guard(() => {
                   void run(async () => {
                     const { liked, like_count } = await toggleLike(post.id);
+                    if (liked) analytics.likeCreated();
                     onChange({
                       ...post,
                       user_has_liked: liked,
@@ -499,6 +501,7 @@ export function TimelinePostCard({
                         post.id,
                         body
                       );
+                      analytics.commentCreated();
                       onChange({
                         ...post,
                         comments: [...post.comments, comment],

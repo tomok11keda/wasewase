@@ -1,0 +1,57 @@
+{# Presentation-only tip for OTP / verification emails. #}
+<style>
+  .email-delivery-hint {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #f0d6a8;
+    background: #fff8e8;
+    color: #5c4a1f;
+  }
+  .email-delivery-hint__title {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #3d3114;
+  }
+  .email-delivery-hint__body {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .email-delivery-hint__warn {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.55;
+    color: #6b4e16;
+  }
+  .email-delivery-hint--compact {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    border-radius: 8px;
+    border: 1px solid #f0d6a8;
+    background: #fff8e8;
+    color: #6b4e16;
+  }
+</style>
+{% if compact %}
+<p class="email-delivery-hint email-delivery-hint--compact" role="note">
+  ⚠️ 受信トレイに見つからない場合は、迷惑メールフォルダも必ず確認してください。
+</p>
+{% else %}
+<aside class="email-delivery-hint" role="note" aria-label="認証メールが届かない場合">
+  <p class="email-delivery-hint__title">📩 認証メールが届かない場合</p>
+  <p class="email-delivery-hint__body">
+    まず「迷惑メール」フォルダを確認してください。
+    大学のメールアドレスでは、わせわせからのメールが迷惑メールに振り分けられる場合があります。
+  </p>
+  <p class="email-delivery-hint__warn">
+    ⚠️ 受信トレイに見つからない場合は、迷惑メールフォルダも必ず確認してください。
+  </p>
+</aside>
+{% endif %}

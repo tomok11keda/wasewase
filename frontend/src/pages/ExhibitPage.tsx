@@ -8,6 +8,7 @@ import {
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
 import { ImagePickField } from "../components/ImagePickField";
+import { analytics } from "../lib/analytics/events";
 
 export function ExhibitPage() {
   const { me, loading: sessionLoading } = useSession();
@@ -70,6 +71,10 @@ export function ExhibitPage() {
       form.set("faculty", faculty);
       form.set("image", image);
       const product = await createProduct(form);
+      analytics.fleaItemCreated({
+        faculty: faculty || undefined,
+        campus: campus || undefined,
+      });
       navigate(`/flea?exhibit_success=1`);
       void product;
     } catch (err) {

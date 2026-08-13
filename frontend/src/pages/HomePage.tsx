@@ -20,6 +20,7 @@ import { ImagePickField } from "../components/ImagePickField";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { LocalSearchBar } from "../components/LocalSearchBar";
 import { getImpressedPostIds } from "../features/timeline/impressions";
+import { analytics } from "../lib/analytics/events";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -55,6 +56,10 @@ export function HomePage() {
     next.delete("feed");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    analytics.timelineViewed();
+  }, []);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -296,6 +301,10 @@ export function HomePage() {
         body: body || (quoteId ? "リポスト" : ""),
         image: composeImage,
         quoted_post_id: quoteId,
+      });
+      analytics.timelinePostCreated({
+        has_image: Boolean(composeImage),
+        is_quote: Boolean(quoteId),
       });
       setPosts((prev) => [post, ...prev]);
       resetComposeDraft();
