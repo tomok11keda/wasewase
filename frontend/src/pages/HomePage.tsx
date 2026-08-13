@@ -71,29 +71,52 @@ export function HomePage() {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const composeSectionRef = useRef<HTMLDivElement | null>(null);
+  const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasDataRef = useRef(false);
   const authenticated = Boolean(me?.authenticated);
-  // Keep-alive panes use transform, so fixed FAB must portal to body.
+  // Keep-alive panes use transform, so fixed FAB / modal must portal to body.
   // Show only while the home timeline is the active view.
   const normalizedPath = location.pathname.replace(/\/$/, "") || "/";
   const showComposeFab =
-    activeTab === "home" ||
-    (activeTab === null && normalizedPath === "/");
+    !composeOpen &&
+    (activeTab === "home" ||
+      (activeTab === null && normalizedPath === "/"));
+
+  const hasComposeDraft = Boolean(
+    composeBody.trim() || composeImage || quoteId
+  );
 
   const openCompose = useCallback(() => {
     if (!authenticated) {
       navigate(spaLoginPath("/app/?compose=1"));
       return;
     }
+    // Overlay only — do not scroll the timeline.
     setComposeOpen(true);
-    window.requestAnimationFrame(() => {
-      composeSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
   }, [authenticated, navigate]);
+
+  const resetComposeDraft = useCallback(() => {
+    setComposeBody("");
+    setComposeImage(null);
+    setQuoteId(null);
+    setQuotePreview(null);
+  }, []);
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    resetComposeDraft();
+  }, [resetComposeDraft]);
+
+  const requestCloseCompose = useCallback(() => {
+    if (composeBusy) return;
+    if (
+      hasComposeDraft &&
+      !window.confirm("入力中の内容は破棄されます。閉じますか？")
+    ) {
+      return;
+    }
+    closeCompose();
+  }, [closeCompose, composeBusy, hasComposeDraft]);
 
   // Open compose from Search / Sidebar without full reload
   useEffect(() => {
@@ -114,6 +137,60 @@ export function HomePage() {
     }
   }, [authenticated, location.state, navigate, searchParams, setSearchParams]);
 
+  // Lock page scroll while compose overlay is open (keeps timeline scrollY).
+  useEffect(() => {
+    if (!composeOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [composeOpen]);
+
+  // Focus textarea after open; Escape closes.
+  useEffect(() => {
+    if (!composeOpen) return;
+    const focusTimer = window.setTimeout(() => {
+      composeTextareaRef.current?.focus();
+    }, 50);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        requestCloseCompose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [composeOpen, requestCloseCompose]);
+
+  // Keep modal above the iOS keyboard using visualViewport.
+  useEffect(() => {
+    if (!composeOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      document.documentElement.style.setProperty(
+        "--compose-vv-offset",
+        `${vv.offsetTop}px`
+      );
+      document.documentElement.style.setProperty(
+        "--compose-vv-height",
+        `${vv.height}px`
+      );
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      document.documentElement.style.removeProperty("--compose-vv-offset");
+      document.documentElement.style.removeProperty("--compose-vv-height");
+    };
+  }, [composeOpen]);
   const loadInitial = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
       if (mode === "initial" && !hasDataRef.current) {
@@ -221,10 +298,7 @@ export function HomePage() {
         quoted_post_id: quoteId,
       });
       setPosts((prev) => [post, ...prev]);
-      setComposeBody("");
-      setComposeImage(null);
-      setQuoteId(null);
-      setQuotePreview(null);
+      resetComposeDraft();
       setComposeOpen(false);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "投稿に失敗しました");
@@ -232,6 +306,53 @@ export function HomePage() {
       setComposeBusy(false);
     }
   };
+
+  const composeForm = (
+    <form className="spa-compose__form" onSubmit={submitCompose}>
+      <textarea
+        ref={composeTextareaRef}
+        value={composeBody}
+        onChange={(e) => setComposeBody(e.target.value)}
+        maxLength={280}
+        rows={3}
+        placeholder="いま思ったこと、質問、情報共有など（280字まで）"
+      />
+      {quotePreview ? (
+        <div className="quoted-post-card spa-compose__quote">
+          <strong>
+            {quotePreview.author?.display_name || "投稿"} をリポスト
+          </strong>
+          <p>{quotePreview.body.slice(0, 120)}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuoteId(null);
+              setQuotePreview(null);
+            }}
+          >
+            解除
+          </button>
+        </div>
+      ) : null}
+      <div className="spa-compose__actions">
+        <div className="spa-compose__image">
+          <ImagePickField
+            id="compose-image"
+            value={composeImage}
+            onChange={setComposeImage}
+            disabled={composeBusy}
+            hint="JPEG / PNG / GIF / WebP（任意）"
+          />
+        </div>
+        <button type="button" onClick={requestCloseCompose}>
+          閉じる
+        </button>
+        <button type="submit" disabled={composeBusy}>
+          投稿する
+        </button>
+      </div>
+    </form>
+  );
 
   return (
     <div className="main-inner timeline-home" data-spa-page="タイムライン">
@@ -276,60 +397,14 @@ export function HomePage() {
       ) : null}
 
       {authenticated ? (
-        <div className="spa-compose" ref={composeSectionRef}>
-          {!composeOpen ? (
-            <button
-              type="button"
-              className="spa-compose__open"
-              onClick={openCompose}
-            >
-              いまどうしてる？
-            </button>
-          ) : (
-            <form className="spa-compose__form" onSubmit={submitCompose}>
-              <textarea
-                value={composeBody}
-                onChange={(e) => setComposeBody(e.target.value)}
-                maxLength={280}
-                rows={3}
-                placeholder="いま思ったこと、質問、情報共有など（280字まで）"
-              />
-              {quotePreview ? (
-                <div className="quoted-post-card spa-compose__quote">
-                  <strong>
-                    {quotePreview.author?.display_name || "投稿"} をリポスト
-                  </strong>
-                  <p>{quotePreview.body.slice(0, 120)}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuoteId(null);
-                      setQuotePreview(null);
-                    }}
-                  >
-                    解除
-                  </button>
-                </div>
-              ) : null}
-              <div className="spa-compose__actions">
-                <div className="spa-compose__image">
-                  <ImagePickField
-                    id="compose-image"
-                    value={composeImage}
-                    onChange={setComposeImage}
-                    disabled={composeBusy}
-                    hint="JPEG / PNG / GIF / WebP（任意）"
-                  />
-                </div>
-                <button type="button" onClick={() => setComposeOpen(false)}>
-                  閉じる
-                </button>
-                <button type="submit" disabled={composeBusy}>
-                  投稿する
-                </button>
-              </div>
-            </form>
-          )}
+        <div className="spa-compose">
+          <button
+            type="button"
+            className="spa-compose__open"
+            onClick={openCompose}
+          >
+            いまどうしてる？
+          </button>
         </div>
       ) : (
         <p className="feed-scope-hint">
@@ -338,7 +413,6 @@ export function HomePage() {
           してください。
         </p>
       )}
-
       {sessionLoading || (loading && posts.length === 0) ? (
         <p className="empty-message">読み込み中…</p>
       ) : error && posts.length === 0 ? (
@@ -387,6 +461,40 @@ export function HomePage() {
             >
               ＋
             </button>,
+            document.body
+          )
+        : null}
+
+      {composeOpen && authenticated
+        ? createPortal(
+            <div
+              className="compose-modal spa-compose-modal"
+              aria-hidden="false"
+            >
+              <div
+                className="compose-modal__backdrop"
+                onClick={requestCloseCompose}
+              />
+              <div
+                className="compose-modal__panel"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="spa-compose-modal-title"
+              >
+                <header className="compose-modal__header">
+                  <h2 id="spa-compose-modal-title">投稿する</h2>
+                  <button
+                    type="button"
+                    className="compose-modal__close"
+                    aria-label="閉じる"
+                    onClick={requestCloseCompose}
+                  >
+                    ×
+                  </button>
+                </header>
+                {composeForm}
+              </div>
+            </div>,
             document.body
           )
         : null}

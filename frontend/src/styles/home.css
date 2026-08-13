@@ -151,6 +151,90 @@
   background: #f7f9f9;
 }
 
+/* Timeline compose overlay — classic compose-modal shell + existing spa-compose form */
+.spa-compose-modal.compose-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--compose-vv-offset, 0px);
+  height: var(--compose-vv-height, 100%);
+  z-index: 500;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.spa-compose-modal .compose-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.spa-compose-modal .compose-modal__panel {
+  position: relative;
+  width: min(100%, 600px);
+  max-height: min(var(--compose-vv-height, 90vh), 640px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.spa-compose-modal .compose-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.spa-compose-modal .compose-modal__header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.spa-compose-modal .compose-modal__close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: #eff3f4;
+  color: #0f1419;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.spa-compose-modal .compose-modal__close:hover,
+.spa-compose-modal .compose-modal__close:focus-visible {
+  background: #e7e9ea;
+}
+
+/* Keep existing form controls; drop the outer card chrome inside the modal panel */
+.spa-compose-modal .spa-compose__form {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+@media (min-width: 600px) {
+  .spa-compose-modal.compose-modal {
+    align-items: center;
+    padding: 16px;
+  }
+
+  .spa-compose-modal .compose-modal__panel {
+    border-radius: 16px;
+    padding-bottom: 16px;
+  }
+}
+
 .tweet-comments {
   margin-top: 8px;
   padding-top: 6px;
