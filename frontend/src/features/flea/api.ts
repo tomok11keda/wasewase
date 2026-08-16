@@ -346,9 +346,21 @@ export async function completeHandover(
   try {
     data = await res.json();
   } catch {
+    if (import.meta.env.DEV) {
+      console.error("[handover] non-JSON response", res.status);
+    }
     throw new Error("handover_failed");
   }
   if (!res.ok || !data.ok || !data.room) {
+    if (import.meta.env.DEV) {
+      console.error("[handover] failed", {
+        status: res.status,
+        error: data.error,
+        message: data.message,
+        ok: data.ok,
+        hasRoom: Boolean(data.room),
+      });
+    }
     throw new Error(data.message || data.error || "handover_failed");
   }
   return {
