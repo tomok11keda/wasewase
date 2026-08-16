@@ -190,12 +190,13 @@ def confirm_negotiation_trade(room: ChatRoom, seller: AbstractBaseUser) -> ChatR
 
 
 @transaction.atomic
-def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Product:
-    """出品者が受け渡し完了 → sold。
+def _commit_handover_sold(
+    room: ChatRoom, seller: AbstractBaseUser
+) -> tuple[Product, bool]:
+    """売り切れ更新のみを atomic で確定する。
 
-    システムメッセージ投稿はベストエフォート。
-    メッセージ用スキーマ不備で IntegrityError になっても、売り切れ更新は確定させる
-    （atomic 内で一緒に失敗してロールバックされないよう、メッセージは savepoint 分離）。
+    Returns:
+        (product, newly_completed) — newly_completed は今回 sold に遷移したとき True。
     """
     room = (
         ChatRoom.objects.select_for_update()
@@ -211,7 +212,7 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
     # 二重完了: 同じ取引の売り切れ済みなら成功扱い（idempotent）
     if product.is_sold:
         if product.buyer_id == room.buyer_id:
-            return product
+            return product, False
         raise ValueError("already_sold")
     if not product.is_pending:
         raise ValueError("not_pending")
@@ -230,13 +231,27 @@ def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Pro
     product.save(
         update_fields=["status", "seller_trade_completed", "buyer_trade_completed"]
     )
+    return product, True
 
-    sid = transaction.savepoint()
+
+def complete_handover_by_seller(room: ChatRoom, seller: AbstractBaseUser) -> Product:
+    """出品者が受け渡し完了 → sold。
+
+    システムメッセージは atomic の外でベストエフォート投稿する。
+    SQLite では IntegrityError（例: legacy sender_id NOT NULL）が savepoint 内でも
+    トランザクション全体を壊し、売り切れ更新までロールバックするため。
+    """
+    product, newly_completed = _commit_handover_sold(room, seller)
+    if not newly_completed:
+        return product
+
+    # 売り切れ確定後にメッセージ用スキーマを再試行してから投稿
     try:
+        from .product_trade_schema_services import ensure_message_system_schema
+
+        ensure_message_system_schema()
         post_system_message(room, SYSTEM_MSG_HANDOVER_DONE)
-        transaction.savepoint_commit(sid)
     except Exception:
-        transaction.savepoint_rollback(sid)
         logger.exception(
             "handover system message failed (product=%s room=%s); sale kept",
             product.pk,

@@ -427,20 +427,31 @@ def api_v1_flea_chat_handover(request: HttpRequest, room_pk: int) -> JsonRespons
         )
         return _json_error(code, status=400)
     except (IntegrityError, OperationalError, ProgrammingError) as exc:
-        logger.exception("flea api handover schema/db error: %s", exc)
+        logger.exception(
+            "flea api handover schema/db error room=%s user=%s exc=%s",
+            room_pk,
+            request.user.pk,
+            type(exc).__name__,
+        )
         ensure_product_trade_schema()
         try:
             product = complete_handover_by_seller(room, request.user)
         except ValueError as exc2:
             return _json_error(str(exc2), status=400)
-        except Exception:
-            logger.exception("flea api handover retry failed")
+        except Exception as retry_exc:
+            logger.exception(
+                "flea api handover retry failed room=%s user=%s exc=%s",
+                room_pk,
+                request.user.pk,
+                type(retry_exc).__name__,
+            )
             return _json_error("save_failed", status=500)
-    except Exception:
+    except Exception as exc:
         logger.exception(
-            "flea api handover unexpected error room=%s user=%s",
+            "flea api handover unexpected error room=%s user=%s exc=%s",
             room_pk,
             request.user.pk,
+            type(exc).__name__,
         )
         return _json_error("save_failed", status=500)
 
