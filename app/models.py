@@ -189,6 +189,14 @@ class TimetableSlot(models.Model):
     room = models.CharField("教室", max_length=80, blank=True)
     credits = models.CharField("単位", max_length=20, blank=True)
     memo = models.TextField("進捗・課題メモ", blank=True)
+    offering = models.ForeignKey(
+        "CourseOffering",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timetable_slots",
+        verbose_name="開講授業",
+    )
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -206,6 +214,256 @@ class TimetableSlot(models.Model):
     def __str__(self) -> str:
         label = self.name or "(空)"
         return f"{self.user_id}:{self.slot_key} {label}"
+
+
+class Course(models.Model):
+    """授業の概念的な親（例: マーケティング論）。"""
+
+    title = models.CharField("授業名", max_length=120)
+    title_normalized = models.CharField(
+        "正規化授業名", max_length=120, blank=True, db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "授業"
+        verbose_name_plural = "授業"
+        ordering = ["title"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title_normalized"],
+                name="unique_course_title_normalized",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class CourseOffering(models.Model):
+    """特定年度・学期・教員・曜時限の開講インスタンス。
+
+    将来 ChatRoom(kind=course) との OneToOne を追加してもよい（今回は未実装）。
+    """
+
+    class Semester(models.TextChoices):
+        SPRING = "spring", "春学期"
+        FALL = "fall", "秋学期"
+        FULL = "full", "通年"
+
+    class PeriodKind(models.TextChoices):
+        PERIOD = "period", "通常限"
+        OD = "od", "オンデマンド"
+
+    class Source(models.TextChoices):
+        USER = "user", "ユーザー"
+        ADMIN = "admin", "管理者"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "有効"
+        MERGED = "merged", "統合済み"
+        HIDDEN = "hidden", "非表示"
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="offerings",
+        verbose_name="授業",
+    )
+    academic_year = models.PositiveIntegerField("年度", db_index=True)
+    semester = models.CharField(
+        "学期",
+        max_length=16,
+        choices=Semester.choices,
+        db_index=True,
+    )
+    title = models.CharField("授業名", max_length=120)
+    title_normalized = models.CharField(
+        "正規化授業名", max_length=120, blank=True, db_index=True
+    )
+    instructor = models.CharField("担当教員", max_length=120)
+    instructor_normalized = models.CharField(
+        "正規化教員名", max_length=120, blank=True, db_index=True
+    )
+    day_of_week = models.PositiveSmallIntegerField(
+        "曜日",
+        help_text="0=月 … 5=土",
+    )
+    period_kind = models.CharField(
+        "時限種別",
+        max_length=16,
+        choices=PeriodKind.choices,
+        default=PeriodKind.PERIOD,
+    )
+    period = models.PositiveSmallIntegerField("時限")
+    school = models.CharField("学部", max_length=50, blank=True)
+    campus = models.CharField("キャンパス", max_length=40, blank=True)
+    room = models.CharField("教室", max_length=80, blank=True)
+    credits = models.CharField("単位", max_length=20, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="course_offerings_created",
+        verbose_name="作成者",
+    )
+    source = models.CharField(
+        "出典",
+        max_length=16,
+        choices=Source.choices,
+        default=Source.USER,
+    )
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    merged_into = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merged_from",
+        verbose_name="統合先",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "開講授業"
+        verbose_name_plural = "開講授業"
+        ordering = ["title", "day_of_week", "period"]
+        indexes = [
+            models.Index(
+                fields=[
+                    "status",
+                    "title_normalized",
+                    "instructor_normalized",
+                ]
+            ),
+            models.Index(
+                fields=["status", "day_of_week", "period_kind", "period"]
+            ),
+            models.Index(fields=["academic_year", "semester", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "title_normalized",
+                    "instructor_normalized",
+                    "academic_year",
+                    "semester",
+                    "day_of_week",
+                    "period_kind",
+                    "period",
+                ],
+                condition=models.Q(status="active"),
+                name="uniq_active_course_offering_identity",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.instructor})"
+
+    @property
+    def slot_key(self) -> str:
+        prefix = "od" if self.period_kind == self.PeriodKind.OD else "p"
+        return f"{prefix}{self.period}-d{self.day_of_week}"
+
+
+class CourseEnrollment(models.Model):
+    """ユーザーの履修（時間割登録）状態。"""
+
+    class Role(models.TextChoices):
+        CURRENT = "current", "履修中"
+        PAST = "past", "過去履修"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_enrollments",
+        verbose_name="ユーザー",
+    )
+    offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="enrollments",
+        verbose_name="開講授業",
+    )
+    role = models.CharField(
+        "役割",
+        max_length=16,
+        choices=Role.choices,
+        default=Role.CURRENT,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "履修"
+        verbose_name_plural = "履修"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "offering"],
+                name="unique_course_enrollment_per_user",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["offering", "role"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.offering_id} ({self.role})"
+
+
+class CourseReview(models.Model):
+    """開講授業レビュー（1ユーザー1件）。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_reviews",
+        verbose_name="ユーザー",
+    )
+    offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+        verbose_name="開講授業",
+    )
+    overall_rating = models.PositiveSmallIntegerField("総合評価")
+    difficulty_rating = models.PositiveSmallIntegerField("単位取得難易度")
+    workload_rating = models.PositiveSmallIntegerField("課題量")
+    attendance_rating = models.PositiveSmallIntegerField("出席重要度")
+    exam_rating = models.PositiveSmallIntegerField("試験")
+    comment = models.TextField("コメント", blank=True, max_length=1000)
+    is_hidden = models.BooleanField(
+        "非表示",
+        default=False,
+        db_index=True,
+        help_text="モデレーションにより一覧から隠す",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "授業レビュー"
+        verbose_name_plural = "授業レビュー"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "offering"],
+                name="unique_course_review_per_user",
+            )
+        ]
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"review {self.offering_id} by {self.user_id}"
 
 
 class CalendarEvent(models.Model):
@@ -555,6 +813,8 @@ class ContentReport(models.Model):
         COMMENT = "comment", "コメント"
         USER = "user", "ユーザー"
         PRODUCT = "product", "出品"
+        COURSE_OFFERING = "course_offering", "開講授業"
+        COURSE_REVIEW = "course_review", "授業レビュー"
 
     class Reason(models.TextChoices):
         SPAM = "spam", "スパム・宣伝"

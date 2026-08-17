@@ -6,6 +6,7 @@ export type SlotEntry = {
   room: string;
   credits: string;
   memo: string;
+  offering_id?: number | null;
 };
 
 export type SlotsMap = Record<string, SlotEntry>;
@@ -40,7 +41,7 @@ export const TIMETABLE_OD_SLOTS = [
 ] as const;
 
 export function emptyEntry(): SlotEntry {
-  return { name: "", room: "", credits: "", memo: "" };
+  return { name: "", room: "", credits: "", memo: "", offering_id: null };
 }
 
 export function metaText(entry: SlotEntry, kind: "period" | "od"): string {
@@ -101,6 +102,7 @@ export async function saveSlot(
       room: data.entry?.room || "",
       credits: data.entry?.credits || "",
       memo: data.entry?.memo || "",
+      offering_id: data.entry?.offering_id ?? null,
     },
   };
 }

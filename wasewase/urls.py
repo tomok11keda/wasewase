@@ -13,6 +13,7 @@ from app import flea_api_views
 from app import profile_api_views
 from app import dm_api_views
 from app import calendar_api_views
+from app import course_api_views
 from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
@@ -301,6 +302,46 @@ urlpatterns = [
         "api/v1/calendar/events/<int:event_pk>/delete/",
         calendar_api_views.api_v1_calendar_event_delete,
         name="api_v1_calendar_event_delete",
+    ),
+    path(
+        "api/v1/courses/meta/",
+        course_api_views.api_v1_courses_meta,
+        name="api_v1_courses_meta",
+    ),
+    path(
+        "api/v1/courses/search/",
+        course_api_views.api_v1_courses_search,
+        name="api_v1_courses_search",
+    ),
+    path(
+        "api/v1/courses/duplicates/",
+        course_api_views.api_v1_courses_duplicates,
+        name="api_v1_courses_duplicates",
+    ),
+    path(
+        "api/v1/courses/offerings/",
+        course_api_views.api_v1_courses_offerings_create,
+        name="api_v1_courses_offerings_create",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/",
+        course_api_views.api_v1_courses_offering_detail,
+        name="api_v1_courses_offering_detail",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/enroll/",
+        course_api_views.api_v1_courses_offering_enroll,
+        name="api_v1_courses_offering_enroll",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/unenroll/",
+        course_api_views.api_v1_courses_offering_unenroll,
+        name="api_v1_courses_offering_unenroll",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/reviews/",
+        course_api_views.api_v1_courses_offering_reviews,
+        name="api_v1_courses_offering_reviews",
     ),
     path(
         "api/v1/dm/inbox/",

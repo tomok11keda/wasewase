@@ -61,6 +61,21 @@ TRADE_LOCATION_PRESETS = [
 WASEDA_EMAIL_DOMAIN = "waseda.jp"
 WASEDA_EMAIL_ERROR = "早稲田大学のメールアドレス（waseda.jp）のみ登録可能です"
 
+# 授業DB（CourseOffering）学期・キャンパス
+COURSE_SEMESTER_CHOICES = [
+    ("spring", "春学期"),
+    ("fall", "秋学期"),
+    ("full", "通年"),
+]
+
+COURSE_CAMPUS_CHOICES = [
+    ("waseda", "早稲田"),
+    ("toyama", "戸山"),
+    ("nishi_waseda", "西早稲田"),
+    ("tokorozawa", "所沢"),
+    ("other", "その他"),
+]
+
 
 def is_waseda_email(email: str) -> bool:
     """@waseda.jp または @*.waseda.jp のメールアドレスか判定する。"""

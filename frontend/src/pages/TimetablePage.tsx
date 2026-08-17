@@ -21,6 +21,11 @@ import {
   type SlotEntry,
   type SlotsMap,
 } from "../features/timetable/api";
+import {
+  CourseAddSheet,
+  type CourseAddContext,
+} from "../features/courses/CourseAddSheet";
+import type { CourseOffering } from "../features/courses/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { TimetableCalendarView } from "../features/calendar/TimetableCalendarView";
 import { analytics } from "../lib/analytics/events";
@@ -30,7 +35,6 @@ type TimetableSectionId = "timetable" | "calendar";
 const SECTION_TABS: Array<{ id: TimetableSectionId; label: string }> = [
   { id: "timetable", label: "時間割" },
   { id: "calendar", label: "カレンダー" },
-  // Future: { id: "coupon", label: "クーポン" },
 ];
 
 type ModalState = {
@@ -47,7 +51,7 @@ function SlotButton({
   dayLabel,
   periodLabel,
   entry,
-  readOnly,
+  readOnly: _readOnly,
   onOpen,
 }: {
   slotKey: string;
@@ -69,7 +73,6 @@ function SlotButton({
       data-slot-kind={kind}
       aria-label={`${dayLabel}曜 ${periodLabel}`}
       onClick={() => {
-        if (readOnly) return;
         onOpen();
       }}
     >
@@ -111,7 +114,10 @@ export function TimetablePage({
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<SlotEntry>(emptyEntry());
   const [section, setSection] = useState<TimetableSectionId>("timetable");
+  const [courseSheet, setCourseSheet] = useState<CourseAddContext | null>(null);
   const showSectionTabs = !embedded && !viewingOther;
+  const canAddCourses =
+    Boolean(me?.authenticated) && !viewingOther && !readOnly;
 
   const getEntry = useCallback(
     (slotKey: string): SlotEntry => {
@@ -122,6 +128,7 @@ export function TimetablePage({
         room: entry.room || "",
         credits: entry.credits || "",
         memo: entry.memo || "",
+        offering_id: entry.offering_id ?? null,
       };
     },
     [slots]
@@ -196,7 +203,6 @@ export function TimetablePage({
     }
   });
 
-  // Clean up modal body class on leave / unmount
   useEffect(() => {
     return () => {
       document.body.classList.remove("timetable-modal-open");
@@ -219,7 +225,7 @@ export function TimetablePage({
     };
   }, [modal]);
 
-  const openSlot = (
+  const openFreeText = (
     slotKey: string,
     kind: "period" | "od",
     dayLabel: string,
@@ -234,6 +240,39 @@ export function TimetablePage({
     setModal({ slotKey, kind, dayLabel, periodLabel, entry });
   };
 
+  const openSlot = (
+    slotKey: string,
+    kind: "period" | "od",
+    dayLabel: string,
+    periodLabel: string,
+    dayIndex: number,
+    periodNumber: number
+  ) => {
+    const entry = getEntry(slotKey);
+    if (entry.offering_id) {
+      navigate(`/courses/${entry.offering_id}`);
+      return;
+    }
+    if (readOnly) return;
+    if (entry.name) {
+      openFreeText(slotKey, kind, dayLabel, periodLabel);
+      return;
+    }
+    if (!me?.authenticated) {
+      openFreeText(slotKey, kind, dayLabel, periodLabel);
+      return;
+    }
+    setCourseSheet({
+      slotKey,
+      dayOfWeek: dayIndex,
+      period: periodNumber,
+      periodKind: kind,
+      dayLabel,
+      periodLabel,
+      continuous: false,
+    });
+  };
+
   const closeModal = () => setModal(null);
 
   const applyLocal = (slotKey: string, entry: SlotEntry) => {
@@ -242,6 +281,7 @@ export function TimetablePage({
       room: (entry.room || "").trim(),
       credits: (entry.credits || "").trim(),
       memo: (entry.memo || "").trim(),
+      offering_id: entry.offering_id ?? null,
     };
     setSlots((prev) => {
       const next = { ...prev };
@@ -282,6 +322,7 @@ export function TimetablePage({
         room: modal.kind === "od" ? "" : draft.room,
         credits: draft.credits,
         memo: draft.memo,
+        offering_id: null as number | null,
       };
       await persistSlot(modal.slotKey, payload);
       closeModal();
@@ -321,6 +362,31 @@ export function TimetablePage({
         "公開設定の更新に失敗しました。時間をおいて再度お試しください。"
       );
     }
+  };
+
+  const onCourseAdded = (
+    slot: {
+      slot_key?: string;
+      name: string;
+      room: string;
+      credits: string;
+      memo: string;
+      offering_id?: number | null;
+    },
+    offering: CourseOffering
+  ) => {
+    const key = slot.slot_key;
+    if (!key) {
+      void load("soft");
+      return;
+    }
+    applyLocal(key, {
+      name: slot.name || "",
+      room: slot.room || "",
+      credits: slot.credits || "",
+      memo: slot.memo || "",
+      offering_id: slot.offering_id ?? offering.id,
+    });
   };
 
   const canEditVisibility = Boolean(me?.authenticated) && !viewingOther;
@@ -396,40 +462,57 @@ export function TimetablePage({
             authenticated={Boolean(me?.authenticated)}
           />
         ) : (
-          <section className="timetable-board" aria-label="週間時間割">
-            <div className="timetable-scroll">
-              <div className="timetable-grid" data-timetable-grid>
-                <div className="timetable-corner" aria-hidden="true" />
-                {TIMETABLE_DAYS.map((day) => (
-                  <div className="timetable-day" role="columnheader" key={day}>
-                    {day}
-                  </div>
-                ))}
-
-                {TIMETABLE_PERIODS.map((period) => (
-                  <PeriodRow
-                    key={`p${period.number}`}
-                    period={period}
-                    kind="period"
-                    getEntry={getEntry}
-                    readOnly={readOnly}
-                    onOpen={openSlot}
-                  />
-                ))}
-
-                {TIMETABLE_OD_SLOTS.map((od) => (
-                  <PeriodRow
-                    key={`od${od.number}`}
-                    period={od}
-                    kind="od"
-                    getEntry={getEntry}
-                    readOnly={readOnly}
-                    onOpen={openSlot}
-                  />
-                ))}
+          <>
+            {canAddCourses && (!showSectionTabs || section === "timetable") ? (
+              <div className="timetable-add-row">
+                <button
+                  type="button"
+                  className="timetable-add-btn"
+                  onClick={() =>
+                    setCourseSheet({
+                      continuous: true,
+                    })
+                  }
+                >
+                  ＋ 授業を追加
+                </button>
               </div>
-            </div>
-          </section>
+            ) : null}
+            <section className="timetable-board" aria-label="週間時間割">
+              <div className="timetable-scroll">
+                <div className="timetable-grid" data-timetable-grid>
+                  <div className="timetable-corner" aria-hidden="true" />
+                  {TIMETABLE_DAYS.map((day) => (
+                    <div className="timetable-day" role="columnheader" key={day}>
+                      {day}
+                    </div>
+                  ))}
+
+                  {TIMETABLE_PERIODS.map((period) => (
+                    <PeriodRow
+                      key={`p${period.number}`}
+                      period={period}
+                      kind="period"
+                      getEntry={getEntry}
+                      readOnly={readOnly}
+                      onOpen={openSlot}
+                    />
+                  ))}
+
+                  {TIMETABLE_OD_SLOTS.map((od) => (
+                    <PeriodRow
+                      key={`od${od.number}`}
+                      period={od}
+                      kind="od"
+                      getEntry={getEntry}
+                      readOnly={readOnly}
+                      onOpen={openSlot}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
+          </>
         )}
 
         {showSectionTabs && section === "calendar" ? null : readOnly &&
@@ -437,19 +520,37 @@ export function TimetablePage({
           <p className="timetable-note">公開中の時間割です（閲覧のみ）。</p>
         ) : (
           <p className="timetable-note">
-            セルをタップして授業名・単位・進捗メモを登録できます。右上のトグルで公開／非公開を切り替えられます。
+            空きセルをタップして授業を検索・登録できます。登録済みの授業は詳細ページが開きます。
             {!me?.authenticated ? (
               <>
                 {" "}
-                <Link to={spaLoginPath("/app/timetable")}>
-                  ログイン
-                </Link>
+                <Link to={spaLoginPath("/app/timetable")}>ログイン</Link>
                 すると保存できます。
               </>
             ) : null}
           </p>
         )}
       </main>
+
+      {courseSheet ? (
+        <CourseAddSheet
+          open
+          context={courseSheet}
+          onClose={() => setCourseSheet(null)}
+          onAdded={onCourseAdded}
+          onFreeText={(ctx) => {
+            setCourseSheet(null);
+            if (!ctx.slotKey) return;
+            const kind = (ctx.periodKind as "period" | "od") || "period";
+            openFreeText(
+              ctx.slotKey,
+              kind,
+              ctx.dayLabel || "",
+              ctx.periodLabel || ""
+            );
+          }}
+        />
+      ) : null}
 
       {modal ? (
         <div
@@ -469,9 +570,7 @@ export function TimetablePage({
             aria-labelledby="timetable-slot-modal-title"
           >
             <header className="compose-modal__header">
-              <h2 id="timetable-slot-modal-title">
-                {modal.kind === "od" ? "オンデマンド授業" : "授業詳細"}
-              </h2>
+              <h2 id="timetable-slot-modal-title">自由入力</h2>
               <button
                 type="button"
                 className="compose-modal__close"
@@ -582,7 +681,9 @@ function PeriodRow({
     slotKey: string,
     kind: "period" | "od",
     dayLabel: string,
-    periodLabel: string
+    periodLabel: string,
+    dayIndex: number,
+    periodNumber: number
   ) => void;
 }) {
   const prefix = kind === "od" ? "od" : "p";
@@ -610,7 +711,16 @@ function PeriodRow({
               periodLabel={period.label}
               entry={getEntry(slotKey)}
               readOnly={readOnly}
-              onOpen={() => onOpen(slotKey, kind, dayLabel, period.label)}
+              onOpen={() =>
+                onOpen(
+                  slotKey,
+                  kind,
+                  dayLabel,
+                  period.label,
+                  dayIndex,
+                  period.number
+                )
+              }
             />
           </div>
         );

@@ -7,7 +7,7 @@ import logging
 from django.conf import settings
 from django.core.mail import send_mail
 
-from .models import Comment, ContentReport, Product, TimelinePost
+from .models import Comment, ContentReport, CourseOffering, CourseReview, Product, TimelinePost
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,16 @@ def _build_target_summary(
     elif target_type == ContentReport.TargetType.USER:
         lines.append(f"対象ユーザー名: {getattr(target, 'username', '')}")
         lines.append(f"対象ユーザーメール: {getattr(target, 'email', '')}")
+    elif target_type == ContentReport.TargetType.COURSE_OFFERING and isinstance(
+        target, CourseOffering
+    ):
+        lines.append(f"授業名: {target.title}")
+        lines.append(f"教員: {target.instructor}")
+    elif target_type == ContentReport.TargetType.COURSE_REVIEW and isinstance(
+        target, CourseReview
+    ):
+        lines.append(f"レビューコメント（抜粋）: {(target.comment or '')[:200]}")
+        lines.append(f"開講ID: {target.offering_id}")
 
     return "\n".join(lines)
 

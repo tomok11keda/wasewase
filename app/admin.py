@@ -14,6 +14,10 @@ from .models import (
     CommunityThread,
     CommunityThreadReply,
     ContentReport,
+    Course,
+    CourseEnrollment,
+    CourseOffering,
+    CourseReview,
     DevicePushToken,
     UserDirectMessage,
     UserDirectMessageRoom,
@@ -190,10 +194,117 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(TimetableSlot)
 class TimetableSlotAdmin(admin.ModelAdmin):
-    list_display = ("user", "slot_key", "name", "room", "credits", "updated_at")
+    list_display = (
+        "user",
+        "slot_key",
+        "name",
+        "offering",
+        "room",
+        "credits",
+        "updated_at",
+    )
     list_filter = ("slot_key",)
     search_fields = ("user__username", "user__email", "name", "slot_key", "room")
-    raw_id_fields = ("user",)
+    raw_id_fields = ("user", "offering")
+
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ("title", "title_normalized", "updated_at")
+    search_fields = ("title", "title_normalized")
+
+
+@admin.action(description="選択した開講を非表示にする")
+def hide_selected_offerings(modeladmin, request, queryset):
+    from django.contrib import messages
+
+    updated = queryset.filter(status=CourseOffering.Status.ACTIVE).update(
+        status=CourseOffering.Status.HIDDEN
+    )
+    messages.success(request, f"{updated} 件の開講を非表示にしました。")
+
+
+@admin.action(description="選択した開講を1件目へ統合（残り→1件目）")
+def merge_selected_offerings(modeladmin, request, queryset):
+    from django.contrib import messages
+
+    from .course_services import merge_offerings
+
+    active = list(
+        queryset.filter(status=CourseOffering.Status.ACTIVE).order_by("pk")
+    )
+    if len(active) < 2:
+        messages.error(request, "統合には有効な開講が2件以上必要です。")
+        return
+    target = active[0]
+    for source in active[1:]:
+        try:
+            merge_offerings(source, target)
+        except ValueError as exc:
+            messages.error(request, f"統合失敗 ({source.pk}): {exc}")
+            return
+    messages.success(
+        request,
+        f"{len(active) - 1} 件を Offering #{target.pk} へ統合しました。",
+    )
+
+
+@admin.register(CourseOffering)
+class CourseOfferingAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "instructor",
+        "academic_year",
+        "semester",
+        "day_of_week",
+        "period_kind",
+        "period",
+        "status",
+        "source",
+        "updated_at",
+    )
+    list_filter = ("status", "semester", "academic_year", "period_kind", "source")
+    search_fields = (
+        "title",
+        "instructor",
+        "title_normalized",
+        "instructor_normalized",
+        "room",
+    )
+    raw_id_fields = ("course", "created_by", "merged_into")
+    actions = [merge_selected_offerings, hide_selected_offerings]
+
+
+@admin.register(CourseEnrollment)
+class CourseEnrollmentAdmin(admin.ModelAdmin):
+    list_display = ("user", "offering", "role", "created_at")
+    list_filter = ("role",)
+    search_fields = ("user__username", "user__email", "offering__title")
+    raw_id_fields = ("user", "offering")
+
+
+@admin.action(description="選択したレビューを非表示にする")
+def hide_selected_reviews(modeladmin, request, queryset):
+    from django.contrib import messages
+
+    updated = queryset.filter(is_hidden=False).update(is_hidden=True)
+    messages.success(request, f"{updated} 件のレビューを非表示にしました。")
+
+
+@admin.register(CourseReview)
+class CourseReviewAdmin(admin.ModelAdmin):
+    list_display = (
+        "offering",
+        "user",
+        "overall_rating",
+        "difficulty_rating",
+        "is_hidden",
+        "updated_at",
+    )
+    list_filter = ("overall_rating", "is_hidden")
+    search_fields = ("offering__title", "user__username", "user__email", "comment")
+    raw_id_fields = ("user", "offering")
+    actions = [hide_selected_reviews]
 
 
 @admin.register(CalendarEvent)
