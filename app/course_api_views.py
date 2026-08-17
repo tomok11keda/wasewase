@@ -36,7 +36,7 @@ from .course_services import (
     viewer_states_for,
 )
 from .models import CourseOffering, CourseReview
-from .timetable_services import slot_to_payload
+from .timetable_services import parse_slot_key, slot_to_payload
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +228,16 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
     ).strip()
     year = _parse_int(body.get("academic_year"), current_academic_year())
     semester = (body.get("semester") or current_semester()).strip()
+    slot_key = (body.get("slot_key") or "").strip() or None
+
+    # 空きセルから来た場合は slot_key を曜時限の正とする（FE の meta レース対策）
+    if slot_key:
+        parsed = parse_slot_key(slot_key)
+        if parsed is None:
+            return _json_error("invalid_slot_key")
+        day = parsed["day_index"]
+        period = parsed["number"]
+        period_kind = parsed["kind"]
 
     if day is None or period is None:
         return _json_error("missing_schedule")
@@ -271,25 +281,77 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
         )
 
     enroll = bool(body.get("enroll", True))
-    slot_key = (body.get("slot_key") or "").strip() or None
     slot_payload = None
     if enroll:
         try:
-            _enrollment, slot = enroll_user_in_offering(
-                request.user,
-                offering,
-                slot_key=slot_key,
-            )
+            # Prefer aligned slot_key; fall back to offering.slot_key
+            try:
+                _enrollment, slot = enroll_user_in_offering(
+                    request.user,
+                    offering,
+                    slot_key=slot_key,
+                )
+            except ValueError as exc:
+                if str(exc) == "slot_mismatch" and slot_key:
+                    logger.warning(
+                        "course enroll slot_mismatch; retry with offering slot "
+                        "user=%s offering=%s requested=%s",
+                        request.user.pk,
+                        offering.pk,
+                        slot_key,
+                    )
+                    _enrollment, slot = enroll_user_in_offering(
+                        request.user,
+                        offering,
+                        slot_key=None,
+                    )
+                else:
+                    raise
             slot_payload = slot_to_payload(slot)
         except ValueError as exc:
-            return _json_error(str(exc))
+            logger.warning(
+                "course enroll-after-create rejected user=%s offering=%s code=%s",
+                request.user.pk,
+                offering.pk,
+                exc,
+            )
+            # Offering is already persisted; return it so the client can recover
+            counts = enrollment_counts_for([offering.pk])
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "created": True,
+                    "offering": serialize_offering(
+                        offering,
+                        enrollment_count=counts.get(offering.pk, 0),
+                        viewer=request.user,
+                    ),
+                    "slot": None,
+                },
+                status=400,
+            )
         except Exception:
             logger.exception(
                 "course enroll-after-create failed user=%s offering=%s",
                 request.user.pk,
                 offering.pk,
             )
-            return _json_error("save_failed", status=500)
+            counts = enrollment_counts_for([offering.pk])
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "enroll_failed",
+                    "created": True,
+                    "offering": serialize_offering(
+                        offering,
+                        enrollment_count=counts.get(offering.pk, 0),
+                        viewer=request.user,
+                    ),
+                    "slot": None,
+                },
+                status=500,
+            )
 
     counts = enrollment_counts_for([offering.pk])
     return JsonResponse(

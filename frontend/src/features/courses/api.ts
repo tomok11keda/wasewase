@@ -188,6 +188,19 @@ export async function createOffering(input: CreateOfferingInput): Promise<{
     body: JSON.stringify(input),
   });
   const data = await parseJson(res);
+  if (import.meta.env.DEV && (!res.ok || !data.ok)) {
+    console.error("[course:create]", res.status, data);
+  }
+  // Ensure error code surfaces even when body is empty (HTML 403 etc.)
+  if (!res.ok && !data.error) {
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: "authentication_required" };
+    }
+    if (res.status === 429) {
+      return { ok: false, error: "rate_limited" };
+    }
+    return { ok: false, error: `http_${res.status}` };
+  }
   return data;
 }
 
