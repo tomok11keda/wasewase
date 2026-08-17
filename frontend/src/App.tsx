@@ -28,6 +28,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SearchPage } from "./pages/SearchPage";
 import { SignupPage } from "./pages/SignupPage";
 import { TimetablePage } from "./pages/TimetablePage";
+import { CourseDetailPage } from "./pages/CourseDetailPage";
 import { TradeChatPage } from "./pages/TradeChatPage";
 import { VerifyOtpPage } from "./pages/VerifyOtpPage";
 import { CommunitiesPage } from "./pages/CommunitiesPage";
@@ -61,6 +62,7 @@ function NestedAppRoutes() {
       <Route path="flea/products/:pk" element={<ProductDetailPage />} />
       <Route path="flea/chats/:roomPk" element={<TradeChatPage />} />
       <Route path="timetable/user/:userPk" element={<TimetablePage />} />
+      <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
       <Route path="notifications" element={<NotificationsPage />} />

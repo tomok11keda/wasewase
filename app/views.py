@@ -715,6 +715,7 @@ def api_timetable_slot(request):
             room=room,
             credits=credits,
             memo=memo,
+            clear_offering=True,
         )
     except ValueError:
         return JsonResponse({"ok": False, "error": "invalid_slot_key"}, status=400)
@@ -725,7 +726,13 @@ def api_timetable_slot(request):
                 "ok": True,
                 "deleted": True,
                 "slot_key": slot_key,
-                "entry": {"name": "", "room": "", "credits": "", "memo": ""},
+                "entry": {
+                    "name": "",
+                    "room": "",
+                    "credits": "",
+                    "memo": "",
+                    "offering_id": None,
+                },
             }
         )
 

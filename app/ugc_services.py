@@ -171,6 +171,16 @@ def get_report_target(target_type: str, target_id: int):
         return Comment.objects.filter(pk=target_id, is_removed=False).first()
     if target_type == ContentReport.TargetType.USER:
         return User.objects.filter(pk=target_id, is_active=True).first()
+    if target_type == ContentReport.TargetType.COURSE_OFFERING:
+        from .models import CourseOffering
+
+        return CourseOffering.objects.filter(
+            pk=target_id, status=CourseOffering.Status.ACTIVE
+        ).first()
+    if target_type == ContentReport.TargetType.COURSE_REVIEW:
+        from .models import CourseReview
+
+        return CourseReview.objects.filter(pk=target_id, is_hidden=False).first()
     return None
 
 
@@ -185,6 +195,10 @@ def get_reported_user_id(target_type: str, target) -> int | None:
         return target.author_id
     if target_type == ContentReport.TargetType.USER:
         return target.pk
+    if target_type == ContentReport.TargetType.COURSE_OFFERING:
+        return target.created_by_id
+    if target_type == ContentReport.TargetType.COURSE_REVIEW:
+        return target.user_id
     return None
 
 
@@ -213,5 +227,17 @@ def soft_remove_content(
             is_removed=True,
             removed_at=now,
             removed_by=moderator,
+        )
+    elif target_type == ContentReport.TargetType.COURSE_OFFERING:
+        from .models import CourseOffering
+
+        updated = CourseOffering.objects.filter(
+            pk=target_id, status=CourseOffering.Status.ACTIVE
+        ).update(status=CourseOffering.Status.HIDDEN)
+    elif target_type == ContentReport.TargetType.COURSE_REVIEW:
+        from .models import CourseReview
+
+        updated = CourseReview.objects.filter(pk=target_id, is_hidden=False).update(
+            is_hidden=True
         )
     return updated > 0

@@ -83,6 +83,43 @@ export const analytics = {
     });
   },
 
+  courseSearchOpened(props?: { from_slot?: boolean }) {
+    captureEvent("course_search_opened", {
+      from_slot: Boolean(props?.from_slot),
+    });
+  },
+
+  courseSearchPerformed(props?: { query_len?: number; result_count?: number }) {
+    captureEvent("course_search_performed", {
+      query_len: props?.query_len ?? 0,
+      result_count: props?.result_count ?? 0,
+    });
+  },
+
+  existingCourseAdded(props?: { from_slot?: boolean }) {
+    captureEvent("existing_course_added", {
+      from_slot: Boolean(props?.from_slot),
+    });
+  },
+
+  newCourseCreated(props?: { forced?: boolean }) {
+    captureEvent("new_course_created", {
+      forced: Boolean(props?.forced),
+    });
+  },
+
+  courseDetailViewed() {
+    captureEvent("course_detail_viewed");
+  },
+
+  timetableCourseRemoved() {
+    captureEvent("timetable_course_removed");
+  },
+
+  courseReviewCreated() {
+    captureEvent("course_review_created");
+  },
+
   dmStarted(props?: { created_new?: boolean }) {
     captureEvent("dm_started", {
       created_new: props?.created_new !== false,
