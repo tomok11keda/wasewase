@@ -302,6 +302,32 @@ class CourseApiTests(TestCase):
         self.assertEqual(bad.status_code, 400)
         self.assertEqual(bad.json()["error"], "slot_mismatch")
 
+    def test_create_aligns_schedule_to_slot_key(self):
+        """FE meta race: body day/period may still be defaults while slot_key is set.
+
+        Production cold-start made this common; create must prefer slot_key.
+        """
+        res = self._create(
+            day_of_week=0,
+            period=1,
+            slot_key="p5-d4",
+            force_create=True,
+            title="生産専用レース再現",
+            instructor="検証 太郎",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["offering"]["day_of_week"], 4)
+        self.assertEqual(data["offering"]["period"], 5)
+        self.assertEqual(data["slot"]["slot_key"], "p5-d4")
+        self.assertEqual(
+            TimetableSlot.objects.filter(
+                user=self.user, slot_key="p5-d4", offering_id=data["offering"]["id"]
+            ).count(),
+            1,
+        )
+
     def test_invalid_academic_year_rejected(self):
         res = self._create(academic_year=1999, force_create=True, enroll=False)
         self.assertEqual(res.status_code, 400)

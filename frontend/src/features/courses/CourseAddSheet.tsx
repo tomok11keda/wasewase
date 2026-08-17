@@ -64,18 +64,24 @@ export function CourseAddSheet({
   > | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState({
-    title: "",
-    instructor: "",
-    semester: "spring",
-    academic_year: new Date().getFullYear(),
-    day_of_week: 0,
-    period: 1,
-    period_kind: "period",
-    school: "",
-    campus: "",
-    room: "",
-    credits: "",
+  const [form, setForm] = useState(() => {
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-12
+    const academicYear = month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+    const semester = month >= 4 && month <= 9 ? "spring" : "fall";
+    return {
+      title: "",
+      instructor: "",
+      semester,
+      academic_year: academicYear,
+      day_of_week: 0,
+      period: 1,
+      period_kind: "period",
+      school: "",
+      campus: "",
+      room: "",
+      credits: "",
+    };
   });
 
   useEffect(() => {
@@ -86,6 +92,19 @@ export function CourseAddSheet({
     setDuplicates([]);
     setPendingCreate(null);
     setToast(null);
+    // meta 取得前でもセルの曜時限を即反映（slot_mismatch 防止）
+    setForm((f) => ({
+      ...f,
+      day_of_week: context.dayOfWeek ?? f.day_of_week,
+      period: context.period ?? f.period,
+      period_kind: context.periodKind || f.period_kind,
+      title: "",
+      instructor: "",
+      school: "",
+      campus: "",
+      room: "",
+      credits: "",
+    }));
     analytics.courseSearchOpened({
       from_slot: Boolean(context.slotKey),
     });
@@ -96,19 +115,13 @@ export function CourseAddSheet({
           ...f,
           semester: m.semester,
           academic_year: m.academic_year,
-          day_of_week: context.dayOfWeek ?? 0,
-          period: context.period ?? 1,
-          period_kind: context.periodKind || "period",
-          title: "",
-          instructor: "",
-          school: "",
-          campus: "",
-          room: "",
-          credits: "",
+          day_of_week: context.dayOfWeek ?? f.day_of_week,
+          period: context.period ?? f.period,
+          period_kind: context.periodKind || f.period_kind,
         }));
       })
       .catch(() => {
-        /* ignore */
+        /* meta 失敗でもセル由来の曜時限は上でセット済み */
       });
     const t = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(t);
@@ -201,6 +214,42 @@ export function CourseAddSheet({
     }
   };
 
+  const createErrorMessage = (code: string | undefined) => {
+    switch (code) {
+      case "duplicate_candidates":
+        return "似ている授業があります。候補から選ぶか、別授業として作成してください。";
+      case "slot_mismatch":
+        return "選択した曜日・時限とセルが一致しません。もう一度やり直してください。";
+      case "invalid_academic_year":
+        return "年度の指定が正しくありません。";
+      case "invalid_semester":
+      case "invalid_period":
+      case "invalid_period_kind":
+      case "invalid_day":
+      case "missing_schedule":
+        return "曜日・時限・学期の指定を確認してください。";
+      case "title_required":
+      case "instructor_required":
+        return "授業名と担当教員名を入力してください。";
+      case "invalid_school":
+      case "invalid_campus":
+        return "学部またはキャンパスの指定が正しくありません。";
+      case "rate_limited":
+        return "操作が多すぎます。時間をおいて再度お試しください。";
+      case "unauthorized":
+      case "authentication_required":
+        return "ログインが必要です。再度ログインしてからお試しください。";
+      case "enroll_failed":
+        return "授業は作成されましたが、時間割への追加に失敗しました。検索から追加してください。";
+      case "save_failed":
+        return "保存に失敗しました。時間をおいて再度お試しください。";
+      default:
+        return code
+          ? `授業の作成に失敗しました（${code}）。`
+          : "授業の作成に失敗しました。";
+    }
+  };
+
   const submitCreate = async (force = false) => {
     if (!form.title.trim() || !form.instructor.trim()) {
       window.alert("授業名と担当教員名を入力してください。");
@@ -211,7 +260,7 @@ export function CourseAddSheet({
       const payload = {
         title: form.title.trim(),
         instructor: form.instructor.trim(),
-        academic_year: Number(form.academic_year),
+        academic_year: Number(form.academic_year) || new Date().getFullYear(),
         semester: form.semester,
         day_of_week: Number(form.day_of_week),
         period: Number(form.period),
@@ -224,6 +273,13 @@ export function CourseAddSheet({
         enroll: true,
         force_create: force,
       };
+      if (
+        !Number.isFinite(payload.day_of_week) ||
+        !Number.isFinite(payload.period)
+      ) {
+        window.alert(createErrorMessage("missing_schedule"));
+        return;
+      }
       const data = await createOffering(payload);
       if (data.error === "duplicate_candidates" && data.duplicates?.length) {
         setDuplicates(data.duplicates);
@@ -231,12 +287,33 @@ export function CourseAddSheet({
         setMode("duplicates");
         return;
       }
-      if (!data.ok || !data.offering || !data.slot) {
-        window.alert("授業の作成に失敗しました。");
+      if (!data.ok) {
+        window.alert(createErrorMessage(data.error));
+        // 作成だけ成功している場合は検索へ戻して既存追加できるようにする
+        if (data.created && data.offering) {
+          setMode("search");
+          setQuery(data.offering.title);
+        }
         return;
       }
+      if (!data.offering) {
+        window.alert(createErrorMessage(data.error));
+        return;
+      }
+      // slot 欠落時でも offering があれば enroll 済みでない可能性があるが、
+      // 成功レスポンスでは slot を必須としない（再発防止の寛容さ）
+      const slot: SlotPayload =
+        data.slot ||
+        ({
+          slot_key: data.offering.slot_key,
+          name: data.offering.title,
+          room: data.offering.room || "",
+          credits: data.offering.credits || "",
+          memo: "",
+          offering_id: data.offering.id,
+        } satisfies SlotPayload);
       analytics.newCourseCreated({ forced: force });
-      onAdded(data.slot, data.offering);
+      onAdded(slot, data.offering);
       showToast("新しい授業を追加しました");
       if (context.continuous) {
         setMode("search");
@@ -245,8 +322,9 @@ export function CourseAddSheet({
       } else {
         window.setTimeout(() => onClose(), 350);
       }
-    } catch {
-      window.alert("授業の作成に失敗しました。");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : undefined;
+      window.alert(createErrorMessage(code));
     } finally {
       setBusy(false);
     }
