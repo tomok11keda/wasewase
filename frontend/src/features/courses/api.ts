@@ -1,4 +1,5 @@
-import { getCsrfToken } from "../timeline/api";
+import { ensureAuthCsrf } from "../auth/api";
+import { apiGetJson, apiPostJson } from "../../lib/http";
 
 export type CourseOffering = {
   id: number;
@@ -63,22 +64,10 @@ export type SlotPayload = {
   offering_id?: number | null;
 };
 
-async function parseJson(res: Response) {
-  try {
-    return await res.json();
-  } catch {
-    return {};
-  }
-}
-
 export async function fetchCourseMeta(): Promise<CourseMeta> {
-  const res = await fetch("/api/v1/courses/meta/", {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "meta_failed");
-  return data as CourseMeta;
+  const { ok, data, error } = await apiGetJson("/api/v1/courses/meta/");
+  if (!ok) throw new Error(error || "meta_failed");
+  return data as unknown as CourseMeta;
 }
 
 export async function searchCourses(params: {
@@ -96,60 +85,54 @@ export async function searchCourses(params: {
   if (params.period_kind) qs.set("period_kind", params.period_kind);
   if (params.semester) qs.set("semester", params.semester);
   if (params.year != null) qs.set("year", String(params.year));
-  const res = await fetch(`/api/v1/courses/search/?${qs.toString()}`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "search_failed");
-  return (data.results || []) as CourseOffering[];
+  const { ok, data, error } = await apiGetJson(
+    `/api/v1/courses/search/?${qs.toString()}`
+  );
+  if (!ok) throw new Error(error || "search_failed");
+  return ((data.results as CourseOffering[]) || []) as CourseOffering[];
 }
 
 export async function fetchOfferingDetail(offeringPk: number): Promise<{
   offering: CourseOffering;
   review_summary: ReviewSummary;
 }> {
-  const res = await fetch(`/api/v1/courses/offerings/${offeringPk}/`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "detail_failed");
-  return data;
+  const { ok, data, error } = await apiGetJson(
+    `/api/v1/courses/offerings/${offeringPk}/`
+  );
+  if (!ok) throw new Error(error || "detail_failed");
+  return data as unknown as {
+    offering: CourseOffering;
+    review_summary: ReviewSummary;
+  };
 }
 
 export async function enrollOffering(
   offeringPk: number,
   slotKey?: string | null
 ): Promise<{ offering: CourseOffering; slot: SlotPayload }> {
-  const res = await fetch(`/api/v1/courses/offerings/${offeringPk}/enroll/`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCsrfToken(),
-    },
-    body: JSON.stringify(slotKey ? { slot_key: slotKey } : {}),
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "enroll_failed");
-  return data;
+  await ensureAuthCsrf();
+  const { ok, data, error, status } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/enroll/`,
+    slotKey ? { slot_key: slotKey } : {}
+  );
+  if (!ok) {
+    const err = new Error(error || "enroll_failed") as Error & {
+      status?: number;
+    };
+    err.status = status;
+    throw err;
+  }
+  return data as unknown as { offering: CourseOffering; slot: SlotPayload };
 }
 
 export async function unenrollOffering(offeringPk: number): Promise<void> {
-  const res = await fetch(`/api/v1/courses/offerings/${offeringPk}/unenroll/`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCsrfToken(),
-    },
-    body: "{}",
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "unenroll_failed");
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/unenroll/`,
+    {}
+  );
+  if (!ok) throw new Error(error || "unenroll_failed");
+  void data;
 }
 
 export type CreateOfferingInput = {
@@ -171,50 +154,41 @@ export type CreateOfferingInput = {
 
 export async function createOffering(input: CreateOfferingInput): Promise<{
   ok: boolean;
+  status: number;
   error?: string;
   created?: boolean;
   offering?: CourseOffering;
   slot?: SlotPayload;
   duplicates?: CourseOffering[];
 }> {
-  const res = await fetch("/api/v1/courses/offerings/", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCsrfToken(),
-    },
-    body: JSON.stringify(input),
-  });
-  const data = await parseJson(res);
-  if (import.meta.env.DEV && (!res.ok || !data.ok)) {
-    console.error("[course:create]", res.status, data);
+  await ensureAuthCsrf();
+  const { ok, status, data, error } = await apiPostJson(
+    "/api/v1/courses/offerings/",
+    input
+  );
+  if (import.meta.env.DEV && (!ok || error)) {
+    console.error("[course:create]", status, data);
   }
-  // Ensure error code surfaces even when body is empty (HTML 403 etc.)
-  if (!res.ok && !data.error) {
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: "authentication_required" };
-    }
-    if (res.status === 429) {
-      return { ok: false, error: "rate_limited" };
-    }
-    return { ok: false, error: `http_${res.status}` };
-  }
-  return data;
+  return {
+    ok,
+    status,
+    error: ok ? undefined : error || (data.error as string | undefined),
+    created: Boolean(data.created),
+    offering: data.offering as CourseOffering | undefined,
+    slot: data.slot as SlotPayload | undefined,
+    duplicates: data.duplicates as CourseOffering[] | undefined,
+  };
 }
 
 export async function fetchReviews(offeringPk: number): Promise<{
   summary: ReviewSummary;
   reviews: CourseReview[];
 }> {
-  const res = await fetch(`/api/v1/courses/offerings/${offeringPk}/reviews/`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "reviews_failed");
-  return data;
+  const { ok, data, error } = await apiGetJson(
+    `/api/v1/courses/offerings/${offeringPk}/reviews/`
+  );
+  if (!ok) throw new Error(error || "reviews_failed");
+  return data as unknown as { summary: ReviewSummary; reviews: CourseReview[] };
 }
 
 export async function submitReview(
@@ -228,19 +202,13 @@ export async function submitReview(
     comment: string;
   }
 ): Promise<{ review: CourseReview; summary: ReviewSummary }> {
-  const res = await fetch(`/api/v1/courses/offerings/${offeringPk}/reviews/`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCsrfToken(),
-    },
-    body: JSON.stringify(payload),
-  });
-  const data = await parseJson(res);
-  if (!res.ok || !data.ok) throw new Error(data.error || "review_failed");
-  return data;
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/reviews/`,
+    payload
+  );
+  if (!ok) throw new Error(error || "review_failed");
+  return data as unknown as { review: CourseReview; summary: ReviewSummary };
 }
 
 export function offeringScheduleText(o: CourseOffering): string {

@@ -214,7 +214,7 @@ export function CourseAddSheet({
     }
   };
 
-  const createErrorMessage = (code: string | undefined) => {
+  const createErrorMessage = (code: string | undefined, status?: number) => {
     switch (code) {
       case "duplicate_candidates":
         return "似ている授業があります。候補から選ぶか、別授業として作成してください。";
@@ -236,14 +236,23 @@ export function CourseAddSheet({
         return "学部またはキャンパスの指定が正しくありません。";
       case "rate_limited":
         return "操作が多すぎます。時間をおいて再度お試しください。";
+      case "csrf_failed":
+        return "セキュリティチェックに失敗しました。ページを再読み込みしてから再度お試しください。";
       case "unauthorized":
       case "authentication_required":
+        // 401 のみログイン案内。403 等を誤変換しない
+        if (status != null && status !== 401) {
+          return `授業の作成に失敗しました（${code}, HTTP ${status}）。`;
+        }
         return "ログインが必要です。再度ログインしてからお試しください。";
       case "enroll_failed":
         return "授業は作成されましたが、時間割への追加に失敗しました。検索から追加してください。";
       case "save_failed":
         return "保存に失敗しました。時間をおいて再度お試しください。";
       default:
+        if (code && status) {
+          return `授業の作成に失敗しました（${code}, HTTP ${status}）。`;
+        }
         return code
           ? `授業の作成に失敗しました（${code}）。`
           : "授業の作成に失敗しました。";
@@ -288,8 +297,7 @@ export function CourseAddSheet({
         return;
       }
       if (!data.ok) {
-        window.alert(createErrorMessage(data.error));
-        // 作成だけ成功している場合は検索へ戻して既存追加できるようにする
+        window.alert(createErrorMessage(data.error, data.status));
         if (data.created && data.offering) {
           setMode("search");
           setQuery(data.offering.title);
@@ -297,11 +305,9 @@ export function CourseAddSheet({
         return;
       }
       if (!data.offering) {
-        window.alert(createErrorMessage(data.error));
+        window.alert(createErrorMessage(data.error, data.status));
         return;
       }
-      // slot 欠落時でも offering があれば enroll 済みでない可能性があるが、
-      // 成功レスポンスでは slot を必須としない（再発防止の寛容さ）
       const slot: SlotPayload =
         data.slot ||
         ({
@@ -324,7 +330,11 @@ export function CourseAddSheet({
       }
     } catch (err) {
       const code = err instanceof Error ? err.message : undefined;
-      window.alert(createErrorMessage(code));
+      const status =
+        err && typeof err === "object" && "status" in err
+          ? Number((err as { status?: number }).status)
+          : undefined;
+      window.alert(createErrorMessage(code, status));
     } finally {
       setBusy(false);
     }
