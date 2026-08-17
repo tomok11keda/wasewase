@@ -62,11 +62,13 @@ export type TimelineFeedResponse = {
 };
 
 export function getCsrfToken(): string {
-  const meta = document.querySelector('meta[name="csrf-token"]');
-  const fromMeta = meta?.getAttribute("content");
-  if (fromMeta) return fromMeta;
+  // Django validates X-CSRFToken against the csrftoken *cookie*.
+  // Prefer cookie over <meta> so a rotated cookie (e.g. after ensureAuthCsrf)
+  // is never overridden by a stale meta token from the initial spa.html render.
   const match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : "";
+  if (match) return decodeURIComponent(match[1]);
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return meta?.getAttribute("content") || "";
 }
 
 export type FeedQuery = {

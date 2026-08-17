@@ -179,6 +179,9 @@ if _csrf_origins:
 elif RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
 
+# /api/* は JSON で返し、SPA が CSRF 失敗を認証エラーと誤認しないようにする
+CSRF_FAILURE_VIEW = "app.csrf.csrf_failure"
+
 
 # ---------------------------------------------------------------------------
 # Cloudinary / メディア（INSTALLED_APPS より前に確定させる）

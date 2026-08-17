@@ -395,6 +395,59 @@ class CourseApiTests(TestCase):
         )
         self.assertEqual(ok.status_code, 200, ok.content)
 
+    def test_unauthenticated_create_returns_401_json(self):
+        guest = Client()
+        res = guest.post(
+            "/api/v1/courses/offerings/",
+            data={
+                "title": "未ログイン作成",
+                "instructor": "x",
+                "academic_year": 2026,
+                "semester": "spring",
+                "day_of_week": 0,
+                "period": 1,
+                "force_create": True,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 401)
+        body = res.json()
+        self.assertFalse(body.get("ok", True))
+        self.assertEqual(body.get("error"), "unauthorized")
+
+    def test_unauthenticated_enroll_returns_401_json(self):
+        res = self._create(enroll=False, force_create=True)
+        offering_id = res.json()["offering"]["id"]
+        guest = Client()
+        bad = guest.post(
+            f"/api/v1/courses/offerings/{offering_id}/enroll/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(bad.status_code, 401)
+        self.assertEqual(bad.json().get("error"), "unauthorized")
+
+    def test_csrf_failure_returns_json_for_api(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        res = csrf_client.post(
+            "/api/v1/courses/offerings/",
+            data={
+                "title": "CSRF欠落",
+                "instructor": "x",
+                "academic_year": 2026,
+                "semester": "spring",
+                "day_of_week": 0,
+                "period": 1,
+                "force_create": True,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 403)
+        body = res.json()
+        self.assertEqual(body.get("error"), "csrf_failed")
+        self.assertFalse(body.get("ok", True))
+
     def test_meta_endpoint(self):
         res = self.client.get("/api/v1/courses/meta/")
         self.assertEqual(res.status_code, 200)
