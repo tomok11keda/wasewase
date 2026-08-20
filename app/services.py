@@ -124,8 +124,12 @@ def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
 
 
 def search_users(query: str, viewer=None):
-    """ユーザー名（@ID）と表示名でユーザーを検索。"""
+    """ユーザー名（@ID）・表示名・プロフィール（bio / 学部）で検索。
+
+    並び: 完全一致 > 前方一致 > 部分一致 > プロフィール関連。
+    """
     from django.contrib.auth import get_user_model
+    from django.db.models import Case, IntegerField, Value, When
 
     from .ugc_services import get_blocked_user_ids
 
@@ -136,8 +140,27 @@ def search_users(query: str, viewer=None):
     qs = (
         User.objects.filter(is_active=True)
         .select_related("profile")
-        .filter(Q(username__icontains=query) | Q(profile__name__icontains=query))
-        .order_by("username")
+        .filter(
+            Q(username__icontains=query)
+            | Q(profile__name__icontains=query)
+            | Q(profile__bio__icontains=query)
+            | Q(profile__department__icontains=query)
+        )
+        .annotate(
+            search_match_rank=Case(
+                When(username__iexact=query, then=Value(0)),
+                When(profile__name__iexact=query, then=Value(0)),
+                When(username__istartswith=query, then=Value(1)),
+                When(profile__name__istartswith=query, then=Value(1)),
+                When(username__icontains=query, then=Value(2)),
+                When(profile__name__icontains=query, then=Value(2)),
+                When(profile__bio__icontains=query, then=Value(3)),
+                When(profile__department__icontains=query, then=Value(3)),
+                default=Value(9),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("search_match_rank", "username")
     )
     blocked_ids = get_blocked_user_ids(viewer)
     if blocked_ids:

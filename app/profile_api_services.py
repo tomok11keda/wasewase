@@ -47,15 +47,18 @@ User = get_user_model()
 
 SEARCH_TAB_ALL = "all"
 SEARCH_TAB_LATEST = "latest"
+SEARCH_TAB_COURSES = "courses"
 SEARCH_TAB_USERS = "users"
 SEARCH_TAB_PRODUCTS = "products"
 SEARCH_TAB_CHOICES = (
     SEARCH_TAB_ALL,
     SEARCH_TAB_LATEST,
+    SEARCH_TAB_COURSES,
     SEARCH_TAB_USERS,
     SEARCH_TAB_PRODUCTS,
 )
 SEARCH_RESULT_LIMIT = 40
+SEARCH_USER_LIMIT = 50
 DISCOVER_CANDIDATE_LIMIT = 80
 DISCOVER_TRENDING_LIMIT = 12
 DISCOVER_COMMUNITY_LIMIT = 8
@@ -519,9 +522,32 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
     }
 
 
+def _serialize_search_user(user) -> dict[str, Any]:
+    profile = getattr(user, "profile", None)
+    payload = serialize_author(user) or {}
+    payload["bio"] = (getattr(profile, "bio", None) or "") if profile else ""
+    payload["department"] = (
+        (getattr(profile, "department", None) or "") if profile else ""
+    )
+    payload["grade"] = (getattr(profile, "grade", None) or "") if profile else ""
+    created = getattr(user, "date_joined", None)
+    payload["created_at"] = created.isoformat() if created else ""
+    return payload
+
+
 def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     from .community_api_services import serialize_thread_summary
     from .community_services import list_community_threads
+    from .global_search_services import (
+        combine_recommend_score,
+        offering_relevance,
+        post_relevance,
+        product_relevance,
+        search_course_offerings_global,
+        serialize_search_offering,
+        thread_relevance,
+        user_relevance,
+    )
 
     query = request.GET.get("q", "").strip()
     tab = (request.GET.get("tab") or SEARCH_TAB_ALL).strip().lower()
@@ -533,6 +559,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     threads_payload: list[dict[str, Any]] = []
     users_payload: list[dict[str, Any]] = []
     products_payload: list[dict[str, Any]] = []
+    offerings_payload: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
 
     if not query:
@@ -545,18 +572,20 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             "threads": [],
             "users": [],
             "products": [],
+            "offerings": [],
             "post_count": 0,
             "thread_count": 0,
             "user_count": 0,
             "product_count": 0,
+            "offering_count": 0,
             "result_count": 0,
             "discover": build_search_discover_payload(request),
         }
 
-    def _load_posts(*, sort: str) -> None:
+    def _load_posts() -> None:
         nonlocal posts_payload
         timeline_qs = (
-            search_timeline_posts(query, viewer=viewer, sort=sort)
+            search_timeline_posts(query, viewer=viewer, sort="latest")
             .select_related(
                 "author",
                 "author__profile",
@@ -580,62 +609,228 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         )
         posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
 
-    def _load_threads(*, recommended: bool) -> None:
+    def _load_threads() -> None:
         nonlocal threads_payload
-        thread_qs = list_community_threads(query=query, faculty="")
-        if recommended:
-            thread_qs = thread_qs.order_by("-replies_count", "-updated_at")
-        else:
-            thread_qs = thread_qs.order_by("-created_at")
+        thread_qs = list_community_threads(query=query, faculty="").order_by(
+            "-created_at"
+        )
         threads = list(thread_qs[:SEARCH_RESULT_LIMIT])
         threads_payload = [
             serialize_thread_summary(thread, viewer) for thread in threads
         ]
 
-    def _load_products(*, recommended: bool) -> None:
+    def _load_products() -> None:
         nonlocal products_payload
+        from .global_search_services import text_relevance
+
         product_qs = search_products(query, viewer=viewer).annotate(
             like_count_ann=Count("likes", distinct=True)
         )
-        if recommended:
-            product_qs = product_qs.order_by("-like_count_ann", "-created_at")
-        else:
-            product_qs = product_qs.order_by("-created_at")
         products = list(product_qs[:SEARCH_RESULT_LIMIT])
         for product in products:
             card = serialize_product_card(product)
             card["like_count"] = int(getattr(product, "like_count_ann", 0) or 0)
+            card["_relevance"] = text_relevance(
+                query,
+                product.name,
+                product.description or "",
+                product.course_name or "",
+                product.professor_name or "",
+            )
             products_payload.append(card)
+
+    def _load_users() -> None:
+        nonlocal users_payload
+        for user in list(search_users(query, viewer=viewer)[:SEARCH_USER_LIMIT]):
+            users_payload.append(_serialize_search_user(user))
+
+    def _load_offerings() -> None:
+        nonlocal offerings_payload
+        offerings = search_course_offerings_global(
+            query, limit=SEARCH_RESULT_LIMIT
+        )
+        offerings_payload = [serialize_search_offering(o) for o in offerings]
+        # Keep annotated relevance inputs on payloads via parallel list order;
+        # recompute from serialized fields + review_hit flag stored on offering.
+        for offering, payload in zip(offerings, offerings_payload):
+            payload["_relevance"] = offering_relevance(query, offering)
+            updated = getattr(offering, "updated_at", None) or getattr(
+                offering, "created_at", None
+            )
+            payload["created_at"] = updated.isoformat() if updated else ""
+            payload["updated_at"] = (
+                offering.updated_at.isoformat()
+                if getattr(offering, "updated_at", None)
+                else payload["created_at"]
+            )
+
+    def _append_mixed_rows(*, recommended: bool) -> None:
+        for post in posts_payload:
+            relevance = post_relevance(query, post)
+            engagement = _search_post_score(post)
+            results.append(
+                {
+                    "kind": "post",
+                    "created_at": post.get("created_at") or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "post": post,
+                }
+            )
+        for thread in threads_payload:
+            relevance = thread_relevance(query, thread)
+            engagement = _search_thread_score(thread)
+            results.append(
+                {
+                    "kind": "thread",
+                    "created_at": thread.get("created_at")
+                    or thread.get("updated_at")
+                    or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "thread": thread,
+                }
+            )
+        for product in products_payload:
+            stored = product.pop("_relevance", None)
+            relevance = (
+                int(stored)
+                if stored is not None
+                else product_relevance(query, product)
+            )
+            engagement = _search_product_score(product)
+            results.append(
+                {
+                    "kind": "product",
+                    "created_at": product.get("created_at") or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "product": product,
+                }
+            )
+        for user in users_payload:
+            relevance = user_relevance(query, user)
+            engagement = 0
+            results.append(
+                {
+                    "kind": "user",
+                    "created_at": user.get("created_at") or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "user": user,
+                }
+            )
+        for offering in offerings_payload:
+            relevance = int(offering.pop("_relevance", 0) or 0)
+            engagement = (
+                int(offering.get("review_count") or 0) * 3
+                + int(offering.get("enrollment_count") or 0)
+            )
+            results.append(
+                {
+                    "kind": "offering",
+                    "created_at": offering.get("updated_at")
+                    or offering.get("created_at")
+                    or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "offering": offering,
+                }
+            )
 
     if query:
         if tab == SEARCH_TAB_ALL:
-            _load_posts(sort="popular")
-            _load_threads(recommended=True)
-            _load_products(recommended=True)
-            for post in posts_payload:
+            # ヒット集合を先に作り、関連度→人気で並べ替え（ヒット外は混ぜない）
+            _load_posts()
+            _load_threads()
+            _load_products()
+            _load_users()
+            _load_offerings()
+            _append_mixed_rows(recommended=True)
+            results.sort(
+                key=lambda row: (
+                    int(row.get("score") or 0),
+                    int(row.get("relevance") or 0),
+                    row.get("created_at") or "",
+                ),
+                reverse=True,
+            )
+        elif tab == SEARCH_TAB_LATEST:
+            # 最新: 日時が意味を持つコンテンツのみ（post / thread / product）
+            # User / CourseOffering は含めない
+            _load_posts()
+            _load_threads()
+            _load_products()
+            _append_mixed_rows(recommended=False)
+            results.sort(
+                key=lambda row: row.get("created_at") or "",
+                reverse=True,
+            )
+        elif tab == SEARCH_TAB_COURSES:
+            _load_offerings()
+            for offering in offerings_payload:
+                relevance = int(offering.pop("_relevance", 0) or 0)
+                engagement = (
+                    int(offering.get("review_count") or 0) * 3
+                    + int(offering.get("enrollment_count") or 0)
+                )
                 results.append(
                     {
-                        "kind": "post",
-                        "created_at": post.get("created_at") or "",
-                        "score": _search_post_score(post),
-                        "post": post,
+                        "kind": "offering",
+                        "created_at": offering.get("updated_at")
+                        or offering.get("created_at")
+                        or "",
+                        "relevance": relevance,
+                        "score": combine_recommend_score(relevance, engagement),
+                        "offering": offering,
                     }
                 )
-            for thread in threads_payload:
-                results.append(
-                    {
-                        "kind": "thread",
-                        "created_at": thread.get("created_at") or "",
-                        "score": _search_thread_score(thread),
-                        "thread": thread,
-                    }
-                )
+            results.sort(
+                key=lambda row: (
+                    int(row.get("score") or 0),
+                    row.get("created_at") or "",
+                ),
+                reverse=True,
+            )
+        elif tab == SEARCH_TAB_USERS:
+            _load_users()
+        elif tab == SEARCH_TAB_PRODUCTS:
+            _load_products()
             for product in products_payload:
+                stored = product.pop("_relevance", None)
+                relevance = (
+                    int(stored)
+                    if stored is not None
+                    else product_relevance(query, product)
+                )
                 results.append(
                     {
                         "kind": "product",
                         "created_at": product.get("created_at") or "",
-                        "score": _search_product_score(product),
+                        "relevance": relevance,
+                        "score": combine_recommend_score(
+                            relevance, _search_product_score(product)
+                        ),
                         "product": product,
                     }
                 )
@@ -646,46 +841,6 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                 ),
                 reverse=True,
             )
-        elif tab == SEARCH_TAB_LATEST:
-            # 最新: タイムライン＋コミュニティのみ（商品は「商品」タブへ）
-            _load_posts(sort="latest")
-            _load_threads(recommended=False)
-            for post in posts_payload:
-                results.append(
-                    {
-                        "kind": "post",
-                        "created_at": post.get("created_at") or "",
-                        "score": _search_post_score(post),
-                        "post": post,
-                    }
-                )
-            for thread in threads_payload:
-                results.append(
-                    {
-                        "kind": "thread",
-                        "created_at": thread.get("created_at") or "",
-                        "score": _search_thread_score(thread),
-                        "thread": thread,
-                    }
-                )
-            results.sort(
-                key=lambda row: row.get("created_at") or "",
-                reverse=True,
-            )
-        elif tab == SEARCH_TAB_USERS:
-            for user in list(search_users(query, viewer=viewer)[:50]):
-                users_payload.append(serialize_author(user))
-        elif tab == SEARCH_TAB_PRODUCTS:
-            _load_products(recommended=False)
-            for product in products_payload:
-                results.append(
-                    {
-                        "kind": "product",
-                        "created_at": product.get("created_at") or "",
-                        "score": _search_product_score(product),
-                        "product": product,
-                    }
-                )
 
     if tab == SEARCH_TAB_USERS:
         result_count = len(users_payload)
@@ -701,9 +856,11 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         "threads": threads_payload,
         "users": users_payload,
         "products": products_payload,
+        "offerings": offerings_payload,
         "post_count": len(posts_payload),
         "thread_count": len(threads_payload),
         "user_count": len(users_payload),
         "product_count": len(products_payload),
+        "offering_count": len(offerings_payload),
         "result_count": result_count,
     }

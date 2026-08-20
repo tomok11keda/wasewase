@@ -8,6 +8,7 @@ import {
   fetchSearchPage,
   type ProfileUser,
   type SearchDiscoverPayload,
+  type SearchOfferingResult,
   type SearchProductResult,
   type SearchResultRow,
   type SearchTab,
@@ -23,10 +24,12 @@ import {
   splitTrendingForMosaic,
 } from "../features/search/DiscoverTrendingMosaic";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import { analytics } from "../lib/analytics";
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
   { key: "latest", label: "最新" },
+  { key: "courses", label: "授業" },
   { key: "users", label: "ユーザー" },
   { key: "products", label: "商品" },
 ];
@@ -118,6 +121,53 @@ function SearchProductCard({
   );
 }
 
+function SearchUserCard({ user }: { user: ProfileUser }) {
+  return (
+    <Link className="search-user-card" to={`/users/${user.id}/posts`}>
+      {user.avatar_url ? (
+        <img className="search-user-avatar" src={user.avatar_url} alt="" />
+      ) : (
+        <span className="search-user-avatar is-initial">{user.initial}</span>
+      )}
+      <span className="search-user-text">
+        <strong>{user.display_name}</strong>
+        <span>@{user.username || user.id}</span>
+      </span>
+    </Link>
+  );
+}
+
+function SearchOfferingCard({ offering }: { offering: SearchOfferingResult }) {
+  const schedule = `${offering.day_label}${offering.period_label}`;
+  const rating =
+    offering.review_overall != null
+      ? `⭐${offering.review_overall.toFixed(1)}`
+      : "⭐—";
+  const reviewCount = offering.review_count ?? 0;
+  return (
+    <Link
+      className="search-offering-card"
+      to={`/courses/${offering.id}`}
+    >
+      <p className="search-offering-card__meta">
+        <span className="search-offering-card__badge">授業</span>
+        {offering.semester_label}
+        {offering.school ? ` · ${offering.school}` : ""}
+      </p>
+      <strong className="search-offering-card__title">{offering.title}</strong>
+      <p className="search-offering-card__sub">
+        {offering.instructor}
+        {` · ${schedule}`}
+      </p>
+      <p className="search-offering-card__foot">
+        {rating}
+        {` · レビュー${reviewCount}件`}
+        {` · 履修中${offering.enrollment_count}人`}
+      </p>
+    </Link>
+  );
+}
+
 type ResultHandlers = {
   authenticated: boolean;
   qParam: string;
@@ -145,6 +195,21 @@ function renderSearchResultRow(row: SearchResultRow, handlers: ResultHandlers) {
   if (row.kind === "thread") {
     return (
       <SearchThreadCard key={`thread-${row.thread.id}`} thread={row.thread} />
+    );
+  }
+  if (row.kind === "user") {
+    return (
+      <div key={`user-${row.user.id}`} className="search-mixed-user">
+        <SearchUserCard user={row.user} />
+      </div>
+    );
+  }
+  if (row.kind === "offering") {
+    return (
+      <SearchOfferingCard
+        key={`offering-${row.offering.id}`}
+        offering={row.offering}
+      />
     );
   }
   return (
@@ -301,7 +366,12 @@ export function SearchPage() {
   const qParam = searchParams.get("q") || "";
   const tab = (searchParams.get("tab") as SearchTab) || "all";
   const activeTab: SearchTab =
-    tab === "latest" || tab === "users" || tab === "products" ? tab : "all";
+    tab === "latest" ||
+    tab === "courses" ||
+    tab === "users" ||
+    tab === "products"
+      ? tab
+      : "all";
 
   const [qInput, setQInput] = useState(qParam);
   const [results, setResults] = useState<SearchResultRow[]>([]);
@@ -326,6 +396,17 @@ export function SearchPage() {
         setDiscover(null);
         setResults(data.results || []);
         setUsers((data.users || []) as ProfileUser[]);
+        const resultCount =
+          typeof data.result_count === "number"
+            ? data.result_count
+            : activeTab === "users"
+              ? (data.users || []).length
+              : (data.results || []).length;
+        analytics.searchPerformed({
+          query: qParam.trim(),
+          tab: activeTab,
+          result_count: resultCount,
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "search_failed");
@@ -397,7 +478,9 @@ export function SearchPage() {
       ? "一致するユーザーはいません。"
       : activeTab === "products"
         ? "一致する商品はありません。"
-        : "一致する結果はありません。";
+        : activeTab === "courses"
+          ? "該当する授業が見つかりません。"
+          : "一致する結果はありません。";
 
   const showDiscover = !qParam.trim();
   const hasDiscoverContent = Boolean(
@@ -427,16 +510,18 @@ export function SearchPage() {
 
         {!showDiscover ? (
           <nav className="search-tabs" aria-label="検索結果の切り替え">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
-                onClick={() => setTab(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
+            <div className="search-tabs__scroller">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
+                  onClick={() => setTab(t.key)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </nav>
         ) : null}
 
@@ -469,23 +554,7 @@ export function SearchPage() {
             <ul className="search-user-list">
               {users.map((u) => (
                 <li key={u.id}>
-                  <Link className="search-user-card" to={`/users/${u.id}/posts`}>
-                    {u.avatar_url ? (
-                      <img
-                        className="search-user-avatar"
-                        src={u.avatar_url}
-                        alt=""
-                      />
-                    ) : (
-                      <span className="search-user-avatar is-initial">
-                        {u.initial}
-                      </span>
-                    )}
-                    <span className="search-user-text">
-                      <strong>{u.display_name}</strong>
-                      <span>@{u.username || u.id}</span>
-                    </span>
-                  </Link>
+                  <SearchUserCard user={u} />
                 </li>
               ))}
             </ul>
