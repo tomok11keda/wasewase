@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 INBOX_TAB_ALL = "all"
 INBOX_TAB_TRADE = "trade"
 INBOX_TAB_DM = "dm"
-INBOX_TABS = (INBOX_TAB_ALL, INBOX_TAB_TRADE, INBOX_TAB_DM)
+INBOX_TAB_COURSE = "course"
+INBOX_TABS = (INBOX_TAB_ALL, INBOX_TAB_TRADE, INBOX_TAB_DM, INBOX_TAB_COURSE)
 
 
 def normalize_inbox_tab(raw: str | None) -> str:
@@ -39,6 +40,8 @@ def filter_inbox_by_tab(items: list[dict], tab: str) -> list[dict]:
             for item in items
             if item.get("kind") in ("dm", "group", "group_invite")
         ]
+    if tab == INBOX_TAB_COURSE:
+        return [item for item in items if item.get("kind") == "course"]
     return items
 
 
@@ -149,6 +152,21 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
             continue
 
     try:
+        from .course_chat_services import build_course_talk_conversations
+
+        course_conversations = build_course_talk_conversations(user)
+    except Exception as exc:
+        logger.warning("build_course_talk_conversations failed: %s", exc)
+        course_conversations = []
+
+    for course in course_conversations:
+        try:
+            items.append(course)
+        except Exception as exc:
+            logger.warning("Skipping broken course talk: %s", exc)
+            continue
+
+    try:
         trade_conversations = build_trade_chat_conversations(user)
     except Exception as exc:
         logger.warning("build_trade_chat_conversations failed: %s", exc)
@@ -200,6 +218,13 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
         logger.warning("build_group_unread_summary failed: %s", exc)
         group_summary = {"total_unread": 0, "rooms": []}
     try:
+        from .course_chat_services import build_course_talk_unread_summary
+
+        course_summary = build_course_talk_unread_summary(user)
+    except Exception as exc:
+        logger.warning("build_course_talk_unread_summary failed: %s", exc)
+        course_summary = {"total_unread": 0, "rooms": []}
+    try:
         trade_summary = build_trade_chat_unread_summary(user)
     except Exception as exc:
         logger.warning("build_trade_chat_unread_summary failed: %s", exc)
@@ -215,12 +240,14 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
             for room in dm_summary["rooms"]
         ]
         + list(group_summary["rooms"])
+        + list(course_summary["rooms"])
         + list(trade_summary["rooms"])
     )
     return {
         "total_unread": (
             dm_summary["total_unread"]
             + group_summary["total_unread"]
+            + course_summary["total_unread"]
             + trade_summary["total_unread"]
         ),
         "rooms": rooms,

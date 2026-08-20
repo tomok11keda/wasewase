@@ -181,6 +181,10 @@ def get_report_target(target_type: str, target_id: int):
         from .models import CourseReview
 
         return CourseReview.objects.filter(pk=target_id, is_hidden=False).first()
+    if target_type == ContentReport.TargetType.CHAT_MESSAGE:
+        from .models import ChatMessage
+
+        return ChatMessage.objects.filter(pk=target_id, is_hidden=False).first()
     return None
 
 
@@ -199,6 +203,8 @@ def get_reported_user_id(target_type: str, target) -> int | None:
         return target.created_by_id
     if target_type == ContentReport.TargetType.COURSE_REVIEW:
         return target.user_id
+    if target_type == ContentReport.TargetType.CHAT_MESSAGE:
+        return target.sender_id
     return None
 
 
@@ -238,6 +244,12 @@ def soft_remove_content(
         from .models import CourseReview
 
         updated = CourseReview.objects.filter(pk=target_id, is_hidden=False).update(
+            is_hidden=True
+        )
+    elif target_type == ContentReport.TargetType.CHAT_MESSAGE:
+        from .models import ChatMessage
+
+        updated = ChatMessage.objects.filter(pk=target_id, is_hidden=False).update(
             is_hidden=True
         )
     return updated > 0

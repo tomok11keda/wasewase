@@ -192,6 +192,27 @@ export function CourseDetailPage() {
           履修中 <strong>{offering.enrollment_count}</strong>人
         </div>
 
+        <div className="course-detail__actions">
+          {me?.authenticated ? (
+            <Link
+              className="course-detail__talk-cta"
+              to={`/courses/${offering.id}/talk`}
+            >
+              授業トーク
+              <span className="course-detail__talk-cta-sub">
+                質問・口コミを話す
+              </span>
+            </Link>
+          ) : (
+            <Link
+              className="course-detail__talk-cta"
+              to={spaLoginPath(`/app/courses/${offering.id}/talk`)}
+            >
+              ログインして授業トーク
+            </Link>
+          )}
+        </div>
+
         <dl className="course-detail__meta">
           {offering.school ? (
             <>
@@ -222,6 +243,7 @@ export function CourseDetailPage() {
         <section className="course-detail__reviews">
           <div className="course-detail__reviews-head">
             <h2>レビュー</h2>
+            <p className="course-detail__section-hint">履修した人の評価</p>
             {summary && summary.count > 0 ? (
               <p className="course-detail__avg">
                 総合 {summary.overall}（{summary.count}件）

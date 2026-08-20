@@ -591,6 +591,9 @@ def enroll_user_in_offering(
     )
     if slot is None:
         raise ValueError("slot_save_failed")
+    from .course_chat_services import maybe_auto_join_on_enroll
+
+    maybe_auto_join_on_enroll(user, offering)
     return enrollment, slot
 
 
@@ -722,6 +725,10 @@ def merge_offerings(source: CourseOffering, target: CourseOffering) -> CourseOff
         slot.save(
             update_fields=["offering", "name", "room", "credits", "updated_at"]
         )
+
+    from .course_chat_services import merge_course_talk_rooms
+
+    merge_course_talk_rooms(source, target)
 
     source.status = CourseOffering.Status.MERGED
     source.merged_into = target

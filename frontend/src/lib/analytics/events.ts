@@ -120,6 +120,33 @@ export const analytics = {
     captureEvent("course_review_created");
   },
 
+  courseChatOpened(props?: { from_detail?: boolean; from_inbox?: boolean }) {
+    captureEvent("course_chat_opened", {
+      from_detail: Boolean(props?.from_detail),
+      from_inbox: Boolean(props?.from_inbox),
+    });
+  },
+
+  courseChatOpenedFromDetail() {
+    captureEvent("course_chat_opened_from_detail");
+  },
+
+  courseChatOpenedFromInbox() {
+    captureEvent("course_chat_opened_from_inbox");
+  },
+
+  courseChatJoined() {
+    captureEvent("course_chat_joined");
+  },
+
+  courseChatLeft() {
+    captureEvent("course_chat_left");
+  },
+
+  courseChatMessageSent() {
+    captureEvent("course_chat_message_sent");
+  },
+
   dmStarted(props?: { created_new?: boolean }) {
     captureEvent("dm_started", {
       created_new: props?.created_new !== false,

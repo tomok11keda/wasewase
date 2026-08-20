@@ -6,14 +6,17 @@ import { fetchDmInbox, type InboxItem } from "../features/dm/api";
 
 const TABS = [
   { key: "all", label: "すべて" },
-  { key: "trade", label: "取引チャット" },
-  { key: "dm", label: "通常DM" },
+  { key: "dm", label: "通常" },
+  { key: "course", label: "授業" },
+  { key: "trade", label: "取引" },
 ] as const;
 
 function statusClass(label: string): string {
   if (label === "取引中") return " is-trading";
   if (label === "売り切れ") return " is-sold";
   if (label === "交渉終了") return " is-closed";
+  if (label === "履修中") return " is-enrolled";
+  if (label === "履修済み") return " is-past";
   return "";
 }
 
@@ -24,6 +27,7 @@ function avatarContent(item: InboxItem) {
     }
     return "🛒";
   }
+  if (item.kind === "course") return "📚";
   if (item.kind === "group" || item.kind === "group_invite") return "👥";
   if (item.is_blocked) return "?";
   const name = item.partner?.display_name || item.display_name || "?";
@@ -43,9 +47,15 @@ function emptyCopy(tab: string) {
       body: "プロフィールやタイムラインの「DM」ボタンから会話を始めるか、右下の＋からグループを作成できます。",
     };
   }
+  if (tab === "course") {
+    return {
+      title: "参加中の授業トークはありません",
+      body: "授業詳細の「授業トーク」を開くと、ここに表示されます。履修前の質問もOKです。",
+    };
+  }
   return {
     title: "まだ会話がありません",
-    body: "通常のDM・グループ、またはフリマの取引チャットがここに表示されます。",
+    body: "通常のDM・グループ、授業トーク、またはフリマの取引チャットがここに表示されます。",
   };
 }
 
@@ -109,7 +119,7 @@ export function DmInboxPage() {
       <main className="main-inner" data-dm-inbox>
         <header className="dm-inbox-header">
           <h1>メッセージ</h1>
-          <p>通常のDMと、フリマの取引チャットをまとめて確認できます。</p>
+          <p>DM・授業トーク・取引チャットをまとめて確認できます。</p>
           <nav className="dm-inbox-tabs" aria-label="メッセージの種類">
             {TABS.map((t) => (
               <button
@@ -166,7 +176,9 @@ export function DmInboxPage() {
                         ? " is-group"
                         : item.kind === "trade"
                           ? " is-trade"
-                          : ""
+                          : item.kind === "course"
+                            ? " is-course"
+                            : ""
                     }`}
                     aria-hidden="true"
                   >
@@ -192,6 +204,19 @@ export function DmInboxPage() {
                             相手: {item.partner.display_name}
                           </span>
                         ) : null}
+                      </>
+                    ) : item.kind === "course" ? (
+                      <>
+                        {item.status_label ? (
+                          <span
+                            className={`dm-inbox-status${statusClass(
+                              item.status_label
+                            )}`}
+                          >
+                            {item.status_label}
+                          </span>
+                        ) : null}
+                        <span className="dm-inbox-handle">{item.subtitle}</span>
                       </>
                     ) : item.kind === "group_invite" ? (
                       <>

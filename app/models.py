@@ -244,7 +244,8 @@ class Course(models.Model):
 class CourseOffering(models.Model):
     """特定年度・学期・教員・曜時限の開講インスタンス。
 
-    将来 ChatRoom(kind=course) との OneToOne を追加してもよい（今回は未実装）。
+    chat_room (OneToOne → ChatRoom kind=course) は授業トーク用。
+    初回アクセス時に lazy 生成する。
     """
 
     class Semester(models.TextChoices):
@@ -329,6 +330,14 @@ class CourseOffering(models.Model):
         blank=True,
         related_name="merged_from",
         verbose_name="統合先",
+    )
+    chat_room = models.OneToOneField(
+        "ChatRoom",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="course_offering",
+        verbose_name="授業トーク",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -815,6 +824,7 @@ class ContentReport(models.Model):
         PRODUCT = "product", "出品"
         COURSE_OFFERING = "course_offering", "開講授業"
         COURSE_REVIEW = "course_review", "授業レビュー"
+        CHAT_MESSAGE = "chat_message", "チャットメッセージ"
 
     class Reason(models.TextChoices):
         SPAM = "spam", "スパム・宣伝"
@@ -948,6 +958,7 @@ class ChatRoom(models.Model):
     class Kind(models.TextChoices):
         PRODUCT = "product", "商品チャット"
         GROUP = "group", "グループチャット"
+        COURSE = "course", "授業トーク"
 
     class DealStatus(models.TextChoices):
         NEGOTIATING = "negotiating", "交渉中"
@@ -1004,6 +1015,11 @@ class ChatRoom(models.Model):
         ]
 
     def __str__(self) -> str:
+        if self.kind == ChatRoom.Kind.COURSE:
+            offering = getattr(self, "course_offering", None)
+            if offering is not None:
+                return f"授業トーク: {offering.title}"
+            return f"授業トーク #{self.pk}"
         if self.kind == ChatRoom.Kind.GROUP:
             return self.name or f"グループチャット #{self.pk}"
         if self.product_id and self.buyer_id:
@@ -1142,7 +1158,7 @@ class ChatRoomInvitation(models.Model):
 
 
 class ChatMessage(models.Model):
-    """グループチャット用のメッセージ。"""
+    """グループ／授業トーク用のメッセージ。"""
 
     room = models.ForeignKey(
         ChatRoom,
@@ -1155,6 +1171,12 @@ class ChatMessage(models.Model):
         related_name="chat_messages_sent",
     )
     body = models.TextField(max_length=500)
+    is_hidden = models.BooleanField(
+        "非表示",
+        default=False,
+        db_index=True,
+        help_text="モデレーションにより一覧から隠す",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

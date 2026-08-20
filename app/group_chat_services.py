@@ -73,7 +73,9 @@ def count_unread_group_messages(
     last_read_message_id: int = 0,
 ) -> int:
     return (
-        ChatMessage.objects.filter(room=room, pk__gt=last_read_message_id)
+        ChatMessage.objects.filter(
+            room=room, pk__gt=last_read_message_id, is_hidden=False
+        )
         .exclude(sender_id=user.pk)
         .count()
     )
