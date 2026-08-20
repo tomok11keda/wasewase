@@ -7,6 +7,7 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .course_chat_services import (
@@ -153,9 +154,17 @@ def api_v1_courses_talk_send(
         return result
     room, offering = result
     body = _json_body(request)
+    reply_raw = body.get("reply_to_id")
+    try:
+        reply_to_id = int(reply_raw) if reply_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return _json_error("invalid_reply_to")
     try:
         message = send_course_talk_message(
-            room, request.user, body.get("body") or ""
+            room,
+            request.user,
+            body.get("body") or "",
+            reply_to_id=reply_to_id,
         )
     except ValueError as exc:
         code = str(exc)
@@ -168,6 +177,47 @@ def api_v1_courses_talk_send(
         return _json_error("save_failed", status=500)
 
     role = enrollment_role_for(request.user, offering)
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": serialize_course_talk_message(
+                message,
+                request.user.pk,
+                enrollment_role=role,
+            ),
+        }
+    )
+
+
+@login_required
+@require_POST
+def api_v1_courses_talk_message_delete(
+    request: HttpRequest, room_pk: int, message_pk: int
+) -> JsonResponse:
+    from .chat_message_services import soft_delete_own_chat_message
+    from .models import ChatMessage
+
+    result = _get_course_room_for_member(room_pk, request.user)
+    if isinstance(result, JsonResponse):
+        return result
+    room, offering = result
+    message = get_object_or_404(
+        ChatMessage.objects.select_related(
+            "sender",
+            "sender__profile",
+            "reply_to",
+            "reply_to__sender",
+        ),
+        pk=message_pk,
+        room=room,
+    )
+    try:
+        message = soft_delete_own_chat_message(message, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        status = 403 if code == "forbidden" else 400
+        return _json_error(code, status=status)
+    role = enrollment_role_for(message.sender, offering) if message.sender_id else None
     return JsonResponse(
         {
             "ok": True,

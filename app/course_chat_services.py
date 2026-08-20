@@ -205,37 +205,27 @@ def serialize_course_talk_message(
     *,
     enrollment_role: str | None = None,
 ) -> dict[str, Any]:
-    created = timezone.localtime(message.created_at)
+    from .chat_message_services import serialize_chat_message
+
     role_label = None
     if enrollment_role == CourseEnrollment.Role.CURRENT:
         role_label = "履修中"
     elif enrollment_role == CourseEnrollment.Role.PAST:
         role_label = "履修済み"
-    return {
-        "id": message.pk,
-        "sender_id": message.sender_id,
-        "sender_name": user_display_name(message.sender)
-        if message.sender_id
-        else "システム",
-        "sender_initial": user_avatar_initial(message.sender)
-        if message.sender_id
-        else "?",
-        "avatar_url": (get_user_avatar_url(message.sender) or "")
-        if message.sender_id
-        else "",
-        "body": message.body,
-        "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
-        # 現在の Enrollment 状態（将来送信時スナップショットへ移行可）
-        "enrollment_role": enrollment_role,
-        "enrollment_label": role_label,
-    }
+    return serialize_chat_message(
+        message,
+        current_user_id,
+        extra={
+            "enrollment_role": enrollment_role,
+            "enrollment_label": role_label,
+        },
+    )
 
 
 def visible_course_messages_qs(room: ChatRoom):
-    return room.chat_messages.filter(is_hidden=False).select_related(
-        "sender", "sender__profile"
-    )
+    from .chat_message_services import visible_chat_messages_qs
+
+    return visible_chat_messages_qs(room)
 
 
 def build_course_talk_payload(
@@ -316,21 +306,20 @@ def build_course_talk_messages_payload(
 
 
 def send_course_talk_message(
-    room: ChatRoom, sender: AbstractBaseUser, body: str
+    room: ChatRoom,
+    sender: AbstractBaseUser,
+    body: str,
+    *,
+    reply_to_id: int | None = None,
 ) -> ChatMessage:
-    body = (body or "").strip()
-    if not body:
-        raise ValueError("empty")
-    if len(body) > 500:
-        raise ValueError("too_long")
+    from .chat_message_services import create_chat_message
+
     if not is_course_talk_member(room, sender):
         raise ValueError("forbidden")
     if room.kind != ChatRoom.Kind.COURSE:
         raise ValueError("forbidden")
     # Push / in-app Notification: intentionally OFF for course talk (spam risk)
-    message = ChatMessage.objects.create(room=room, sender=sender, body=body)
-    room.save(update_fields=["updated_at"])
-    return message
+    return create_chat_message(room, sender, body, reply_to_id=reply_to_id)
 
 
 def list_course_talk_rooms_for_user(user: AbstractBaseUser):

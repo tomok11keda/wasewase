@@ -184,7 +184,9 @@ def get_report_target(target_type: str, target_id: int):
     if target_type == ContentReport.TargetType.CHAT_MESSAGE:
         from .models import ChatMessage
 
-        return ChatMessage.objects.filter(pk=target_id, is_hidden=False).first()
+        return ChatMessage.objects.filter(
+            pk=target_id, is_hidden=False, deleted_at__isnull=True
+        ).first()
     return None
 
 

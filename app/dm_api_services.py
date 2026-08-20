@@ -77,23 +77,9 @@ def serialize_dm_message(
 def serialize_group_message(
     message: ChatMessage, current_user_id: int
 ) -> dict[str, Any]:
-    created = timezone.localtime(message.created_at)
-    return {
-        "id": message.pk,
-        "sender_id": message.sender_id,
-        "sender_name": user_display_name(message.sender)
-        if message.sender_id
-        else "システム",
-        "sender_initial": user_avatar_initial(message.sender)
-        if message.sender_id
-        else "?",
-        "avatar_url": get_user_avatar_url(message.sender) or ""
-        if message.sender_id
-        else "",
-        "body": message.body,
-        "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
-    }
+    from .chat_message_services import serialize_chat_message
+
+    return serialize_chat_message(message, current_user_id)
 
 
 def serialize_inbox_item(item: dict) -> dict[str, Any]:
@@ -367,6 +353,7 @@ def list_following_for_group(creator: AbstractBaseUser) -> list[dict[str, Any]]:
 def build_group_room_payload(
     room: ChatRoom, viewer: AbstractBaseUser
 ) -> dict[str, Any]:
+    from .chat_message_services import visible_chat_messages_qs
     from .group_invite_services import (
         get_pending_invitation,
         list_pending_invites_for_room,
@@ -379,7 +366,10 @@ def build_group_room_payload(
         latest_id = mark_group_room_read(room, viewer)
     else:
         latest_id = (
-            room.chat_messages.order_by("-pk").values_list("pk", flat=True).first()
+            visible_chat_messages_qs(room)
+            .order_by("-pk")
+            .values_list("pk", flat=True)
+            .first()
             or 0
         )
 
@@ -389,11 +379,7 @@ def build_group_room_payload(
             "joined_at"
         )
     ]
-    messages = list(
-        room.chat_messages.select_related("sender", "sender__profile").order_by(
-            "created_at"
-        )
-    )
+    messages = list(visible_chat_messages_qs(room).order_by("created_at"))
     pending_invites = list_pending_invites_for_room(room) if is_member else []
     membership_status = (
         "member" if is_member else ("pending_invite" if pending else "none")
@@ -419,13 +405,16 @@ def build_group_room_payload(
 def build_group_messages_payload(
     room: ChatRoom, viewer: AbstractBaseUser, *, after: str = ""
 ) -> dict[str, Any]:
-    qs = room.chat_messages.select_related("sender", "sender__profile").order_by(
-        "created_at"
-    )
+    from .chat_message_services import visible_chat_messages_qs
+
+    qs = visible_chat_messages_qs(room).order_by("created_at")
     if after.isdigit():
         qs = qs.filter(pk__gt=int(after))
     latest_id = (
-        room.chat_messages.order_by("-pk").values_list("pk", flat=True).first()
+        visible_chat_messages_qs(room)
+        .order_by("-pk")
+        .values_list("pk", flat=True)
+        .first()
         or 0
     )
     if can_access_group_room(room, viewer):
@@ -438,15 +427,14 @@ def build_group_messages_payload(
 
 
 def send_group_chat_message(
-    room: ChatRoom, sender: AbstractBaseUser, body: str
+    room: ChatRoom,
+    sender: AbstractBaseUser,
+    body: str,
+    *,
+    reply_to_id: int | None = None,
 ) -> ChatMessage:
-    body = (body or "").strip()
-    if not body:
-        raise ValueError("empty")
-    if len(body) > 500:
-        raise ValueError("too_long")
+    from .chat_message_services import create_chat_message
+
     if not can_access_group_room(room, sender):
         raise ValueError("forbidden")
-    message = ChatMessage.objects.create(room=room, sender=sender, body=body)
-    room.save(update_fields=["updated_at"])
-    return message
+    return create_chat_message(room, sender, body, reply_to_id=reply_to_id)

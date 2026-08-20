@@ -1261,13 +1261,14 @@ def submit_report(request, target_type: str, target_id: int):
         return _redirect_after_action(request)
 
     try:
-        report = ContentReport.objects.create(
-            reporter=request.user,
-            target_type=target_type,
-            target_id=target_id,
-            reason=form.cleaned_data["reason"],
-            detail=form.cleaned_data.get("detail", ""),
-        )
+        with transaction.atomic():
+            report = ContentReport.objects.create(
+                reporter=request.user,
+                target_type=target_type,
+                target_id=target_id,
+                reason=form.cleaned_data["reason"],
+                detail=form.cleaned_data.get("detail", ""),
+            )
     except IntegrityError:
         message = "この内容はすでに通報済みです。運営が確認します。"
         if _wants_json_response(request):

@@ -370,6 +370,11 @@ urlpatterns = [
         name="api_v1_courses_talk_send",
     ),
     path(
+        "api/v1/courses/talk/<int:room_pk>/messages/<int:message_pk>/delete/",
+        course_chat_api_views.api_v1_courses_talk_message_delete,
+        name="api_v1_courses_talk_message_delete",
+    ),
+    path(
         "api/v1/dm/inbox/",
         dm_api_views.api_v1_dm_inbox,
         name="api_v1_dm_inbox",
@@ -428,6 +433,11 @@ urlpatterns = [
         "api/v1/dm/groups/<int:room_pk>/messages/send/",
         dm_api_views.api_v1_dm_group_send,
         name="api_v1_dm_group_send",
+    ),
+    path(
+        "api/v1/dm/groups/<int:room_pk>/messages/<int:message_pk>/delete/",
+        dm_api_views.api_v1_dm_group_message_delete,
+        name="api_v1_dm_group_message_delete",
     ),
     path(
         "api/v1/dm/groups/<int:room_pk>/invite/",

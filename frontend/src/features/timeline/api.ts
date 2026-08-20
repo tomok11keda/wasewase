@@ -213,9 +213,11 @@ export async function fetchQuotable(
 
 /** Classic UGC report reasons (matches static/js/ugc_report.js). */
 export const REPORT_REASONS = [
-  { value: "inappropriate", label: "不適切なコンテンツ" },
-  { value: "harassment", label: "嫌がらせ" },
-  { value: "spam", label: "スパム" },
+  { value: "spam", label: "スパム・宣伝" },
+  { value: "harassment", label: "嫌がらせ・誹謗中傷" },
+  { value: "inappropriate", label: "不適切な内容" },
+  { value: "fraud", label: "詐欺・虚偽出品" },
+  { value: "other", label: "その他" },
 ] as const;
 
 export type ReportReason = (typeof REPORT_REASONS)[number]["value"];
@@ -225,7 +227,14 @@ export type ReportReason = (typeof REPORT_REASONS)[number]["value"];
  * Sends moderation email via existing notify_moderation_team_of_report.
  */
 export async function submitContentReport(
-  targetType: "post" | "comment" | "user" | "product",
+  targetType:
+    | "post"
+    | "comment"
+    | "user"
+    | "product"
+    | "course_offering"
+    | "course_review"
+    | "chat_message",
   targetId: number,
   reason: ReportReason | string
 ): Promise<string> {

@@ -25,7 +25,7 @@ from .dm_request_services import (
     decline_dm_request,
     list_pending_dm_requests_payload,
 )
-from .models import ChatRoom, UserDirectMessageRoom
+from .models import ChatMessage, ChatRoom, UserDirectMessageRoom
 from .dm_api_services import (
     build_dm_messages_payload,
     build_dm_room_payload,
@@ -223,23 +223,56 @@ def api_v1_dm_group_send(request: HttpRequest, room_pk: int) -> JsonResponse:
     room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
     data = _parse_json(request)
     body = str(data.get("body") if data else request.POST.get("body", ""))
+    reply_raw = data.get("reply_to_id") if data else None
     try:
-        message = send_group_chat_message(room, request.user, body)
+        reply_to_id = int(reply_raw) if reply_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return _json_error("invalid_reply_to")
+    try:
+        message = send_group_chat_message(
+            room, request.user, body, reply_to_id=reply_to_id
+        )
     except ValueError as exc:
         code = str(exc)
         status = 403 if code == "forbidden" else 400
         return _json_error(code, status=status)
-    message = (
-        type(message)
-        .objects.select_related("sender", "sender__profile")
-        .get(pk=message.pk)
-    )
     return JsonResponse(
         {
             "ok": True,
             "message": serialize_group_message(message, request.user.id),
         },
         status=201,
+    )
+
+
+@login_required
+@require_POST
+def api_v1_dm_group_message_delete(
+    request: HttpRequest, room_pk: int, message_pk: int
+) -> JsonResponse:
+    from .chat_message_services import soft_delete_own_chat_message
+
+    room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
+    if not can_access_group_room(room, request.user):
+        return _json_error("forbidden", status=403)
+    message = get_object_or_404(
+        ChatMessage.objects.select_related(
+            "sender", "sender__profile", "reply_to", "reply_to__sender"
+        ),
+        pk=message_pk,
+        room=room,
+    )
+    try:
+        message = soft_delete_own_chat_message(message, request.user)
+    except ValueError as exc:
+        code = str(exc)
+        status = 403 if code == "forbidden" else 400
+        return _json_error(code, status=status)
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": serialize_group_message(message, request.user.id),
+        }
     )
 
 

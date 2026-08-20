@@ -147,6 +147,32 @@ export const analytics = {
     captureEvent("course_chat_message_sent");
   },
 
+  chatMessageLongPressed(props?: { kind?: string }) {
+    captureEvent("chat_message_long_pressed", {
+      kind: props?.kind || undefined,
+    });
+  },
+
+  chatReplyStarted(props?: { kind?: string }) {
+    captureEvent("chat_reply_started", { kind: props?.kind || undefined });
+  },
+
+  chatReplySent(props?: { kind?: string }) {
+    captureEvent("chat_reply_sent", { kind: props?.kind || undefined });
+  },
+
+  chatMessageCopied(props?: { kind?: string }) {
+    captureEvent("chat_message_copied", { kind: props?.kind || undefined });
+  },
+
+  chatMessageDeleted(props?: { kind?: string }) {
+    captureEvent("chat_message_deleted", { kind: props?.kind || undefined });
+  },
+
+  chatMessageReported(props?: { kind?: string }) {
+    captureEvent("chat_message_reported", { kind: props?.kind || undefined });
+  },
+
   dmStarted(props?: { created_new?: boolean }) {
     captureEvent("dm_started", {
       created_new: props?.created_new !== false,
