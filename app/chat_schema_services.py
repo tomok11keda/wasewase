@@ -119,6 +119,118 @@ def ensure_chatroom_group_chat_schema() -> None:
         logger.warning("ChatRoom schema repair failed: %s", exc)
 
 
+def ensure_course_talk_schema() -> None:
+    """0047/0048 の授業トーク列が欠けている本番 SQLite/Postgres を修復する。
+
+    start.sh の migrate が遅れている／失敗した／django_migrations と実スキーマが
+    ずれた場合でも、Course Talk の open が OperationalError で落ちないようにする。
+    """
+    try:
+        with connection.cursor() as cursor:
+            tables = set(connection.introspection.table_names(cursor))
+            if "app_courseoffering" not in tables or "app_chatmessage" not in tables:
+                return
+
+            offering_cols = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, "app_courseoffering"
+                )
+            }
+            message_cols = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, "app_chatmessage"
+                )
+            }
+
+            if "chat_room_id" not in offering_cols:
+                if connection.vendor == "postgresql":
+                    cursor.execute(
+                        "ALTER TABLE app_courseoffering "
+                        "ADD COLUMN IF NOT EXISTS chat_room_id bigint NULL "
+                        "UNIQUE REFERENCES app_chatroom(id) ON DELETE SET NULL"
+                    )
+                else:
+                    cursor.execute(
+                        "ALTER TABLE app_courseoffering "
+                        "ADD COLUMN chat_room_id bigint NULL "
+                        "REFERENCES app_chatroom(id)"
+                    )
+                    try:
+                        cursor.execute(
+                            "CREATE UNIQUE INDEX IF NOT EXISTS "
+                            "app_courseoffering_chat_room_id_uniq "
+                            "ON app_courseoffering (chat_room_id)"
+                        )
+                    except (OperationalError, ProgrammingError):
+                        pass
+                logger.warning("Added missing app_courseoffering.chat_room_id")
+
+            if "is_hidden" not in message_cols:
+                if connection.vendor == "postgresql":
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT FALSE"
+                    )
+                else:
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN is_hidden bool NOT NULL DEFAULT 0"
+                    )
+                logger.warning("Added missing app_chatmessage.is_hidden")
+
+            if "deleted_at" not in message_cols:
+                if connection.vendor == "postgresql":
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN IF NOT EXISTS deleted_at timestamptz NULL"
+                    )
+                else:
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN deleted_at datetime NULL"
+                    )
+                logger.warning("Added missing app_chatmessage.deleted_at")
+
+            if "reply_to_id" not in message_cols:
+                if connection.vendor == "postgresql":
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN IF NOT EXISTS reply_to_id bigint NULL "
+                        "REFERENCES app_chatmessage(id) ON DELETE SET NULL "
+                        "DEFERRABLE INITIALLY DEFERRED"
+                    )
+                else:
+                    cursor.execute(
+                        "ALTER TABLE app_chatmessage "
+                        "ADD COLUMN reply_to_id bigint NULL "
+                        "REFERENCES app_chatmessage(id)"
+                    )
+                logger.warning("Added missing app_chatmessage.reply_to_id")
+
+            # Indexes (IF NOT EXISTS) — ignore duplicates
+            for ddl in (
+                "CREATE INDEX IF NOT EXISTS app_chatmessage_is_hidden_idx "
+                "ON app_chatmessage (is_hidden)",
+                "CREATE INDEX IF NOT EXISTS app_chatmessage_deleted_at_idx "
+                "ON app_chatmessage (deleted_at)",
+                "CREATE INDEX IF NOT EXISTS app_chatmessage_reply_to_id_idx "
+                "ON app_chatmessage (reply_to_id)",
+            ):
+                try:
+                    cursor.execute(ddl)
+                except (OperationalError, ProgrammingError):
+                    pass
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "duplicate column" in message or "already exists" in message:
+            return
+        logger.warning("Course talk schema repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("Course talk schema repair failed: %s", exc)
+
+
 def ensure_chatroom_invitation_table() -> None:
     """ChatRoomInvitation テーブルが無い本番 DB を修復する。"""
     table = "app_chatroominvitation"

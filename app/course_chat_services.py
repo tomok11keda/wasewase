@@ -118,12 +118,24 @@ def get_or_create_course_talk_room(
         "chat_room"
     ).get(pk=locked.pk)
 
-    if locked.chat_room_id and locked.chat_room is not None:
-        room = locked.chat_room
-        if room.kind != ChatRoom.Kind.COURSE:
-            room.kind = ChatRoom.Kind.COURSE
-            room.save(update_fields=["kind", "updated_at"])
-        return room, False
+    if locked.chat_room_id:
+        try:
+            room = locked.chat_room
+        except ChatRoom.DoesNotExist:
+            # 孤児 FK（FK 無効時の削除など）— クリアして作り直す
+            logger.warning(
+                "course talk stale chat_room_id=%s offering=%s; recreating",
+                locked.chat_room_id,
+                locked.pk,
+            )
+            CourseOffering.objects.filter(pk=locked.pk).update(chat_room_id=None)
+            locked.chat_room_id = None
+            room = None
+        if room is not None:
+            if room.kind != ChatRoom.Kind.COURSE:
+                room.kind = ChatRoom.Kind.COURSE
+                room.save(update_fields=["kind", "updated_at"])
+            return room, False
 
     name = _course_room_name(locked)
     try:

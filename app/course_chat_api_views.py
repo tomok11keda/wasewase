@@ -74,13 +74,61 @@ def api_v1_courses_offering_talk(
     request: HttpRequest, offering_pk: int
 ) -> JsonResponse:
     """授業トークを開く（lazy create + 自動参加）。"""
+    from django.db.utils import OperationalError, ProgrammingError
+
+    from .chat_schema_services import ensure_course_talk_schema
+
     try:
         offering = get_visible_offering_for_talk(offering_pk)
     except CourseOffering.DoesNotExist:
         return _json_error("not_found", status=404)
+    except (OperationalError, ProgrammingError) as exc:
+        # 0047 chat_room 列欠落など
+        logger.exception(
+            "course talk offering lookup schema error offering=%s: %s",
+            offering_pk,
+            exc,
+        )
+        ensure_course_talk_schema()
+        try:
+            offering = get_visible_offering_for_talk(offering_pk)
+        except CourseOffering.DoesNotExist:
+            return _json_error("not_found", status=404)
+        except Exception:
+            logger.exception(
+                "course talk open failed after schema repair (lookup) user=%s offering=%s",
+                request.user.pk,
+                offering_pk,
+            )
+            return _json_error("save_failed", status=500)
+
+    def _open_payload():
+        room, _membership, joined_now = join_course_talk(request.user, offering)
+        offering.refresh_from_db()
+        return build_course_talk_payload(
+            room, offering, request.user, joined_now=joined_now
+        )
 
     try:
-        room, _membership, joined_now = join_course_talk(request.user, offering)
+        return JsonResponse(_open_payload())
+    except (OperationalError, ProgrammingError) as exc:
+        # 典型: 0048 reply_to_id / deleted_at 未適用のまま messages を読む
+        logger.exception(
+            "course talk open schema error user=%s offering=%s: %s",
+            request.user.pk,
+            offering_pk,
+            exc,
+        )
+        ensure_course_talk_schema()
+        try:
+            return JsonResponse(_open_payload())
+        except Exception:
+            logger.exception(
+                "course talk open failed after schema repair user=%s offering=%s",
+                request.user.pk,
+                offering_pk,
+            )
+            return _json_error("save_failed", status=500)
     except Exception:
         logger.exception(
             "course talk open failed user=%s offering=%s",
@@ -88,13 +136,6 @@ def api_v1_courses_offering_talk(
             offering_pk,
         )
         return _json_error("save_failed", status=500)
-
-    offering.refresh_from_db()
-    return JsonResponse(
-        build_course_talk_payload(
-            room, offering, request.user, joined_now=joined_now
-        )
-    )
 
 
 @login_required
