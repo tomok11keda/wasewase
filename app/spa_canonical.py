@@ -92,10 +92,16 @@ def group_room_url(room_pk: int) -> str:
     return reverse("dm_group_room", kwargs={"room_pk": room_pk})
 
 
-def group_create_url() -> str:
+def course_talk_url(offering_pk: int) -> str:
     if spa_enabled():
-        return app_absolute("/dm/groups/new")
-    return reverse("dm_group_create")
+        return app_absolute(f"/courses/{offering_pk}/talk")
+    return f"/courses/{offering_pk}/talk/"
+
+
+def course_detail_url(offering_pk: int) -> str:
+    if spa_enabled():
+        return app_absolute(f"/courses/{offering_pk}")
+    return f"/courses/{offering_pk}/"
 
 
 def user_profile_url(pk: int, *, tab: str = "posts") -> str:

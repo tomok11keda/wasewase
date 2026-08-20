@@ -38,6 +38,8 @@ _EXHIBIT_RE = re.compile(r"^/exhibit/?$")
 _FLEA_EXHIBIT_RE = re.compile(r"^/flea/exhibit/?$")
 _TIMETABLE_RE = re.compile(r"^/timetable/?$")
 _TIMETABLE_USER_RE = re.compile(r"^/timetable/user/(\d+)/?")
+_COURSE_TALK_RE = re.compile(r"^/courses/(\d+)/talk/?$")
+_COURSE_DETAIL_RE = re.compile(r"^/courses/(\d+)/?$")
 _SEARCH_RE = re.compile(r"^/search/?$")
 _NOTIFICATIONS_RE = re.compile(r"^/notifications/?$")
 _MORE_RE = re.compile(r"^/more/?$")
@@ -110,6 +112,12 @@ def notification_spa_path(link: str) -> str:
         return f"/timetable/user/{m.group(1)}"
     if _TIMETABLE_RE.match(path):
         return "/timetable"
+    m = _COURSE_TALK_RE.match(path)
+    if m:
+        return _with_query_fragment(f"/courses/{m.group(1)}/talk", query, fragment)
+    m = _COURSE_DETAIL_RE.match(path)
+    if m:
+        return f"/courses/{m.group(1)}"
     if _SEARCH_RE.match(path):
         return _with_query_fragment("/search", query, "")
     if _NOTIFICATIONS_RE.match(path):
