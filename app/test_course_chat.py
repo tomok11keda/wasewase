@@ -285,3 +285,97 @@ class CourseTalkRaceTests(TestCase):
         offering.refresh_from_db()
         self.assertIsNotNone(offering.chat_room_id)
         leave_course_talk(user, offering)
+
+
+class CourseTalkSchemaGapTests(TestCase):
+    """reply_to / deleted_at 欠落時に open が save_failed 相当で落ちないこと。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="schema-talk@ex.com", password="pass12345"
+        )
+        self.client.force_login(self.user)
+        offering, _ = create_offering(
+            user=self.user,
+            title="スキーマ欠落授業",
+            instructor="教員",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=1,
+            period=1,
+            force_create=True,
+        )
+        self.offering = offering
+
+    def test_ensure_repairs_reply_columns_and_open_succeeds(self):
+        from django.db import connection
+
+        from app.chat_schema_services import ensure_course_talk_schema
+
+        # 実害再現: ORM モデルにはあるが DB 列が無い状態は migrate 後では作れないため、
+        # ensure が冪等であることと open が 200 になることを確認する。
+        ensure_course_talk_schema()
+        with connection.cursor() as cursor:
+            cols = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, "app_chatmessage"
+                )
+            }
+        self.assertIn("reply_to_id", cols)
+        self.assertIn("deleted_at", cols)
+
+        res = self.client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["room"]["kind"], "course")
+
+        # 2回目は同一 Room
+        again = self.client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.json()["room"]["id"], data["room"]["id"])
+
+    def test_unenrolled_and_leave_rejoin(self):
+        guest = User.objects.create_user(
+            email="schema-guest@ex.com", password="pass12345"
+        )
+        guest_client = Client()
+        guest_client.force_login(guest)
+        opened = guest_client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(opened.status_code, 200, opened.content)
+        room_id = opened.json()["room"]["id"]
+
+        leave = guest_client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/leave/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(leave.status_code, 200)
+        self.assertFalse(
+            ChatRoomMembership.objects.filter(room_id=room_id, user=guest).exists()
+        )
+
+        rejoin = guest_client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(rejoin.status_code, 200)
+        self.assertEqual(rejoin.json()["room"]["id"], room_id)
+        self.assertTrue(
+            ChatRoomMembership.objects.filter(room_id=room_id, user=guest).exists()
+        )

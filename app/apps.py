@@ -23,6 +23,7 @@ class AppConfig(AppConfig):
         from app.chat_schema_services import (
             ensure_chatroom_group_chat_schema,
             ensure_chatroom_invitation_table,
+            ensure_course_talk_schema,
         )
         from app.product_trade_schema_services import ensure_product_trade_schema
         from app.timetable_services import ensure_timetable_slot_table
@@ -37,6 +38,7 @@ class AppConfig(AppConfig):
         ensure_user_direct_message_request_table()
         ensure_chatroom_group_chat_schema()
         ensure_chatroom_invitation_table()
+        ensure_course_talk_schema()
         ensure_timetable_slot_table()
         ensure_calendar_event_table()
         ensure_product_trade_schema()
