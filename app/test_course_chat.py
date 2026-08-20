@@ -379,3 +379,71 @@ class CourseTalkSchemaGapTests(TestCase):
         self.assertTrue(
             ChatRoomMembership.objects.filter(room_id=room_id, user=guest).exists()
         )
+
+
+class CourseTalkStaleFkTests(TestCase):
+    """chat_room_id が欠落 Room を指すと save_failed になっていた回帰。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="stale-talk@ex.com", password="pass12345"
+        )
+        self.client.force_login(self.user)
+        offering, _ = create_offering(
+            user=self.user,
+            title="孤児FK授業",
+            instructor="教員",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=2,
+            period=2,
+            force_create=True,
+        )
+        self.offering = offering
+
+    def test_stale_chat_room_id_open_recreates_room(self):
+        from django.db import connection
+
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.COURSE,
+            name="ghost",
+            created_by=self.user,
+        )
+        CourseOffering.objects.filter(pk=self.offering.pk).update(
+            chat_room_id=room.pk
+        )
+        stale_id = room.pk
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            cursor.execute("DELETE FROM app_chatroom WHERE id=%s", [stale_id])
+            cursor.execute("PRAGMA foreign_keys=ON")
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.chat_room_id, stale_id)
+        self.assertFalse(ChatRoom.objects.filter(pk=stale_id).exists())
+
+        # select_related 経由だと chat_room が None になり、旧実装はここで死ぬ
+        cached = CourseOffering.objects.select_related("chat_room").get(
+            pk=self.offering.pk
+        )
+        self.assertIsNone(cached.chat_room)
+        self.assertEqual(cached.chat_room_id, stale_id)
+
+        room_obj, created = get_or_create_course_talk_room(
+            cached, actor=self.user
+        )
+        self.assertTrue(created)
+        self.assertNotEqual(room_obj.pk, stale_id)
+
+        res = self.client.post(
+            f"/api/v1/courses/offerings/{self.offering.pk}/talk/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["room"]["id"], room_obj.pk)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.chat_room_id, room_obj.pk)

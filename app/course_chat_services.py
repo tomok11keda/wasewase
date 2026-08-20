@@ -100,6 +100,22 @@ def get_visible_offering_for_talk(offering_pk: int) -> CourseOffering:
     return offering
 
 
+def _clear_stale_course_talk_fk(offering: CourseOffering, stale_id: int | None) -> None:
+    """chat_room_id が欠落 Room を指すとき FK を外す。"""
+    logger.warning(
+        "course talk stale chat_room_id=%s offering=%s; clearing",
+        stale_id,
+        offering.pk,
+    )
+    CourseOffering.objects.filter(pk=offering.pk).update(chat_room_id=None)
+    offering.chat_room_id = None
+
+
+def _load_course_talk_room(chat_room_id: int) -> ChatRoom | None:
+    """select_related の None キャッシュに頼らず実在 Room を取る。"""
+    return ChatRoom.objects.filter(pk=chat_room_id).first()
+
+
 @transaction.atomic
 def get_or_create_course_talk_room(
     offering: CourseOffering,
@@ -110,28 +126,17 @@ def get_or_create_course_talk_room(
 
     Returns (room, created).
     """
-    locked = CourseOffering.objects.select_for_update().select_related(
-        "chat_room"
-    ).get(pk=offering.pk)
+    locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
     locked = resolve_canonical_offering(locked)
-    locked = CourseOffering.objects.select_for_update().select_related(
-        "chat_room"
-    ).get(pk=locked.pk)
+    locked = CourseOffering.objects.select_for_update().get(pk=locked.pk)
 
     if locked.chat_room_id:
-        try:
-            room = locked.chat_room
-        except ChatRoom.DoesNotExist:
-            # 孤児 FK（FK 無効時の削除など）— クリアして作り直す
-            logger.warning(
-                "course talk stale chat_room_id=%s offering=%s; recreating",
-                locked.chat_room_id,
-                locked.pk,
-            )
-            CourseOffering.objects.filter(pk=locked.pk).update(chat_room_id=None)
-            locked.chat_room_id = None
-            room = None
-        if room is not None:
+        # select_related("chat_room") だと欠落 FK が None になり DoesNotExist が
+        # 上がらず、後段の race 復旧で ChatRoom.DoesNotExist → save_failed になる。
+        room = _load_course_talk_room(locked.chat_room_id)
+        if room is None:
+            _clear_stale_course_talk_fk(locked, locked.chat_room_id)
+        else:
             if room.kind != ChatRoom.Kind.COURSE:
                 room.kind = ChatRoom.Kind.COURSE
                 room.save(update_fields=["kind", "updated_at"])
@@ -156,7 +161,32 @@ def get_or_create_course_talk_room(
     except IntegrityError:
         locked.refresh_from_db()
         if locked.chat_room_id:
-            return ChatRoom.objects.get(pk=locked.chat_room_id), False
+            room = _load_course_talk_room(locked.chat_room_id)
+            if room is not None:
+                return room, False
+            # 孤児 FK のまま raise すると API が save_failed になるため消して再作成
+            _clear_stale_course_talk_fk(locked, locked.chat_room_id)
+            with transaction.atomic():
+                room = ChatRoom.objects.create(
+                    kind=ChatRoom.Kind.COURSE,
+                    name=_course_room_name(locked),
+                    created_by=(
+                        actor if getattr(actor, "is_authenticated", False) else None
+                    ),
+                )
+                updated = CourseOffering.objects.filter(
+                    pk=locked.pk, chat_room__isnull=True
+                ).update(chat_room_id=room.pk)
+                if updated != 1:
+                    room.delete()
+                    locked.refresh_from_db()
+                    if locked.chat_room_id:
+                        existing = _load_course_talk_room(locked.chat_room_id)
+                        if existing is not None:
+                            return existing, False
+                    raise
+                locked.chat_room_id = room.pk
+                return room, True
         raise
 
 

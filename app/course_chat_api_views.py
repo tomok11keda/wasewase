@@ -78,6 +78,10 @@ def api_v1_courses_offering_talk(
 
     from .chat_schema_services import ensure_course_talk_schema
 
+    # 事前修復: migrate ずれでも初回 SELECT で落ちにくくする
+    ensure_course_talk_schema()
+
+    stage = "lookup_offering"
     try:
         offering = get_visible_offering_for_talk(offering_pk)
     except CourseOffering.DoesNotExist:
@@ -85,8 +89,12 @@ def api_v1_courses_offering_talk(
     except (OperationalError, ProgrammingError) as exc:
         # 0047 chat_room 列欠落など
         logger.exception(
-            "course talk offering lookup schema error offering=%s: %s",
+            "course talk open schema error stage=%s user=%s offering=%s "
+            "exc_type=%s exc=%s",
+            stage,
+            request.user.pk,
             offering_pk,
+            type(exc).__name__,
             exc,
         )
         ensure_course_talk_schema()
@@ -94,17 +102,25 @@ def api_v1_courses_offering_talk(
             offering = get_visible_offering_for_talk(offering_pk)
         except CourseOffering.DoesNotExist:
             return _json_error("not_found", status=404)
-        except Exception:
+        except Exception as retry_exc:
             logger.exception(
-                "course talk open failed after schema repair (lookup) user=%s offering=%s",
+                "course talk open failed after schema repair stage=%s "
+                "user=%s offering=%s exc_type=%s exc=%s",
+                stage,
                 request.user.pk,
                 offering_pk,
+                type(retry_exc).__name__,
+                retry_exc,
             )
             return _json_error("save_failed", status=500)
 
     def _open_payload():
+        nonlocal stage
+        stage = "join_course_talk"
         room, _membership, joined_now = join_course_talk(request.user, offering)
+        stage = "refresh_offering"
         offering.refresh_from_db()
+        stage = "build_payload"
         return build_course_talk_payload(
             room, offering, request.user, joined_now=joined_now
         )
@@ -114,26 +130,37 @@ def api_v1_courses_offering_talk(
     except (OperationalError, ProgrammingError) as exc:
         # 典型: 0048 reply_to_id / deleted_at 未適用のまま messages を読む
         logger.exception(
-            "course talk open schema error user=%s offering=%s: %s",
+            "course talk open schema error stage=%s user=%s offering=%s "
+            "exc_type=%s exc=%s",
+            stage,
             request.user.pk,
             offering_pk,
+            type(exc).__name__,
             exc,
         )
         ensure_course_talk_schema()
         try:
             return JsonResponse(_open_payload())
-        except Exception:
+        except Exception as retry_exc:
             logger.exception(
-                "course talk open failed after schema repair user=%s offering=%s",
+                "course talk open failed after schema repair stage=%s "
+                "user=%s offering=%s exc_type=%s exc=%s",
+                stage,
                 request.user.pk,
                 offering_pk,
+                type(retry_exc).__name__,
+                retry_exc,
             )
             return _json_error("save_failed", status=500)
-    except Exception:
+    except Exception as exc:
         logger.exception(
-            "course talk open failed user=%s offering=%s",
+            "course talk open failed stage=%s user=%s offering=%s "
+            "exc_type=%s exc=%s",
+            stage,
             request.user.pk,
             offering_pk,
+            type(exc).__name__,
+            exc,
         )
         return _json_error("save_failed", status=500)
 
