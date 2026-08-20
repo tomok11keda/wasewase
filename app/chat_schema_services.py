@@ -222,13 +222,44 @@ def ensure_course_talk_schema() -> None:
                     cursor.execute(ddl)
                 except (OperationalError, ProgrammingError):
                     pass
+
+            # 孤児 FK: chat_room_id が存在するが app_chatroom 行が無い
+            offering_cols = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, "app_courseoffering"
+                )
+            }
+            if "chat_room_id" in offering_cols and "app_chatroom" in tables:
+                try:
+                    cursor.execute(
+                        """
+                        UPDATE app_courseoffering
+                        SET chat_room_id = NULL
+                        WHERE chat_room_id IS NOT NULL
+                          AND NOT EXISTS (
+                            SELECT 1 FROM app_chatroom
+                            WHERE app_chatroom.id = app_courseoffering.chat_room_id
+                          )
+                        """
+                    )
+                    cleared = cursor.rowcount
+                    if cleared:
+                        logger.warning(
+                            "Cleared %s dangling CourseOffering.chat_room_id rows",
+                            cleared,
+                        )
+                except (OperationalError, ProgrammingError) as exc:
+                    logger.warning(
+                        "Dangling course talk FK cleanup skipped: %s", exc
+                    )
     except (OperationalError, ProgrammingError) as exc:
         message = str(exc).lower()
         if "duplicate column" in message or "already exists" in message:
             return
-        logger.warning("Course talk schema repair failed: %s", exc)
+        logger.exception("Course talk schema repair failed: %s", exc)
     except Exception as exc:
-        logger.warning("Course talk schema repair failed: %s", exc)
+        logger.exception("Course talk schema repair failed: %s", exc)
 
 
 def ensure_chatroom_invitation_table() -> None:
