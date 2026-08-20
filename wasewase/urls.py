@@ -14,6 +14,7 @@ from app import profile_api_views
 from app import dm_api_views
 from app import calendar_api_views
 from app import course_api_views
+from app import course_chat_api_views
 from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
@@ -342,6 +343,31 @@ urlpatterns = [
         "api/v1/courses/offerings/<int:offering_pk>/reviews/",
         course_api_views.api_v1_courses_offering_reviews,
         name="api_v1_courses_offering_reviews",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/talk/",
+        course_chat_api_views.api_v1_courses_offering_talk,
+        name="api_v1_courses_offering_talk",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/talk/leave/",
+        course_chat_api_views.api_v1_courses_offering_talk_leave,
+        name="api_v1_courses_offering_talk_leave",
+    ),
+    path(
+        "api/v1/courses/talk/<int:room_pk>/",
+        course_chat_api_views.api_v1_courses_talk_room,
+        name="api_v1_courses_talk_room",
+    ),
+    path(
+        "api/v1/courses/talk/<int:room_pk>/messages/",
+        course_chat_api_views.api_v1_courses_talk_messages,
+        name="api_v1_courses_talk_messages",
+    ),
+    path(
+        "api/v1/courses/talk/<int:room_pk>/messages/send/",
+        course_chat_api_views.api_v1_courses_talk_send,
+        name="api_v1_courses_talk_send",
     ),
     path(
         "api/v1/dm/inbox/",

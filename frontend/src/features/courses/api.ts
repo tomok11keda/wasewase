@@ -214,3 +214,99 @@ export async function submitReview(
 export function offeringScheduleText(o: CourseOffering): string {
   return `${o.day_label}曜${o.period_label}`;
 }
+
+export type CourseTalkMessage = {
+  id: number;
+  sender_id: number | null;
+  sender_name: string;
+  sender_initial?: string;
+  avatar_url?: string;
+  body: string;
+  created_at: string;
+  is_mine: boolean;
+  enrollment_role?: string | null;
+  enrollment_label?: string | null;
+};
+
+export type CourseTalkRoom = {
+  id: number;
+  kind: "course";
+  name: string;
+  offering_id: number;
+  can_send: boolean;
+  membership_status: string;
+  latest_id: number;
+  member_count: number;
+};
+
+export type CourseTalkPayload = {
+  ok: boolean;
+  joined?: boolean;
+  joined_now?: boolean;
+  offering: CourseOffering;
+  viewer_enrollment?: string | null;
+  room: CourseTalkRoom;
+  messages: CourseTalkMessage[];
+};
+
+export async function openCourseTalk(
+  offeringPk: number
+): Promise<CourseTalkPayload> {
+  await ensureAuthCsrf();
+  // Prefer POST semantics for join; GET also joins for bookmark/reload
+  const { ok, data, error, status } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/talk/`,
+    {}
+  );
+  if (!ok) {
+    const err = new Error(error || "talk_open_failed") as Error & {
+      status?: number;
+    };
+    err.status = status;
+    throw err;
+  }
+  return data as unknown as CourseTalkPayload;
+}
+
+export async function leaveCourseTalk(offeringPk: number): Promise<void> {
+  await ensureAuthCsrf();
+  const { ok, error } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/talk/leave/`,
+    {}
+  );
+  if (!ok) throw new Error(error || "talk_leave_failed");
+}
+
+export async function pollCourseTalkMessages(
+  roomPk: number,
+  afterId: number,
+  signal?: AbortSignal
+): Promise<{ messages: CourseTalkMessage[]; latest_id: number }> {
+  const qs = afterId > 0 ? `?after=${afterId}` : "";
+  const res = await fetch(`/api/v1/courses/talk/${roomPk}/messages/${qs}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "poll_failed");
+  }
+  return {
+    messages: (data.messages || []) as CourseTalkMessage[],
+    latest_id: Number(data.latest_id || 0),
+  };
+}
+
+export async function sendCourseTalkMessage(
+  roomPk: number,
+  body: string
+): Promise<CourseTalkMessage> {
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/talk/${roomPk}/messages/send/`,
+    { body }
+  );
+  if (!ok) throw new Error(error || "send_failed");
+  return data.message as unknown as CourseTalkMessage;
+}

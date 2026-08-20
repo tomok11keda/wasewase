@@ -103,6 +103,10 @@ def serialize_inbox_item(item: dict) -> dict[str, Any]:
     partner = item.get("partner")
     product = item.get("product")
     updated = item.get("updated_at")
+    offering_id = item.get("offering_id")
+    if offering_id is None and item.get("offering") is not None:
+        offering_id = getattr(item["offering"], "pk", None)
+    spa_path = _spa_path_for_item(kind, room.pk, offering_id=offering_id)
     return {
         "kind": kind,
         "room_id": room.pk,
@@ -117,15 +121,22 @@ def serialize_inbox_item(item: dict) -> dict[str, Any]:
         "latest_sender_name": item.get("latest_sender_display_name") or "",
         "partner": serialize_author(partner) if partner is not None else None,
         "product_id": product.pk if product is not None else None,
-        "spa_path": _spa_path_for_item(kind, room.pk),
+        "offering_id": offering_id,
+        "spa_path": spa_path,
     }
 
 
-def _spa_path_for_item(kind: str, room_pk: int) -> str:
+def _spa_path_for_item(
+    kind: str, room_pk: int, *, offering_id: int | None = None
+) -> str:
     if kind == "trade":
         return f"/flea/chats/{room_pk}"
     if kind in ("group", "group_invite"):
         return f"/dm/groups/{room_pk}"
+    if kind == "course":
+        if offering_id:
+            return f"/courses/{offering_id}/talk?from=inbox"
+        return f"/dm?tab=course"
     return f"/dm/{room_pk}"
 
 
@@ -143,6 +154,7 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
             for i in all_items
             if i.get("kind") in ("dm", "group", "group_invite")
         ),
+        "course": sum(1 for i in all_items if i.get("kind") == "course"),
     }
     try:
         message_request_count = count_pending_dm_requests(user)

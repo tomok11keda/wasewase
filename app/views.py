@@ -60,6 +60,7 @@ from .group_chat_services import (
 from .group_invite_services import can_view_group_room
 from .inbox_services import (
     INBOX_TAB_ALL,
+    INBOX_TAB_COURSE,
     INBOX_TAB_DM,
     INBOX_TAB_TRADE,
     build_inbox_conversations,
@@ -1434,7 +1435,12 @@ def user_dm_inbox(request):
             1 for item in all_conversations if item.get("kind") == "trade"
         ),
         INBOX_TAB_DM: sum(
-            1 for item in all_conversations if item.get("kind") in ("dm", "group")
+            1
+            for item in all_conversations
+            if item.get("kind") in ("dm", "group", "group_invite")
+        ),
+        INBOX_TAB_COURSE: sum(
+            1 for item in all_conversations if item.get("kind") == "course"
         ),
     }
 
@@ -1453,16 +1459,22 @@ def user_dm_inbox(request):
                     "count": tab_counts[INBOX_TAB_ALL],
                 },
                 {
-                    "key": INBOX_TAB_TRADE,
-                    "label": "取引チャット",
-                    "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_TRADE}",
-                    "count": tab_counts[INBOX_TAB_TRADE],
-                },
-                {
                     "key": INBOX_TAB_DM,
                     "label": "通常DM",
                     "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_DM}",
                     "count": tab_counts[INBOX_TAB_DM],
+                },
+                {
+                    "key": INBOX_TAB_COURSE,
+                    "label": "授業",
+                    "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_COURSE}",
+                    "count": tab_counts[INBOX_TAB_COURSE],
+                },
+                {
+                    "key": INBOX_TAB_TRADE,
+                    "label": "取引",
+                    "url": f"{reverse('user_dm_inbox')}?tab={INBOX_TAB_TRADE}",
+                    "count": tab_counts[INBOX_TAB_TRADE],
                 },
             ],
             "nav_active": "dm",
