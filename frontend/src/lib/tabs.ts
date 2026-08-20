@@ -78,6 +78,9 @@ export function isConversationPath(pathname: string): boolean {
   // Trade chat (flea buyer/seller messaging)
   if (/^\/flea\/chats\/[^/]+$/.test(p)) return true;
 
+  // Course talk room
+  if (/^\/courses\/\d+\/talk$/.test(p)) return true;
+
   // Group create keeps bottom nav
   if (p === "/dm/groups/new") return false;
 

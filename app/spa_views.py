@@ -84,3 +84,8 @@ def spa_app(request: HttpRequest, rest: str = "") -> HttpResponse:
     if not getattr(settings, "WASE_REACT_SPA", False):
         return HttpResponseNotFound("React SPA is disabled (WASE_REACT_SPA=False).")
     return render(request, "spa.html")
+
+
+def spa_only_stub(request: HttpRequest, **kwargs) -> HttpResponse:
+    """Classic URL 用スタブ。SPA 有効時は spa_get_redirect が先に 302 する。"""
+    return HttpResponseNotFound("This page is only available in the React SPA.")

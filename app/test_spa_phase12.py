@@ -30,6 +30,20 @@ class SpaFeatureFlagTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="root"')
 
+    def test_course_talk_spa_shell_and_classic_redirect(self):
+        with override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False):
+            shell = self.client.get("/app/courses/42/talk")
+            self.assertEqual(shell.status_code, 200)
+            self.assertContains(shell, 'id="root"')
+
+            classic = self.client.get("/courses/42/talk/")
+            self.assertEqual(classic.status_code, 302)
+            self.assertEqual(classic.url, "/app/courses/42/talk")
+
+            detail = self.client.get("/courses/42/")
+            self.assertEqual(detail.status_code, 302)
+            self.assertEqual(detail.url, "/app/courses/42")
+
     def test_classic_home_redirects_to_spa_when_spa_on(self):
         with override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False):
             response = self.client.get("/")

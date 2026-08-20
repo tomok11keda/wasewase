@@ -68,6 +68,13 @@ _password_reset_verify = _spa(lambda request, **kw: "/password-reset/verify")(
 _password_reset_set = _spa(lambda request, **kw: "/password-reset/set")(
     app_views.password_reset_set
 )
+# Course Layer: Classic /courses/... → /app/courses/...（Capacitor 等が /app 無しで叩いても SPA へ）
+_course_detail = _spa(
+    lambda request, offering_pk, **kw: f"/courses/{offering_pk}"
+)(spa_views.spa_only_stub)
+_course_talk = _spa(
+    lambda request, offering_pk, **kw: f"/courses/{offering_pk}/talk"
+)(spa_views.spa_only_stub)
 
 urlpatterns = [
     path("manifest.json", app_views.pwa_manifest, name="pwa_manifest"),
@@ -543,6 +550,16 @@ urlpatterns = [
     path("more/", _more, name="more_index"),
     path("timetable/", _timetable, name="timetable_index"),
     path("timetable/user/<int:pk>/", _timetable_user, name="timetable_user"),
+    path(
+        "courses/<int:offering_pk>/talk/",
+        _course_talk,
+        name="course_talk",
+    ),
+    path(
+        "courses/<int:offering_pk>/",
+        _course_detail,
+        name="course_detail",
+    ),
     path(
         "api/timetable/visibility/",
         app_views.api_timetable_visibility,

@@ -50,6 +50,8 @@ class SpaCanonicalRedirectTests(TestCase):
             ("/search/", "/app/search"),
             ("/timetable/", "/app/timetable"),
             ("/timetable/user/7/", "/app/timetable/user/7"),
+            ("/courses/12/", "/app/courses/12"),
+            ("/courses/12/talk/", "/app/courses/12/talk"),
             ("/user/5/", "/app/users/5"),
             ("/communities/", "/app/communities"),
             ("/product/10/trade/", "/app/flea/products/10"),
@@ -141,6 +143,9 @@ class CanonicalizeNextUrlTests(TestCase):
             ("/user/5/", "/app/users/5/posts"),
             ("/communities/", "/app/communities"),
             ("/dm/groups/4/", "/app/dm/groups/4"),
+            ("/courses/9/", "/app/courses/9"),
+            ("/courses/9/talk/", "/app/courses/9/talk"),
+            ("/courses/9/talk/?from=inbox", "/app/courses/9/talk?from=inbox"),
         ]
         for src, dest in cases:
             self.assertEqual(canonicalize_next_url(src), dest, msg=src)
