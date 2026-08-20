@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
+  deleteCourseTalkMessage,
   leaveCourseTalk,
   offeringScheduleText,
   openCourseTalk,
@@ -20,6 +21,8 @@ import {
 } from "../features/courses/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { ChatReplyPreview, type ReplyTarget } from "../features/chat/ChatReplyPreview";
+import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
 import { analytics } from "../lib/analytics/events";
 
 const EMPTY_PROMPTS = [
@@ -40,12 +43,20 @@ export function CourseTalkPage() {
   const latestIdRef = useRef(0);
   const roomIdRef = useRef(0);
   const [body, setBody] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaveBusy, setLeaveBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fromInbox = searchParams.get("from") === "inbox";
+
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    window.setTimeout(() => setToast(null), 1800);
+  }, []);
 
   const appendMessages = useCallback((incoming: CourseTalkMessage[]) => {
     if (!incoming.length) return;
@@ -53,6 +64,16 @@ export function CourseTalkPage() {
       const known = new Set(prev.map((m) => m.id));
       const next = incoming.filter((m) => !known.has(m.id));
       return next.length ? [...prev, ...next] : prev;
+    });
+  }, []);
+
+  const upsertMessage = useCallback((message: CourseTalkMessage) => {
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === message.id);
+      if (idx < 0) return [...prev, message];
+      const copy = [...prev];
+      copy[idx] = message;
+      return copy;
     });
   }, []);
 
@@ -126,15 +147,35 @@ export function CourseTalkPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  const scrollToReply = useCallback((messageId: number) => {
+    const el = document.getElementById(`chat-msg-${messageId}`);
+    if (!el) {
+      showToast("元のメッセージはまだ読み込まれていません");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(messageId);
+    window.setTimeout(() => setHighlightId(null), 1200);
+  }, [showToast]);
+
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!body.trim() || !room?.can_send) return;
+    const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
-      const message = await sendCourseTalkMessage(room.id, body.trim());
-      appendMessages([message]);
+      const message = await sendCourseTalkMessage(
+        room.id,
+        body.trim(),
+        replyId
+      );
+      upsertMessage(message);
       latestIdRef.current = Math.max(latestIdRef.current, message.id);
       setBody("");
+      if (replyId) {
+        analytics.chatReplySent({ kind: "course" });
+        setReplyingTo(null);
+      }
       analytics.courseChatMessageSent();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "送信に失敗しました");
@@ -239,34 +280,35 @@ export function CourseTalkPage() {
               </ul>
             </div>
           ) : (
-            messages.map((m) => (
-              <div
-                key={m.id}
-                className={`dm-bubble${m.is_mine ? " is-mine" : ""}`}
-              >
-                {!m.is_mine ? (
-                  <div className="dm-bubble-meta">
-                    <span className="dm-bubble-name">{m.sender_name}</span>
-                    {m.enrollment_label ? (
-                      <span
-                        className={`course-talk-badge${
-                          m.enrollment_role === "current"
-                            ? " is-current"
-                            : " is-past"
-                        }`}
-                      >
-                        {m.enrollment_label}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <p className="dm-bubble-body">{m.body}</p>
-                <span className="dm-bubble-time">{m.created_at}</span>
-              </div>
-            ))
+            <ul className="message-list">
+              {messages.map((m) => (
+                <ChatThreadMessage
+                  key={m.id}
+                  kind="course"
+                  message={m}
+                  canAct
+                  canReply={Boolean(room.can_send)}
+                  highlightedId={highlightId}
+                  onReply={setReplyingTo}
+                  onDelete={async (id) => {
+                    const updated = await deleteCourseTalkMessage(room.id, id);
+                    upsertMessage(updated);
+                  }}
+                  onScrollToReply={scrollToReply}
+                  onToast={showToast}
+                />
+              ))}
+            </ul>
           )}
           <div ref={bottomRef} />
         </div>
+
+        {replyingTo ? (
+          <ChatReplyPreview
+            reply={replyingTo}
+            onClear={() => setReplyingTo(null)}
+          />
+        ) : null}
 
         <ChatComposeBar
           value={body}
@@ -274,9 +316,12 @@ export function CourseTalkPage() {
           onSend={onSend}
           disabled={!room.can_send}
           busy={busy}
-          placeholder="質問や口コミを投稿…"
+          placeholder={
+            replyingTo ? "返信を入力…" : "質問や口コミを投稿…"
+          }
         />
       </main>
+      {toast ? <div className="chat-toast">{toast}</div> : null}
     </div>
   );
 }

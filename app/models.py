@@ -1171,11 +1171,26 @@ class ChatMessage(models.Model):
         related_name="chat_messages_sent",
     )
     body = models.TextField(max_length=500)
+    reply_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="replies",
+        verbose_name="返信先",
+    )
     is_hidden = models.BooleanField(
         "非表示",
         default=False,
         db_index=True,
         help_text="モデレーションにより一覧から隠す",
+    )
+    deleted_at = models.DateTimeField(
+        "ユーザー削除日時",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="送信者によるソフト削除。モデレーションの is_hidden とは別。",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1184,6 +1199,10 @@ class ChatMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sender}: {self.body[:30]}"
+
+    @property
+    def is_deleted_by_author(self) -> bool:
+        return self.deleted_at is not None
 
 
 class ChatReadState(models.Model):

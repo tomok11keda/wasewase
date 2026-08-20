@@ -224,6 +224,13 @@ export type CourseTalkMessage = {
   body: string;
   created_at: string;
   is_mine: boolean;
+  is_deleted?: boolean;
+  reply_to?: {
+    id: number;
+    sender_name: string;
+    text_preview: string;
+    is_unavailable?: boolean;
+  } | null;
   enrollment_role?: string | null;
   enrollment_label?: string | null;
 };
@@ -300,13 +307,30 @@ export async function pollCourseTalkMessages(
 
 export async function sendCourseTalkMessage(
   roomPk: number,
-  body: string
+  body: string,
+  replyToId?: number | null
 ): Promise<CourseTalkMessage> {
   await ensureAuthCsrf();
   const { ok, data, error } = await apiPostJson(
     `/api/v1/courses/talk/${roomPk}/messages/send/`,
-    { body }
+    {
+      body,
+      ...(replyToId ? { reply_to_id: replyToId } : {}),
+    }
   );
   if (!ok) throw new Error(error || "send_failed");
+  return data.message as unknown as CourseTalkMessage;
+}
+
+export async function deleteCourseTalkMessage(
+  roomPk: number,
+  messagePk: number
+): Promise<CourseTalkMessage> {
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/talk/${roomPk}/messages/${messagePk}/delete/`,
+    {}
+  );
+  if (!ok) throw new Error(error || "delete_failed");
   return data.message as unknown as CourseTalkMessage;
 }

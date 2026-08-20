@@ -26,6 +26,13 @@ export type InboxItem = {
   spa_path: string;
 };
 
+export type ChatReplyPreview = {
+  id: number;
+  sender_name: string;
+  text_preview: string;
+  is_unavailable?: boolean;
+};
+
 export type ChatMessage = {
   id: number;
   sender_id: number | null;
@@ -37,6 +44,10 @@ export type ChatMessage = {
   is_mine: boolean;
   is_read?: boolean;
   is_system?: boolean;
+  is_deleted?: boolean;
+  reply_to?: ChatReplyPreview | null;
+  enrollment_role?: string | null;
+  enrollment_label?: string | null;
 };
 
 export type DmRoomDetail = {
@@ -272,7 +283,8 @@ export async function pollGroupMessages(
 
 export async function sendGroupMessage(
   roomPk: number,
-  body: string
+  body: string,
+  replyToId?: number | null
 ): Promise<ChatMessage> {
   const res = await fetch(`/api/v1/dm/groups/${roomPk}/messages/send/`, {
     method: "POST",
@@ -282,10 +294,35 @@ export async function sendGroupMessage(
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({
+      body,
+      ...(replyToId ? { reply_to_id: replyToId } : {}),
+    }),
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  return data.message as ChatMessage;
+}
+
+export async function deleteGroupMessage(
+  roomPk: number,
+  messagePk: number
+): Promise<ChatMessage> {
+  const res = await fetch(
+    `/api/v1/dm/groups/${roomPk}/messages/${messagePk}/delete/`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-CSRFToken": getCsrfToken(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    }
+  );
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
   return data.message as ChatMessage;
 }
 

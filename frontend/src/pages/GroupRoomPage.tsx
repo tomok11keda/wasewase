@@ -11,6 +11,7 @@ import { spaLoginPath } from "../features/auth/api";
 import {
   acceptGroupInvitation,
   declineGroupInvitation,
+  deleteGroupMessage,
   fetchGroupRoom,
   pollGroupMessages,
   sendGroupMessage,
@@ -19,6 +20,12 @@ import {
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import {
+  ChatReplyPreview,
+  type ReplyTarget,
+} from "../features/chat/ChatReplyPreview";
+import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import { analytics } from "../lib/analytics/events";
 
 export function GroupRoomPage() {
   const { roomPk } = useParams();
@@ -29,13 +36,21 @@ export function GroupRoomPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
+
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    window.setTimeout(() => setToast(null), 1800);
+  }, []);
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
@@ -43,6 +58,16 @@ export function GroupRoomPage() {
       const known = new Set(prev.map((m) => m.id));
       const next = incoming.filter((m) => !known.has(m.id));
       return next.length ? [...prev, ...next] : prev;
+    });
+  }, []);
+
+  const upsertMessage = useCallback((message: ChatMessage) => {
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === message.id);
+      if (idx < 0) return [...prev, message];
+      const copy = [...prev];
+      copy[idx] = message;
+      return copy;
     });
   }, []);
 
@@ -77,7 +102,7 @@ export function GroupRoomPage() {
       })
       .finally(() => setLoading(false));
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, roomId, roomPk]);
+  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate]);
 
   const isPending = room?.membership_status === "pending_invite";
   const canSend = Boolean(room?.can_send && !isPending);
@@ -101,15 +126,34 @@ export function GroupRoomPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  const scrollToReply = useCallback(
+    (messageId: number) => {
+      const el = document.getElementById(`chat-msg-${messageId}`);
+      if (!el) {
+        showToast("元のメッセージはまだ読み込まれていません");
+        return;
+      }
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightId(messageId);
+      window.setTimeout(() => setHighlightId(null), 1200);
+    },
+    [showToast]
+  );
+
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!body.trim() || !canSend) return;
+    const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
-      const message = await sendGroupMessage(roomId, body.trim());
-      appendMessages([message]);
+      const message = await sendGroupMessage(roomId, body.trim(), replyId);
+      upsertMessage(message);
       latestIdRef.current = Math.max(latestIdRef.current, message.id);
       setBody("");
+      if (replyId) {
+        analytics.chatReplySent({ kind: "group" });
+        setReplyingTo(null);
+      }
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "送信に失敗しました");
     } finally {
@@ -246,34 +290,21 @@ export function GroupRoomPage() {
             ) : (
               <ul className="message-list">
                 {messages.map((m) => (
-                  <li
+                  <ChatThreadMessage
                     key={m.id}
-                    className={`chat-row${m.is_mine ? " is-mine" : ""}`}
-                    data-message-id={m.id}
-                  >
-                    <div className="chat-row__avatar" aria-hidden="true">
-                      {m.avatar_url ? (
-                        <img
-                          className="user-avatar--image"
-                          src={m.avatar_url}
-                          alt=""
-                        />
-                      ) : (
-                        <span className="user-avatar--initial">
-                          {m.sender_initial || "?"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="chat-row__main">
-                      {!m.is_mine ? (
-                        <div className="chat-row__sender">{m.sender_name}</div>
-                      ) : null}
-                      <div className="chat-row__bubble-wrap">
-                        <div className="chat-row__bubble">{m.body}</div>
-                        <time className="chat-row__time">{m.created_at}</time>
-                      </div>
-                    </div>
-                  </li>
+                    kind="group"
+                    message={m}
+                    canAct
+                    canReply={canSend}
+                    highlightedId={highlightId}
+                    onReply={setReplyingTo}
+                    onDelete={async (id) => {
+                      const updated = await deleteGroupMessage(roomId, id);
+                      upsertMessage(updated);
+                    }}
+                    onScrollToReply={scrollToReply}
+                    onToast={showToast}
+                  />
                 ))}
               </ul>
             )}
@@ -281,12 +312,21 @@ export function GroupRoomPage() {
           </div>
 
           {canSend ? (
-            <ChatComposeBar
-              value={body}
-              onChange={setBody}
-              onSend={onSend}
-              busy={busy}
-            />
+            <>
+              {replyingTo ? (
+                <ChatReplyPreview
+                  reply={replyingTo}
+                  onClear={() => setReplyingTo(null)}
+                />
+              ) : null}
+              <ChatComposeBar
+                value={body}
+                onChange={setBody}
+                onSend={onSend}
+                busy={busy}
+                placeholder={replyingTo ? "返信を入力…" : undefined}
+              />
+            </>
           ) : isPending ? (
             <p className="dm-group-invite-locked">
               参加するとメッセージを送信できます。
@@ -294,6 +334,7 @@ export function GroupRoomPage() {
           ) : null}
         </section>
       </main>
+      {toast ? <div className="chat-toast">{toast}</div> : null}
     </div>
   );
 }
