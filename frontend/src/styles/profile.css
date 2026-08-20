@@ -805,15 +805,26 @@
 }
 
 .search-tabs {
-  display: flex;
-  gap: 0;
   border-bottom: 1px solid #eff3f4;
   margin-bottom: 12px;
 }
 
+.search-tabs__scroller {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.search-tabs__scroller::-webkit-scrollbar {
+  display: none;
+}
+
 .search-tab {
-  flex: 1;
-  padding: 12px 4px;
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  padding: 12px 10px;
   border: none;
   background: transparent;
   font-size: 13px;
@@ -827,6 +838,8 @@
 
 @media (min-width: 640px) {
   .search-tab {
+    flex: 1;
+    min-width: 0;
     padding: 12px 8px;
     font-size: 14px;
   }
@@ -912,6 +925,64 @@
   margin: 0;
   font-size: 12px;
   color: var(--muted);
+}
+
+.search-offering-card {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+
+.search-offering-card:hover,
+.search-offering-card:focus-visible {
+  background: #f7f9f9;
+}
+
+.search-offering-card__meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.search-offering-card__badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8f5ee;
+  color: #0f7a45;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.search-offering-card__title {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.search-offering-card__sub {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #536471;
+}
+
+.search-offering-card__foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.search-mixed-user .search-user-card {
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .search-product-card {

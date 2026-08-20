@@ -96,6 +96,26 @@ export const analytics = {
     });
   },
 
+  /**
+   * グローバル検索タブ（おすすめ/最新/授業/ユーザー/商品）。
+   * クエリ文字列を収集し、後から検索改善に使う（0件把握用に zero_results も付与）。
+   */
+  searchPerformed(props: {
+    query: string;
+    tab: string;
+    result_count: number;
+  }) {
+    const query = (props.query || "").trim();
+    const resultCount = Math.max(0, Number(props.result_count) || 0);
+    captureEvent("search_performed", {
+      query,
+      query_len: query.length,
+      tab: props.tab || "all",
+      result_count: resultCount,
+      zero_results: resultCount === 0,
+    });
+  },
+
   existingCourseAdded(props?: { from_slot?: boolean }) {
     captureEvent("existing_course_added", {
       from_slot: Boolean(props?.from_slot),

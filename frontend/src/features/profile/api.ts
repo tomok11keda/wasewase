@@ -46,7 +46,7 @@ export type ProfilePayload = {
   can_view_bookmarks: boolean;
 };
 
-export type SearchTab = "all" | "latest" | "users" | "products";
+export type SearchTab = "all" | "latest" | "courses" | "users" | "products";
 
 export type SearchThreadResult = {
   id: number;
@@ -96,24 +96,64 @@ export type SearchProductResult = {
   } | null;
 };
 
+export type SearchOfferingResult = {
+  id: number;
+  course_id: number;
+  title: string;
+  instructor: string;
+  academic_year: number;
+  semester: string;
+  semester_label: string;
+  day_of_week: number;
+  day_label: string;
+  period_kind: string;
+  period: number;
+  period_label: string;
+  slot_key: string;
+  school: string;
+  campus: string;
+  enrollment_count: number;
+  review_count?: number;
+  review_overall?: number | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type SearchResultRow =
   | {
       kind: "post";
       created_at: string;
       score: number;
+      relevance?: number;
       post: TimelinePost;
     }
   | {
       kind: "thread";
       created_at: string;
       score: number;
+      relevance?: number;
       thread: SearchThreadResult;
     }
   | {
       kind: "product";
       created_at: string;
       score: number;
+      relevance?: number;
       product: SearchProductResult;
+    }
+  | {
+      kind: "user";
+      created_at: string;
+      score: number;
+      relevance?: number;
+      user: ProfileUser;
+    }
+  | {
+      kind: "offering";
+      created_at: string;
+      score: number;
+      relevance?: number;
+      offering: SearchOfferingResult;
     };
 
 export type SearchPageResponse = {
@@ -125,10 +165,12 @@ export type SearchPageResponse = {
   threads: SearchThreadResult[];
   users: ProfileUser[];
   products?: SearchProductResult[];
+  offerings?: SearchOfferingResult[];
   post_count: number;
   thread_count: number;
   user_count: number;
   product_count?: number;
+  offering_count?: number;
   result_count: number;
   discover?: SearchDiscoverPayload | null;
 };
@@ -340,6 +382,7 @@ export async function fetchSearchPage(query: {
     threads: Array.isArray(data.threads) ? data.threads : [],
     users: Array.isArray(data.users) ? data.users : [],
     products: Array.isArray(data.products) ? data.products : [],
+    offerings: Array.isArray(data.offerings) ? data.offerings : [],
     discover: data.discover
       ? {
           trending: Array.isArray(data.discover.trending)
