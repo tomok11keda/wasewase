@@ -334,6 +334,11 @@ urlpatterns = [
         name="api_v1_courses_meta",
     ),
     path(
+        "api/v1/courses/discover/",
+        course_api_views.api_v1_courses_discover,
+        name="api_v1_courses_discover",
+    ),
+    path(
         "api/v1/courses/search/",
         course_api_views.api_v1_courses_search,
         name="api_v1_courses_search",

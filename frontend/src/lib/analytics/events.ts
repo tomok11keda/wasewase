@@ -35,6 +35,38 @@ export const analytics = {
     captureEvent("community_viewed");
   },
 
+  communityCourseTabOpened() {
+    captureEvent("community_course_tab_opened");
+  },
+
+  courseDiscoveryCardOpened(props: {
+    offering_id: number;
+    source_section: "enrolled" | "active" | "popular" | string;
+    rank?: number;
+  }) {
+    captureEvent("course_discovery_card_opened", {
+      offering_id: props.offering_id,
+      source_section: props.source_section,
+      rank: props.rank ?? null,
+    });
+    if (props.source_section === "enrolled") {
+      captureEvent("course_discovery_opened_enrolled", {
+        offering_id: props.offering_id,
+        rank: props.rank ?? null,
+      });
+    } else if (props.source_section === "active") {
+      captureEvent("course_discovery_opened_active", {
+        offering_id: props.offering_id,
+        rank: props.rank ?? null,
+      });
+    } else if (props.source_section === "popular") {
+      captureEvent("course_discovery_opened_popular", {
+        offering_id: props.offering_id,
+        rank: props.rank ?? null,
+      });
+    }
+  },
+
   communityPostCreated() {
     captureEvent("community_post_created");
   },

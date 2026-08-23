@@ -131,6 +131,40 @@ export async function searchCourses(params: {
   return ((data.results as CourseOffering[]) || []) as CourseOffering[];
 }
 
+export type CourseDiscoverCard = {
+  id: number;
+  course_id: number;
+  title: string;
+  instructor: string;
+  academic_year: number;
+  semester: string;
+  semester_label: string;
+  meetings: CourseMeeting[];
+  schedule_label: string;
+  enrollment_count: number;
+  review_count: number;
+  review_overall: number | null;
+  talk_recent_count: number;
+  talk_today_count: number;
+  viewer_enrollment?: string | null;
+};
+
+export type CourseDiscoverPayload = {
+  enrolled: CourseDiscoverCard[];
+  active: CourseDiscoverCard[];
+  popular: CourseDiscoverCard[];
+};
+
+export async function fetchCourseDiscover(): Promise<CourseDiscoverPayload> {
+  const { ok, data, error } = await apiGetJson("/api/v1/courses/discover/");
+  if (!ok) throw new Error(error || "discover_failed");
+  return {
+    enrolled: (data.enrolled as CourseDiscoverCard[]) || [],
+    active: (data.active as CourseDiscoverCard[]) || [],
+    popular: (data.popular as CourseDiscoverCard[]) || [],
+  };
+}
+
 export async function fetchOfferingDetail(offeringPk: number): Promise<{
   offering: CourseOffering;
   review_summary: ReviewSummary;
