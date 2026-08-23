@@ -104,6 +104,40 @@ def api_v1_courses_meta(_request: HttpRequest) -> JsonResponse:
 
 
 @require_GET
+def api_v1_courses_discover(request: HttpRequest) -> JsonResponse:
+    """Community タブ用 Course Discovery（履修中 / 活発 / 人気）。"""
+    from .course_discover_services import (
+        LIMIT_ACTIVE,
+        LIMIT_ENROLLED,
+        LIMIT_POPULAR,
+        build_course_discover_payload,
+    )
+
+    def _clamp(raw: str | None, default: int, lo: int, hi: int) -> int:
+        try:
+            value = int(raw) if raw not in (None, "") else default
+        except (TypeError, ValueError):
+            value = default
+        return max(lo, min(hi, value))
+
+    enrolled_limit = _clamp(request.GET.get("enrolled_limit"), LIMIT_ENROLLED, 1, 40)
+    active_limit = _clamp(request.GET.get("active_limit"), LIMIT_ACTIVE, 1, 20)
+    popular_limit = _clamp(request.GET.get("popular_limit"), LIMIT_POPULAR, 1, 20)
+    viewer = request.user if request.user.is_authenticated else None
+    try:
+        payload = build_course_discover_payload(
+            viewer,
+            enrolled_limit=enrolled_limit,
+            active_limit=active_limit,
+            popular_limit=popular_limit,
+        )
+    except Exception:
+        logger.exception("course discover failed user=%s", getattr(viewer, "pk", None))
+        return _json_error("discover_failed", status=500)
+    return JsonResponse({"ok": True, **payload})
+
+
+@require_GET
 def api_v1_courses_search(request: HttpRequest) -> JsonResponse:
     q = sanitize_plain_text(request.GET.get("q") or "", max_len=MAX_QUERY_LEN)
     day = _parse_int(request.GET.get("day"))

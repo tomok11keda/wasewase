@@ -274,3 +274,120 @@
   text-decoration: none;
   font-size: 14px;
 }
+
+.communities-hub-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, #536471);
+}
+
+.course-discover {
+  padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.course-discover-section {
+  margin-bottom: 20px;
+}
+
+.course-discover-section__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text, #0f1419);
+}
+
+.course-discover-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.course-discover-card {
+  display: block;
+  padding: 14px 14px;
+  border: 1px solid var(--shell-border, #eff3f4);
+  border-radius: 14px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+
+.course-discover-card__title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.course-discover-card__instructor {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--muted, #536471);
+}
+
+.course-discover-card__schedule {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #0f1419;
+  font-weight: 600;
+}
+
+.course-discover-card__stats {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted, #536471);
+}
+
+.course-discover-card__talk {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent, #891e2b);
+}
+
+.course-discover-empty {
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--muted, #536471);
+}
+
+.course-discover-empty p {
+  margin: 0 0 8px;
+}
+
+.course-discover-global-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted, #536471);
+  font-size: 14px;
+}
+
+.course-discover-cta {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--accent, #891e2b);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.course-discover-skeleton {
+  height: 88px;
+  margin: 0 0 10px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f2f4f5 25%, #e8ecf0 50%, #f2f4f5 75%);
+  background-size: 200% 100%;
+  animation: course-discover-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes course-discover-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
