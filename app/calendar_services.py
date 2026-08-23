@@ -120,6 +120,8 @@ def list_events_for_date(
 def build_month_payload(
     user: AbstractBaseUser, year: int, month: int
 ) -> dict[str, Any]:
+    from .course_calendar_exception_services import list_skipped_for_month
+
     events = list_events_for_month(user, year, month)
     by_date: dict[str, list[dict[str, Any]]] = {}
     for event in events:
@@ -133,6 +135,7 @@ def build_month_payload(
             "titles": titles,
             "extra": max(0, len(rows) - len(titles)),
         }
+    skipped = list_skipped_for_month(user, year, month)
     return {
         "ok": True,
         "year": year,
@@ -140,6 +143,7 @@ def build_month_payload(
         "events": [serialize_calendar_event(e) for e in events],
         "by_date": by_date,
         "dots": dots,
+        "course_exceptions": skipped,
         "categories": [
             {"value": value, "label": label}
             for value, label in CATEGORY_LABELS.items()

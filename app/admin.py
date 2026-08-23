@@ -33,6 +33,7 @@ from .models import (
     TimelineLike,
     TimetableSlot,
     CalendarEvent,
+    CourseCalendarException,
     TradeMessage,
     Follow,
     FollowRequest,
@@ -320,6 +321,20 @@ class CalendarEventAdmin(admin.ModelAdmin):
     list_filter = ("category", "date")
     search_fields = ("user__username", "user__email", "title", "memo")
     raw_id_fields = ("user",)
+    date_hierarchy = "date"
+
+
+@admin.register(CourseCalendarException)
+class CourseCalendarExceptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "offering", "date", "status", "updated_at")
+    list_filter = ("status", "date")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "offering__title",
+        "offering__instructor",
+    )
+    raw_id_fields = ("user", "offering")
     date_hierarchy = "date"
 
 

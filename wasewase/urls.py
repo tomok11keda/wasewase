@@ -13,6 +13,7 @@ from app import flea_api_views
 from app import profile_api_views
 from app import dm_api_views
 from app import calendar_api_views
+from app import calendar_course_exception_api_views
 from app import course_api_views
 from app import course_chat_api_views
 from app import notification_api_views
@@ -310,6 +311,21 @@ urlpatterns = [
         "api/v1/calendar/events/<int:event_pk>/delete/",
         calendar_api_views.api_v1_calendar_event_delete,
         name="api_v1_calendar_event_delete",
+    ),
+    path(
+        "api/v1/calendar/course-exceptions/",
+        calendar_course_exception_api_views.api_v1_calendar_course_exceptions,
+        name="api_v1_calendar_course_exceptions",
+    ),
+    path(
+        "api/v1/calendar/course-exceptions/create/",
+        calendar_course_exception_api_views.api_v1_calendar_course_exception_create,
+        name="api_v1_calendar_course_exception_create",
+    ),
+    path(
+        "api/v1/calendar/course-exceptions/<int:exception_pk>/delete/",
+        calendar_course_exception_api_views.api_v1_calendar_course_exception_delete,
+        name="api_v1_calendar_course_exception_delete",
     ),
     path(
         "api/v1/courses/meta/",
