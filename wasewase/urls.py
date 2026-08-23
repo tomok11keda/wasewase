@@ -15,6 +15,7 @@ from app import dm_api_views
 from app import calendar_api_views
 from app import calendar_course_exception_api_views
 from app import course_api_views
+from app import course_attendance_api_views
 from app import course_chat_api_views
 from app import notification_api_views
 from app import auth_api_views
@@ -351,6 +352,21 @@ urlpatterns = [
         "api/v1/courses/offerings/<int:offering_pk>/",
         course_api_views.api_v1_courses_offering_detail,
         name="api_v1_courses_offering_detail",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/attendance/",
+        course_attendance_api_views.api_v1_courses_offering_attendance,
+        name="api_v1_courses_offering_attendance",
+    ),
+    path(
+        "api/v1/courses/offerings/<int:offering_pk>/attendance/create/",
+        course_attendance_api_views.api_v1_courses_offering_attendance_create,
+        name="api_v1_courses_offering_attendance_create",
+    ),
+    path(
+        "api/v1/courses/attendance/<int:record_pk>/delete/",
+        course_attendance_api_views.api_v1_courses_attendance_delete,
+        name="api_v1_courses_attendance_delete",
     ),
     path(
         "api/v1/courses/offerings/<int:offering_pk>/enroll/",

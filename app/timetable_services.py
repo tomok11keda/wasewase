@@ -239,12 +239,13 @@ def upsert_timetable_slot(
     credits: str = "",
     memo: str = "",
     offering=None,
+    meeting=None,
     clear_offering: bool = False,
 ) -> TimetableSlot | None:
     """空内容なら削除して None。それ以外は upsert。不正キーは ValueError。
 
-    offering を渡すと CourseOffering と紐付ける。
-    clear_offering=True（自由入力保存）では offering を外す。
+    offering / meeting を渡すと紐付ける。
+    clear_offering=True（自由入力保存）では offering/meeting を外す。
     """
     from .models import CourseEnrollment
 
@@ -266,11 +267,19 @@ def upsert_timetable_slot(
             user=user, slot_key=parsed["slot_key"]
         ).first()
         if existing and existing.offering_id:
-            CourseEnrollment.objects.filter(
-                user=user,
-                offering_id=existing.offering_id,
-                role=CourseEnrollment.Role.CURRENT,
-            ).update(role=CourseEnrollment.Role.PAST)
+            remaining = (
+                TimetableSlot.objects.filter(
+                    user=user, offering_id=existing.offering_id
+                )
+                .exclude(slot_key=parsed["slot_key"])
+                .exists()
+            )
+            if not remaining:
+                CourseEnrollment.objects.filter(
+                    user=user,
+                    offering_id=existing.offering_id,
+                    role=CourseEnrollment.Role.CURRENT,
+                ).update(role=CourseEnrollment.Role.PAST)
         TimetableSlot.objects.filter(
             user=user, slot_key=parsed["slot_key"]
         ).delete()
@@ -284,18 +293,28 @@ def upsert_timetable_slot(
     }
     if offering is not None:
         defaults["offering"] = offering
+    if meeting is not None:
+        defaults["meeting"] = meeting
     elif clear_offering:
         defaults["offering"] = None
-        # Detach previous enrollment if any
+        defaults["meeting"] = None
         existing = TimetableSlot.objects.filter(
             user=user, slot_key=parsed["slot_key"]
         ).first()
         if existing and existing.offering_id:
-            CourseEnrollment.objects.filter(
-                user=user,
-                offering_id=existing.offering_id,
-                role=CourseEnrollment.Role.CURRENT,
-            ).update(role=CourseEnrollment.Role.PAST)
+            remaining = (
+                TimetableSlot.objects.filter(
+                    user=user, offering_id=existing.offering_id
+                )
+                .exclude(slot_key=parsed["slot_key"])
+                .exists()
+            )
+            if not remaining:
+                CourseEnrollment.objects.filter(
+                    user=user,
+                    offering_id=existing.offering_id,
+                    role=CourseEnrollment.Role.CURRENT,
+                ).update(role=CourseEnrollment.Role.PAST)
 
     slot, _created = TimetableSlot.objects.update_or_create(
         user=user,

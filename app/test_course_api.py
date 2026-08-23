@@ -128,13 +128,20 @@ class CourseApiTests(TestCase):
         self.assertEqual(results[0].day_of_week, 0)
         self.assertEqual(results[0].period, 2)
 
-    def test_duplicate_candidates_block_create(self):
+    def test_duplicate_exact_identity_reuses_offering(self):
         first = self._create(force_create=True)
         self.assertEqual(first.status_code, 200)
+        first_id = first.json()["offering"]["id"]
         second = self._create(force_create=False, enroll=False)
-        self.assertEqual(second.status_code, 409)
-        self.assertEqual(second.json()["error"], "duplicate_candidates")
-        self.assertTrue(second.json()["duplicates"])
+        self.assertEqual(second.status_code, 200, second.content)
+        self.assertEqual(second.json()["offering"]["id"], first_id)
+        self.assertEqual(
+            CourseOffering.objects.filter(
+                title=first.json()["offering"]["title"],
+                status=CourseOffering.Status.ACTIVE,
+            ).count(),
+            1,
+        )
 
     def test_unenroll_marks_past_and_clears_slot(self):
         res = self._create()

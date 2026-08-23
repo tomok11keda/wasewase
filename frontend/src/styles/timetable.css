@@ -887,6 +887,54 @@ body.timetable-modal-open {
   cursor: not-allowed;
 }
 
+.tt-calendar__absence-block {
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eff3f4;
+}
+
+.tt-calendar__absence-count {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f1419;
+}
+
+.tt-calendar__absence-btn {
+  display: block;
+  width: 100%;
+  border: 1px solid #cfd9de;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f1419;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.tt-calendar__absence-marked {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #0f1419;
+  font-weight: 600;
+}
+
+.tt-calendar__absence-undo {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  background: #f7f9f9;
+  color: #1d9bf0;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
 .tt-calendar__hidden-list {
   list-style: none;
   margin: 0;

@@ -197,6 +197,14 @@ class TimetableSlot(models.Model):
         related_name="timetable_slots",
         verbose_name="開講授業",
     )
+    meeting = models.ForeignKey(
+        "CourseMeeting",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timetable_slots",
+        verbose_name="授業ミーティング",
+    )
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -242,10 +250,11 @@ class Course(models.Model):
 
 
 class CourseOffering(models.Model):
-    """特定年度・学期・教員・曜時限の開講インスタンス。
+    """特定年度・学期・教員の開講インスタンス。
 
-    chat_room (OneToOne → ChatRoom kind=course) は授業トーク用。
-    初回アクセス時に lazy 生成する。
+    曜日・時限は CourseMeeting（1対多）。
+    day_of_week / period / period_kind は代表ミーティングの非正規化（互換用）。
+    レビュー・履修・欠席・授業トークは Offering 単位で共通。
     """
 
     class Semester(models.TextChoices):
@@ -288,16 +297,16 @@ class CourseOffering(models.Model):
         "正規化教員名", max_length=120, blank=True, db_index=True
     )
     day_of_week = models.PositiveSmallIntegerField(
-        "曜日",
-        help_text="0=月 … 5=土",
+        "代表曜日",
+        help_text="0=月 … 5=土（代表ミーティングの非正規化）",
     )
     period_kind = models.CharField(
-        "時限種別",
+        "代表時限種別",
         max_length=16,
         choices=PeriodKind.choices,
         default=PeriodKind.PERIOD,
     )
-    period = models.PositiveSmallIntegerField("時限")
+    period = models.PositiveSmallIntegerField("代表時限")
     school = models.CharField("学部", max_length=50, blank=True)
     campus = models.CharField("キャンパス", max_length=40, blank=True)
     room = models.CharField("教室", max_length=80, blank=True)
@@ -366,9 +375,6 @@ class CourseOffering(models.Model):
                     "instructor_normalized",
                     "academic_year",
                     "semester",
-                    "day_of_week",
-                    "period_kind",
-                    "period",
                 ],
                 condition=models.Q(status="active"),
                 name="uniq_active_course_offering_identity",
@@ -381,6 +387,54 @@ class CourseOffering(models.Model):
     @property
     def slot_key(self) -> str:
         prefix = "od" if self.period_kind == self.PeriodKind.OD else "p"
+        return f"{prefix}{self.period}-d{self.day_of_week}"
+
+
+class CourseMeeting(models.Model):
+    """開講授業の開催スロット（曜日・時限）。1 Offering に複数可。"""
+
+    offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="meetings",
+        verbose_name="開講授業",
+    )
+    day_of_week = models.PositiveSmallIntegerField(
+        "曜日",
+        help_text="0=月 … 5=土",
+    )
+    period_kind = models.CharField(
+        "時限種別",
+        max_length=16,
+        choices=CourseOffering.PeriodKind.choices,
+        default=CourseOffering.PeriodKind.PERIOD,
+    )
+    period = models.PositiveSmallIntegerField("時限")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "授業ミーティング"
+        verbose_name_plural = "授業ミーティング"
+        ordering = ["day_of_week", "period_kind", "period", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["offering", "day_of_week", "period_kind", "period"],
+                name="unique_course_meeting_per_offering_slot",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["day_of_week", "period_kind", "period"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.offering_id}:{self.slot_key}"
+
+    @property
+    def slot_key(self) -> str:
+        prefix = (
+            "od" if self.period_kind == CourseOffering.PeriodKind.OD else "p"
+        )
         return f"{prefix}{self.period}-d{self.day_of_week}"
 
 
@@ -565,6 +619,61 @@ class CourseCalendarException(models.Model):
         indexes = [
             models.Index(fields=["user", "date"]),
             models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.offering_id}@{self.date} ({self.status})"
+
+
+class CourseAttendanceRecord(models.Model):
+    """ユーザー個人の欠席記録（日付単位）。
+
+    欠席回数は本テーブルの件数から算出する（整数カウンターは持たない）。
+    CourseCalendarException（休講等の予定非表示）とは独立。
+    週複数回開講でも Offering 単位で共通（Meeting は時間割セル用）。
+    """
+
+    class Status(models.TextChoices):
+        ABSENT = "absent", "欠席"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_attendance_records",
+        verbose_name="ユーザー",
+    )
+    offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="attendance_records",
+        verbose_name="開講授業",
+        help_text="その日の開催スロットに対応する Offering",
+    )
+    date = models.DateField("対象日", db_index=True)
+    status = models.CharField(
+        "状態",
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ABSENT,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "授業欠席記録"
+        verbose_name_plural = "授業欠席記録"
+        ordering = ["-date", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "offering", "date"],
+                name="unique_course_attendance_per_day",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "date"]),
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["offering", "date"]),
         ]
 
     def __str__(self) -> str:

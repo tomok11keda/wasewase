@@ -14,6 +14,12 @@ import {
   type SlotsMap,
 } from "../timetable/api";
 import {
+  createAbsenceRecord,
+  deleteAbsenceRecord,
+  fetchOfferingAttendance,
+  type CourseAttendancePayload,
+} from "../courses/api";
+import {
   createCalendarEvent,
   createCourseCalendarException,
   defaultCalendarCategories,
@@ -50,12 +56,21 @@ type Props = {
   authenticated: boolean;
 };
 
-type UndoToast = {
-  message: string;
-  exceptionId: number;
-  offeringId: number;
-  date: string;
-};
+type UndoToast =
+  | {
+      kind: "exception";
+      message: string;
+      exceptionId: number;
+      offeringId: number;
+      date: string;
+    }
+  | {
+      kind: "absence";
+      message: string;
+      recordId: number;
+      offeringId: number;
+      date: string;
+    };
 
 function buildMonthCells(year: number, month: number) {
   const first = new Date(year, month - 1, 1);
@@ -146,6 +161,9 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
   }>(null);
   const [exceptions, setExceptions] = useState<CourseCalendarException[]>([]);
   const [classDetail, setClassDetail] = useState<ClassItem | null>(null);
+  const [classAttendance, setClassAttendance] =
+    useState<CourseAttendancePayload | null>(null);
+  const [classAttendanceLoading, setClassAttendanceLoading] = useState(false);
   const [hiddenOpen, setHiddenOpen] = useState(false);
   const [hiddenList, setHiddenList] = useState<CourseCalendarException[]>([]);
   const [hiddenLoading, setHiddenLoading] = useState(false);
@@ -224,6 +242,30 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
   useEffect(() => {
     return () => clearToastTimer();
   }, []);
+
+  useEffect(() => {
+    if (!classDetail?.offeringId || !authenticated) {
+      setClassAttendance(null);
+      setClassAttendanceLoading(false);
+      return;
+    }
+    const offeringId = classDetail.offeringId;
+    let cancelled = false;
+    setClassAttendanceLoading(true);
+    void fetchOfferingAttendance(offeringId)
+      .then((data) => {
+        if (!cancelled) setClassAttendance(data);
+      })
+      .catch(() => {
+        if (!cancelled) setClassAttendance(null);
+      })
+      .finally(() => {
+        if (!cancelled) setClassAttendanceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [classDetail, authenticated]);
 
   useEffect(() => {
     // Keep selection in-range when month changes; prefer today if in this month.
@@ -355,6 +397,7 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
         return [...without, exc];
       });
       showUndoToast({
+        kind: "exception",
         message: `${formatShortDate(selectedKey)}の${item.name}を非表示にしました`,
         exceptionId: exc.id,
         offeringId: item.offeringId,
@@ -383,7 +426,7 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
       });
       setExceptions((prev) => prev.filter((row) => row.id !== exception.id));
       setHiddenList((prev) => prev.filter((row) => row.id !== exception.id));
-      if (toast?.exceptionId === exception.id) {
+      if (toast?.kind === "exception" && toast.exceptionId === exception.id) {
         clearToastTimer();
         setToast(null);
       }
@@ -408,6 +451,81 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
       setHiddenOpen(false);
     } finally {
       setHiddenLoading(false);
+    }
+  };
+
+  const onMarkAbsence = async (item: ClassItem) => {
+    if (!item.offeringId) return;
+    setBusy(true);
+    try {
+      const result = await createAbsenceRecord(item.offeringId, selectedKey);
+      setClassAttendance(result.attendance);
+      analytics.courseAbsenceRecorded({
+        offering_id: item.offeringId,
+        date: selectedKey,
+        source: "calendar",
+      });
+      showUndoToast({
+        kind: "absence",
+        message: `${formatShortDate(selectedKey)}を欠席として記録しました`,
+        recordId: result.record.id,
+        offeringId: item.offeringId,
+        date: selectedKey,
+      });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      if (code === "date_calendar_skipped") {
+        window.alert(
+          "この日は予定を非表示にしています。欠席記録はできません。"
+        );
+      } else if (code === "current_enrollment_required") {
+        window.alert("履修中の授業のみ欠席を記録できます。");
+      } else {
+        window.alert(
+          err instanceof Error ? err.message : "欠席の記録に失敗しました"
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemoveAbsenceFromCalendar = async (
+    recordId: number,
+    offeringId: number,
+    date: string,
+    source: "calendar" | "undo"
+  ) => {
+    setBusy(true);
+    try {
+      const result = await deleteAbsenceRecord(recordId);
+      if (result.attendance) setClassAttendance(result.attendance);
+      else {
+        setClassAttendance((prev) =>
+          prev
+            ? {
+                ...prev,
+                records: prev.records.filter((r) => r.id !== recordId),
+                absence_count: Math.max(0, prev.absence_count - 1),
+              }
+            : prev
+        );
+      }
+      analytics.courseAbsenceRemoved({
+        offering_id: offeringId,
+        date,
+        source,
+      });
+      if (toast?.kind === "absence" && toast.recordId === recordId) {
+        clearToastTimer();
+        setToast(null);
+      }
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "欠席記録の取消に失敗しました"
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -803,6 +921,69 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
                 {formatDayHeading(selectedKey)} · {classDetail.periodLabel}
                 {classDetail.room ? ` · ${classDetail.room}` : ""}
               </p>
+              {classDetail.offeringId ? (
+                <div className="tt-calendar__absence-block">
+                  {classAttendanceLoading ? (
+                    <p className="tt-calendar__class-hint">欠席情報を読み込み中…</p>
+                  ) : classAttendance ? (
+                    <>
+                      <p className="tt-calendar__absence-count">
+                        欠席 {classAttendance.absence_count}回
+                      </p>
+                      {(() => {
+                        const todayRecord = classAttendance.records.find(
+                          (r) => r.date === selectedKey
+                        );
+                        if (todayRecord) {
+                          return (
+                            <div className="tt-calendar__absence-actions">
+                              <p className="tt-calendar__absence-marked">
+                                ✓ この日は欠席として記録されています
+                              </p>
+                              <button
+                                type="button"
+                                className="tt-calendar__absence-undo"
+                                disabled={busy}
+                                onClick={() =>
+                                  void onRemoveAbsenceFromCalendar(
+                                    todayRecord.id,
+                                    classDetail.offeringId!,
+                                    selectedKey,
+                                    "calendar"
+                                  )
+                                }
+                              >
+                                欠席記録を取り消す
+                              </button>
+                            </div>
+                          );
+                        }
+                        if (classAttendance.can_record) {
+                          return (
+                            <button
+                              type="button"
+                              className="tt-calendar__absence-btn"
+                              disabled={busy}
+                              onClick={() => void onMarkAbsence(classDetail)}
+                            >
+                              この授業を欠席にする
+                            </button>
+                          );
+                        }
+                        return (
+                          <p className="tt-calendar__class-hint">
+                            履修中のみ欠席を記録できます。
+                          </p>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <p className="tt-calendar__class-hint">
+                      欠席記録は履修中（または過去履修）の授業で利用できます。
+                    </p>
+                  )}
+                </div>
+              ) : null}
               <p className="tt-calendar__class-hint">
                 時間割には残ります。この日のカレンダー表示だけ消えます。
               </p>
@@ -895,19 +1076,28 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
             type="button"
             className="tt-calendar__toast-undo"
             disabled={busy}
-            onClick={() =>
-              void onRestoreException(
-                {
-                  id: toast.exceptionId,
-                  offering_id: toast.offeringId,
-                  date: toast.date,
-                  status: "skipped",
-                  offering_title: "",
-                  instructor: "",
-                },
-                "undo_toast"
-              )
-            }
+            onClick={() => {
+              if (toast.kind === "exception") {
+                void onRestoreException(
+                  {
+                    id: toast.exceptionId,
+                    offering_id: toast.offeringId,
+                    date: toast.date,
+                    status: "skipped",
+                    offering_title: "",
+                    instructor: "",
+                  },
+                  "undo_toast"
+                );
+              } else {
+                void onRemoveAbsenceFromCalendar(
+                  toast.recordId,
+                  toast.offeringId,
+                  toast.date,
+                  "undo"
+                );
+              }
+            }}
           >
             元に戻す
           </button>

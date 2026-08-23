@@ -156,6 +156,12 @@ def serialize_offering(
     viewer_enrollment: str | None = None,
     viewer_has_review: bool | None = None,
 ) -> dict:
+    from .course_meeting_services import list_meetings, serialize_meeting
+
+    meetings = [serialize_meeting(m) for m in list_meetings(offering)]
+    schedule_label = "・".join(
+        f"{m['day_label']}{m['period_label']}" for m in meetings
+    ) or f"{day_label(offering.day_of_week)}{period_label(offering.period_kind, offering.period)}"
     payload = {
         "id": offering.pk,
         "course_id": offering.course_id,
@@ -170,6 +176,8 @@ def serialize_offering(
         "period": offering.period,
         "period_label": period_label(offering.period_kind, offering.period),
         "slot_key": offering.slot_key,
+        "meetings": meetings,
+        "schedule_label": schedule_label,
         "school": offering.school or "",
         "campus": offering.campus or "",
         "room": offering.room or "",
@@ -250,6 +258,14 @@ def search_offerings(
     if semester:
         qs = qs.filter(semester=semester)
 
+    if day_of_week is not None:
+        qs = qs.filter(meetings__day_of_week=day_of_week)
+        if period is not None:
+            qs = qs.filter(meetings__period=period)
+            if period_kind:
+                qs = qs.filter(meetings__period_kind=period_kind)
+        qs = qs.distinct()
+
     q = sanitize_plain_text(q, max_len=MAX_QUERY_LEN)
     norm = normalize_course_text(q)
     tokens = [t for t in norm.split(" ") if t][:6]
@@ -265,15 +281,21 @@ def search_offerings(
     offerings = list(qs[: max(limit * 3, 60)])
 
     def rank(o: CourseOffering) -> tuple:
+        from .course_meeting_services import list_meetings
+
         title_n = o.title_normalized or normalize_course_text(o.title)
         inst_n = o.instructor_normalized or normalize_course_text(o.instructor)
-        same_slot = (
-            day_of_week is not None
-            and period is not None
-            and o.day_of_week == day_of_week
-            and o.period == period
-            and (period_kind is None or o.period_kind == period_kind)
-        )
+        meeting_rows = list_meetings(o)
+        same_slot = False
+        if day_of_week is not None and period is not None:
+            for m in meeting_rows:
+                if (
+                    m.day_of_week == day_of_week
+                    and m.period == period
+                    and (period_kind is None or m.period_kind == period_kind)
+                ):
+                    same_slot = True
+                    break
         title_hit = bool(norm) and (
             norm in title_n or any(t in title_n for t in tokens)
         )
@@ -309,14 +331,14 @@ def find_duplicate_candidates(
     exclude_id: int | None = None,
     limit: int = 8,
 ) -> list[CourseOffering]:
+    """同一開講（タイトル+教員+年度+学期）を優先。ミーティング重複も検出。"""
+    from .course_meeting_services import list_meetings
+
     title_n = normalize_course_text(title)
     instructor_n = normalize_course_text(instructor)
     qs = active_offerings().filter(
         academic_year=academic_year,
         semester=semester,
-        day_of_week=day_of_week,
-        period=period,
-        period_kind=period_kind,
     )
     if exclude_id:
         qs = qs.exclude(pk=exclude_id)
@@ -330,22 +352,24 @@ def find_duplicate_candidates(
     if strong:
         return strong
 
-    soft = []
-    for offering in qs[:40]:
+    # Soft: same meeting slot + similar title
+    soft: list[CourseOffering] = []
+    for offering in qs[:80]:
+        meetings = list_meetings(offering)
+        slot_hit = any(
+            m.day_of_week == day_of_week
+            and m.period == period
+            and m.period_kind == period_kind
+            for m in meetings
+        )
+        if not slot_hit:
+            continue
         o_title = offering.title_normalized or normalize_course_text(offering.title)
-        if not title_n or not o_title:
-            continue
-        if title_n in o_title or o_title in title_n:
+        if title_n and (title_n in o_title or o_title in title_n):
             soft.append(offering)
-            continue
-        shared = 0
-        for a, b in zip(title_n, o_title):
-            if a != b:
-                break
-            shared += 1
-        if shared >= 4:
-            soft.append(offering)
-    return soft[:limit]
+        if len(soft) >= limit:
+            break
+    return soft
 
 
 @transaction.atomic
@@ -439,43 +463,84 @@ def create_offering(
     room: str = "",
     credits: str = "",
     force_create: bool = False,
+    meetings: list[dict] | None = None,
 ) -> tuple[CourseOffering, list[CourseOffering]]:
+    from .course_meeting_services import (
+        ensure_meetings_for_offering,
+        normalize_meeting_specs,
+    )
+
+    specs = normalize_meeting_specs(
+        meetings,
+        day_of_week=day_of_week,
+        period=period,
+        period_kind=period_kind,
+    )
+    primary = specs[0]
     cleaned = _validate_offering_inputs(
         title=title,
         instructor=instructor,
         academic_year=academic_year,
         semester=semester,
-        day_of_week=day_of_week,
-        period=period,
-        period_kind=period_kind,
+        day_of_week=primary["day_of_week"],
+        period=primary["period"],
+        period_kind=primary["period_kind"],
         school=school,
         campus=campus,
         room=room,
         credits=credits,
     )
+    for spec in specs:
+        _validate_offering_inputs(
+            title=cleaned["title"],
+            instructor=cleaned["instructor"],
+            academic_year=cleaned["academic_year"],
+            semester=cleaned["semester"],
+            day_of_week=spec["day_of_week"],
+            period=spec["period"],
+            period_kind=spec["period_kind"],
+            school=cleaned["school"],
+            campus=cleaned["campus"],
+            room=cleaned["room"],
+            credits=cleaned["credits"],
+        )
 
     duplicates = find_duplicate_candidates(
         title=cleaned["title"],
         instructor=cleaned["instructor"],
-        day_of_week=cleaned["day_of_week"],
-        period=cleaned["period"],
-        period_kind=cleaned["period_kind"],
+        day_of_week=primary["day_of_week"],
+        period=primary["period"],
+        period_kind=primary["period_kind"],
         semester=cleaned["semester"],
         academic_year=cleaned["academic_year"],
     )
     if duplicates and not force_create:
+        # 同一開講ならミーティングを追加して成功扱い
+        exact = [
+            d
+            for d in duplicates
+            if d.title_normalized == normalize_course_text(cleaned["title"])
+            and d.instructor_normalized
+            == normalize_course_text(cleaned["instructor"])
+        ]
+        if exact:
+            ensure_meetings_for_offering(exact[0], specs)
+            return exact[0], []
         return duplicates[0], duplicates
 
-    # Exact identity already exists → never create a second active row
-    exact = [
-        d
-        for d in duplicates
-        if d.title_normalized == normalize_course_text(cleaned["title"])
-        and d.instructor_normalized
-        == normalize_course_text(cleaned["instructor"])
-    ]
-    if exact:
-        return exact[0], exact
+    exact_existing = (
+        active_offerings()
+        .filter(
+            title_normalized=normalize_course_text(cleaned["title"]),
+            instructor_normalized=normalize_course_text(cleaned["instructor"]),
+            academic_year=cleaned["academic_year"],
+            semester=cleaned["semester"],
+        )
+        .first()
+    )
+    if exact_existing and not force_create:
+        ensure_meetings_for_offering(exact_existing, specs)
+        return exact_existing, []
 
     course = get_or_create_course(cleaned["title"])
     try:
@@ -490,9 +555,9 @@ def create_offering(
                 instructor_normalized=normalize_course_text(
                     cleaned["instructor"]
                 ),
-                day_of_week=cleaned["day_of_week"],
-                period_kind=cleaned["period_kind"],
-                period=cleaned["period"],
+                day_of_week=primary["day_of_week"],
+                period_kind=primary["period_kind"],
+                period=primary["period"],
                 school=cleaned["school"],
                 campus=cleaned["campus"],
                 room=cleaned["room"],
@@ -501,18 +566,23 @@ def create_offering(
                 source=CourseOffering.Source.USER,
                 status=CourseOffering.Status.ACTIVE,
             )
+            ensure_meetings_for_offering(offering, specs)
     except IntegrityError:
-        existing = find_duplicate_candidates(
-            title=cleaned["title"],
-            instructor=cleaned["instructor"],
-            day_of_week=cleaned["day_of_week"],
-            period=cleaned["period"],
-            period_kind=cleaned["period_kind"],
-            semester=cleaned["semester"],
-            academic_year=cleaned["academic_year"],
+        existing = (
+            active_offerings()
+            .filter(
+                title_normalized=normalize_course_text(cleaned["title"]),
+                instructor_normalized=normalize_course_text(
+                    cleaned["instructor"]
+                ),
+                academic_year=cleaned["academic_year"],
+                semester=cleaned["semester"],
+            )
+            .first()
         )
         if existing:
-            return existing[0], existing
+            ensure_meetings_for_offering(existing, specs)
+            return existing, [existing]
         raise
     return offering, []
 
@@ -525,6 +595,8 @@ def enroll_user_in_offering(
     slot_key: str | None = None,
     keep_memo: bool = True,
 ) -> tuple[CourseEnrollment, TimetableSlot]:
+    from .course_meeting_services import list_meetings
+
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
     offering = resolve_canonical_offering(locked)
     if offering.pk != locked.pk:
@@ -532,28 +604,17 @@ def enroll_user_in_offering(
         if offering.status != CourseOffering.Status.ACTIVE:
             raise ValueError("offering_inactive")
 
-    target_key = (slot_key or offering.slot_key).strip()
-    parsed = parse_slot_key(target_key)
-    if parsed is None:
-        raise ValueError("invalid_slot_key")
+    meetings = list_meetings(offering)
+    if not meetings:
+        raise ValueError("meetings_required")
 
-    # 開講の曜時限と異なるセルへの配置は拒否（データ整合性）
-    if (
-        parsed["day_index"] != offering.day_of_week
-        or parsed["number"] != offering.period
-        or parsed["kind"] != offering.period_kind
-    ):
-        raise ValueError("slot_mismatch")
-
-    memo = ""
-    if keep_memo:
-        existing_slot = (
-            TimetableSlot.objects.select_for_update()
-            .filter(user=user, slot_key=target_key)
-            .first()
-        )
-        if existing_slot:
-            memo = existing_slot.memo or ""
+    meeting_by_key = {m.slot_key: m for m in meetings}
+    if slot_key:
+        target_key = slot_key.strip()
+        if target_key not in meeting_by_key:
+            raise ValueError("slot_mismatch")
+    else:
+        target_key = meetings[0].slot_key
 
     enrollment, _ = CourseEnrollment.objects.update_or_create(
         user=user,
@@ -561,40 +622,64 @@ def enroll_user_in_offering(
         defaults={"role": CourseEnrollment.Role.CURRENT},
     )
 
+    valid_keys = set(meeting_by_key.keys())
     TimetableSlot.objects.filter(user=user, offering=offering).exclude(
-        slot_key=target_key
+        slot_key__in=valid_keys
     ).delete()
 
-    conflict = (
-        TimetableSlot.objects.select_for_update()
-        .filter(user=user, slot_key=target_key)
-        .exclude(offering_id=offering.pk)
-        .first()
-    )
-    if conflict and conflict.offering_id:
-        CourseEnrollment.objects.filter(
-            user=user,
-            offering_id=conflict.offering_id,
-            role=CourseEnrollment.Role.CURRENT,
-        ).update(role=CourseEnrollment.Role.PAST)
+    primary_slot: TimetableSlot | None = None
+    for meeting in meetings:
+        key = meeting.slot_key
+        parsed = parse_slot_key(key)
+        if parsed is None:
+            continue
+        memo = ""
+        if keep_memo:
+            existing_slot = (
+                TimetableSlot.objects.select_for_update()
+                .filter(user=user, slot_key=key)
+                .first()
+            )
+            if existing_slot:
+                memo = existing_slot.memo or ""
 
-    credits = offering.credits or ""
-    room = "" if parsed["kind"] == "od" else (offering.room or "")
-    slot = upsert_timetable_slot(
-        user,
-        slot_key=target_key,
-        name=offering.title,
-        room=room,
-        credits=credits,
-        memo=memo,
-        offering=offering,
-    )
-    if slot is None:
+        conflict = (
+            TimetableSlot.objects.select_for_update()
+            .filter(user=user, slot_key=key)
+            .exclude(offering_id=offering.pk)
+            .first()
+        )
+        if conflict and conflict.offering_id:
+            CourseEnrollment.objects.filter(
+                user=user,
+                offering_id=conflict.offering_id,
+                role=CourseEnrollment.Role.CURRENT,
+            ).update(role=CourseEnrollment.Role.PAST)
+
+        credits = offering.credits or ""
+        room = "" if parsed["kind"] == "od" else (offering.room or "")
+        slot = upsert_timetable_slot(
+            user,
+            slot_key=key,
+            name=offering.title,
+            room=room,
+            credits=credits,
+            memo=memo,
+            offering=offering,
+            meeting=meeting,
+        )
+        if slot is None:
+            raise ValueError("slot_save_failed")
+        if key == target_key:
+            primary_slot = slot
+
+    if primary_slot is None:
         raise ValueError("slot_save_failed")
+
     from .course_chat_services import maybe_auto_join_on_enroll
 
     maybe_auto_join_on_enroll(user, offering)
-    return enrollment, slot
+    return enrollment, primary_slot
 
 
 @transaction.atomic
@@ -623,13 +708,18 @@ def clear_slot_and_sync_enrollment(user: AbstractBaseUser, slot_key: str) -> Non
         .filter(user=user, slot_key=slot_key)
         .first()
     )
-    if slot and slot.offering_id:
-        CourseEnrollment.objects.filter(
-            user=user,
-            offering_id=slot.offering_id,
-            role=CourseEnrollment.Role.CURRENT,
-        ).update(role=CourseEnrollment.Role.PAST)
+    offering_id = slot.offering_id if slot else None
     TimetableSlot.objects.filter(user=user, slot_key=slot_key).delete()
+    if offering_id:
+        remaining = TimetableSlot.objects.filter(
+            user=user, offering_id=offering_id
+        ).exists()
+        if not remaining:
+            CourseEnrollment.objects.filter(
+                user=user,
+                offering_id=offering_id,
+                role=CourseEnrollment.Role.CURRENT,
+            ).update(role=CourseEnrollment.Role.PAST)
 
 
 def enrollment_counts_for(offering_ids: list[int]) -> dict[int, int]:
@@ -727,6 +817,48 @@ def merge_offerings(source: CourseOffering, target: CourseOffering) -> CourseOff
         )
 
     from .course_chat_services import merge_course_talk_rooms
+    from .course_meeting_services import (
+        ensure_meetings_for_offering,
+        list_meetings,
+        sync_offering_primary_schedule,
+    )
+    from .models import CourseAttendanceRecord, CourseCalendarException, CourseMeeting
+
+    # Move meetings onto target
+    for meeting in list_meetings(source):
+        CourseMeeting.objects.get_or_create(
+            offering=target,
+            day_of_week=meeting.day_of_week,
+            period_kind=meeting.period_kind,
+            period=meeting.period,
+        )
+    CourseMeeting.objects.filter(offering=source).delete()
+    sync_offering_primary_schedule(target)
+
+    # Attendance / calendar exceptions
+    for row in CourseAttendanceRecord.objects.select_for_update().filter(
+        offering=source
+    ):
+        exists = CourseAttendanceRecord.objects.filter(
+            user_id=row.user_id, offering=target, date=row.date
+        ).exists()
+        if exists:
+            row.delete()
+        else:
+            row.offering = target
+            row.save(update_fields=["offering", "updated_at"])
+
+    for row in CourseCalendarException.objects.select_for_update().filter(
+        offering=source
+    ):
+        exists = CourseCalendarException.objects.filter(
+            user_id=row.user_id, offering=target, date=row.date
+        ).exists()
+        if exists:
+            row.delete()
+        else:
+            row.offering = target
+            row.save(update_fields=["offering", "updated_at"])
 
     merge_course_talk_rooms(source, target)
 

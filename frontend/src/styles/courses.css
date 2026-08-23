@@ -490,10 +490,135 @@ body.course-sheet-open {
 }
 
 .course-detail__section-hint {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 12px;
-  color: #8899aa;
-  font-weight: 600;
+  color: #8b98a5;
+}
+
+.course-detail__attendance {
+  margin: 20px 0;
+  padding: 16px 0;
+  border-top: 1px solid #eff3f4;
+  border-bottom: 1px solid #eff3f4;
+}
+
+.course-detail__attendance-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.course-detail__attendance-meetings {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #536471;
+}
+
+.course-detail__attendance-cta {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid #cfd9de;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f1419;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.course-detail__date-picker {
+  margin-top: 12px;
+}
+
+.course-detail__date-picker-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #536471;
+}
+
+.course-detail__date-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-detail__date-list button {
+  border: 1px solid #cfd9de;
+  border-radius: 10px;
+  background: #f7f9f9;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.course-detail__absence-history {
+  margin-top: 16px;
+}
+
+.course-detail__absence-history h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.course-detail__absence-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.course-detail__absence-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid #eff3f4;
+  font-size: 14px;
+}
+
+.course-detail__absence-history button {
+  border: none;
+  background: transparent;
+  color: #1d9bf0;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.course-detail__toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #0f1419;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(15, 20, 25, 0.25);
+}
+
+.course-detail__toast button {
+  border: none;
+  background: transparent;
+  color: #1d9bf0;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .course-talk-header__links {
