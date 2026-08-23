@@ -39,7 +39,13 @@ logger = logging.getLogger(__name__)
 
 
 def _course_room_name(offering: CourseOffering) -> str:
-    schedule = f"{day_label(offering.day_of_week)}{period_label(offering.period_kind, offering.period)}"
+    from .course_services import serialize_offering
+
+    payload = serialize_offering(offering)
+    schedule = payload.get("schedule_label") or (
+        f"{day_label(offering.day_of_week)}"
+        f"{period_label(offering.period_kind, offering.period)}"
+    )
     instructor = (offering.instructor or "").strip()
     if instructor:
         return f"{offering.title}｜{instructor}｜{schedule}"[:120]
@@ -420,7 +426,8 @@ def build_course_talk_conversations(user: AbstractBaseUser) -> list[dict]:
         elif role == CourseEnrollment.Role.PAST:
             status_label = "履修済み"
         schedule = (
-            f"{day_label(offering.day_of_week)}"
+            serialize_offering(offering).get("schedule_label")
+            or f"{day_label(offering.day_of_week)}"
             f"{period_label(offering.period_kind, offering.period)}"
         )
         updated_at = (

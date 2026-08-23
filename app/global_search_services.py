@@ -106,7 +106,7 @@ def _day_match_q(query: str) -> Q:
             f"{label}曜日限",
         )
         if any(alias in q or q == alias for alias in aliases):
-            clauses |= Q(day_of_week=index)
+            clauses |= Q(meetings__day_of_week=index)
     return clauses
 
 
@@ -118,14 +118,14 @@ def _period_match_q(query: str) -> Q:
     od = _OD_PERIOD_RE.search(q)
     if od:
         clauses |= Q(
-            period_kind=CourseOffering.PeriodKind.OD,
-            period=int(od.group(1)),
+            meetings__period_kind=CourseOffering.PeriodKind.OD,
+            meetings__period=int(od.group(1)),
         )
     match = _PERIOD_RE.search(q)
     if match:
         clauses |= Q(
-            period_kind=CourseOffering.PeriodKind.PERIOD,
-            period=int(match.group(1)),
+            meetings__period_kind=CourseOffering.PeriodKind.PERIOD,
+            meetings__period=int(match.group(1)),
         )
     return clauses
 

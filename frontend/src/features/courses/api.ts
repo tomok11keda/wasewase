@@ -1,6 +1,16 @@
 import { ensureAuthCsrf } from "../auth/api";
 import { apiGetJson, apiPostJson } from "../../lib/http";
 
+export type CourseMeeting = {
+  id: number;
+  day_of_week: number;
+  day_label: string;
+  period_kind: string;
+  period: number;
+  period_label: string;
+  slot_key: string;
+};
+
 export type CourseOffering = {
   id: number;
   course_id: number;
@@ -15,6 +25,8 @@ export type CourseOffering = {
   period: number;
   period_label: string;
   slot_key: string;
+  meetings?: CourseMeeting[];
+  schedule_label?: string;
   school: string;
   campus: string;
   room: string;
@@ -23,6 +35,33 @@ export type CourseOffering = {
   enrollment_count: number;
   viewer_enrollment?: string | null;
   viewer_has_review?: boolean;
+};
+
+export type CourseAttendanceRecord = {
+  id: number;
+  offering_id: number;
+  date: string;
+  status: string;
+  offering_title?: string;
+  day_of_week?: number | null;
+  day_label?: string;
+  period_label?: string;
+};
+
+export type CourseAttendancePayload = {
+  absence_count: number;
+  can_record: boolean;
+  records: CourseAttendanceRecord[];
+  meeting_dates: string[];
+  meetings: Array<{
+    id: number;
+    day_of_week: number;
+    day_label: string;
+    period_kind: string;
+    period: number;
+    period_label: string;
+    slot_key: string;
+  }>;
 };
 
 export type CourseMeta = {
@@ -95,6 +134,7 @@ export async function searchCourses(params: {
 export async function fetchOfferingDetail(offeringPk: number): Promise<{
   offering: CourseOffering;
   review_summary: ReviewSummary;
+  attendance?: CourseAttendancePayload | null;
 }> {
   const { ok, data, error } = await apiGetJson(
     `/api/v1/courses/offerings/${offeringPk}/`
@@ -103,6 +143,52 @@ export async function fetchOfferingDetail(offeringPk: number): Promise<{
   return data as unknown as {
     offering: CourseOffering;
     review_summary: ReviewSummary;
+    attendance?: CourseAttendancePayload | null;
+  };
+}
+
+export async function fetchOfferingAttendance(
+  offeringPk: number
+): Promise<CourseAttendancePayload> {
+  const { ok, data, error } = await apiGetJson(
+    `/api/v1/courses/offerings/${offeringPk}/attendance/`
+  );
+  if (!ok) throw new Error(error || "attendance_failed");
+  return data.attendance as CourseAttendancePayload;
+}
+
+export async function createAbsenceRecord(
+  offeringPk: number,
+  date: string
+): Promise<{
+  record: CourseAttendanceRecord;
+  attendance: CourseAttendancePayload;
+}> {
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/offerings/${offeringPk}/attendance/`,
+    { date, status: "absent" }
+  );
+  if (!ok) throw new Error(error || "attendance_create_failed");
+  return {
+    record: data.record as CourseAttendanceRecord,
+    attendance: data.attendance as CourseAttendancePayload,
+  };
+}
+
+export async function deleteAbsenceRecord(recordId: number): Promise<{
+  record: CourseAttendanceRecord;
+  attendance: CourseAttendancePayload | null;
+}> {
+  await ensureAuthCsrf();
+  const { ok, data, error } = await apiPostJson(
+    `/api/v1/courses/attendance/${recordId}/delete/`,
+    {}
+  );
+  if (!ok) throw new Error(error || "attendance_delete_failed");
+  return {
+    record: data.record as CourseAttendanceRecord,
+    attendance: (data.attendance as CourseAttendancePayload) || null,
   };
 }
 
@@ -212,6 +298,12 @@ export async function submitReview(
 }
 
 export function offeringScheduleText(o: CourseOffering): string {
+  if (o.schedule_label) return o.schedule_label;
+  if (o.meetings && o.meetings.length > 0) {
+    return o.meetings
+      .map((m) => `${m.day_label}${m.period_label}`)
+      .join("・");
+  }
   return `${o.day_label}曜${o.period_label}`;
 }
 

@@ -140,6 +140,30 @@ export const analytics = {
     });
   },
 
+  courseAbsenceRecorded(props: {
+    offering_id: number;
+    date: string;
+    source: "course_detail" | "calendar" | "undo" | string;
+  }) {
+    captureEvent("course_absence_recorded", {
+      offering_id: props.offering_id,
+      date: props.date,
+      source: props.source,
+    });
+  },
+
+  courseAbsenceRemoved(props: {
+    offering_id: number;
+    date: string;
+    source: "course_detail" | "calendar" | "undo" | string;
+  }) {
+    captureEvent("course_absence_removed", {
+      offering_id: props.offering_id,
+      date: props.date,
+      source: props.source,
+    });
+  },
+
   existingCourseAdded(props?: { from_slot?: boolean }) {
     captureEvent("existing_course_added", {
       from_slot: Boolean(props?.from_slot),

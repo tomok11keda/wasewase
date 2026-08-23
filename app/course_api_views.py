@@ -229,6 +229,10 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
     year = _parse_int(body.get("academic_year"), current_academic_year())
     semester = (body.get("semester") or current_semester()).strip()
     slot_key = (body.get("slot_key") or "").strip() or None
+    meetings_raw = body.get("meetings")
+    meetings = None
+    if isinstance(meetings_raw, list) and meetings_raw:
+        meetings = meetings_raw
 
     # 空きセルから来た場合は slot_key を曜時限の正とする（FE の meta レース対策）
     if slot_key:
@@ -238,9 +242,21 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
         day = parsed["day_index"]
         period = parsed["number"]
         period_kind = parsed["kind"]
+        if not meetings:
+            meetings = [
+                {
+                    "day_of_week": day,
+                    "period": period,
+                    "period_kind": period_kind,
+                }
+            ]
 
-    if day is None or period is None:
+    if (day is None or period is None) and not meetings:
         return _json_error("missing_schedule")
+    if day is None:
+        day = int(meetings[0]["day_of_week"])
+    if period is None:
+        period = int(meetings[0]["period"])
 
     try:
         offering, duplicates = create_offering(
@@ -257,6 +273,7 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
             room=body.get("room") or "",
             credits=body.get("credits") or "",
             force_create=force_create,
+            meetings=meetings,
         )
     except ValueError as exc:
         return _json_error(str(exc))
@@ -391,6 +408,11 @@ def api_v1_courses_offering_detail(
     }
     if viewer is not None and viewer.is_authenticated:
         payload["can_review"] = user_can_review(viewer, offering)
+        from .course_attendance_services import build_attendance_payload
+
+        attendance = build_attendance_payload(viewer, offering)
+        if attendance is not None:
+            payload["attendance"] = attendance
     return JsonResponse(payload)
 
 

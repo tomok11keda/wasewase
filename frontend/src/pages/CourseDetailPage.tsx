@@ -3,16 +3,24 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
+  createAbsenceRecord,
+  deleteAbsenceRecord,
   fetchOfferingDetail,
   fetchReviews,
   offeringScheduleText,
   submitReview,
   unenrollOffering,
+  type CourseAttendancePayload,
   type CourseOffering,
   type CourseReview,
   type ReviewSummary,
 } from "../features/courses/api";
 import { analytics } from "../lib/analytics/events";
+
+function formatAbsenceDate(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${m}/${d}`;
+}
 
 function Stars({
   value,
@@ -49,6 +57,15 @@ export function CourseDetailPage() {
   const [offering, setOffering] = useState<CourseOffering | null>(null);
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const [reviews, setReviews] = useState<CourseReview[]>([]);
+  const [attendance, setAttendance] = useState<CourseAttendancePayload | null>(
+    null
+  );
+  const [showRecordPicker, setShowRecordPicker] = useState(false);
+  const [absenceToast, setAbsenceToast] = useState<{
+    message: string;
+    recordId: number;
+    date: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -74,6 +91,7 @@ export function CourseDetailPage() {
       const detail = await fetchOfferingDetail(pk);
       setOffering(detail.offering);
       setSummary(detail.review_summary);
+      setAttendance(detail.attendance || null);
       const rev = await fetchReviews(detail.offering.id);
       setReviews(rev.reviews);
       setSummary(rev.summary);
@@ -100,6 +118,86 @@ export function CourseDetailPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pk]);
+
+  useEffect(() => {
+    if (!absenceToast) return;
+    const t = window.setTimeout(() => setAbsenceToast(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [absenceToast]);
+
+  const recordedDates = new Set(
+    (attendance?.records || []).map((r) => r.date)
+  );
+  const availableDates = (attendance?.meeting_dates || []).filter(
+    (d) => !recordedDates.has(d)
+  );
+
+  const onRecordAbsence = async (date: string) => {
+    if (!offering) return;
+    setBusy(true);
+    try {
+      const result = await createAbsenceRecord(offering.id, date);
+      setAttendance(result.attendance);
+      setShowRecordPicker(false);
+      analytics.courseAbsenceRecorded({
+        offering_id: offering.id,
+        date,
+        source: "course_detail",
+      });
+      setAbsenceToast({
+        message: `${formatAbsenceDate(date)}を欠席として記録しました`,
+        recordId: result.record.id,
+        date,
+      });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      if (code === "date_calendar_skipped") {
+        window.alert(
+          "この日はカレンダーで予定を非表示にしています。欠席記録はできません。"
+        );
+      } else if (code === "current_enrollment_required") {
+        window.alert("履修中の授業のみ欠席を記録できます。");
+      } else {
+        window.alert("欠席の記録に失敗しました。");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemoveAbsence = async (
+    recordId: number,
+    date: string,
+    source: "course_detail" | "undo"
+  ) => {
+    if (!offering) return;
+    setBusy(true);
+    try {
+      const result = await deleteAbsenceRecord(recordId);
+      if (result.attendance) setAttendance(result.attendance);
+      else {
+        setAttendance((prev) =>
+          prev
+            ? {
+                ...prev,
+                records: prev.records.filter((r) => r.id !== recordId),
+                absence_count: Math.max(0, prev.absence_count - 1),
+              }
+            : prev
+        );
+      }
+      analytics.courseAbsenceRemoved({
+        offering_id: offering.id,
+        date,
+        source,
+      });
+      if (absenceToast?.recordId === recordId) setAbsenceToast(null);
+    } catch {
+      window.alert("欠席記録の取消に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onRemove = async () => {
     if (!offering) return;
@@ -132,7 +230,9 @@ export function CourseDetailPage() {
     } catch (err) {
       const code = err instanceof Error ? err.message : "";
       if (code === "enrollment_required") {
-        window.alert("レビューするには、この授業を時間割に登録した実績が必要です。");
+        window.alert(
+          "レビューするには、この授業を時間割に登録した実績が必要です。"
+        );
       } else if (code === "rate_limited") {
         window.alert("操作が多すぎます。時間をおいて再度お試しください。");
       } else {
@@ -240,6 +340,87 @@ export function CourseDetailPage() {
           ) : null}
         </dl>
 
+        {attendance ? (
+          <section className="course-detail__attendance" aria-label="欠席記録">
+            <div className="course-detail__attendance-head">
+              <h2>欠席 {attendance.absence_count}回</h2>
+              <p className="course-detail__section-hint">自分だけに表示</p>
+            </div>
+            {attendance.meetings.length > 1 ? (
+              <p className="course-detail__attendance-meetings">
+                開講:{" "}
+                {attendance.meetings
+                  .map((m) => `${m.day_label}${m.period_label}`)
+                  .join("・")}
+              </p>
+            ) : null}
+            {attendance.can_record ? (
+              <button
+                type="button"
+                className="course-detail__attendance-cta"
+                disabled={busy}
+                onClick={() => setShowRecordPicker((v) => !v)}
+              >
+                ＋ 欠席を記録
+              </button>
+            ) : (
+              <p className="course-detail__avg">
+                履修中のみ新しい欠席を記録できます。
+              </p>
+            )}
+            {showRecordPicker && attendance.can_record ? (
+              <div className="course-detail__date-picker">
+                <p className="course-detail__date-picker-label">
+                  授業がある日を選ぶ
+                </p>
+                {availableDates.length === 0 ? (
+                  <p className="course-detail__avg">
+                    記録できる日付がありません
+                  </p>
+                ) : (
+                  <ul className="course-detail__date-list">
+                    {availableDates.slice(0, 24).map((d) => (
+                      <li key={d}>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onRecordAbsence(d)}
+                        >
+                          {formatAbsenceDate(d)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+            {attendance.records.length > 0 ? (
+              <div className="course-detail__absence-history">
+                <h3>最近の欠席</h3>
+                <ul>
+                  {attendance.records.map((r) => (
+                    <li key={r.id}>
+                      <span>
+                        {formatAbsenceDate(r.date)}
+                        {r.day_label ? `（${r.day_label}）` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void onRemoveAbsence(r.id, r.date, "course_detail")
+                        }
+                      >
+                        欠席記録を取り消す
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
         <section className="course-detail__reviews">
           <div className="course-detail__reviews-head">
             <h2>レビュー</h2>
@@ -317,7 +498,9 @@ export function CourseDetailPage() {
               <li key={r.id} className="course-review-list__item">
                 <div className="course-review-list__top">
                   <Stars value={r.overall_rating} readOnly />
-                  {r.is_own ? <span className="course-review-list__own">自分</span> : null}
+                  {r.is_own ? (
+                    <span className="course-review-list__own">自分</span>
+                  ) : null}
                 </div>
                 {r.comment ? <p>{r.comment}</p> : null}
               </li>
@@ -341,6 +524,25 @@ export function CourseDetailPage() {
           </button>
         ) : null}
       </div>
+
+      {absenceToast ? (
+        <div className="course-detail__toast" role="status">
+          <span>{absenceToast.message}</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void onRemoveAbsence(
+                absenceToast.recordId,
+                absenceToast.date,
+                "undo"
+              )
+            }
+          >
+            元に戻す
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

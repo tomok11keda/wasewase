@@ -31,6 +31,10 @@ class AppConfig(AppConfig):
         from app.course_calendar_exception_services import (
             ensure_course_calendar_exception_table,
         )
+        from app.course_attendance_services import (
+            ensure_course_attendance_record_table,
+        )
+        from app.course_meeting_services import ensure_course_meeting_table
 
         ensure_userprofile_avatar_column()
         ensure_userprofile_terms_accepted_column()
@@ -45,6 +49,8 @@ class AppConfig(AppConfig):
         ensure_timetable_slot_table()
         ensure_calendar_event_table()
         ensure_course_calendar_exception_table()
+        ensure_course_attendance_record_table()
+        ensure_course_meeting_table()
         ensure_product_trade_schema()
         log_timelinepost_db_schema()
         log_userprofile_db_schema()

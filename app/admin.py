@@ -15,7 +15,9 @@ from .models import (
     CommunityThreadReply,
     ContentReport,
     Course,
+    CourseAttendanceRecord,
     CourseEnrollment,
+    CourseMeeting,
     CourseOffering,
     CourseReview,
     DevicePushToken,
@@ -250,6 +252,11 @@ def merge_selected_offerings(modeladmin, request, queryset):
     )
 
 
+class CourseMeetingInline(admin.TabularInline):
+    model = CourseMeeting
+    extra = 1
+
+
 @admin.register(CourseOffering)
 class CourseOfferingAdmin(admin.ModelAdmin):
     list_display = (
@@ -273,7 +280,22 @@ class CourseOfferingAdmin(admin.ModelAdmin):
         "room",
     )
     raw_id_fields = ("course", "created_by", "merged_into")
+    inlines = [CourseMeetingInline]
     actions = [merge_selected_offerings, hide_selected_offerings]
+
+
+@admin.register(CourseMeeting)
+class CourseMeetingAdmin(admin.ModelAdmin):
+    list_display = (
+        "offering",
+        "day_of_week",
+        "period_kind",
+        "period",
+        "updated_at",
+    )
+    list_filter = ("period_kind", "day_of_week")
+    raw_id_fields = ("offering",)
+    search_fields = ("offering__title", "offering__instructor")
 
 
 @admin.register(CourseEnrollment)
@@ -326,6 +348,20 @@ class CalendarEventAdmin(admin.ModelAdmin):
 
 @admin.register(CourseCalendarException)
 class CourseCalendarExceptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "offering", "date", "status", "updated_at")
+    list_filter = ("status", "date")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "offering__title",
+        "offering__instructor",
+    )
+    raw_id_fields = ("user", "offering")
+    date_hierarchy = "date"
+
+
+@admin.register(CourseAttendanceRecord)
+class CourseAttendanceRecordAdmin(admin.ModelAdmin):
     list_display = ("user", "offering", "date", "status", "updated_at")
     list_filter = ("status", "date")
     search_fields = (
