@@ -519,6 +519,58 @@ class CalendarEvent(models.Model):
         return f"{self.user_id}:{self.date} {self.title}"
 
 
+class CourseCalendarException(models.Model):
+    """時間割由来のカレンダー授業に対する日付単位の例外。
+
+    TimetableSlot / CourseEnrollment は変更しない。
+    現状は status=skipped（その日だけカレンダー非表示）のみ。
+    """
+
+    class Status(models.TextChoices):
+        SKIPPED = "skipped", "非表示"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_calendar_exceptions",
+        verbose_name="ユーザー",
+    )
+    offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="calendar_exceptions",
+        verbose_name="開講授業",
+    )
+    date = models.DateField("対象日", db_index=True)
+    status = models.CharField(
+        "状態",
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SKIPPED,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "授業カレンダー例外"
+        verbose_name_plural = "授業カレンダー例外"
+        ordering = ["-date", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "offering", "date"],
+                name="unique_course_calendar_exception_per_day",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "date"]),
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.offering_id}@{self.date} ({self.status})"
+
+
 class Follow(models.Model):
     """承認済みフォロー関係のみを保持する（pending は FollowRequest）。"""
 

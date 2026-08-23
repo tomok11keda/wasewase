@@ -26,6 +26,17 @@ export type CalendarDot = {
   extra: number;
 };
 
+export type CourseCalendarException = {
+  id: number;
+  offering_id: number;
+  date: string;
+  status: string;
+  offering_title: string;
+  instructor: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type CalendarMonthPayload = {
   ok: boolean;
   year: number;
@@ -33,6 +44,7 @@ export type CalendarMonthPayload = {
   events: CalendarEvent[];
   by_date: Record<string, CalendarEvent[]>;
   dots: Record<string, CalendarDot>;
+  course_exceptions?: CourseCalendarException[];
   categories: Array<{ value: string; label: string }>;
 };
 
@@ -79,6 +91,9 @@ export async function fetchCalendarMonth(
     events: Array.isArray(data.events) ? data.events : [],
     by_date: data.by_date || {},
     dots: data.dots || {},
+    course_exceptions: Array.isArray(data.course_exceptions)
+      ? data.course_exceptions
+      : [],
     categories: Array.isArray(data.categories)
       ? data.categories
       : DEFAULT_CATEGORIES,
@@ -137,6 +152,72 @@ export async function deleteCalendarEvent(id: number): Promise<void> {
   if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
 }
 
+export async function createCourseCalendarException(input: {
+  offering_id: number;
+  date: string;
+  status?: string;
+}): Promise<CourseCalendarException> {
+  const res = await fetch("/api/v1/calendar/course-exceptions/", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body: JSON.stringify({
+      offering_id: input.offering_id,
+      date: input.date,
+      status: input.status || "skipped",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "skip_failed");
+  return data.exception as CourseCalendarException;
+}
+
+export async function deleteCourseCalendarException(
+  id: number
+): Promise<CourseCalendarException> {
+  const res = await fetch(`/api/v1/calendar/course-exceptions/${id}/delete/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body: "{}",
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "restore_failed");
+  return data.exception as CourseCalendarException;
+}
+
+export async function fetchCourseCalendarExceptions(query?: {
+  year?: number;
+  month?: number;
+}): Promise<CourseCalendarException[]> {
+  const params = new URLSearchParams();
+  if (query?.year != null) params.set("year", String(query.year));
+  if (query?.month != null) params.set("month", String(query.month));
+  const qs = params.toString();
+  const res = await fetch(
+    qs
+      ? `/api/v1/calendar/course-exceptions/?${qs}`
+      : "/api/v1/calendar/course-exceptions/",
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    }
+  );
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || "list_failed");
+  return Array.isArray(data.exceptions)
+    ? (data.exceptions as CourseCalendarException[])
+    : [];
+}
+
 /** JS Date.getDay(): Sun=0 … Sat=6 → timetable day_index Mon=0 … Sat=5, or null for Sun. */
 export function jsWeekdayToTimetableDayIndex(jsDay: number): number | null {
   if (jsDay === 0) return null;
@@ -165,4 +246,9 @@ export function formatDayHeading(dateKey: string): string {
   const d = parseDateKey(dateKey);
   const w = WEEKDAY_LABELS[d.getDay()] || "";
   return `${d.getMonth() + 1}月${d.getDate()}日（${w}）`;
+}
+
+export function formatShortDate(dateKey: string): string {
+  const d = parseDateKey(dateKey);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }

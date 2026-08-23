@@ -28,6 +28,9 @@ class AppConfig(AppConfig):
         from app.product_trade_schema_services import ensure_product_trade_schema
         from app.timetable_services import ensure_timetable_slot_table
         from app.calendar_services import ensure_calendar_event_table
+        from app.course_calendar_exception_services import (
+            ensure_course_calendar_exception_table,
+        )
 
         ensure_userprofile_avatar_column()
         ensure_userprofile_terms_accepted_column()
@@ -41,6 +44,7 @@ class AppConfig(AppConfig):
         ensure_course_talk_schema()
         ensure_timetable_slot_table()
         ensure_calendar_event_table()
+        ensure_course_calendar_exception_table()
         ensure_product_trade_schema()
         log_timelinepost_db_schema()
         log_userprofile_db_schema()

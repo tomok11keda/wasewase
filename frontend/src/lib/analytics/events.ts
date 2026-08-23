@@ -116,6 +116,30 @@ export const analytics = {
     });
   },
 
+  courseCalendarEventSkipped(props: {
+    offering_id: number;
+    date: string;
+    source: "event_detail" | "hidden_events_list" | "undo_toast" | string;
+  }) {
+    captureEvent("course_calendar_event_skipped", {
+      offering_id: props.offering_id,
+      date: props.date,
+      source: props.source,
+    });
+  },
+
+  courseCalendarEventRestored(props: {
+    offering_id: number;
+    date: string;
+    source: "event_detail" | "hidden_events_list" | "undo_toast" | string;
+  }) {
+    captureEvent("course_calendar_event_restored", {
+      offering_id: props.offering_id,
+      date: props.date,
+      source: props.source,
+    });
+  },
+
   existingCourseAdded(props?: { from_slot?: boolean }) {
     captureEvent("existing_course_added", {
       from_slot: Boolean(props?.from_slot),

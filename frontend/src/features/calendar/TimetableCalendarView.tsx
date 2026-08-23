@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -14,11 +15,15 @@ import {
 } from "../timetable/api";
 import {
   createCalendarEvent,
+  createCourseCalendarException,
   defaultCalendarCategories,
   deleteCalendarEvent,
+  deleteCourseCalendarException,
   fetchCalendarMonth,
+  fetchCourseCalendarExceptions,
   formatDayHeading,
   formatMonthTitle,
+  formatShortDate,
   jsWeekdayToTimetableDayIndex,
   parseDateKey,
   toDateKey,
@@ -26,7 +31,9 @@ import {
   type CalendarEvent,
   type CalendarDot,
   type CalendarEventInput,
+  type CourseCalendarException,
 } from "./api";
+import { analytics } from "../../lib/analytics";
 
 type ClassItem = {
   key: string;
@@ -34,12 +41,20 @@ type ClassItem = {
   periodLabel: string;
   name: string;
   room: string;
+  offeringId: number | null;
   source: "timetable";
 };
 
 type Props = {
   slots: SlotsMap;
   authenticated: boolean;
+};
+
+type UndoToast = {
+  message: string;
+  exceptionId: number;
+  offeringId: number;
+  date: string;
 };
 
 function buildMonthCells(year: number, month: number) {
@@ -75,6 +90,7 @@ function classesForDate(dateKey: string, slots: SlotsMap): ClassItem[] {
       periodLabel: period.label,
       name: entry.name,
       room: entry.room || "",
+      offeringId: entry.offering_id ?? null,
       source: "timetable",
     });
   }
@@ -88,6 +104,7 @@ function classesForDate(dateKey: string, slots: SlotsMap): ClassItem[] {
       periodLabel: od.label,
       name: entry.name,
       room: "",
+      offeringId: entry.offering_id ?? null,
       source: "timetable",
     });
   }
@@ -103,6 +120,10 @@ function emptyDraft(dateKey: string): CalendarEventInput {
     memo: "",
     category: "other",
   };
+}
+
+function skippedKey(offeringId: number, dateKey: string) {
+  return `${offeringId}:${dateKey}`;
 }
 
 export function TimetableCalendarView({ slots, authenticated }: Props) {
@@ -123,17 +144,51 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
     draft: CalendarEventInput;
     eventId?: number;
   }>(null);
+  const [exceptions, setExceptions] = useState<CourseCalendarException[]>([]);
+  const [classDetail, setClassDetail] = useState<ClassItem | null>(null);
+  const [hiddenOpen, setHiddenOpen] = useState(false);
+  const [hiddenList, setHiddenList] = useState<CourseCalendarException[]>([]);
+  const [hiddenLoading, setHiddenLoading] = useState(false);
+  const [toast, setToast] = useState<UndoToast | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const cells = useMemo(
     () => buildMonthCells(cursor.year, cursor.month),
     [cursor.year, cursor.month]
   );
 
+  const skippedSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of exceptions) {
+      if (row.status === "skipped") {
+        set.add(skippedKey(row.offering_id, row.date));
+      }
+    }
+    return set;
+  }, [exceptions]);
+
+  const clearToastTimer = () => {
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  };
+
+  const showUndoToast = (next: UndoToast) => {
+    clearToastTimer();
+    setToast(next);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 6000);
+  };
+
   const loadMonth = useCallback(
     async (signal?: AbortSignal) => {
       if (!authenticated) {
         setDots({});
         setByDate({});
+        setExceptions([]);
         setLoading(false);
         return;
       }
@@ -148,6 +203,7 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
         if (signal?.aborted) return;
         setDots(data.dots || {});
         setByDate(data.by_date || {});
+        setExceptions(data.course_exceptions || []);
         if (data.categories?.length) setCategories(data.categories);
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
@@ -166,6 +222,10 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
   }, [loadMonth]);
 
   useEffect(() => {
+    return () => clearToastTimer();
+  }, []);
+
+  useEffect(() => {
     // Keep selection in-range when month changes; prefer today if in this month.
     const [sy, sm] = selectedKey.split("-").map(Number);
     if (sy === cursor.year && sm === cursor.month) return;
@@ -180,10 +240,12 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
   }, [cursor.year, cursor.month, selectedKey, todayKey]);
 
   const dayEvents = byDate[selectedKey] || [];
-  const dayClasses = useMemo(
-    () => classesForDate(selectedKey, slots),
-    [selectedKey, slots]
-  );
+  const dayClasses = useMemo(() => {
+    return classesForDate(selectedKey, slots).filter((item) => {
+      if (item.offeringId == null) return true;
+      return !skippedSet.has(skippedKey(item.offeringId, selectedKey));
+    });
+  }, [selectedKey, slots, skippedSet]);
 
   const shiftMonth = (delta: number) => {
     setCursor((prev) => {
@@ -261,6 +323,91 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
       window.alert(err instanceof Error ? err.message : "削除に失敗しました");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onSkipClass = async (item: ClassItem) => {
+    if (!item.offeringId) {
+      window.alert("この授業は時間割の履修紐付けがないため、非表示にできません。");
+      return;
+    }
+    setBusy(true);
+    try {
+      const exc = await createCourseCalendarException({
+        offering_id: item.offeringId,
+        date: selectedKey,
+        status: "skipped",
+      });
+      analytics.courseCalendarEventSkipped({
+        offering_id: item.offeringId,
+        date: selectedKey,
+        source: "event_detail",
+      });
+      setClassDetail(null);
+      setExceptions((prev) => {
+        const without = prev.filter(
+          (row) =>
+            !(
+              row.offering_id === exc.offering_id &&
+              row.date === exc.date
+            )
+        );
+        return [...without, exc];
+      });
+      showUndoToast({
+        message: `${formatShortDate(selectedKey)}の${item.name}を非表示にしました`,
+        exceptionId: exc.id,
+        offeringId: item.offeringId,
+        date: selectedKey,
+      });
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "非表示に失敗しました"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRestoreException = async (
+    exception: CourseCalendarException,
+    source: "undo_toast" | "hidden_events_list"
+  ) => {
+    setBusy(true);
+    try {
+      await deleteCourseCalendarException(exception.id);
+      analytics.courseCalendarEventRestored({
+        offering_id: exception.offering_id,
+        date: exception.date,
+        source,
+      });
+      setExceptions((prev) => prev.filter((row) => row.id !== exception.id));
+      setHiddenList((prev) => prev.filter((row) => row.id !== exception.id));
+      if (toast?.exceptionId === exception.id) {
+        clearToastTimer();
+        setToast(null);
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "復元に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openHiddenList = async () => {
+    if (!authenticated) return;
+    setHiddenOpen(true);
+    setHiddenLoading(true);
+    try {
+      const rows = await fetchCourseCalendarExceptions();
+      setHiddenList(rows);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "一覧の取得に失敗しました"
+      );
+      setHiddenOpen(false);
+    } finally {
+      setHiddenLoading(false);
     }
   };
 
@@ -352,15 +499,26 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
       <div className="tt-calendar__agenda">
         <header className="tt-calendar__agenda-head">
           <h3>{formatDayHeading(selectedKey)}</h3>
-          {authenticated ? (
-            <button
-              type="button"
-              className="tt-calendar__add-btn"
-              onClick={openCreate}
-            >
-              ＋ 予定を追加
-            </button>
-          ) : null}
+          <div className="tt-calendar__agenda-actions">
+            {authenticated ? (
+              <button
+                type="button"
+                className="tt-calendar__link-btn"
+                onClick={() => void openHiddenList()}
+              >
+                非表示にした予定
+              </button>
+            ) : null}
+            {authenticated ? (
+              <button
+                type="button"
+                className="tt-calendar__add-btn"
+                onClick={openCreate}
+              >
+                ＋ 予定を追加
+              </button>
+            ) : null}
+          </div>
         </header>
 
         {!authenticated ? (
@@ -382,19 +540,25 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
         <ul className="tt-calendar__list">
           {dayClasses.map((item) => (
             <li key={item.key} className="tt-calendar__item is-class">
-              <span className="tt-calendar__item-time">
-                {item.timeLabel}
-                <span className="tt-calendar__item-period">
-                  {item.periodLabel}
+              <button
+                type="button"
+                className="tt-calendar__item-btn"
+                onClick={() => setClassDetail(item)}
+              >
+                <span className="tt-calendar__item-time">
+                  {item.timeLabel}
+                  <span className="tt-calendar__item-period">
+                    {item.periodLabel}
+                  </span>
                 </span>
-              </span>
-              <span className="tt-calendar__item-body">
-                <strong>{item.name}</strong>
-                {item.room ? (
-                  <span className="tt-calendar__item-meta">{item.room}</span>
-                ) : null}
-                <span className="tt-calendar__item-badge">時間割</span>
-              </span>
+                <span className="tt-calendar__item-body">
+                  <strong>{item.name}</strong>
+                  {item.room ? (
+                    <span className="tt-calendar__item-meta">{item.room}</span>
+                  ) : null}
+                  <span className="tt-calendar__item-badge">時間割</span>
+                </span>
+              </button>
             </li>
           ))}
           {dayEvents.map((event) => (
@@ -608,6 +772,145 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
               </div>
             </form>
           </div>
+        </div>
+      ) : null}
+
+      {classDetail ? (
+        <div className="compose-modal" aria-hidden="false">
+          <div
+            className="compose-modal__backdrop"
+            onClick={() => setClassDetail(null)}
+          />
+          <div
+            className="compose-modal__panel tt-calendar__class-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tt-calendar-class-title"
+          >
+            <header className="compose-modal__header">
+              <h2 id="tt-calendar-class-title">{classDetail.name}</h2>
+              <button
+                type="button"
+                className="compose-modal__close"
+                aria-label="閉じる"
+                onClick={() => setClassDetail(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="tt-calendar__class-sheet-body">
+              <p className="tt-calendar__class-meta">
+                {formatDayHeading(selectedKey)} · {classDetail.periodLabel}
+                {classDetail.room ? ` · ${classDetail.room}` : ""}
+              </p>
+              <p className="tt-calendar__class-hint">
+                時間割には残ります。この日のカレンダー表示だけ消えます。
+              </p>
+              {classDetail.offeringId ? (
+                <Link
+                  className="tt-calendar__class-link"
+                  to={`/courses/${classDetail.offeringId}`}
+                  onClick={() => setClassDetail(null)}
+                >
+                  授業詳細を開く
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                className="tt-calendar__skip-btn"
+                disabled={busy || !classDetail.offeringId}
+                onClick={() => void onSkipClass(classDetail)}
+              >
+                この日の予定を非表示
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {hiddenOpen ? (
+        <div className="compose-modal" aria-hidden="false">
+          <div
+            className="compose-modal__backdrop"
+            onClick={() => setHiddenOpen(false)}
+          />
+          <div
+            className="compose-modal__panel tt-calendar__hidden-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tt-calendar-hidden-title"
+          >
+            <header className="compose-modal__header">
+              <h2 id="tt-calendar-hidden-title">非表示にした予定</h2>
+              <button
+                type="button"
+                className="compose-modal__close"
+                aria-label="閉じる"
+                onClick={() => setHiddenOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="tt-calendar__hidden-body">
+              {hiddenLoading ? (
+                <p className="tt-calendar__note">読み込み中…</p>
+              ) : hiddenList.length === 0 ? (
+                <p className="tt-calendar__empty">非表示の予定はありません</p>
+              ) : (
+                <ul className="tt-calendar__hidden-list">
+                  {hiddenList.map((row) => (
+                    <li key={row.id} className="tt-calendar__hidden-item">
+                      <div>
+                        <strong>{formatShortDate(row.date)}</strong>
+                        <span>{row.offering_title || "授業"}</span>
+                        {row.instructor ? (
+                          <span className="tt-calendar__item-meta">
+                            {row.instructor}
+                          </span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="tt-calendar__restore-btn"
+                        disabled={busy}
+                        onClick={() =>
+                          void onRestoreException(row, "hidden_events_list")
+                        }
+                      >
+                        復元
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div className="tt-calendar__toast" role="status">
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            className="tt-calendar__toast-undo"
+            disabled={busy}
+            onClick={() =>
+              void onRestoreException(
+                {
+                  id: toast.exceptionId,
+                  offering_id: toast.offeringId,
+                  date: toast.date,
+                  status: "skipped",
+                  offering_title: "",
+                  instructor: "",
+                },
+                "undo_toast"
+              )
+            }
+          >
+            元に戻す
+          </button>
         </div>
       ) : null}
     </section>
