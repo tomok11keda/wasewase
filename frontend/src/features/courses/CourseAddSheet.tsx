@@ -9,6 +9,10 @@ import {
   type CourseOffering,
   type SlotPayload,
 } from "./api";
+import {
+  TIMETABLE_DAYS,
+  type SlotsMap,
+} from "../timetable/api";
 import { analytics } from "../../lib/analytics/events";
 
 export type CourseAddContext = {
@@ -23,15 +27,47 @@ export type CourseAddContext = {
   continuous?: boolean;
 };
 
+type MeetingDraft = {
+  day_of_week: number;
+  period: number;
+  period_kind: string;
+  locked?: boolean;
+};
+
 type Props = {
   open: boolean;
   context: CourseAddContext;
+  slots?: SlotsMap;
   onClose: () => void;
   onAdded: (slot: SlotPayload, offering: CourseOffering) => void;
   onFreeText: (ctx: CourseAddContext) => void;
 };
 
 type Mode = "search" | "create" | "duplicates";
+
+function meetingIdentity(m: MeetingDraft): string {
+  return `${m.period_kind}:${m.period}:d${m.day_of_week}`;
+}
+
+function meetingToSlotKey(m: MeetingDraft): string {
+  const prefix = m.period_kind === "od" ? "od" : "p";
+  return `${prefix}${m.period}-d${m.day_of_week}`;
+}
+
+function meetingLabel(m: MeetingDraft): string {
+  const day = TIMETABLE_DAYS[m.day_of_week] || "?";
+  if (m.period_kind === "od") return `${day}曜 OD${m.period}`;
+  return `${day}曜 ${m.period}限`;
+}
+
+function defaultMeeting(ctx: CourseAddContext): MeetingDraft {
+  return {
+    day_of_week: ctx.dayOfWeek ?? 0,
+    period: ctx.period ?? 1,
+    period_kind: ctx.periodKind || "period",
+    locked: Boolean(ctx.slotKey),
+  };
+}
 
 function useDebounced(value: string, ms: number) {
   const [debounced, setDebounced] = useState(value);
@@ -45,6 +81,7 @@ function useDebounced(value: string, ms: number) {
 export function CourseAddSheet({
   open,
   context,
+  slots = {},
   onClose,
   onAdded,
   onFreeText,
@@ -60,13 +97,13 @@ export function CourseAddSheet({
   const [duplicates, setDuplicates] = useState<CourseOffering[]>([]);
   const [pendingCreate, setPendingCreate] = useState<Record<
     string,
-    string | number
+    unknown
   > | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState(() => {
     const now = new Date();
-    const month = now.getMonth() + 1; // 1-12
+    const month = now.getMonth() + 1;
     const academicYear = month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
     const semester = month >= 4 && month <= 9 ? "spring" : "fall";
     return {
@@ -74,15 +111,15 @@ export function CourseAddSheet({
       instructor: "",
       semester,
       academic_year: academicYear,
-      day_of_week: 0,
-      period: 1,
-      period_kind: "period",
       school: "",
       campus: "",
       room: "",
       credits: "",
     };
   });
+  const [meetings, setMeetings] = useState<MeetingDraft[]>(() => [
+    defaultMeeting(context),
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,12 +129,9 @@ export function CourseAddSheet({
     setDuplicates([]);
     setPendingCreate(null);
     setToast(null);
-    // meta 取得前でもセルの曜時限を即反映（slot_mismatch 防止）
+    setMeetings([defaultMeeting(context)]);
     setForm((f) => ({
       ...f,
-      day_of_week: context.dayOfWeek ?? f.day_of_week,
-      period: context.period ?? f.period,
-      period_kind: context.periodKind || f.period_kind,
       title: "",
       instructor: "",
       school: "",
@@ -115,13 +149,10 @@ export function CourseAddSheet({
           ...f,
           semester: m.semester,
           academic_year: m.academic_year,
-          day_of_week: context.dayOfWeek ?? f.day_of_week,
-          period: context.period ?? f.period,
-          period_kind: context.periodKind || f.period_kind,
         }));
       })
       .catch(() => {
-        /* meta 失敗でもセル由来の曜時限は上でセット済み */
+        /* meta 失敗でもセル由来の曜時限は meetings にセット済み */
       });
     const t = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(t);
@@ -218,6 +249,8 @@ export function CourseAddSheet({
     switch (code) {
       case "duplicate_candidates":
         return "似ている授業があります。候補から選ぶか、別授業として作成してください。";
+      case "slot_conflict":
+        return "選択した曜日・時限に、すでに別の授業が入っています。";
       case "slot_mismatch":
         return "選択した曜日・時限とセルが一致しません。もう一度やり直してください。";
       case "invalid_academic_year":
@@ -227,6 +260,7 @@ export function CourseAddSheet({
       case "invalid_period_kind":
       case "invalid_day":
       case "missing_schedule":
+      case "meetings_required":
         return "曜日・時限・学期の指定を確認してください。";
       case "title_required":
       case "instructor_required":
@@ -259,11 +293,96 @@ export function CourseAddSheet({
     }
   };
 
+  const addMeeting = () => {
+    setMeetings((prev) => {
+      const next: MeetingDraft = {
+        day_of_week: 0,
+        period: 1,
+        period_kind: "period",
+      };
+      // pick first free identity not already used
+      for (let d = 0; d < 6; d += 1) {
+        for (let p = 1; p <= 5; p += 1) {
+          const candidate = {
+            day_of_week: d,
+            period: p,
+            period_kind: "period",
+          };
+          if (
+            !prev.some((m) => meetingIdentity(m) === meetingIdentity(candidate))
+          ) {
+            analytics.courseMeetingAddedDuringCreate();
+            return [...prev, candidate];
+          }
+        }
+      }
+      analytics.courseMeetingAddedDuringCreate();
+      return [...prev, next];
+    });
+  };
+
+  const updateMeeting = (index: number, patch: Partial<MeetingDraft>) => {
+    setMeetings((prev) =>
+      prev.map((m, i) => {
+        if (i !== index || m.locked) return m;
+        const next = { ...m, ...patch };
+        const dup = prev.some(
+          (other, j) =>
+            j !== index && meetingIdentity(other) === meetingIdentity(next)
+        );
+        if (dup) {
+          window.alert("同じ曜日・時限は追加できません。");
+          return m;
+        }
+        return next;
+      })
+    );
+  };
+
+  const removeMeeting = (index: number) => {
+    setMeetings((prev) => {
+      if (prev.length <= 1) return prev;
+      if (prev[index]?.locked) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const localConflicts = (): string[] => {
+    const msgs: string[] = [];
+    for (const m of meetings) {
+      const key = meetingToSlotKey(m);
+      const entry = slots[key];
+      if (!entry) continue;
+      const occupied =
+        Boolean(entry.offering_id) || Boolean((entry.name || "").trim());
+      if (!occupied) continue;
+      msgs.push(
+        `${meetingLabel(m)}にはすでに「${entry.name || "別の授業"}」が登録されています`
+      );
+    }
+    return msgs;
+  };
+
   const submitCreate = async (force = false) => {
     if (!form.title.trim() || !form.instructor.trim()) {
       window.alert("授業名と担当教員名を入力してください。");
       return;
     }
+    if (meetings.length === 0) {
+      window.alert(createErrorMessage("meetings_required"));
+      return;
+    }
+    const ids = meetings.map(meetingIdentity);
+    if (new Set(ids).size !== ids.length) {
+      window.alert("同じ曜日・時限は追加できません。");
+      return;
+    }
+    const conflicts = localConflicts();
+    if (conflicts.length) {
+      window.alert(conflicts.join("\n"));
+      return;
+    }
+    const primary = meetings[0];
     setBusy(true);
     try {
       const payload = {
@@ -271,9 +390,14 @@ export function CourseAddSheet({
         instructor: form.instructor.trim(),
         academic_year: Number(form.academic_year) || new Date().getFullYear(),
         semester: form.semester,
-        day_of_week: Number(form.day_of_week),
-        period: Number(form.period),
-        period_kind: String(form.period_kind),
+        day_of_week: primary.day_of_week,
+        period: primary.period,
+        period_kind: primary.period_kind,
+        meetings: meetings.map((m) => ({
+          day_of_week: m.day_of_week,
+          period: m.period,
+          period_kind: m.period_kind,
+        })),
         school: form.school,
         campus: form.campus,
         room: form.room,
@@ -282,18 +406,27 @@ export function CourseAddSheet({
         enroll: true,
         force_create: force,
       };
-      if (
-        !Number.isFinite(payload.day_of_week) ||
-        !Number.isFinite(payload.period)
-      ) {
-        window.alert(createErrorMessage("missing_schedule"));
-        return;
-      }
       const data = await createOffering(payload);
       if (data.error === "duplicate_candidates" && data.duplicates?.length) {
         setDuplicates(data.duplicates);
-        setPendingCreate(payload as unknown as Record<string, string | number>);
+        setPendingCreate(payload);
         setMode("duplicates");
+        return;
+      }
+      if (data.error === "slot_conflict") {
+        const detail =
+          data.conflicts
+            ?.map((c) => {
+              const label =
+                meetings.find((m) => meetingToSlotKey(m) === c.slot_key) != null
+                  ? meetingLabel(
+                      meetings.find((m) => meetingToSlotKey(m) === c.slot_key)!
+                    )
+                  : c.slot_key;
+              return `${label}にはすでに「${c.title}」が登録されています`;
+            })
+            .join("\n") || data.message || "";
+        window.alert(detail || createErrorMessage("slot_conflict"));
         return;
       }
       if (!data.ok) {
@@ -318,13 +451,17 @@ export function CourseAddSheet({
           memo: "",
           offering_id: data.offering.id,
         } satisfies SlotPayload);
-      analytics.newCourseCreated({ forced: force });
+      analytics.newCourseCreated({
+        forced: force,
+        meeting_count: data.meeting_count || meetings.length,
+      });
       onAdded(slot, data.offering);
       showToast("新しい授業を追加しました");
       if (context.continuous) {
         setMode("search");
         setQuery("");
         setForm((f) => ({ ...f, title: "", instructor: "", room: "", credits: "" }));
+        setMeetings([defaultMeeting(context)]);
       } else {
         window.setTimeout(() => onClose(), 350);
       }
@@ -512,51 +649,134 @@ export function CourseAddSheet({
               </label>
             </div>
             {context.slotKey ? (
-              <p className="course-sheet__locked">
-                曜時限: {contextHint}（セルから自動設定）
-              </p>
+              <div className="course-sheet__meetings">
+                <p className="course-sheet__meetings-label">授業時間</p>
+                <ul className="course-sheet__meeting-list">
+                  {meetings.map((m, index) => (
+                    <li key={`${meetingIdentity(m)}-${index}`}>
+                      {m.locked ? (
+                        <p className="course-sheet__locked">
+                          {meetingLabel(m)}（セルから自動設定）
+                        </p>
+                      ) : (
+                        <div className="course-sheet__meeting-row">
+                          <select
+                            aria-label="曜日"
+                            value={m.day_of_week}
+                            onChange={(e) =>
+                              updateMeeting(index, {
+                                day_of_week: Number(e.target.value),
+                              })
+                            }
+                          >
+                            {TIMETABLE_DAYS.map((d, i) => (
+                              <option key={d} value={i}>
+                                {d}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            aria-label="時限"
+                            value={`${m.period_kind}:${m.period}`}
+                            onChange={(e) => {
+                              const [kind, num] = e.target.value.split(":");
+                              updateMeeting(index, {
+                                period_kind: kind,
+                                period: Number(num),
+                              });
+                            }}
+                          >
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <option key={`p${n}`} value={`period:${n}`}>
+                                {n}限
+                              </option>
+                            ))}
+                            <option value="od:1">OD1</option>
+                            <option value="od:2">OD2</option>
+                          </select>
+                          {meetings.length > 1 ? (
+                            <button
+                              type="button"
+                              className="course-sheet__meeting-remove"
+                              onClick={() => removeMeeting(index)}
+                            >
+                              削除
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="course-sheet__meeting-add"
+                  onClick={addMeeting}
+                >
+                  ＋ 曜日時限を追加
+                </button>
+              </div>
             ) : (
-              <div className="course-sheet__row">
-                <label>
-                  曜日
-                  <select
-                    value={form.day_of_week}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        day_of_week: Number(e.target.value),
-                      }))
-                    }
-                  >
-                    {["月", "火", "水", "木", "金", "土"].map((d, i) => (
-                      <option key={d} value={i}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  時限
-                  <select
-                    value={`${form.period_kind}:${form.period}`}
-                    onChange={(e) => {
-                      const [kind, num] = e.target.value.split(":");
-                      setForm((f) => ({
-                        ...f,
-                        period_kind: kind,
-                        period: Number(num),
-                      }));
-                    }}
-                  >
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={`p${n}`} value={`period:${n}`}>
-                        {n}限
-                      </option>
-                    ))}
-                    <option value="od:1">OD1</option>
-                    <option value="od:2">OD2</option>
-                  </select>
-                </label>
+              <div className="course-sheet__meetings">
+                <p className="course-sheet__meetings-label">授業時間</p>
+                <ul className="course-sheet__meeting-list">
+                  {meetings.map((m, index) => (
+                    <li key={`${meetingIdentity(m)}-${index}`}>
+                      <div className="course-sheet__meeting-row">
+                        <select
+                          aria-label="曜日"
+                          value={m.day_of_week}
+                          onChange={(e) =>
+                            updateMeeting(index, {
+                              day_of_week: Number(e.target.value),
+                            })
+                          }
+                        >
+                          {TIMETABLE_DAYS.map((d, i) => (
+                            <option key={d} value={i}>
+                              {d}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="時限"
+                          value={`${m.period_kind}:${m.period}`}
+                          onChange={(e) => {
+                            const [kind, num] = e.target.value.split(":");
+                            updateMeeting(index, {
+                              period_kind: kind,
+                              period: Number(num),
+                            });
+                          }}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={`p${n}`} value={`period:${n}`}>
+                              {n}限
+                            </option>
+                          ))}
+                          <option value="od:1">OD1</option>
+                          <option value="od:2">OD2</option>
+                        </select>
+                        {meetings.length > 1 ? (
+                          <button
+                            type="button"
+                            className="course-sheet__meeting-remove"
+                            onClick={() => removeMeeting(index)}
+                          >
+                            削除
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="course-sheet__meeting-add"
+                  onClick={addMeeting}
+                >
+                  ＋ 曜日時限を追加
+                </button>
               </div>
             )}
             <details className="course-sheet__optional">

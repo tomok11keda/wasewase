@@ -226,6 +226,72 @@ body.course-sheet-open {
   border-radius: 10px;
   font-size: 13px;
   color: #334155;
+  font-weight: 600;
+}
+
+.course-sheet__meetings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.course-sheet__meetings-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f1419;
+}
+
+.course-sheet__meeting-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.course-sheet__meeting-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.course-sheet__meeting-row select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cfd9de;
+  border-radius: 10px;
+  padding: 0 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.course-sheet__meeting-remove {
+  border: none;
+  background: transparent;
+  color: #1d9bf0;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 0 4px;
+}
+
+.course-sheet__meeting-add {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--accent, #891e2b);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 0;
+  min-height: 40px;
 }
 
 .course-sheet__optional {

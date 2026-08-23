@@ -375,6 +375,26 @@ export function TimetablePage({
     },
     offering: CourseOffering
   ) => {
+    const meetings =
+      offering.meetings && offering.meetings.length > 0
+        ? offering.meetings
+        : null;
+    if (meetings) {
+      setSlots((prev) => {
+        const next = { ...prev };
+        for (const m of meetings) {
+          next[m.slot_key] = {
+            name: offering.title,
+            room: offering.room || "",
+            credits: offering.credits || "",
+            memo: "",
+            offering_id: offering.id,
+          };
+        }
+        return next;
+      });
+      return;
+    }
     const key = slot.slot_key;
     if (!key) {
       void load("soft");
@@ -536,6 +556,7 @@ export function TimetablePage({
         <CourseAddSheet
           open
           context={courseSheet}
+          slots={slots}
           onClose={() => setCourseSheet(null)}
           onAdded={onCourseAdded}
           onFreeText={(ctx) => {

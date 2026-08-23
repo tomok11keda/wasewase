@@ -628,6 +628,7 @@ def enroll_user_in_offering(
     ).delete()
 
     primary_slot: TimetableSlot | None = None
+    created_slots: list[TimetableSlot] = []
     for meeting in meetings:
         key = meeting.slot_key
         parsed = parse_slot_key(key)
@@ -649,12 +650,20 @@ def enroll_user_in_offering(
             .exclude(offering_id=offering.pk)
             .first()
         )
-        if conflict and conflict.offering_id:
-            CourseEnrollment.objects.filter(
-                user=user,
-                offering_id=conflict.offering_id,
-                role=CourseEnrollment.Role.CURRENT,
-            ).update(role=CourseEnrollment.Role.PAST)
+        if conflict and (
+            conflict.offering_id
+            or (conflict.name or "").strip()
+            or (conflict.room or "").strip()
+            or (conflict.credits or "").strip()
+            or (conflict.memo or "").strip()
+        ):
+            # 他授業・自由入力の上書きはしない（作成時の衝突は事前チェック）
+            from .course_meeting_services import find_user_slot_conflicts
+
+            conflicts = find_user_slot_conflicts(
+                user, [key], exclude_offering_id=offering.pk
+            )
+            raise ValueError("slot_conflict:" + (conflicts[0]["title"] if conflicts else key))
 
         credits = offering.credits or ""
         room = "" if parsed["kind"] == "od" else (offering.room or "")
@@ -670,9 +679,12 @@ def enroll_user_in_offering(
         )
         if slot is None:
             raise ValueError("slot_save_failed")
+        created_slots.append(slot)
         if key == target_key:
             primary_slot = slot
 
+    if primary_slot is None:
+        primary_slot = created_slots[0] if created_slots else None
     if primary_slot is None:
         raise ValueError("slot_save_failed")
 

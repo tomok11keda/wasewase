@@ -202,10 +202,23 @@ export const analytics = {
     });
   },
 
-  newCourseCreated(props?: { forced?: boolean }) {
+  courseMeetingAddedDuringCreate() {
+    captureEvent("course_meeting_added_during_create");
+  },
+
+  newCourseCreated(props?: {
+    forced?: boolean;
+    meeting_count?: number;
+  }) {
     captureEvent("new_course_created", {
       forced: Boolean(props?.forced),
+      meeting_count: Math.max(1, Number(props?.meeting_count) || 1),
     });
+    if ((props?.meeting_count || 1) > 1) {
+      captureEvent("course_multiple_meetings_created", {
+        meeting_count: props?.meeting_count,
+      });
+    }
   },
 
   courseDetailViewed() {

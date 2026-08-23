@@ -110,6 +110,15 @@ export type SearchOfferingResult = {
   period: number;
   period_label: string;
   slot_key: string;
+  meetings?: Array<{
+    day_of_week: number;
+    day_label: string;
+    period_kind: string;
+    period: number;
+    period_label: string;
+    slot_key: string;
+  }>;
+  schedule_label?: string;
   school: string;
   campus: string;
   enrollment_count: number;
