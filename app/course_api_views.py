@@ -253,6 +253,14 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
     ):
         return _json_error("rate_limited", status=429)
 
+    from django.db import transaction
+
+    from .course_meeting_services import (
+        find_user_slot_conflicts,
+        meeting_slot_key,
+        normalize_meeting_specs,
+    )
+
     body = _json_body(request)
     force_create = bool(body.get("force_create"))
     day = _parse_int(body.get("day_of_week"))
@@ -291,118 +299,120 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
         day = int(meetings[0]["day_of_week"])
     if period is None:
         period = int(meetings[0]["period"])
+    if not period_kind and meetings:
+        period_kind = str(meetings[0].get("period_kind") or "period")
 
     try:
-        offering, duplicates = create_offering(
-            user=request.user,
-            title=body.get("title") or "",
-            instructor=body.get("instructor") or "",
-            academic_year=year or current_academic_year(),
-            semester=semester,
+        specs = normalize_meeting_specs(
+            meetings,
             day_of_week=day,
             period=period,
             period_kind=period_kind,
-            school=body.get("school") or "",
-            campus=body.get("campus") or "",
-            room=body.get("room") or "",
-            credits=body.get("credits") or "",
-            force_create=force_create,
-            meetings=meetings,
         )
     except ValueError as exc:
         return _json_error(str(exc))
+
+    enroll = bool(body.get("enroll", True))
+    if enroll:
+        conflict_keys = [
+            meeting_slot_key(
+                s["day_of_week"], s["period"], s["period_kind"]
+            )
+            for s in specs
+        ]
+        conflicts = find_user_slot_conflicts(request.user, conflict_keys)
+        if conflicts:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "slot_conflict",
+                    "conflicts": conflicts,
+                },
+                status=409,
+            )
+
+    try:
+        with transaction.atomic():
+            offering, duplicates = create_offering(
+                user=request.user,
+                title=body.get("title") or "",
+                instructor=body.get("instructor") or "",
+                academic_year=year or current_academic_year(),
+                semester=semester,
+                day_of_week=day,
+                period=period,
+                period_kind=period_kind,
+                school=body.get("school") or "",
+                campus=body.get("campus") or "",
+                room=body.get("room") or "",
+                credits=body.get("credits") or "",
+                force_create=force_create,
+                meetings=specs,
+            )
+
+            if duplicates:
+                # Soft duplicates: no write beyond lookup; exit without enroll
+                counts = enrollment_counts_for([o.pk for o in duplicates])
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "duplicate_candidates",
+                        "duplicates": [
+                            serialize_offering(
+                                o, enrollment_count=counts.get(o.pk, 0)
+                            )
+                            for o in duplicates
+                        ],
+                    },
+                    status=409,
+                )
+
+            slot_payload = None
+            slots_payload: list[dict] = []
+            if enroll:
+                # Prefer aligned slot_key; fall back to primary meeting
+                try:
+                    _enrollment, slot = enroll_user_in_offering(
+                        request.user,
+                        offering,
+                        slot_key=slot_key,
+                    )
+                except ValueError as exc:
+                    code = str(exc)
+                    if code == "slot_mismatch" and slot_key:
+                        _enrollment, slot = enroll_user_in_offering(
+                            request.user,
+                            offering,
+                            slot_key=None,
+                        )
+                    elif code.startswith("slot_conflict"):
+                        raise
+                    else:
+                        raise
+                slot_payload = slot_to_payload(slot)
+                from .models import TimetableSlot
+
+                for row in TimetableSlot.objects.filter(
+                    user=request.user, offering=offering
+                ).order_by("slot_key"):
+                    slots_payload.append(slot_to_payload(row))
+    except ValueError as exc:
+        code = str(exc)
+        if code.startswith("slot_conflict"):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "slot_conflict",
+                    "message": code.split(":", 1)[-1],
+                },
+                status=409,
+            )
+        return _json_error(code)
     except Exception:
         logger.exception(
             "course offering create failed user=%s", request.user.pk
         )
         return _json_error("save_failed", status=500)
-
-    if duplicates:
-        counts = enrollment_counts_for([o.pk for o in duplicates])
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": "duplicate_candidates",
-                "duplicates": [
-                    serialize_offering(o, enrollment_count=counts.get(o.pk, 0))
-                    for o in duplicates
-                ],
-            },
-            status=409,
-        )
-
-    enroll = bool(body.get("enroll", True))
-    slot_payload = None
-    if enroll:
-        try:
-            # Prefer aligned slot_key; fall back to offering.slot_key
-            try:
-                _enrollment, slot = enroll_user_in_offering(
-                    request.user,
-                    offering,
-                    slot_key=slot_key,
-                )
-            except ValueError as exc:
-                if str(exc) == "slot_mismatch" and slot_key:
-                    logger.warning(
-                        "course enroll slot_mismatch; retry with offering slot "
-                        "user=%s offering=%s requested=%s",
-                        request.user.pk,
-                        offering.pk,
-                        slot_key,
-                    )
-                    _enrollment, slot = enroll_user_in_offering(
-                        request.user,
-                        offering,
-                        slot_key=None,
-                    )
-                else:
-                    raise
-            slot_payload = slot_to_payload(slot)
-        except ValueError as exc:
-            logger.warning(
-                "course enroll-after-create rejected user=%s offering=%s code=%s",
-                request.user.pk,
-                offering.pk,
-                exc,
-            )
-            # Offering is already persisted; return it so the client can recover
-            counts = enrollment_counts_for([offering.pk])
-            return JsonResponse(
-                {
-                    "ok": False,
-                    "error": str(exc),
-                    "created": True,
-                    "offering": serialize_offering(
-                        offering,
-                        enrollment_count=counts.get(offering.pk, 0),
-                        viewer=request.user,
-                    ),
-                    "slot": None,
-                },
-                status=400,
-            )
-        except Exception:
-            logger.exception(
-                "course enroll-after-create failed user=%s offering=%s",
-                request.user.pk,
-                offering.pk,
-            )
-            counts = enrollment_counts_for([offering.pk])
-            return JsonResponse(
-                {
-                    "ok": False,
-                    "error": "enroll_failed",
-                    "created": True,
-                    "offering": serialize_offering(
-                        offering,
-                        enrollment_count=counts.get(offering.pk, 0),
-                        viewer=request.user,
-                    ),
-                    "slot": None,
-                },
-                status=500,
-            )
 
     counts = enrollment_counts_for([offering.pk])
     return JsonResponse(
@@ -415,6 +425,8 @@ def api_v1_courses_offerings_create(request: HttpRequest) -> JsonResponse:
                 viewer=request.user,
             ),
             "slot": slot_payload,
+            "slots": slots_payload,
+            "meeting_count": len(specs),
         }
     )
 

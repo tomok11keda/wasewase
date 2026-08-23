@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
+from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import connection, transaction
 from django.db.utils import OperationalError, ProgrammingError
 
@@ -34,6 +35,43 @@ def ensure_course_meeting_table() -> None:
 def meeting_slot_key(day_of_week: int, period: int, period_kind: str) -> str:
     prefix = "od" if period_kind == CourseOffering.PeriodKind.OD else "p"
     return f"{prefix}{period}-d{day_of_week}"
+
+
+def find_user_slot_conflicts(
+    user: AbstractBaseUser,
+    slot_keys: list[str],
+    *,
+    exclude_offering_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """他授業（または自由入力）で埋まっているセルを返す。"""
+    from .models import TimetableSlot
+
+    keys = [k for k in slot_keys if k]
+    if not keys:
+        return []
+    qs = TimetableSlot.objects.filter(user=user, slot_key__in=keys).select_related(
+        "offering"
+    )
+    conflicts: list[dict[str, Any]] = []
+    for slot in qs:
+        if exclude_offering_id and slot.offering_id == exclude_offering_id:
+            continue
+        occupied = bool(slot.offering_id) or bool((slot.name or "").strip())
+        if not occupied:
+            continue
+        title = ""
+        if slot.offering_id and slot.offering:
+            title = slot.offering.title
+        else:
+            title = (slot.name or "").strip() or "別の予定"
+        conflicts.append(
+            {
+                "slot_key": slot.slot_key,
+                "offering_id": slot.offering_id,
+                "title": title,
+            }
+        )
+    return conflicts
 
 
 def serialize_meeting(meeting: CourseMeeting) -> dict[str, Any]:

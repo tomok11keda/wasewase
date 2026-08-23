@@ -263,6 +263,11 @@ export type CreateOfferingInput = {
   day_of_week: number;
   period: number;
   period_kind: string;
+  meetings?: Array<{
+    day_of_week: number;
+    period: number;
+    period_kind: string;
+  }>;
   school?: string;
   campus?: string;
   room?: string;
@@ -276,10 +281,14 @@ export async function createOffering(input: CreateOfferingInput): Promise<{
   ok: boolean;
   status: number;
   error?: string;
+  message?: string;
   created?: boolean;
   offering?: CourseOffering;
   slot?: SlotPayload;
+  slots?: SlotPayload[];
+  meeting_count?: number;
   duplicates?: CourseOffering[];
+  conflicts?: Array<{ slot_key: string; title: string; offering_id?: number | null }>;
 }> {
   await ensureAuthCsrf();
   const { ok, status, data, error } = await apiPostJson(
@@ -293,10 +302,16 @@ export async function createOffering(input: CreateOfferingInput): Promise<{
     ok,
     status,
     error: ok ? undefined : error || (data.error as string | undefined),
+    message: typeof data.message === "string" ? data.message : undefined,
     created: Boolean(data.created),
     offering: data.offering as CourseOffering | undefined,
     slot: data.slot as SlotPayload | undefined,
+    slots: Array.isArray(data.slots) ? (data.slots as SlotPayload[]) : undefined,
+    meeting_count: Number(data.meeting_count || 0) || undefined,
     duplicates: data.duplicates as CourseOffering[] | undefined,
+    conflicts: data.conflicts as
+      | Array<{ slot_key: string; title: string; offering_id?: number | null }>
+      | undefined,
   };
 }
 

@@ -138,7 +138,13 @@ function SearchUserCard({ user }: { user: ProfileUser }) {
 }
 
 function SearchOfferingCard({ offering }: { offering: SearchOfferingResult }) {
-  const schedule = `${offering.day_label}${offering.period_label}`;
+  const schedule =
+    offering.schedule_label ||
+    (offering.meetings && offering.meetings.length > 0
+      ? offering.meetings
+          .map((m) => `${m.day_label}${m.period_label}`)
+          .join("・")
+      : `${offering.day_label}${offering.period_label}`);
   const rating =
     offering.review_overall != null
       ? `⭐${offering.review_overall.toFixed(1)}`
