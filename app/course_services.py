@@ -258,13 +258,8 @@ def search_offerings(
     if semester:
         qs = qs.filter(semester=semester)
 
-    if day_of_week is not None:
-        qs = qs.filter(meetings__day_of_week=day_of_week)
-        if period is not None:
-            qs = qs.filter(meetings__period=period)
-            if period_kind:
-                qs = qs.filter(meetings__period_kind=period_kind)
-        qs = qs.distinct()
+    # day / period / period_kind はハードフィルタしない（別曜日の同一授業を候補に残す）。
+    # 一致スロットは後段 rank で優先する。
 
     q = sanitize_plain_text(q, max_len=MAX_QUERY_LEN)
     norm = normalize_course_text(q)
@@ -594,8 +589,12 @@ def enroll_user_in_offering(
     *,
     slot_key: str | None = None,
     keep_memo: bool = True,
+    add_meeting_if_missing: bool = False,
 ) -> tuple[CourseEnrollment, TimetableSlot]:
-    from .course_meeting_services import list_meetings
+    from .course_meeting_services import (
+        ensure_meetings_for_offering,
+        list_meetings,
+    )
 
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
     offering = resolve_canonical_offering(locked)
@@ -612,7 +611,29 @@ def enroll_user_in_offering(
     if slot_key:
         target_key = slot_key.strip()
         if target_key not in meeting_by_key:
-            raise ValueError("slot_mismatch")
+            if not add_meeting_if_missing:
+                raise ValueError("slot_mismatch")
+            parsed = parse_slot_key(target_key)
+            if parsed is None:
+                raise ValueError("slot_mismatch")
+            ensure_meetings_for_offering(
+                offering,
+                [
+                    {
+                        "day_of_week": parsed["day_index"],
+                        "period": parsed["number"],
+                        "period_kind": (
+                            CourseOffering.PeriodKind.OD
+                            if parsed["kind"] == "od"
+                            else CourseOffering.PeriodKind.PERIOD
+                        ),
+                    }
+                ],
+            )
+            meetings = list_meetings(offering)
+            meeting_by_key = {m.slot_key: m for m in meetings}
+            if target_key not in meeting_by_key:
+                raise ValueError("slot_mismatch")
     else:
         target_key = meetings[0].slot_key
 

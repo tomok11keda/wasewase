@@ -474,9 +474,13 @@ def api_v1_courses_offering_enroll(
 
     body = _json_body(request)
     slot_key = (body.get("slot_key") or "").strip() or None
+    add_meeting = bool(body.get("add_meeting"))
     try:
         _enrollment, slot = enroll_user_in_offering(
-            request.user, offering, slot_key=slot_key
+            request.user,
+            offering,
+            slot_key=slot_key,
+            add_meeting_if_missing=add_meeting,
         )
     except ValueError as exc:
         return _json_error(str(exc))
@@ -488,6 +492,7 @@ def api_v1_courses_offering_enroll(
         )
         return _json_error("save_failed", status=500)
 
+    offering.refresh_from_db()
     counts = enrollment_counts_for([offering.pk])
     return JsonResponse(
         {

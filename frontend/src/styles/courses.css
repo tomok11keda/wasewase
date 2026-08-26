@@ -143,6 +143,20 @@ body.course-sheet-open {
   color: #1a6b8a;
 }
 
+.course-sheet__confirm-body {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #1a1a1a;
+}
+
+.course-sheet__confirm-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #667788;
+}
+
 .course-sheet__footer-actions {
   display: flex;
   flex-direction: column;

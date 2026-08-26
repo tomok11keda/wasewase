@@ -1,4 +1,6 @@
 """Course master / enrollment / review API tests."""
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 
@@ -127,6 +129,121 @@ class CourseApiTests(TestCase):
         self.assertGreaterEqual(len(results), 1)
         self.assertEqual(results[0].day_of_week, 0)
         self.assertEqual(results[0].period, 2)
+
+    def test_search_includes_other_day_same_title(self):
+        monday = create_offering(
+            user=self.user,
+            title="経営学",
+            instructor="田中",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=0,
+            period=2,
+            force_create=True,
+        )[0]
+        # 水曜2限セルからの検索でも月曜だけの経営学が出る
+        results = search_offerings(
+            q="経営学", day_of_week=2, period=2, period_kind="period", limit=10
+        )
+        ids = [o.pk for o in results]
+        self.assertIn(monday.pk, ids)
+
+    def test_add_meeting_on_enroll_keeps_one_offering(self):
+        offering, _ = create_offering(
+            user=self.user,
+            title="経営学",
+            instructor="田中",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=0,
+            period=2,
+            force_create=True,
+        )
+        enroll_user_in_offering(
+            self.user,
+            offering,
+            slot_key="p2-d2",
+            add_meeting_if_missing=True,
+        )
+        offering.refresh_from_db()
+        from app.models import CourseMeeting, CourseEnrollment, TimetableSlot
+
+        meetings = list(
+            CourseMeeting.objects.filter(offering=offering).order_by(
+                "day_of_week", "period"
+            )
+        )
+        self.assertEqual(len(meetings), 2)
+        self.assertEqual(
+            {(m.day_of_week, m.period) for m in meetings},
+            {(0, 2), (2, 2)},
+        )
+        self.assertEqual(
+            CourseOffering.objects.filter(
+                title_normalized=offering.title_normalized,
+                status="active",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            CourseEnrollment.objects.filter(
+                user=self.user, offering=offering
+            ).count(),
+            1,
+        )
+        keys = set(
+            TimetableSlot.objects.filter(
+                user=self.user, offering=offering
+            ).values_list("slot_key", flat=True)
+        )
+        self.assertEqual(keys, {"p2-d0", "p2-d2"})
+
+    def test_add_meeting_idempotent_via_enroll_api(self):
+        offering, _ = create_offering(
+            user=self.user,
+            title="統計学",
+            instructor="山本",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=0,
+            period=1,
+            force_create=True,
+        )
+        url = f"/api/v1/courses/offerings/{offering.pk}/enroll/"
+        first = self.client.post(
+            url,
+            data=json.dumps({"slot_key": "p1-d2", "add_meeting": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(first.status_code, 200, first.content)
+        second = self.client.post(
+            url,
+            data=json.dumps({"slot_key": "p1-d2", "add_meeting": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(second.status_code, 200, second.content)
+        from app.models import CourseMeeting
+
+        self.assertEqual(
+            CourseMeeting.objects.filter(offering=offering).count(), 2
+        )
+
+    def test_enroll_without_add_meeting_still_rejects_mismatch(self):
+        offering, _ = create_offering(
+            user=self.user,
+            title="会計学",
+            instructor="高橋",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=0,
+            period=3,
+            force_create=True,
+        )
+        with self.assertRaises(ValueError) as ctx:
+            enroll_user_in_offering(
+                self.user, offering, slot_key="p3-d2", add_meeting_if_missing=False
+            )
+        self.assertEqual(str(ctx.exception), "slot_mismatch")
 
     def test_duplicate_exact_identity_reuses_offering(self):
         first = self._create(force_create=True)

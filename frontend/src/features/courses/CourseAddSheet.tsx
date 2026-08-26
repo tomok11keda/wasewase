@@ -3,6 +3,7 @@ import {
   createOffering,
   enrollOffering,
   fetchCourseMeta,
+  offeringCoversSlot,
   offeringScheduleText,
   searchCourses,
   type CourseMeta,
@@ -43,7 +44,7 @@ type Props = {
   onFreeText: (ctx: CourseAddContext) => void;
 };
 
-type Mode = "search" | "create" | "duplicates";
+type Mode = "search" | "create" | "duplicates" | "confirm_meeting";
 
 function meetingIdentity(m: MeetingDraft): string {
   return `${m.period_kind}:${m.period}:d${m.day_of_week}`;
@@ -99,6 +100,9 @@ export function CourseAddSheet({
     string,
     unknown
   > | null>(null);
+  const [pendingOffering, setPendingOffering] = useState<CourseOffering | null>(
+    null
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState(() => {
@@ -128,6 +132,7 @@ export function CourseAddSheet({
     setResults([]);
     setDuplicates([]);
     setPendingCreate(null);
+    setPendingOffering(null);
     setToast(null);
     setMeetings([defaultMeeting(context)]);
     setForm((f) => ({
@@ -222,15 +227,21 @@ export function CourseAddSheet({
     window.setTimeout(() => setToast(null), 1800);
   };
 
-  const handleEnroll = async (offering: CourseOffering) => {
+  const handleEnroll = async (
+    offering: CourseOffering,
+    options?: { addMeeting?: boolean }
+  ) => {
     setBusy(true);
     try {
-      const data = await enrollOffering(offering.id, context.slotKey);
+      const data = await enrollOffering(offering.id, context.slotKey, {
+        addMeeting: options?.addMeeting,
+      });
       analytics.existingCourseAdded({
         from_slot: Boolean(context.slotKey),
       });
       onAdded(data.slot, data.offering);
       showToast("授業を追加しました");
+      setPendingOffering(null);
       if (context.continuous) {
         setQuery("");
         setMode("search");
@@ -243,6 +254,18 @@ export function CourseAddSheet({
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleSelectOffering = (offering: CourseOffering) => {
+    if (
+      context.slotKey &&
+      !offeringCoversSlot(offering, context.slotKey)
+    ) {
+      setPendingOffering(offering);
+      setMode("confirm_meeting");
+      return;
+    }
+    void handleEnroll(offering);
   };
 
   const createErrorMessage = (code: string | undefined, status?: number) => {
@@ -541,7 +564,7 @@ export function CourseAddSheet({
                         type="button"
                         className="course-sheet__item"
                         disabled={busy}
-                        onClick={() => void handleEnroll(o)}
+                        onClick={() => handleSelectOffering(o)}
                       >
                         <span className="course-sheet__item-title">
                           {o.title}
@@ -554,6 +577,12 @@ export function CourseAddSheet({
                             ? ` · 履修中 ${o.enrollment_count}人`
                             : ""}
                         </span>
+                        {context.slotKey &&
+                        !offeringCoversSlot(o, context.slotKey) ? (
+                          <span className="course-sheet__item-cta">
+                            別の曜時限 · 追加できます
+                          </span>
+                        ) : null}
                       </button>
                     </li>
                   ))}
@@ -853,14 +882,17 @@ export function CourseAddSheet({
                     type="button"
                     className="course-sheet__item"
                     disabled={busy}
-                    onClick={() => void handleEnroll(o)}
+                    onClick={() => handleSelectOffering(o)}
                   >
                     <span className="course-sheet__item-title">{o.title}</span>
                     <span className="course-sheet__item-meta">
                       {o.instructor} · {offeringScheduleText(o)}
                     </span>
                     <span className="course-sheet__item-cta">
-                      この授業を時間割に追加
+                      {context.slotKey &&
+                      !offeringCoversSlot(o, context.slotKey)
+                        ? `${contextHint || "この曜時限"}にも追加`
+                        : "この授業を時間割に追加"}
                     </span>
                   </button>
                 </li>
@@ -880,6 +912,64 @@ export function CourseAddSheet({
               onClick={() => setMode("create")}
             >
               戻る
+            </button>
+          </div>
+        ) : null}
+
+        {mode === "confirm_meeting" && pendingOffering ? (
+          <div className="course-sheet__form">
+            <button
+              type="button"
+              className="course-sheet__back"
+              onClick={() => {
+                setPendingOffering(null);
+                setMode("search");
+              }}
+            >
+              ← 検索に戻る
+            </button>
+            <h3 className="course-sheet__dup-title">
+              {contextHint
+                ? `この授業を${contextHint}にも追加しますか？`
+                : "この曜日・時限にも追加しますか？"}
+            </h3>
+            <p className="course-sheet__confirm-body">
+              <strong>{pendingOffering.title}</strong>
+              <br />
+              {pendingOffering.instructor}
+              <br />
+              現在の開講: {offeringScheduleText(pendingOffering)}
+              {contextHint ? (
+                <>
+                  <br />
+                  追加後: {offeringScheduleText(pendingOffering)} ＋ {contextHint}
+                </>
+              ) : null}
+            </p>
+            <p className="course-sheet__confirm-note">
+              新しい授業は作りません。同じ授業の開講時間に追加し、レビューや授業トークもそのまま共有されます。
+            </p>
+            <button
+              type="button"
+              className="course-sheet__primary"
+              disabled={busy}
+              onClick={() =>
+                void handleEnroll(pendingOffering, { addMeeting: true })
+              }
+            >
+              {contextHint
+                ? `${contextHint}に追加して履修する`
+                : "追加して履修する"}
+            </button>
+            <button
+              type="button"
+              className="course-sheet__linkish"
+              onClick={() => {
+                setPendingOffering(null);
+                setMode("search");
+              }}
+            >
+              キャンセル
             </button>
           </div>
         ) : null}
