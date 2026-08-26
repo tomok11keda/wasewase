@@ -1,4 +1,5 @@
 import os
+import sys
 
 from django.apps import AppConfig
 
@@ -9,6 +10,10 @@ class AppConfig(AppConfig):
 
     def ready(self) -> None:
         if not os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+            return
+        # manage.py（collectstatic / migrate 等）では CreateModel 系 ensure を走らせない。
+        # そうしないと migration の CreateModel より先にテーブルが作られ競合する。
+        if any(os.path.basename(arg) == "manage.py" for arg in sys.argv):
             return
         from app.media_services import (
             ensure_timelinepost_author_nullable,

@@ -1,7 +1,18 @@
-# Generated manually for CourseMeeting normalization
+# CourseMeeting CreateModel is SeparateDatabaseAndState so production tables
+# created by AppConfig.ready() ensure_* do not conflict with migrate.
+# Remaining ops (AddField meeting, RunPython, offering unique) always apply to DB.
 
 from django.db import migrations, models
 import django.db.models.deletion
+
+
+def create_course_meeting_if_missing(apps, schema_editor):
+    Model = apps.get_model("app", "CourseMeeting")
+    table = Model._meta.db_table
+    existing = set(schema_editor.connection.introspection.table_names())
+    if table in existing:
+        return
+    schema_editor.create_model(Model)
 
 
 def forwards_backfill_and_merge(apps, schema_editor):
@@ -166,51 +177,74 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name="CourseMeeting",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.CreateModel(
+                    name="CourseMeeting",
+                    fields=[
+                        (
+                            "id",
+                            models.BigAutoField(
+                                auto_created=True,
+                                primary_key=True,
+                                serialize=False,
+                                verbose_name="ID",
+                            ),
+                        ),
+                        (
+                            "day_of_week",
+                            models.PositiveSmallIntegerField(
+                                help_text="0=月 … 5=土", verbose_name="曜日"
+                            ),
+                        ),
+                        (
+                            "period_kind",
+                            models.CharField(
+                                choices=[("period", "通常限"), ("od", "オンデマンド")],
+                                default="period",
+                                max_length=16,
+                                verbose_name="時限種別",
+                            ),
+                        ),
+                        ("period", models.PositiveSmallIntegerField(verbose_name="時限")),
+                        ("created_at", models.DateTimeField(auto_now_add=True)),
+                        ("updated_at", models.DateTimeField(auto_now=True)),
+                        (
+                            "offering",
+                            models.ForeignKey(
+                                on_delete=django.db.models.deletion.CASCADE,
+                                related_name="meetings",
+                                to="app.courseoffering",
+                                verbose_name="開講授業",
+                            ),
+                        ),
+                    ],
+                    options={
+                        "verbose_name": "授業ミーティング",
+                        "verbose_name_plural": "授業ミーティング",
+                        "ordering": ["day_of_week", "period_kind", "period", "pk"],
+                    },
+                ),
+                migrations.AddIndex(
+                    model_name="coursemeeting",
+                    index=models.Index(
+                        fields=["day_of_week", "period_kind", "period"],
+                        name="app_coursem_day_of__7e2a1b_idx",
                     ),
                 ),
-                (
-                    "day_of_week",
-                    models.PositiveSmallIntegerField(
-                        help_text="0=月 … 5=土", verbose_name="曜日"
-                    ),
-                ),
-                (
-                    "period_kind",
-                    models.CharField(
-                        choices=[("period", "通常限"), ("od", "オンデマンド")],
-                        default="period",
-                        max_length=16,
-                        verbose_name="時限種別",
-                    ),
-                ),
-                ("period", models.PositiveSmallIntegerField(verbose_name="時限")),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "offering",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="meetings",
-                        to="app.courseoffering",
-                        verbose_name="開講授業",
+                migrations.AddConstraint(
+                    model_name="coursemeeting",
+                    constraint=models.UniqueConstraint(
+                        fields=("offering", "day_of_week", "period_kind", "period"),
+                        name="unique_course_meeting_per_offering_slot",
                     ),
                 ),
             ],
-            options={
-                "verbose_name": "授業ミーティング",
-                "verbose_name_plural": "授業ミーティング",
-                "ordering": ["day_of_week", "period_kind", "period", "pk"],
-            },
+            database_operations=[],
+        ),
+        migrations.RunPython(
+            create_course_meeting_if_missing,
+            migrations.RunPython.noop,
         ),
         migrations.AddField(
             model_name="timetableslot",
@@ -222,20 +256,6 @@ class Migration(migrations.Migration):
                 related_name="timetable_slots",
                 to="app.coursemeeting",
                 verbose_name="授業ミーティング",
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="coursemeeting",
-            index=models.Index(
-                fields=["day_of_week", "period_kind", "period"],
-                name="app_coursem_day_of__7e2a1b_idx",
-            ),
-        ),
-        migrations.AddConstraint(
-            model_name="coursemeeting",
-            constraint=models.UniqueConstraint(
-                fields=("offering", "day_of_week", "period_kind", "period"),
-                name="unique_course_meeting_per_offering_slot",
             ),
         ),
         migrations.RunPython(forwards_backfill_and_merge, backwards_noop),

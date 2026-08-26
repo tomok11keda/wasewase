@@ -127,22 +127,42 @@ def _log_media_storage_startup() -> None:
         flush=True,
     )
     if RENDER_EXTERNAL_HOSTNAME:
-        print(
-            "[WASE WARNING] Render 上でローカルメディア保存です。"
-            " 再起動で画像が消えます。USE_CLOUDINARY=True と "
-            "CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET "
-            "（または CLOUDINARY_URL）を設定してください。",
-            file=sys.stderr,
-            flush=True,
-        )
+        disk = Path(_env("RENDER_DISK_PATH", default=RENDER_DEFAULT_DISK_MOUNT))
+        try:
+            on_persistent_disk = Path(MEDIA_ROOT).resolve().is_relative_to(
+                disk.resolve()
+            )
+        except (OSError, ValueError):
+            on_persistent_disk = str(MEDIA_ROOT).startswith(str(disk))
+        if on_persistent_disk:
+            print(
+                "[WASE] Media root is on the Render persistent disk "
+                f"({MEDIA_ROOT}). Cloudinary は CDN/バックアップ用途で推奨。",
+                file=sys.stderr,
+                flush=True,
+            )
+        else:
+            print(
+                "[WASE WARNING] Render 上で永続ディスク外のローカルメディアです。"
+                " 再デプロイで画像が消えます。MEDIA_ROOT をディスク配下にするか、"
+                " USE_CLOUDINARY=True と認証情報を設定してください。",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
+RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
+RENDER_DEFAULT_DISK_MOUNT = "/opt/render/project/src/data"
+
 # SECURITY WARNING: don't run with debug turned on in production!
-# 本番（Render）: DJANGO_DEBUG=False
-DEBUG = env.bool("DJANGO_DEBUG", default=True)
+# Render では DJANGO_DEBUG 未設定時も False（ローカルのみ True）
+DEBUG = env.bool(
+    "DJANGO_DEBUG",
+    default=False if RENDER_EXTERNAL_HOSTNAME else True,
+)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="")
@@ -153,8 +173,6 @@ if not SECRET_KEY:
         raise ImproperlyConfigured(
             "本番では環境変数 DJANGO_SECRET_KEY を設定してください。"
         )
-
-RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
 _allowed_hosts = env("DJANGO_ALLOWED_HOSTS", default="")
 if _allowed_hosts:
     if _allowed_hosts.strip() == "*":
@@ -292,9 +310,6 @@ WSGI_APPLICATION = 'wasewase.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# Render 永続ディスクのマウント先（ダッシュボードの Mount Path と一致させる）
-RENDER_DEFAULT_DISK_MOUNT = "/opt/render/project/src/data"
-
 
 def _resolve_sqlite_db_path() -> Path:
     """
@@ -415,7 +430,17 @@ if USE_CLOUDINARY:
 else:
     MEDIA_URL = "/media/"
     _media_root = env("MEDIA_ROOT", default="")
-    MEDIA_ROOT = Path(_media_root) if _media_root else BASE_DIR / "media"
+    if _media_root:
+        MEDIA_ROOT = Path(_media_root)
+    elif RENDER_EXTERNAL_HOSTNAME:
+        # SQLite と同じ永続ディスクへ（リポジトリ配下の media/ は再デプロイで消える）
+        MEDIA_ROOT = (
+            Path(_env("RENDER_DISK_PATH", default=RENDER_DEFAULT_DISK_MOUNT))
+            / "media"
+        )
+        MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+    else:
+        MEDIA_ROOT = BASE_DIR / "media"
     SERVE_MEDIA = env.bool("SERVE_MEDIA", default=True)
     # プロフィール画像（avatars/）・タイムライン画像（post_images/）などを保存
 

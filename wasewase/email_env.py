@@ -1,12 +1,13 @@
 """
 Gmail SMTP 用のメール設定。
 
-組み込み設定（WASE_BUILTIN_EMAIL）が最優先。
-環境変数はフォールバックとしてのみ参照し、全角プレースホルダーは無視する。
+組み込み設定は送信元アカウントの identity のみを持ち、
+App Password は環境変数（WASE_EMAIL_HOST_PASSWORD）から読む。
 """
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 
@@ -14,13 +15,12 @@ import sys
 EMAIL_ENV_WARNINGS: list[str] = []
 
 # ---------------------------------------------------------------------------
-# わせわせ公式 Gmail（最優先・環境変数より常に優先）
+# わせわせ公式 Gmail（送信元 identity。パスワードはリポジトリに置かない）
 # ---------------------------------------------------------------------------
 WASE_USE_BUILTIN_GMAIL = True
 
 WASE_BUILTIN_EMAIL = {
     "host_user": "wasewaseofficial@gmail.com",
-    "host_password": "qqxwgfaweaclghbv",
     "default_from": "わせわせ公式 <wasewaseofficial@gmail.com>",
 }
 
@@ -161,16 +161,30 @@ def sanitize_app_password(raw: str, env_name: str) -> str:
 
 
 def load_builtin_gmail_config() -> tuple[str, str, str, bool]:
-    """組み込み Gmail 設定を返す（常に SMTP 送信可能）。"""
-    user = WASE_BUILTIN_EMAIL["host_user"]
-    password = WASE_BUILTIN_EMAIL["host_password"]
-    default_from = WASE_BUILTIN_EMAIL["default_from"]
+    """組み込み Gmail identity + 環境変数の App Password。"""
+    user = sanitize_email_address(
+        WASE_BUILTIN_EMAIL["host_user"],
+        "WASE_BUILTIN_EMAIL.host_user",
+    )
+    password = sanitize_app_password(
+        os.environ.get("WASE_EMAIL_HOST_PASSWORD")
+        or os.environ.get("WASE_BUILTIN_GMAIL_PASSWORD")
+        or "",
+        "WASE_EMAIL_HOST_PASSWORD",
+    )
+    default_from = sanitize_from_header(
+        WASE_BUILTIN_EMAIL["default_from"],
+        "WASE_BUILTIN_EMAIL.default_from",
+    )
 
-    if not is_plausible_email(user) or not is_plausible_app_password(password):
-        _log_warning("組み込み Gmail 設定の形式が不正です。SMTP を無効化します。")
+    if not user or not password:
+        _log_warning(
+            "組み込み Gmail の App Password が未設定です。"
+            " Render に WASE_EMAIL_HOST_PASSWORD を設定してください。"
+        )
         return "", "", "noreply@wasewase.local", False
 
-    if not is_plausible_from_header(default_from):
+    if not default_from:
         default_from = user
 
     return user, password, default_from, True
@@ -182,7 +196,8 @@ def load_sanitized_email_env(
     raw_from: str,
 ) -> tuple[str, str, str, bool]:
     """
-    メール設定を読み込む。組み込み設定が最優先。
+    メール設定を読み込む。組み込み identity が有効なときは送信元を固定し、
+    パスワードは環境変数から読む。
 
     Returns:
         (host_user, host_password, default_from_email, smtp_ready)
@@ -191,8 +206,8 @@ def load_sanitized_email_env(
 
     if WASE_USE_BUILTIN_GMAIL:
         _log_info(
-            "組み込み Gmail 設定を使用します（送信元: wasewaseofficial@gmail.com）。"
-            " 環境変数の値は無視されます。"
+            "組み込み Gmail 送信元を使用します"
+            "（wasewaseofficial@gmail.com / パスワードは環境変数）。"
         )
         return load_builtin_gmail_config()
 
