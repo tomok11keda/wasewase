@@ -7,7 +7,11 @@ import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
 import { useSession } from "../lib/session";
-import { shouldHideBottomNav, TAB_ROUTES } from "../lib/tabs";
+import {
+  matchMainTab,
+  shouldHideBottomNav,
+  TAB_ROUTES,
+} from "../lib/tabs";
 
 function titleForPath(pathname: string): string {
   const normalized = pathname.replace(/\/$/, "") || "/";
@@ -28,6 +32,8 @@ export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
   const title = titleForPath(location.pathname);
+  // Bottom Nav で現在地が分かるトップレベルではシェル中央タイトルを出さない
+  const hideShellTitle = matchMainTab(location.pathname) != null;
   const hideBottomNav = shouldHideBottomNav(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const openMenu = useCallback(() => setMenuOpen(true), []);
@@ -53,7 +59,11 @@ export function AppShellLayout() {
         </aside>
 
         <div className="main-column">
-          <MobileShellHeader title={title} onOpenMenu={openMenu} />
+          <MobileShellHeader
+            title={title}
+            hideTitle={hideShellTitle}
+            onOpenMenu={openMenu}
+          />
           <BrowseModeBanner />
           {loading ? (
             <div className="main-inner">

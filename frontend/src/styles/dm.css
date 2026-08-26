@@ -26,6 +26,94 @@
   padding: 8px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+/*
+ * Chat room frame: fill the visible viewport below the shell header.
+ * --chat-visible-h is set by useChatVisibleFrameHeight (visualViewport /
+ * innerHeight). Do not also subtract keyboard height — Capacitor may already
+ * have resized the webview.
+ */
+@media (max-width: 1023px) {
+  .dm-room-page {
+    height: calc(
+      var(--chat-visible-h, 100dvh) - var(--wase-header-h, 0px)
+    );
+    max-height: calc(
+      var(--chat-visible-h, 100dvh) - var(--wase-header-h, 0px)
+    );
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dm-room-page .dm-room-main,
+  .dm-room-page > .main-inner {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    /* ComposeBar owns safe-area; avoid double bottom inset with body padding */
+    padding-bottom: 0;
+  }
+}
+
+.dm-room-top {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+}
+
+.dm-room-page .dm-partner-card,
+.dm-room-page .dm-group-invite-banner,
+.dm-room-page .course-talk-header {
+  flex: 0 0 auto;
+}
+
+/* Thread pane grows; messages scroll inside it */
+.dm-thread,
+.dm-room-page .chat-panel,
+.dm-message-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-thread,
+.dm-message-area {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.dm-room-page .chat-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dm-room-page .chat-panel > h2,
+.dm-room-page .chat-panel > .chat-hint,
+.dm-room-page .chat-panel > .block-banner {
+  flex: 0 0 auto;
+}
+
+.dm-room-page .chat-reply-preview,
+.dm-room-page .chat-compose-bar {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 1024px) {
+  /* Desktop: page can scroll; keep a bounded thread pane */
+  .dm-thread,
+  .dm-message-area {
+    max-height: min(70vh, 720px);
+  }
+
+  .chat-panel {
+    min-height: 320px;
+  }
 }
 
 .dm-inbox-header {
@@ -415,10 +503,6 @@
 }
 
 /* Room */
-.dm-room-top {
-  margin: 0 0 8px;
-}
-
 .dm-back-text {
   color: var(--dm-accent);
   font-size: 14px;
@@ -504,7 +588,7 @@
   border-radius: var(--dm-radius);
   padding: 10px 12px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  min-height: 320px;
+  min-height: 0;
 }
 
 .chat-panel h2 {
@@ -531,21 +615,22 @@
 }
 
 .dm-message-area {
-  flex: 1;
-  min-height: 220px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .message-list {
-  flex: 1;
+  flex: 0 0 auto;
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow-y: auto;
-  max-height: calc(100dvh - 280px);
-  min-height: 220px;
+  /* Height comes from flex parent scroller — never pin to 100dvh. */
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
 }
 
 .chat-row {
@@ -734,11 +819,12 @@
   display: none;
 }
 
-/* Compact compose: camera | input | library/send */
+/* Compact compose: sits at bottom of flex column (not sticky/fixed). */
 .chat-compose-bar {
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  bottom: auto;
   z-index: 8;
+  flex: 0 0 auto;
   margin-top: 8px;
   margin-left: -8px;
   margin-right: -8px;
@@ -746,6 +832,12 @@
   background: rgba(247, 249, 252, 0.96);
   backdrop-filter: blur(10px);
   border-top: 1px solid #e5ebf0;
+}
+
+/* Keyboard open: home indicator is covered — drop safe-area so it doesn't
+   stack above the keyboard. */
+.chat-compose-bar:focus-within {
+  padding-bottom: 8px;
 }
 
 .chat-compose-bar__row {
