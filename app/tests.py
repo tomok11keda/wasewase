@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from urllib.parse import quote
 import json
+import os
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -216,16 +217,59 @@ class EmailEnvSanitizeTests(TestCase):
         finally:
             email_env.WASE_USE_BUILTIN_GMAIL = original
 
-    def test_builtin_config_overrides_invalid_env(self):
-        user, password, from_email, smtp_ready = load_sanitized_email_env(
-            "あなたの@gmail.com",
-            "さっき取得した16桁のアプリパスワード",
-            "",
-        )
-        self.assertTrue(smtp_ready)
-        self.assertEqual(user, "wasewaseofficial@gmail.com")
-        self.assertEqual(password, "qqxwgfaweaclghbv")
-        self.assertIn("wasewaseofficial@gmail.com", from_email)
+    def test_builtin_config_uses_env_password(self):
+        from unittest.mock import patch
+
+        from wasewase import email_env
+
+        original = email_env.WASE_USE_BUILTIN_GMAIL
+        email_env.WASE_USE_BUILTIN_GMAIL = True
+        try:
+            with patch.dict(
+                "os.environ",
+                {"WASE_EMAIL_HOST_PASSWORD": "abcdefghijklmnop"},
+                clear=False,
+            ):
+                user, password, from_email, smtp_ready = load_sanitized_email_env(
+                    "あなたの@gmail.com",
+                    "さっき取得した16桁のアプリパスワード",
+                    "",
+                )
+            self.assertTrue(smtp_ready)
+            self.assertEqual(user, "wasewaseofficial@gmail.com")
+            self.assertEqual(password, "abcdefghijklmnop")
+            self.assertIn("wasewaseofficial@gmail.com", from_email)
+        finally:
+            email_env.WASE_USE_BUILTIN_GMAIL = original
+
+    def test_builtin_config_requires_env_password(self):
+        from unittest.mock import patch
+
+        from wasewase import email_env
+
+        original = email_env.WASE_USE_BUILTIN_GMAIL
+        email_env.WASE_USE_BUILTIN_GMAIL = True
+        try:
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k
+                not in (
+                    "WASE_EMAIL_HOST_PASSWORD",
+                    "WASE_BUILTIN_GMAIL_PASSWORD",
+                )
+            }
+            with patch.dict("os.environ", env, clear=True):
+                user, password, from_email, smtp_ready = load_sanitized_email_env(
+                    "",
+                    "",
+                    "",
+                )
+            self.assertFalse(smtp_ready)
+            self.assertEqual(user, "")
+            self.assertEqual(password, "")
+        finally:
+            email_env.WASE_USE_BUILTIN_GMAIL = original
 
 
 class EmailAuthTests(TestCase):
@@ -886,9 +930,10 @@ class BoardTimelineImageTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         post = TimelinePost.objects.get(body="線形代数のメモです")
+        # AdMob creation trigger query is intentional for Capacitor interstitial.
         self.assertEqual(
             response["Location"],
-            f"{reverse('home')}#post-{post.pk}",
+            f"{reverse('home')}?post_success=1#post-{post.pk}",
         )
         self.assertNotIn("tag=", response["Location"])
 
@@ -2869,16 +2914,14 @@ class TimelineInfiniteScrollTests(TestCase):
 
 
 class EnsureSuperuserCommandTests(TestCase):
-    def test_promotes_existing_user_to_superuser(self):
+    def test_promotes_existing_user_without_resetting_password(self):
         from io import StringIO
+        from unittest.mock import patch
 
         from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import (
-            SUPERUSER_EMAIL,
-            SUPERUSER_PASSWORD,
-        )
+        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
 
         get_user_model().objects.create_user(
             email=SUPERUSER_EMAIL,
@@ -2886,26 +2929,30 @@ class EnsureSuperuserCommandTests(TestCase):
             username="tomok11keda",
         )
         out = StringIO()
-        call_command("ensure_superuser", stdout=out)
+        with patch.dict("os.environ", {"WASE_SUPERUSER_PASSWORD": ""}, clear=False):
+            # Reload module constants would be stale; patch the command module attrs.
+            with patch(
+                "app.management.commands.ensure_superuser.SUPERUSER_PASSWORD",
+                "",
+            ):
+                call_command("ensure_superuser", stdout=out)
 
         user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_active)
-        self.assertTrue(user.check_password(SUPERUSER_PASSWORD))
-        self.assertFalse(user.check_password("old-password"))
+        self.assertTrue(user.check_password("old-password"))
         self.assertIn("管理者に設定しました", out.getvalue())
+        self.assertIn("パスワードは変更していません", out.getvalue())
 
-    def test_updates_password_even_when_already_superuser(self):
+    def test_updates_password_when_env_set(self):
         from io import StringIO
+        from unittest.mock import patch
 
         from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import (
-            SUPERUSER_EMAIL,
-            SUPERUSER_PASSWORD,
-        )
+        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
 
         get_user_model().objects.create_superuser(
             email=SUPERUSER_EMAIL,
@@ -2913,11 +2960,16 @@ class EnsureSuperuserCommandTests(TestCase):
             username="admin",
         )
         out = StringIO()
-        call_command("ensure_superuser", stdout=out)
+        with patch(
+            "app.management.commands.ensure_superuser.SUPERUSER_PASSWORD",
+            "new-secure-pass",
+        ):
+            call_command("ensure_superuser", stdout=out)
 
         user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
-        self.assertTrue(user.check_password(SUPERUSER_PASSWORD))
-        self.assertIn("管理者に設定しました", out.getvalue())
+        self.assertTrue(user.check_password("new-secure-pass"))
+        self.assertFalse(user.check_password("different-password"))
+        self.assertIn("パスワードを更新しました", out.getvalue())
 
     def test_reports_missing_user(self):
         from io import StringIO
@@ -3277,13 +3329,16 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, "tweet-action--comment")
         self.assertContains(response, "tweet-action--quote")
         self.assertContains(response, "tweet-action--like")
-        self.assertContains(response, "tweet-action--report")
-        self.assertContains(response, ">コメント<")
-        self.assertContains(response, ">リポスト<")
-        self.assertContains(response, ">いいね<")
-        self.assertContains(response, ">通報<")
-        self.assertContains(response, 'data-report-open')
-        self.assertContains(response, reverse("submit_report", args=["post", self.post.pk]))
+        # Visible text labels were removed; actions use SF icons + aria-label.
+        self.assertContains(response, 'aria-label="コメント"')
+        self.assertContains(response, 'aria-label="リポスト"')
+        self.assertContains(response, 'aria-label="いいね"')
+        # Report lives in the overflow menu (not the primary action bar).
+        self.assertContains(response, "data-report-open")
+        self.assertContains(
+            response, reverse("submit_report", args=["post", self.post.pk])
+        )
+        self.assertContains(response, "通報")
         self.assertNotContains(response, "💬")
         self.assertNotContains(response, "🔁")
         self.assertNotContains(response, "❤️")
@@ -3598,7 +3653,9 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("isCameraAvailable", capacitor_js)
         self.assertIn("isNativeCameraHardwareAvailable", capacitor_js)
         self.assertNotIn("この環境ではカメラを利用できません", capacitor_js)
-        self.assertIn('photoSource = "photos"', capacitor_js)
+        # Capacitor Camera plugin requires uppercase source enums (CAMERA/PHOTOS).
+        self.assertIn('photoSource = "PHOTOS"', capacitor_js)
+        self.assertIn('return "PHOTOS"', capacitor_js)
         self.assertIn("DISABLE_ADS", capacitor_js)
         self.assertIn("areAdsDisabled", capacitor_js)
         self.assertIn("canShowAppOpenAdToday", capacitor_js)
@@ -3934,7 +3991,7 @@ class CommunitiesTests(TestCase):
         )
         self.assertRedirects(
             response,
-            f"{reverse('communities_index')}?tag={quote('商学部')}",
+            f"{reverse('communities_index')}?tag={quote('商学部')}&thread_success=1",
         )
         index = self.client.get(reverse("communities_index"))
         self.assertContains(index, "履修相談スレ")

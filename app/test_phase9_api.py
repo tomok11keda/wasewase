@@ -150,6 +150,7 @@ class AuthApiTests(TestCase):
                 {
                     "email": "new9@waseda.jp",
                     "nickname": "新規",
+                    "username": "new9user",
                     "faculty": "政治経済学部",
                     "password1": "test-pass-12345",
                     "password2": "test-pass-12345",

@@ -1,16 +1,22 @@
+import os
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-# Render デプロイ時に既存ユーザーを管理者に格上げ（プライベートリポジトリ向け）
-SUPERUSER_EMAIL = "tomok11keda@toki.waseda.jp"
-SUPERUSER_PASSWORD = "2006Tomoki"
+# 既存ユーザーを管理者に格上げ（パスワードは環境変数があるときだけ更新）
+SUPERUSER_EMAIL = (
+    os.environ.get("WASE_SUPERUSER_EMAIL", "tomok11keda@toki.waseda.jp")
+    .strip()
+    .lower()
+)
+SUPERUSER_PASSWORD = os.environ.get("WASE_SUPERUSER_PASSWORD", "").strip()
 
 
 class Command(BaseCommand):
-    help = "既存ユーザーを検索し、管理者化とパスワードの設定を行う"
+    help = "既存ユーザーを検索し、管理者化する（パスワードは env 指定時のみ更新）"
 
     def handle(self, *args, **options):
-        email = SUPERUSER_EMAIL.strip().lower()
+        email = SUPERUSER_EMAIL
         User = get_user_model()
 
         try:
@@ -22,15 +28,28 @@ class Command(BaseCommand):
             )
             return
 
-        user.set_password(SUPERUSER_PASSWORD)
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True
-        user.save()
+        update_fields = ["is_staff", "is_superuser", "is_active"]
 
+        if SUPERUSER_PASSWORD:
+            user.set_password(SUPERUSER_PASSWORD)
+            update_fields.append("password")
+            user.save(update_fields=update_fields)
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"管理者に設定しました（username={user.username}, email={email}）。"
+                    " パスワードを更新しました。"
+                )
+            )
+            return
+
+        user.save(update_fields=update_fields)
         self.stdout.write(
             self.style.SUCCESS(
                 f"管理者に設定しました（username={user.username}, email={email}）。"
-                " パスワードを更新しました。"
+                " パスワードは変更していません"
+                "（WASE_SUPERUSER_PASSWORD 未設定）。"
             )
         )
