@@ -228,12 +228,16 @@ export async function deleteAbsenceRecord(recordId: number): Promise<{
 
 export async function enrollOffering(
   offeringPk: number,
-  slotKey?: string | null
+  slotKey?: string | null,
+  options?: { addMeeting?: boolean }
 ): Promise<{ offering: CourseOffering; slot: SlotPayload }> {
   await ensureAuthCsrf();
+  const body: Record<string, unknown> = {};
+  if (slotKey) body.slot_key = slotKey;
+  if (options?.addMeeting) body.add_meeting = true;
   const { ok, data, error, status } = await apiPostJson(
     `/api/v1/courses/offerings/${offeringPk}/enroll/`,
-    slotKey ? { slot_key: slotKey } : {}
+    body
   );
   if (!ok) {
     const err = new Error(error || "enroll_failed") as Error & {
@@ -243,6 +247,16 @@ export async function enrollOffering(
     throw err;
   }
   return data as unknown as { offering: CourseOffering; slot: SlotPayload };
+}
+
+/** 検索結果の Offering が指定 slot_key の Meeting を既に持つか */
+export function offeringCoversSlot(
+  offering: CourseOffering,
+  slotKey?: string | null
+): boolean {
+  if (!slotKey) return true;
+  if (offering.meetings?.some((m) => m.slot_key === slotKey)) return true;
+  return offering.slot_key === slotKey;
 }
 
 export async function unenrollOffering(offeringPk: number): Promise<void> {
