@@ -38,9 +38,17 @@ body.shell-desktop {
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
 }
 
-/* Chat rooms: free the space normally reserved for the fixed bottom tab bar. */
+/* Chat rooms: free the space normally reserved for the fixed bottom tab bar.
+   ComposeBar owns safe-area-inset-bottom — do not pad the body again. */
 body.shell-desktop.shell-hide-bottom-nav {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: 0;
+}
+
+@media (max-width: 1023px) {
+  /* Prevent iOS document scroll from fighting the in-pane flex chat layout */
+  body.shell-desktop.shell-hide-bottom-nav {
+    overflow: hidden;
+  }
 }
 
 /* Belt-and-suspenders: never show bottom tabs on conversation screens. */

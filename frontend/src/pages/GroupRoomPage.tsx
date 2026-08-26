@@ -25,6 +25,12 @@ import {
   type ReplyTarget,
 } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import {
+  isChatNearBottom,
+  scrollChatToBottom,
+  useChatVisibleFrameHeight,
+  useKeepChatPinnedOnCompose,
+} from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
 export function GroupRoomPage() {
@@ -44,8 +50,12 @@ export function GroupRoomPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
+
+  useChatVisibleFrameHeight(true);
+  useKeepChatPinnedOnCompose(threadRef, true);
 
   const showToast = useCallback((text: string) => {
     setToast(text);
@@ -123,7 +133,9 @@ export function GroupRoomPage() {
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroller = threadRef.current;
+    if (!isChatNearBottom(scroller)) return;
+    scrollChatToBottom(scroller, "smooth");
   }, [messages.length]);
 
   const scrollToReply = useCallback(
@@ -284,7 +296,7 @@ export function GroupRoomPage() {
           <h2>メッセージ</h2>
           <p className="chat-hint">グループのやり取りです（15秒ごとに自動更新）</p>
 
-          <div className="dm-message-area">
+          <div className="dm-message-area" ref={threadRef}>
             {messages.length === 0 ? (
               <p className="empty-message">まだメッセージはありません。</p>
             ) : (

@@ -295,13 +295,14 @@ html.is-native-capacitor.has-native-bottom-banner body.shell-desktop {
   padding-bottom: calc(var(--nav-h, 56px) + 60px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Conversation screens: no tab-bar gutter (composer + keyboard need the space). */
+/* Conversation screens: no tab-bar gutter (composer owns safe-area). */
 html.is-native-capacitor body.shell-desktop.shell-hide-bottom-nav {
-  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  padding-bottom: 0 !important;
 }
 
 html.is-native-capacitor.has-native-bottom-banner body.shell-desktop.shell-hide-bottom-nav {
-  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Banner still needs clearance; compose sits above it when present */
+  padding-bottom: 60px !important;
 }
 
 html.is-native-capacitor body.shell-hide-bottom-nav .bottom-nav,

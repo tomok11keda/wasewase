@@ -818,7 +818,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 60vh;
+  min-height: 0;
 }
 
 .trade-chat-page .back-link {
@@ -826,6 +826,13 @@
   font-weight: 700;
   text-decoration: none;
   font-size: 14px;
+}
+
+.trade-chat-page .chat-product-card,
+.trade-chat-page .chat-actions,
+.trade-chat-page .back-link,
+.trade-chat-page > .main-inner > p {
+  flex: 0 0 auto;
 }
 
 .trade-chat-page .chat-product-card {
@@ -946,18 +953,19 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   background: #fff;
   border-radius: var(--radius);
   padding: 12px;
-  min-height: 240px;
-  max-height: 50vh;
+  min-height: 0;
+  max-height: none;
   overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* One message unit: meta outside bubble so short body stays compact */

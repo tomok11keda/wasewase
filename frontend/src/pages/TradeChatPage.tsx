@@ -20,6 +20,12 @@ import {
 } from "../features/flea/api";
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import {
+  isChatNearBottom,
+  scrollChatToBottom,
+  useChatVisibleFrameHeight,
+  useKeepChatPinnedOnCompose,
+} from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
 export function TradeChatPage() {
@@ -37,9 +43,13 @@ export function TradeChatPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [handoverDone, setHandoverDone] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   const handoverStartedRef = useRef(false);
   roomIdRef.current = roomId;
+
+  useChatVisibleFrameHeight(true);
+  useKeepChatPinnedOnCompose(threadRef, true);
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
@@ -108,7 +118,9 @@ export function TradeChatPage() {
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroller = threadRef.current;
+    if (!isChatNearBottom(scroller)) return;
+    scrollChatToBottom(scroller, "smooth");
   }, [messages.length]);
 
   useEffect(() => {
@@ -230,8 +242,8 @@ export function TradeChatPage() {
   }
 
   return (
-    <div className="trade-chat-page" data-spa-page="フリマ">
-      <div className="main-inner">
+    <div className="trade-chat-page dm-room-page" data-spa-page="フリマ">
+      <div className="main-inner dm-room-main">
         <Link className="back-link" to={`/flea/products/${room.product.id}`}>
           ← 商品詳細へ戻る
         </Link>
@@ -292,7 +304,7 @@ export function TradeChatPage() {
           </div>
         )}
 
-        <div className="chat-messages" aria-live="polite">
+        <div className="chat-messages dm-thread" ref={threadRef} aria-live="polite">
           {messages.map((m) =>
             m.is_system ? (
               <div key={m.id} className="chat-bubble system">

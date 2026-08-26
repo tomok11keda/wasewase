@@ -23,6 +23,12 @@ import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { ChatReplyPreview, type ReplyTarget } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import {
+  isChatNearBottom,
+  scrollChatToBottom,
+  useChatVisibleFrameHeight,
+  useKeepChatPinnedOnCompose,
+} from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
 const EMPTY_PROMPTS = [
@@ -51,7 +57,11 @@ export function CourseTalkPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const fromInbox = searchParams.get("from") === "inbox";
+
+  useChatVisibleFrameHeight(true);
+  useKeepChatPinnedOnCompose(threadRef, true);
 
   const showToast = useCallback((text: string) => {
     setToast(text);
@@ -144,7 +154,9 @@ export function CourseTalkPage() {
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroller = threadRef.current;
+    if (!isChatNearBottom(scroller)) return;
+    scrollChatToBottom(scroller, "smooth");
   }, [messages.length]);
 
   const scrollToReply = useCallback((messageId: number) => {
@@ -260,7 +272,7 @@ export function CourseTalkPage() {
           </p>
         </section>
 
-        <div className="dm-thread course-talk-thread">
+        <div className="dm-thread course-talk-thread" ref={threadRef}>
           {messages.length === 0 ? (
             <div className="course-talk-empty">
               <strong>まだトークはありません</strong>

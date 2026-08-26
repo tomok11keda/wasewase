@@ -19,6 +19,12 @@ import {
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import {
+  isChatNearBottom,
+  scrollChatToBottom,
+  useChatVisibleFrameHeight,
+  useKeepChatPinnedOnCompose,
+} from "../features/chat/useChatRoomLayout";
 
 export function DmRoomPage() {
   const { roomPk } = useParams();
@@ -34,8 +40,12 @@ export function DmRoomPage() {
   const [busy, setBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
+
+  useChatVisibleFrameHeight(true);
+  useKeepChatPinnedOnCompose(threadRef, true);
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
@@ -115,7 +125,9 @@ export function DmRoomPage() {
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroller = threadRef.current;
+    if (!isChatNearBottom(scroller)) return;
+    scrollChatToBottom(scroller, "smooth");
   }, [messages.length]);
 
   const onSend = async (e: FormEvent) => {
@@ -286,7 +298,7 @@ export function DmRoomPage() {
             <p className="chat-hint">1対1のやり取りです（15秒ごとに自動更新）</p>
           )}
 
-          <div className="dm-message-area">
+          <div className="dm-message-area" ref={threadRef}>
             {messages.length === 0 ? (
               <p className="empty-message">
                 まだメッセージはありません。最初の一言を送ってみましょう。
