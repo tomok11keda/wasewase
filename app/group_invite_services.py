@@ -7,7 +7,6 @@ from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import IntegrityError, transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from .group_chat_services import group_room_link, is_group_member
@@ -80,21 +79,25 @@ def _resolve_invite_notifications(
     accepted: bool,
 ) -> None:
     room_name = _group_display_name(room)
-    marker = f"/dm/groups/{room.pk}"
     new_message = (
         f"『{room_name}』への招待に参加しました"
         if accepted
         else f"『{room_name}』への招待を辞退しました"
     )
-    notifications = Notification.objects.filter(
-        recipient=invitee,
-    ).filter(Q(link__contains=marker) | Q(link__endswith=marker.rstrip("/")))
+    notifications = Notification.objects.filter(recipient=invitee)
     for note in notifications:
         if "招待" not in (note.message or ""):
+            continue
+        if not _notification_link_matches_group_room(note.link or "", room.pk):
             continue
         note.message = new_message
         note.is_read = True
         note.save(update_fields=["message", "is_read"])
+
+
+def _notification_link_matches_group_room(link: str, room_pk: int) -> bool:
+    path = (link or "").split("?", 1)[0].rstrip("/")
+    return path.endswith(f"/dm/groups/{room_pk}")
 
 
 def _assert_invite_rate_limit(inviter: AbstractBaseUser, batch_size: int) -> None:

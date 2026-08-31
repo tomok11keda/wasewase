@@ -254,6 +254,7 @@ def send_dm_message(
     room: UserDirectMessageRoom, sender: AbstractBaseUser, body: str
 ) -> UserDirectMessage:
     from .dm_request_services import (
+        can_access_dm_room_for_viewer,
         ensure_message_request_after_send,
         recipient_can_send_in_dm,
     )
@@ -263,7 +264,7 @@ def send_dm_message(
         raise ValueError("empty")
     if len(body) > 500:
         raise ValueError("too_long")
-    if not can_access_dm_room(room, sender):
+    if not can_access_dm_room_for_viewer(room, sender):
         raise ValueError("forbidden")
     if not recipient_can_send_in_dm(room, sender):
         raise ValueError("request_pending")
@@ -364,14 +365,11 @@ def build_group_room_payload(
     pending = None if is_member else get_pending_invitation(room, viewer)
     if is_member:
         latest_id = mark_group_room_read(room, viewer)
+        messages = list(visible_chat_messages_qs(room).order_by("created_at"))
     else:
-        latest_id = (
-            visible_chat_messages_qs(room)
-            .order_by("-pk")
-            .values_list("pk", flat=True)
-            .first()
-            or 0
-        )
+        # pending 招待者には履歴を見せない
+        latest_id = 0
+        messages = []
 
     members = [
         serialize_author(m.user)
@@ -379,7 +377,6 @@ def build_group_room_payload(
             "joined_at"
         )
     ]
-    messages = list(visible_chat_messages_qs(room).order_by("created_at"))
     pending_invites = list_pending_invites_for_room(room) if is_member else []
     membership_status = (
         "member" if is_member else ("pending_invite" if pending else "none")
@@ -407,6 +404,13 @@ def build_group_messages_payload(
 ) -> dict[str, Any]:
     from .chat_message_services import visible_chat_messages_qs
 
+    if not can_access_group_room(room, viewer):
+        return {
+            "messages": [],
+            "latest_id": 0,
+            "can_send": False,
+        }
+
     qs = visible_chat_messages_qs(room).order_by("created_at")
     if after.isdigit():
         qs = qs.filter(pk__gt=int(after))
@@ -417,12 +421,11 @@ def build_group_messages_payload(
         .first()
         or 0
     )
-    if can_access_group_room(room, viewer):
-        mark_group_room_read(room, viewer)
+    mark_group_room_read(room, viewer)
     return {
         "messages": [serialize_group_message(m, viewer.id) for m in qs],
         "latest_id": latest_id,
-        "can_send": can_access_group_room(room, viewer),
+        "can_send": True,
     }
 
 

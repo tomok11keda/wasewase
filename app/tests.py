@@ -3700,6 +3700,7 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("console.error(\"[WASE Camera]\"", capacitor_js)
         self.assertIn('closest(".chat-compose-bar")', capacitor_js)
         self.assertIn("getPhoto unavailable", capacitor_js)
+        self.assertNotIn("alert(JSON.stringify", capacitor_js)
         self.assertNotIn("アプリを最新版に更新してください", capacitor_js)
         self.assertIn("Capacitor.getPlugin", capacitor_js)
         self.assertIn("PHOTOS_PERMISSION_REQUIRED_MESSAGE", capacitor_js)

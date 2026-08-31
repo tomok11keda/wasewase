@@ -13,6 +13,7 @@ User = get_user_model()
 
 
 def get_blocked_user_ids(viewer: AbstractBaseUser | None) -> set[int]:
+    """視聴者がブロックしているユーザー ID（一方向）。設定画面用。"""
     if viewer is None or not viewer.is_authenticated:
         return set()
     return set(
@@ -20,6 +21,21 @@ def get_blocked_user_ids(viewer: AbstractBaseUser | None) -> set[int]:
             "blocked_id", flat=True
         )
     )
+
+
+def get_either_blocked_user_ids(viewer: AbstractBaseUser | None) -> set[int]:
+    """双方向ブロック関係にある相手のユーザー ID。フィード可視性用。"""
+    if viewer is None or not viewer.is_authenticated:
+        return set()
+    ids: set[int] = set()
+    for blocker_id, blocked_id in UserBlock.objects.filter(
+        Q(blocker_id=viewer.pk) | Q(blocked_id=viewer.pk)
+    ).values_list("blocker_id", "blocked_id"):
+        if blocker_id != viewer.pk:
+            ids.add(blocker_id)
+        if blocked_id != viewer.pk:
+            ids.add(blocked_id)
+    return ids
 
 
 def is_user_blocked(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> bool:
@@ -100,7 +116,7 @@ def filter_visible_timeline_posts(
     viewer: AbstractBaseUser | None,
 ) -> QuerySet[TimelinePost]:
     qs = qs.filter(is_removed=False)
-    blocked_ids = get_blocked_user_ids(viewer)
+    blocked_ids = get_either_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(author_id__in=blocked_ids)
     return _filter_private_account_owners(qs, viewer, user_field="author")
@@ -111,7 +127,7 @@ def filter_visible_products(
     viewer: AbstractBaseUser | None,
 ) -> QuerySet[Product]:
     qs = qs.filter(is_removed=False)
-    blocked_ids = get_blocked_user_ids(viewer)
+    blocked_ids = get_either_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(seller_id__in=blocked_ids)
     return _filter_private_account_owners(qs, viewer, user_field="seller")
@@ -156,7 +172,7 @@ def filter_visible_comments(
     viewer: AbstractBaseUser | None,
 ) -> QuerySet[Comment]:
     qs = qs.filter(is_removed=False)
-    blocked_ids = get_blocked_user_ids(viewer)
+    blocked_ids = get_either_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(author_id__in=blocked_ids)
     return qs

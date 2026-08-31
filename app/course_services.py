@@ -613,6 +613,14 @@ def enroll_user_in_offering(
         if target_key not in meeting_by_key:
             if not add_meeting_if_missing:
                 raise ValueError("slot_mismatch")
+            # 他ユーザーが既に履修している Offering の Meeting は拡張しない
+            # （共有マスター汚染を防ぐ）
+            if (
+                CourseEnrollment.objects.filter(offering=offering)
+                .exclude(user_id=user.pk)
+                .exists()
+            ):
+                raise ValueError("meeting_locked")
             parsed = parse_slot_key(target_key)
             if parsed is None:
                 raise ValueError("slot_mismatch")
