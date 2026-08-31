@@ -133,15 +133,17 @@ def build_timetable_grid(entries=None, od_entries=None):
     }
 
 
-def slot_to_payload(slot: TimetableSlot) -> dict:
-    return {
+def slot_to_payload(slot: TimetableSlot, *, include_memo: bool = True) -> dict:
+    payload = {
         "slot_key": slot.slot_key,
         "name": slot.name or "",
         "room": slot.room or "",
         "credits": slot.credits or "",
-        "memo": slot.memo or "",
         "offering_id": slot.offering_id,
     }
+    if include_memo:
+        payload["memo"] = slot.memo or ""
+    return payload
 
 
 def load_slot_maps_for_user(user: AbstractBaseUser | None) -> tuple[dict, dict]:
@@ -209,13 +211,15 @@ def build_timetable_grid_for_user(user: AbstractBaseUser | None):
         return build_timetable_grid()
 
 
-def slots_dict_for_user(user: AbstractBaseUser | None) -> dict[str, dict]:
+def slots_dict_for_user(
+    user: AbstractBaseUser | None, *, include_memo: bool = True
+) -> dict[str, dict]:
     if user is None or not getattr(user, "pk", None):
         return {}
     ensure_timetable_slot_table()
     try:
         return {
-            slot.slot_key: slot_to_payload(slot)
+            slot.slot_key: slot_to_payload(slot, include_memo=include_memo)
             for slot in TimetableSlot.objects.filter(user_id=user.pk)
         }
     except (OperationalError, ProgrammingError) as exc:
@@ -223,7 +227,7 @@ def slots_dict_for_user(user: AbstractBaseUser | None) -> dict[str, dict]:
         ensure_timetable_slot_table()
         try:
             return {
-                slot.slot_key: slot_to_payload(slot)
+                slot.slot_key: slot_to_payload(slot, include_memo=include_memo)
                 for slot in TimetableSlot.objects.filter(user_id=user.pk)
             }
         except (OperationalError, ProgrammingError):

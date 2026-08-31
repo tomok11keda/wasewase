@@ -7,7 +7,6 @@ from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import connection
-from django.db.models import Q
 from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 
@@ -197,21 +196,28 @@ def resolve_dm_request_notifications(
     *,
     accepted: bool,
 ) -> None:
-    marker = f"/dm/{room.pk}"
     new_message = (
         "メッセージリクエストを承認し、チャットを開始しました"
         if accepted
         else "メッセージリクエストを拒否しました"
     )
-    notes = Notification.objects.filter(recipient=recipient).filter(
-        Q(link__contains=marker) | Q(link__endswith=marker.rstrip("/"))
-    )
+    notes = Notification.objects.filter(recipient=recipient)
     for note in notes:
         if "メッセージリクエスト" not in (note.message or ""):
+            continue
+        if not _notification_link_matches_dm_room(note.link or "", room.pk):
             continue
         note.message = new_message
         note.is_read = True
         note.save(update_fields=["message", "is_read"])
+
+
+def _notification_link_matches_dm_room(link: str, room_pk: int) -> bool:
+    """/dm/{pk} と /dm/{pk}0 のような prefix 衝突を避ける。"""
+    path = (link or "").split("?", 1)[0].rstrip("/")
+    if "/dm/groups/" in path:
+        return False
+    return path.endswith(f"/dm/{room_pk}")
 
 
 def accept_dm_request(

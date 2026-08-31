@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 OTP_LENGTH = 6
 OTP_VALID_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
 SIGNUP_PENDING_SESSION_KEY = "signup_pending_user_id"
 PASSWORD_RESET_USER_SESSION_KEY = "password_reset_user_id"
 PASSWORD_RESET_VERIFIED_SESSION_KEY = "password_reset_verified"
@@ -99,6 +100,7 @@ def create_and_send_signup_otp(user) -> str:
         defaults={
             "code_hash": make_password(code),
             "expires_at": expires_at,
+            "failed_attempts": 0,
         },
     )
 
@@ -165,6 +167,20 @@ def create_and_send_signup_otp(user) -> str:
     return code
 
 
+def _otp_failure_message(otp, *, kind: str = "確認") -> str:
+    """失敗回数を加算し、上限到達時は OTP を破棄して再送を促す。"""
+    attempts = int(getattr(otp, "failed_attempts", 0) or 0) + 1
+    if attempts >= OTP_MAX_ATTEMPTS:
+        otp.delete()
+        return (
+            f"{kind}コードの試行回数が上限に達しました。"
+            f"「{kind}コードを再送信」から新しいコードを取得してください。"
+        )
+    otp.failed_attempts = attempts
+    otp.save(update_fields=["failed_attempts"])
+    return f"{kind}コードが正しくありません。"
+
+
 def verify_signup_otp(user, code: str) -> str | None:
     """成功時は None、失敗時はエラーメッセージを返す。"""
     try:
@@ -177,7 +193,7 @@ def verify_signup_otp(user, code: str) -> str | None:
         return "認証コードの有効期限が切れました。「認証コードを再送信」から新しいコードを取得してください。"
 
     if not check_password(code, otp.code_hash):
-        return "認証コードが正しくありません。"
+        return _otp_failure_message(otp, kind="認証")
 
     otp.delete()
     return None
@@ -194,6 +210,7 @@ def create_and_send_password_reset_otp(user) -> str:
         defaults={
             "code_hash": make_password(code),
             "expires_at": expires_at,
+            "failed_attempts": 0,
         },
     )
 
@@ -278,7 +295,7 @@ def verify_password_reset_otp(user, code: str) -> str | None:
         )
 
     if not check_password(code, otp.code_hash):
-        return "確認コードが正しくありません。"
+        return _otp_failure_message(otp, kind="確認")
 
     otp.delete()
     return None

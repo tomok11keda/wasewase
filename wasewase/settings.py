@@ -176,7 +176,13 @@ if not SECRET_KEY:
 _allowed_hosts = env("DJANGO_ALLOWED_HOSTS", default="")
 if _allowed_hosts:
     if _allowed_hosts.strip() == "*":
-        ALLOWED_HOSTS = ["*"]
+        if DEBUG:
+            ALLOWED_HOSTS = ["*"]
+        else:
+            raise ImproperlyConfigured(
+                "本番では DJANGO_ALLOWED_HOSTS=* は許可されません。"
+                "具体的なホスト名をカンマ区切りで設定してください。"
+            )
     else:
         ALLOWED_HOSTS = [
             host.strip() for host in _allowed_hosts.split(",") if host.strip()
@@ -186,8 +192,9 @@ elif RENDER_EXTERNAL_HOSTNAME:
 elif DEBUG:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 else:
-    # Render 等で未設定の場合のフォールバック（後から DJANGO_ALLOWED_HOSTS で上書き可）
-    ALLOWED_HOSTS = ["*"]
+    raise ImproperlyConfigured(
+        "本番では環境変数 DJANGO_ALLOWED_HOSTS または RENDER_EXTERNAL_HOSTNAME を設定してください。"
+    )
 
 _csrf_origins = env("DJANGO_CSRF_TRUSTED_ORIGINS", default="")
 if _csrf_origins:

@@ -750,6 +750,7 @@ class SignupOTP(models.Model):
     )
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
 
     def __str__(self) -> str:
         return f"OTP for {self.user.email} (expires {self.expires_at})"
@@ -765,6 +766,7 @@ class PasswordResetOTP(models.Model):
     )
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:

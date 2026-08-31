@@ -51,6 +51,7 @@ from .dm_services import (
     list_dm_read_message_ids_for_sender,
     mark_dm_room_read,
 )
+from .dm_request_services import can_access_dm_room_for_viewer
 from .group_chat_services import (
     assign_default_group_name,
     can_access_group_room,
@@ -277,6 +278,9 @@ def _serialize_group_message(message, current_user_id):
 
 
 def _group_messages_json(request, room):
+    if not can_access_group_room(room, request.user):
+        return JsonResponse({"messages": [], "latest_id": 0, "can_send": False})
+
     message_queryset = room.chat_messages
     after = request.GET.get("after", "").strip()
     messages_qs = message_queryset.select_related("sender").order_by("created_at")
@@ -293,6 +297,7 @@ def _group_messages_json(request, room):
                 for message in messages_qs
             ],
             "latest_id": latest_id,
+            "can_send": True,
         }
     )
 
@@ -605,7 +610,7 @@ def timetable_user(request, pk):
         {
             "nav_active": "timetable",
             "timetable": build_timetable_grid_for_user(owner),
-            "timetable_slots": slots_dict_for_user(owner),
+            "timetable_slots": slots_dict_for_user(owner, include_memo=False),
             "timetable_owner": owner,
             "is_own_timetable": False,
             "is_timetable_public": True,
@@ -684,7 +689,7 @@ def api_timetable_user_slots(request, pk):
             "is_own": is_own,
             "is_timetable_public": bool(is_public or is_own),
             "read_only": not is_own,
-            "slots": slots_dict_for_user(owner),
+            "slots": slots_dict_for_user(owner, include_memo=is_own),
         }
     )
 
@@ -1577,10 +1582,12 @@ def dm_group_room(request, room_pk):
         membership.user
         for membership in room.memberships.select_related("user", "user__profile")
     ]
-    group_messages = room.chat_messages.select_related("sender")
-    latest_message_id = 0
     if can_access_group_room(room, request.user):
+        group_messages = room.chat_messages.select_related("sender")
         latest_message_id = mark_group_room_read(room, request.user)
+    else:
+        group_messages = []
+        latest_message_id = 0
     display_name = room.name or f"グループ #{room.pk}"
 
     return render(
@@ -1666,7 +1673,7 @@ def user_dm_room(request, room_pk):
         ),
         pk=room_pk,
     )
-    if not can_access_dm_room(room, request.user):
+    if not can_access_dm_room_for_viewer(room, request.user):
         messages.error(request, "この DM ルームにはアクセスできません。")
         return redirect(reverse("home"))
 
@@ -1701,7 +1708,7 @@ def send_user_dm_message(request, room_pk):
         UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
         pk=room_pk,
     )
-    if not can_access_dm_room(room, request.user):
+    if not can_access_dm_room_for_viewer(room, request.user):
         messages.error(request, "この DM ルームにはアクセスできません。")
         return redirect(reverse("home"))
 
@@ -1743,7 +1750,7 @@ def user_dm_room_messages(request, room_pk):
         UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
         pk=room_pk,
     )
-    if not can_access_dm_room(room, request.user):
+    if not can_access_dm_room_for_viewer(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
 
     response = _room_messages_json(request, room)

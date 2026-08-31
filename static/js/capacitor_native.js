@@ -291,56 +291,13 @@
   }
 
   /**
-   * 実機デバッグ用: Safari コンソール無しでもエラー内容を alert で確認する。
-   * Error は JSON.stringify だと {} になるため、主要フィールドを展開する。
+   * Camera 診断ログ（本番では alert しない）。
    */
   function alertCameraDebugError(e, context, extra) {
-    var payload = e;
-    if (e instanceof Error) {
-      payload = {
-        context: context || null,
-        name: e.name,
-        message: e.message,
-        stack: e.stack,
-        code: e.code,
-      };
-      try {
-        Object.keys(e).forEach(function (key) {
-          payload[key] = e[key];
-        });
-      } catch (_ignore) {}
-    } else if (e && typeof e === "object") {
-      payload = { context: context || null };
-      try {
-        Object.keys(e).forEach(function (key) {
-          payload[key] = e[key];
-        });
-      } catch (_ignore) {
-        payload.raw = String(e);
-      }
-      if (e.message) payload.message = e.message;
-      if (e.code) payload.code = e.code;
-      if (e.errorMessage) payload.errorMessage = e.errorMessage;
-    } else {
-      payload = { context: context || null, value: e, raw: String(e) };
-    }
-    if (extra && typeof extra === "object") {
-      try {
-        Object.keys(extra).forEach(function (key) {
-          payload[key] = extra[key];
-        });
-      } catch (_ignoreExtra) {}
-    }
     try {
       console.error("[WASE Camera]", context || "error", e, extra || null);
     } catch (_consoleIgnore) {}
-    try {
-      alert(JSON.stringify(payload, null, 2));
-    } catch (_stringifyError) {
-      alert(String(context || "camera-debug") + ": " + String(e));
-    }
   }
-
   function dataUrlToFile(dataUrl, filename) {
     var parts = String(dataUrl || "").split(",");
     if (parts.length < 2) {
@@ -478,13 +435,10 @@
       var permission = await Camera.requestPermissions({
         permissions: permissions || ["camera", "photos"],
       });
-      // デバッグ: 権限 status を画面と console の両方に出す
       console.log("[WASE Camera] requestPermissions status", permission);
-      alert(JSON.stringify({ step: "requestPermissions", status: permission }, null, 2));
       return permission;
     } catch (e) {
       logNativeError("Camera.requestPermissions failed", e);
-      alert(JSON.stringify(e, null, 2));
       alertCameraDebugError(e, "Camera.requestPermissions catch");
       return null;
     }
@@ -499,7 +453,6 @@
         return mapCapacitorCameraPermission(permission && permission.camera);
       } catch (e) {
         logNativeError("Camera.checkPermissions failed", e);
-        alert(JSON.stringify(e, null, 2));
         alertCameraDebugError(e, "Camera.checkPermissions catch");
         return "unknown";
       }
@@ -516,7 +469,6 @@
         return (nativeResult && nativeResult.status) || "unknown";
       } catch (e) {
         logNativeError("CameraPermission.checkAuthorization failed", e);
-        alert(JSON.stringify(e, null, 2));
         alertCameraDebugError(e, "CameraPermission.checkAuthorization catch");
         return "unknown";
       }
@@ -555,7 +507,6 @@
       return { ok: false, reason: "photos_denied" };
     } catch (e) {
       logNativeError("Photos permission check failed", e);
-      alert(JSON.stringify(e, null, 2));
       alertCameraDebugError(e, "ensurePhotosAccess catch");
       return { ok: false, reason: "photos_error" };
     }
@@ -576,17 +527,10 @@
       try {
         var nativeResult = await NativePermission.requestAuthorization();
         console.log("[WASE Camera] CameraPermission.requestAuthorization", nativeResult);
-        alert(
-          JSON.stringify(
-            { step: "CameraPermission.requestAuthorization", result: nativeResult },
-            null,
-            2
-          )
-        );
+
         return (nativeResult && nativeResult.status) || "unknown";
       } catch (e) {
         logNativeError("CameraPermission.requestAuthorization failed", e);
-        alert(JSON.stringify(e, null, 2));
         alertCameraDebugError(e, "CameraPermission.requestAuthorization catch");
         return "unknown";
       }
@@ -652,7 +596,6 @@
       return { ok: false, reason: "permission" };
     } catch (e) {
       logNativeError("Camera permission check failed", e);
-      alert(JSON.stringify(e, null, 2));
       alertCameraDebugError(e, "ensureCameraAccess catch");
       return { ok: false, reason: "error" };
     }
@@ -745,7 +688,6 @@
           await requestNativePhotosAuthorization();
         } catch (e) {
           logNativeError("Photos permission request failed", e);
-          alert(JSON.stringify(e, null, 2));
           alertCameraDebugError(e, "requestNativePhotosAuthorization catch");
         }
       }
@@ -753,31 +695,12 @@
 
     var Camera = getPlugin("Camera");
     if (!Camera || typeof Camera.getPhoto !== "function") {
-      // 「最新版」メッセージは出さず、プラグイン未検出の技術情報を表示
-      alert(
-        JSON.stringify(
-          {
-            step: "getPhoto unavailable",
-            hasCameraPlugin: !!Camera,
-            hasGetPhoto: !!(Camera && Camera.getPhoto),
-            pluginKeys: Camera ? Object.keys(Camera) : [],
-            capacitorPlugins:
-              window.Capacitor && window.Capacitor.Plugins
-                ? Object.keys(window.Capacitor.Plugins)
-                : [],
-            hasCapacitor: !!window.Capacitor,
-            hasGetPlugin: !!(window.Capacitor && window.Capacitor.getPlugin),
-            platform:
-              window.Capacitor && window.Capacitor.getPlatform
-                ? window.Capacitor.getPlatform()
-                : null,
-            photoSource: photoSource,
-            access: access,
-          },
-          null,
-          2
-        )
-      );
+      // 「最新版」メッセージは出さず、プラグイン未検出はログのみ
+      console.error("[WASE Camera]", "getPhoto unavailable", {
+        step: "getPhoto unavailable",
+        hasCameraPlugin: !!Camera,
+        hasGetPhoto: !!(Camera && Camera.getPhoto),
+      });
       return true;
     }
 
@@ -910,7 +833,6 @@
             }
             attachNativeCameraPhoto(pickInput, normalizedPick).catch(function (e) {
               logNativeError("Camera pick-button guard failed", e);
-              alert(JSON.stringify(e, null, 2));
               alertCameraDebugError(e, "setupNativeCameraInputGuard pickBtn catch");
             });
             return;
@@ -928,7 +850,6 @@
 
         attachNativeCameraPhoto(input).catch(function (e) {
           logNativeError("Camera guard failed", e);
-          alert(JSON.stringify(e, null, 2));
           alertCameraDebugError(e, "setupNativeCameraInputGuard catch");
         });
       },
