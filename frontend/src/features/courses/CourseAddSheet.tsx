@@ -292,7 +292,7 @@ export function CourseAddSheet({
       case "invalid_campus":
         return "学部またはキャンパスの指定が正しくありません。";
       case "rate_limited":
-        return "操作が多すぎます。時間をおいて再度お試しください。";
+        return "短時間に操作が集中しています。少し待ってからもう一度お試しください。";
       case "csrf_failed":
         return "セキュリティチェックに失敗しました。ページを再読み込みしてから再度お試しください。";
       case "unauthorized":

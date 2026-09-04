@@ -24,6 +24,7 @@ from .services import (
 from .timeline_api_services import serialize_author
 from .trade_chat_inbox_services import product_thumbnail_url, trade_status_label
 from .trade_chat_services import (
+    can_physically_delete_product,
     get_confirmed_room_for_product,
     seller_can_complete_handover,
 )
@@ -164,11 +165,7 @@ def serialize_product_detail(
                 and user_chat_room_obj.deal_status != ChatRoom.DealStatus.CLOSED
             )
 
-    can_delete = (
-        viewer is not None
-        and getattr(viewer, "is_authenticated", False)
-        and product.seller_id == viewer.id
-    )
+    can_delete = can_physically_delete_product(product, viewer)
 
     user_has_bookmarked = False
     if viewer is not None and getattr(viewer, "is_authenticated", False):

@@ -208,12 +208,13 @@ def get_community_thread(community, thread_pk):
     )
 
 
-def create_thread_reply(thread, user, body):
+def create_thread_reply(thread, user, body, *, reply_to=None):
     with transaction.atomic():
         reply = CommunityThreadReply.objects.create(
             thread=thread,
             author=user,
             body=body,
+            reply_to=reply_to,
         )
         now = timezone.now()
         thread.updated_at = now
@@ -231,6 +232,58 @@ def create_thread_reply(thread, user, body):
             ]
         )
     return reply
+
+
+def resolve_reply_to_for_thread(thread, reply_to_id):
+    """同一スレッド内の返信先を検証。無効なら ValueError('invalid_reply_to')。"""
+    if reply_to_id is None or reply_to_id == "":
+        return None
+    try:
+        target_id = int(reply_to_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_reply_to") from exc
+    if target_id <= 0:
+        raise ValueError("invalid_reply_to")
+    target = (
+        CommunityThreadReply.objects.select_related("author", "author__profile")
+        .filter(pk=target_id, thread_id=thread.pk)
+        .first()
+    )
+    if target is None:
+        raise ValueError("invalid_reply_to")
+    return target
+
+
+def notify_community_reply(
+    *,
+    reply: CommunityThreadReply,
+    thread: CommunityThread,
+) -> None:
+    """返信先の著者（なければスレッド主）へ通知。自己通知は作らない。"""
+    from .models import Notification
+    from .services import user_display_name
+
+    actor_name = user_display_name(reply.author)
+    recipient = None
+    message = ""
+    if reply.reply_to_id:
+        parent = reply.reply_to
+        if parent is not None and not parent.is_removed and parent.author_id:
+            recipient = parent.author
+            message = f"{actor_name}さんがあなたの発言に返信しました"
+    if recipient is None and thread.author_id:
+        recipient = thread.author
+        title = (thread.title or "スレッド")[:40]
+        message = f"{actor_name}さんが「{title}」に返信しました"
+    if recipient is None or recipient.pk == reply.author_id:
+        return
+    slug = thread.community.slug
+    link = f"/app/communities/{slug}/threads/{thread.pk}#reply-{reply.pk}"
+    Notification.objects.create(
+        recipient=recipient,
+        message=message,
+        link=link,
+    )
 
 
 def can_delete_community_content(user, author_id: int) -> bool:
@@ -317,7 +370,14 @@ def update_community_reply(reply: CommunityThreadReply, body: str) -> None:
 def get_community_reply(community, thread_pk, reply_pk):
     thread = get_community_thread(community, thread_pk)
     return get_object_or_404(
-        CommunityThreadReply.objects.select_related("author", "author__profile"),
+        CommunityThreadReply.objects.select_related(
+            "author",
+            "author__profile",
+            "reply_to",
+            "reply_to__author",
+            "reply_to__author__profile",
+            "thread",
+        ),
         pk=reply_pk,
         thread=thread,
     )
@@ -327,7 +387,10 @@ def list_replies_for_thread(thread, *, include_removed=True):
     queryset = thread.replies.select_related(
         "author",
         "author__profile",
-    ).order_by("created_at")
+        "reply_to",
+        "reply_to__author",
+        "reply_to__author__profile",
+    ).order_by("created_at", "pk")
     if not include_removed:
         queryset = queryset.filter(is_removed=False)
     return queryset
@@ -335,3 +398,8 @@ def list_replies_for_thread(thread, *, include_removed=True):
 
 def count_visible_replies_for_thread(thread) -> int:
     return thread.replies.filter(is_removed=False).count()
+
+
+def reply_numbers_for_thread(replies) -> dict[int, int]:
+    """soft-delete 行も含めた作成順でスレッド内番号を振る（安定）。"""
+    return {reply.pk: index for index, reply in enumerate(replies, start=1)}

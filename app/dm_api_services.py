@@ -7,6 +7,12 @@ from typing import Any
 from django.contrib.auth.models import AbstractBaseUser
 from django.utils import timezone
 
+from .chat_pagination import (
+    history_meta,
+    parse_message_pk,
+    slice_chat_history,
+    slice_chat_poll,
+)
 from .dm_services import (
     can_access_dm_room,
     dm_room_link,
@@ -175,11 +181,8 @@ def build_dm_room_payload(
         and recipient_can_send_in_dm(room, viewer)
     )
     latest_id = mark_dm_room_read(room, viewer)
-    messages = list(
-        room.messages.select_related("sender", "sender__profile").order_by(
-            "created_at"
-        )
-    )
+    base_qs = room.messages.select_related("sender", "sender__profile")
+    messages, has_more, next_before = slice_chat_history(base_qs)
     request_payload = None
     if pending is not None:
         request_payload = {
@@ -205,6 +208,7 @@ def build_dm_room_payload(
             )
             for m in messages
         ],
+        **history_meta(has_more, next_before),
     }
 
 
@@ -213,17 +217,30 @@ def build_dm_messages_payload(
     viewer: AbstractBaseUser,
     *,
     after: str = "",
+    before: str = "",
 ) -> dict[str, Any]:
     from .dm_request_services import (
         get_pending_dm_request_for_recipient,
         recipient_can_send_in_dm,
     )
 
-    qs = room.messages.select_related("sender", "sender__profile").order_by(
-        "created_at"
-    )
-    if after.isdigit():
-        qs = qs.filter(pk__gt=int(after))
+    base_qs = room.messages.select_related("sender", "sender__profile")
+    before_pk = parse_message_pk(before)
+    after_pk = parse_message_pk(after)
+
+    if before_pk is not None:
+        page, has_more, next_before = slice_chat_history(
+            base_qs, before=before_pk
+        )
+        messages = page
+        history = history_meta(has_more, next_before)
+    elif after_pk is not None:
+        messages = slice_chat_poll(base_qs, after=after_pk)
+        history = history_meta(False, None)
+    else:
+        messages, has_more, next_before = slice_chat_history(base_qs)
+        history = history_meta(has_more, next_before)
+
     latest_id = (
         room.messages.order_by("-pk").values_list("pk", flat=True).first() or 0
     )
@@ -240,13 +257,14 @@ def build_dm_messages_payload(
             serialize_dm_message(
                 m, viewer.id, anonymize_partner=is_blocked
             )
-            for m in qs
+            for m in messages
         ],
         "latest_id": latest_id,
         "read_message_ids": list_dm_read_message_ids_for_sender(room, viewer),
         "is_blocked": is_blocked,
         "can_send": can_send,
         "request_status": "pending_request" if pending else "active",
+        **history,
     }
 
 
@@ -365,11 +383,15 @@ def build_group_room_payload(
     pending = None if is_member else get_pending_invitation(room, viewer)
     if is_member:
         latest_id = mark_group_room_read(room, viewer)
-        messages = list(visible_chat_messages_qs(room).order_by("created_at"))
+        messages, has_more, next_before = slice_chat_history(
+            visible_chat_messages_qs(room)
+        )
     else:
         # pending 招待者には履歴を見せない
         latest_id = 0
         messages = []
+        has_more = False
+        next_before = None
 
     members = [
         serialize_author(m.user)
@@ -396,11 +418,16 @@ def build_group_room_payload(
             "latest_id": latest_id or 0,
         },
         "messages": [serialize_group_message(m, viewer.id) for m in messages],
+        **history_meta(has_more, next_before),
     }
 
 
 def build_group_messages_payload(
-    room: ChatRoom, viewer: AbstractBaseUser, *, after: str = ""
+    room: ChatRoom,
+    viewer: AbstractBaseUser,
+    *,
+    after: str = "",
+    before: str = "",
 ) -> dict[str, Any]:
     from .chat_message_services import visible_chat_messages_qs
 
@@ -409,11 +436,26 @@ def build_group_messages_payload(
             "messages": [],
             "latest_id": 0,
             "can_send": False,
+            **history_meta(False, None),
         }
 
-    qs = visible_chat_messages_qs(room).order_by("created_at")
-    if after.isdigit():
-        qs = qs.filter(pk__gt=int(after))
+    base_qs = visible_chat_messages_qs(room)
+    before_pk = parse_message_pk(before)
+    after_pk = parse_message_pk(after)
+
+    if before_pk is not None:
+        page, has_more, next_before = slice_chat_history(
+            base_qs, before=before_pk
+        )
+        messages = page
+        history = history_meta(has_more, next_before)
+    elif after_pk is not None:
+        messages = slice_chat_poll(base_qs, after=after_pk)
+        history = history_meta(False, None)
+    else:
+        messages, has_more, next_before = slice_chat_history(base_qs)
+        history = history_meta(has_more, next_before)
+
     latest_id = (
         visible_chat_messages_qs(room)
         .order_by("-pk")
@@ -423,9 +465,10 @@ def build_group_messages_payload(
     )
     mark_group_room_read(room, viewer)
     return {
-        "messages": [serialize_group_message(m, viewer.id) for m in qs],
+        "messages": [serialize_group_message(m, viewer.id) for m in messages],
         "latest_id": latest_id,
         "can_send": True,
+        **history,
     }
 
 

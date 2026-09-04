@@ -14,7 +14,7 @@ from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Val
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import cache_control
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -1226,6 +1226,21 @@ REPORT_SUCCESS_MESSAGE = "通報しました"
 @login_required
 @require_POST
 def submit_report(request, target_type: str, target_id: int):
+    from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_report
+
+    if not allow_report(request.user):
+        if _wants_json_response(request):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "rate_limited",
+                    "message": RATE_LIMIT_USER_MESSAGE,
+                },
+                status=429,
+            )
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return _redirect_after_action(request)
+
     valid_target_types = {choice[0] for choice in ContentReport.TargetType.choices}
     if target_type not in valid_target_types:
         message = "通報対象の種別が不正です。"
@@ -1704,6 +1719,8 @@ def user_dm_room(request, room_pk):
 @login_required
 @require_POST
 def send_user_dm_message(request, room_pk):
+    from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
+
     room = get_object_or_404(
         UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
         pk=room_pk,
@@ -1711,6 +1728,10 @@ def send_user_dm_message(request, room_pk):
     if not can_access_dm_room_for_viewer(room, request.user):
         messages.error(request, "この DM ルームにはアクセスできません。")
         return redirect(reverse("home"))
+
+    if not allow_chat_message(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(reverse("user_dm_room", kwargs={"room_pk": room.pk}))
 
     partner = room.other_user(request.user)
     if is_either_blocked(request.user, partner):
@@ -2286,7 +2307,12 @@ def _board_redirect(request, *, tag="", post_id=None, extra_query=None):
 @login_required
 @require_POST
 def board_compose(request):
+    from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_timeline_post
+
     log_compose_request(request)
+    if not allow_timeline_post(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return _board_redirect(request)
     form = TimelinePostForm(request.POST, request.FILES, viewer=request.user)
     if form.is_valid():
         post = form.save(commit=False)
@@ -2543,9 +2569,13 @@ def pwa_service_worker(request):
 
 
 @login_required
-@require_POST
+@require_http_methods(["POST", "DELETE"])
 def register_push_token(request):
-    """Capacitor が取得したデバイストークンを保存・更新する。"""
+    """Capacitor が取得したデバイストークンを保存・更新 / 解除する。
+
+    POST  — 登録（別ユーザー所有トークンも現セッションへ付け替え）
+    DELETE — ログアウト前の自ユーザー紐付け解除
+    """
     if request.content_type == "application/json":
         try:
             payload = json.loads(request.body.decode("utf-8"))
@@ -2558,10 +2588,13 @@ def register_push_token(request):
     if not token:
         return JsonResponse({"error": "token_required"}, status=400)
 
+    from .push_services import register_device_token, unregister_device_token
+
+    if request.method == "DELETE" or payload.get("unregister"):
+        removed = unregister_device_token(request.user, token)
+        return JsonResponse({"ok": True, "removed": removed})
+
     platform = (payload.get("platform") or "ios").strip()
-
-    from .push_services import register_device_token
-
     try:
         device = register_device_token(request.user, token, platform=platform)
     except ValueError:

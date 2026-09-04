@@ -13,6 +13,7 @@ import {
   confirmTrade,
   fetchChatMessages,
   fetchChatRoom,
+  fetchOlderChatMessages,
   handoverErrorMessage,
   sendChatMessage,
   type ChatMessage,
@@ -22,9 +23,11 @@ import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import {
   isChatNearBottom,
+  mergeUniqueByIdAsc,
   scrollChatToBottom,
   useChatVisibleFrameHeight,
   useKeepChatPinnedOnCompose,
+  useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
@@ -35,6 +38,8 @@ export function TradeChatPage() {
   const { me } = useSession();
   const [room, setRoom] = useState<ChatRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,11 +58,7 @@ export function TradeChatPage() {
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
-    setMessages((prev) => {
-      const known = new Set(prev.map((m) => m.id));
-      const next = incoming.filter((m) => !known.has(m.id));
-      return next.length ? [...prev, ...next] : prev;
-    });
+    setMessages((prev) => mergeUniqueByIdAsc(prev, incoming, "append"));
   }, []);
 
   useEffect(() => {
@@ -76,6 +77,8 @@ export function TradeChatPage() {
     setLoading(true);
     setRoom(null);
     setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
     setHandoverDone(false);
     setActionError(null);
     handoverStartedRef.current = false;
@@ -88,8 +91,15 @@ export function TradeChatPage() {
         const initial = await fetchChatMessages(roomId, undefined, ac.signal);
         if (ac.signal.aborted) return;
         setMessages(initial.messages);
+        setHasMore(Boolean(initial.has_more));
+        setNextBefore(
+          initial.next_before != null ? Number(initial.next_before) : null
+        );
         latestIdRef.current = initial.latest_id;
         setError(null);
+        requestAnimationFrame(() => {
+          scrollChatToBottom(threadRef.current, "auto");
+        });
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "load_failed");
@@ -99,6 +109,23 @@ export function TradeChatPage() {
     })();
     return () => ac.abort();
   }, [me?.authenticated, roomId, roomPk, navigate]);
+
+  const fetchOlder = useCallback(
+    (beforeId: number) => fetchOlderChatMessages(roomIdRef.current, beforeId),
+    []
+  );
+
+  const { loadingOlder } = useLoadOlderChatMessages({
+    enabled: Boolean(me?.authenticated && room && !loading && !handoverDone),
+    scrollerRef: threadRef,
+    messages,
+    hasMore,
+    setHasMore,
+    setNextBefore,
+    nextBefore,
+    setMessages,
+    fetchOlder,
+  });
 
   useChatPoll(
     Boolean(me?.authenticated && room && !loading && !handoverDone),
@@ -118,10 +145,11 @@ export function TradeChatPage() {
   );
 
   useEffect(() => {
+    if (loadingOlder) return;
     const scroller = threadRef.current;
     if (!isChatNearBottom(scroller)) return;
     scrollChatToBottom(scroller, "smooth");
-  }, [messages.length]);
+  }, [messages.length, loadingOlder]);
 
   useEffect(() => {
     if (!handoverDone) return;
@@ -159,7 +187,14 @@ export function TradeChatPage() {
       setRoom(updated);
       const data = await fetchChatMessages(roomId);
       setMessages(data.messages);
+      setHasMore(Boolean(data.has_more));
+      setNextBefore(
+        data.next_before != null ? Number(data.next_before) : null
+      );
       latestIdRef.current = data.latest_id;
+      requestAnimationFrame(() => {
+        scrollChatToBottom(threadRef.current, "auto");
+      });
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "取引開始に失敗しました"
@@ -305,6 +340,15 @@ export function TradeChatPage() {
         )}
 
         <div className="chat-messages dm-thread" ref={threadRef} aria-live="polite">
+          {loadingOlder ? (
+            <p className="chat-hint" style={{ textAlign: "center" }}>
+              過去のメッセージを読み込み中…
+            </p>
+          ) : hasMore ? (
+            <p className="chat-hint" style={{ textAlign: "center" }}>
+              上にスクロールして過去のメッセージを表示
+            </p>
+          ) : null}
           {messages.map((m) =>
             m.is_system ? (
               <div key={m.id} className="chat-bubble system">

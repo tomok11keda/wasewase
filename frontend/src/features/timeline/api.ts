@@ -1,3 +1,5 @@
+import { userFacingMutationError } from "../../lib/rateLimit";
+
 export type TimelineAuthor = {
   id: number;
   username: string;
@@ -130,7 +132,12 @@ export async function createTimelinePost(input: {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) {
-    throw new Error(data.error || `compose_${res.status}`);
+    throw new Error(
+      userFacingMutationError(
+        data.error || `compose_${res.status}`,
+        "投稿に失敗しました"
+      )
+    );
   }
   return data.post as TimelinePost;
 }
@@ -144,7 +151,11 @@ export async function toggleLike(
     headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "like_failed");
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      userFacingMutationError(data.error || "like_failed", "いいねに失敗しました")
+    );
+  }
   return { liked: data.liked, like_count: data.like_count };
 }
 
@@ -174,7 +185,14 @@ export async function addComment(
     body: JSON.stringify({ body }),
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "comment_failed");
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      userFacingMutationError(
+        data.error || "comment_failed",
+        "コメントに失敗しました"
+      )
+    );
+  }
   return { comment: data.comment, comment_count: data.comment_count };
 }
 
@@ -261,9 +279,10 @@ export async function submitContentReport(
   }
   if (!res.ok || !data.ok) {
     throw new Error(
-      data.message ||
-        data.error ||
+      userFacingMutationError(
+        data.error || data.message || "通報に失敗しました。時間をおいてもう一度お試しください。",
         "通報に失敗しました。時間をおいてもう一度お試しください。"
+      )
     );
   }
   return data.message || "通報しました";

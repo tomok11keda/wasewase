@@ -1895,6 +1895,24 @@ class DeleteContentTests(TestCase):
         self.assertEqual(response["Location"], reverse("flea_index"))
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
 
+    def test_owner_cannot_delete_product_with_trade_chat(self):
+        ChatRoom.objects.create(
+            product=self.product,
+            buyer=self.other,
+            deal_status=ChatRoom.DealStatus.NEGOTIATING,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("delete_product", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            reverse("product_detail", args=[self.product.pk]),
+        )
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertTrue(
+            ChatRoom.objects.filter(product=self.product, buyer=self.other).exists()
+        )
+
     def test_other_user_cannot_delete_product(self):
         self.client.force_login(self.other)
         response = self.client.post(reverse("delete_product", args=[self.product.pk]))
@@ -1910,6 +1928,16 @@ class DeleteContentTests(TestCase):
         self.client.force_login(self.other)
         other_page = self.client.get(reverse("product_detail", args=[self.product.pk]))
         self.assertNotContains(other_page, "この商品を削除する")
+
+    def test_product_detail_hides_delete_when_trade_history_exists(self):
+        ChatRoom.objects.create(
+            product=self.product,
+            buyer=self.other,
+            deal_status=ChatRoom.DealStatus.NEGOTIATING,
+        )
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertNotContains(page, "この商品を削除する")
 
 
 class DeleteCommentTests(TestCase):
@@ -3037,6 +3065,55 @@ class PushNotificationTests(TestCase):
         device = DevicePushToken.objects.get(token="shared-token")
         self.assertEqual(device.user, self.seller)
         self.assertEqual(device.platform, DevicePushToken.Platform.ANDROID)
+
+    def test_unregister_push_token_removes_own_only(self):
+        DevicePushToken.objects.create(
+            user=self.seller,
+            token="seller-device",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        DevicePushToken.objects.create(
+            user=self.buyer,
+            token="buyer-device",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        self.client.force_login(self.seller)
+
+        other = self.client.delete(
+            reverse("register_push_token"),
+            data=b'{"token":"buyer-device"}',
+            content_type="application/json",
+        )
+        self.assertEqual(other.status_code, 200)
+        self.assertFalse(other.json()["removed"])
+        self.assertTrue(DevicePushToken.objects.filter(token="buyer-device").exists())
+
+        own = self.client.delete(
+            reverse("register_push_token"),
+            data=b'{"token":"seller-device"}',
+            content_type="application/json",
+        )
+        self.assertEqual(own.status_code, 200)
+        self.assertTrue(own.json()["removed"])
+        self.assertFalse(DevicePushToken.objects.filter(token="seller-device").exists())
+
+    def test_unregister_via_post_flag(self):
+        DevicePushToken.objects.create(
+            user=self.seller,
+            token="post-unregister",
+            platform=DevicePushToken.Platform.IOS,
+        )
+        self.client.force_login(self.seller)
+        response = self.client.post(
+            reverse("register_push_token"),
+            data='{"token":"post-unregister","unregister":true}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["removed"])
+        self.assertFalse(
+            DevicePushToken.objects.filter(token="post-unregister").exists()
+        )
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
     @patch("app.push_services.notify_user_push")

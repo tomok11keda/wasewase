@@ -12,6 +12,7 @@ import {
   acceptMessageRequest,
   declineMessageRequest,
   fetchDmRoom,
+  fetchOlderDmMessages,
   pollDmMessages,
   sendDmMessage,
   type ChatMessage,
@@ -21,9 +22,11 @@ import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import {
   isChatNearBottom,
+  mergeUniqueByIdAsc,
   scrollChatToBottom,
   useChatVisibleFrameHeight,
   useKeepChatPinnedOnCompose,
+  useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
 
 export function DmRoomPage() {
@@ -33,6 +36,8 @@ export function DmRoomPage() {
   const { me, loading: sessionLoading } = useSession();
   const [room, setRoom] = useState<DmRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,11 +54,7 @@ export function DmRoomPage() {
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
-    setMessages((prev) => {
-      const known = new Set(prev.map((m) => m.id));
-      const next = incoming.filter((m) => !known.has(m.id));
-      return next.length ? [...prev, ...next] : prev;
-    });
+    setMessages((prev) => mergeUniqueByIdAsc(prev, incoming, "append"));
   }, []);
 
   const applyReadIds = useCallback((ids: number[]) => {
@@ -81,13 +82,22 @@ export function DmRoomPage() {
     setLoading(true);
     setRoom(null);
     setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
     latestIdRef.current = 0;
     void fetchDmRoom(roomId, ac.signal)
       .then((data) => {
         setRoom(data.room);
         setMessages(data.messages || []);
+        setHasMore(Boolean(data.has_more));
+        setNextBefore(
+          data.next_before != null ? Number(data.next_before) : null
+        );
         latestIdRef.current = data.room.latest_id || 0;
         setError(null);
+        requestAnimationFrame(() => {
+          scrollChatToBottom(threadRef.current, "auto");
+        });
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -95,7 +105,24 @@ export function DmRoomPage() {
       })
       .finally(() => setLoading(false));
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, roomId, roomPk]);
+  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate]);
+
+  const fetchOlder = useCallback(
+    (beforeId: number) => fetchOlderDmMessages(roomIdRef.current, beforeId),
+    []
+  );
+
+  const { loadingOlder } = useLoadOlderChatMessages({
+    enabled: Boolean(me?.authenticated && room && !loading),
+    scrollerRef: threadRef,
+    messages,
+    hasMore,
+    setHasMore,
+    setNextBefore,
+    nextBefore,
+    setMessages,
+    fetchOlder,
+  });
 
   useChatPoll(
     Boolean(me?.authenticated && room && !loading),
@@ -125,10 +152,11 @@ export function DmRoomPage() {
   );
 
   useEffect(() => {
+    if (loadingOlder) return;
     const scroller = threadRef.current;
     if (!isChatNearBottom(scroller)) return;
     scrollChatToBottom(scroller, "smooth");
-  }, [messages.length]);
+  }, [messages.length, loadingOlder]);
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
@@ -299,6 +327,15 @@ export function DmRoomPage() {
           )}
 
           <div className="dm-message-area" ref={threadRef}>
+            {loadingOlder ? (
+              <p className="chat-hint" style={{ textAlign: "center" }}>
+                過去のメッセージを読み込み中…
+              </p>
+            ) : hasMore ? (
+              <p className="chat-hint" style={{ textAlign: "center" }}>
+                上にスクロールして過去のメッセージを表示
+              </p>
+            ) : null}
             {messages.length === 0 ? (
               <p className="empty-message">
                 まだメッセージはありません。最初の一言を送ってみましょう。

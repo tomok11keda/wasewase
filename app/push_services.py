@@ -82,7 +82,11 @@ def register_device_token(
     *,
     platform: str = PLATFORM_IOS,
 ) -> DevicePushToken:
-    """デバイストークンを登録または更新する。"""
+    """デバイストークンを登録または更新する。
+
+    同一トークンが別ユーザーに紐付いていても、現在の user へ付け替える
+    （端末のログアウト→別アカウントログイン向け）。
+    """
     token = (token or "").strip()
     if not token:
         raise ValueError("token is required")
@@ -103,6 +107,20 @@ def register_device_token(
         platform=platform,
         updated_at=now,
     )
+
+
+def unregister_device_token(
+    user: AbstractBaseUser,
+    token: str,
+) -> bool:
+    """現在のユーザーに紐付くトークンだけ削除。他ユーザーのトークンは触らない。"""
+    token = (token or "").strip()
+    if not token:
+        return False
+    deleted, _ = DevicePushToken.objects.filter(
+        user_id=user.pk, token=token
+    ).delete()
+    return deleted > 0
 
 
 def send_push_to_user(

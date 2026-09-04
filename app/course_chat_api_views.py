@@ -22,6 +22,7 @@ from .course_chat_services import (
     enrollment_role_for,
 )
 from .models import ChatRoom, CourseOffering
+from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,10 @@ def _json_body(request: HttpRequest) -> dict:
         return {}
 
 
-def _json_error(code: str, status: int = 400) -> JsonResponse:
-    return JsonResponse({"ok": False, "error": code}, status=status)
+def _json_error(code: str, status: int = 400, **extra) -> JsonResponse:
+    payload = {"ok": False, "error": code}
+    payload.update(extra)
+    return JsonResponse(payload, status=status)
 
 
 def _get_course_room_for_member(
@@ -208,6 +211,7 @@ def api_v1_courses_talk_messages(
             offering,
             request.user,
             after=request.GET.get("after") or "",
+            before=request.GET.get("before") or "",
         )
     )
 
@@ -217,6 +221,12 @@ def api_v1_courses_talk_messages(
 def api_v1_courses_talk_send(
     request: HttpRequest, room_pk: int
 ) -> JsonResponse:
+    if not allow_chat_message(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     result = _get_course_room_for_member(room_pk, request.user)
     if isinstance(result, JsonResponse):
         return result

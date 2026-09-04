@@ -8,6 +8,7 @@ import { AuthLayout } from "./layouts/AuthLayout";
 import { SessionProvider } from "./lib/session";
 import { PostHogIdentitySync } from "./lib/analytics/PostHogAppProvider";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
+import { NativePushSessionSync } from "./components/NativePushSessionSync";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmInboxPage } from "./pages/DmInboxPage";
@@ -46,6 +47,7 @@ function SpaRuntimeHooks() {
   return (
     <>
       <PostHogIdentitySync />
+      <NativePushSessionSync />
       <UnauthorizedRedirect />
       <NativeSpaBridge />
     </>

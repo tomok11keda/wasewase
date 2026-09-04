@@ -325,3 +325,56 @@ class FleaApiTests(TestCase):
         deleted = self.client.post(f"/api/v1/flea/products/{pk}/delete/")
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(Product.objects.filter(pk=pk).exists())
+
+    def test_cannot_delete_product_with_negotiation_chat(self):
+        self.client.force_login(self.buyer)
+        start = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/chat/start/"
+        )
+        self.assertEqual(start.status_code, 200)
+        room_id = start.json()["room_id"]
+
+        self.client.force_login(self.seller)
+        detail = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertFalse(detail.json()["product"]["can_delete"])
+
+        deleted = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(deleted.status_code, 400)
+        self.assertEqual(deleted.json()["error"], "has_trade_history")
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertTrue(ChatRoom.objects.filter(pk=room_id).exists())
+
+    def test_cannot_delete_pending_or_sold_product(self):
+        self.client.force_login(self.buyer)
+        buy = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/purchase/"
+        )
+        self.assertEqual(buy.status_code, 200)
+        room_id = buy.json()["room_id"]
+
+        self.client.force_login(self.seller)
+        pending_delete = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(pending_delete.status_code, 400)
+        self.assertEqual(pending_delete.json()["error"], "pending")
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+        handover = self.client.post(
+            f"/api/v1/flea/chats/{room_id}/handover-complete/"
+        )
+        self.assertEqual(handover.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertTrue(self.product.is_sold)
+
+        sold_delete = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(sold_delete.status_code, 400)
+        self.assertEqual(sold_delete.json()["error"], "sold")
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertTrue(ChatRoom.objects.filter(pk=room_id).exists())
+        self.assertTrue(Message.objects.filter(chat_room_id=room_id).exists())

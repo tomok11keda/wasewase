@@ -10,13 +10,15 @@ from django.http import HttpRequest
 from .community_services import (
     can_delete_community_content,
     can_edit_community_reply,
+    count_visible_replies_for_thread,
     get_faculty_tag_choices,
     list_community_threads,
     list_replies_for_thread,
-    count_visible_replies_for_thread,
+    reply_numbers_for_thread,
 )
 from .constants import FACULTY_CHOICES
 from .models import Community, CommunityThread, CommunityThreadReply
+from .services import user_display_name
 from .timeline_api_services import serialize_author
 
 
@@ -54,15 +56,48 @@ def serialize_thread_summary(
     }
 
 
+def serialize_reply_to_preview(
+    parent: CommunityThreadReply | None,
+    *,
+    number_by_id: dict[int, int],
+) -> dict[str, Any] | None:
+    if parent is None:
+        return None
+    number = number_by_id.get(parent.pk)
+    if parent.is_removed or parent.author_id is None:
+        return {
+            "id": parent.pk,
+            "reply_number": number,
+            "display_name": "",
+            "is_unavailable": True,
+        }
+    return {
+        "id": parent.pk,
+        "reply_number": number,
+        "display_name": user_display_name(parent.author),
+        "is_unavailable": False,
+    }
+
+
 def serialize_reply(
     reply: CommunityThreadReply,
     viewer: AbstractBaseUser | None,
+    *,
+    reply_number: int | None = None,
+    number_by_id: dict[int, int] | None = None,
 ) -> dict[str, Any]:
+    numbers = number_by_id or {}
+    number = reply_number if reply_number is not None else numbers.get(reply.pk)
+    parent = None
+    if reply.reply_to_id:
+        parent = getattr(reply, "reply_to", None)
     return {
         "id": reply.pk,
         "body": "" if reply.is_removed else reply.body,
         "created_at": reply.created_at.isoformat(),
         "is_removed": bool(reply.is_removed),
+        "reply_number": number,
+        "reply_to": serialize_reply_to_preview(parent, number_by_id=numbers),
         "can_delete": (
             can_delete_community_content(viewer, reply.author_id)
             if viewer is not None and not reply.is_removed
@@ -80,6 +115,7 @@ def serialize_thread_detail(
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
     replies = list(list_replies_for_thread(thread, include_removed=True))
+    number_by_id = reply_numbers_for_thread(replies)
     return {
         "id": thread.pk,
         "title": thread.title,
@@ -92,7 +128,15 @@ def serialize_thread_detail(
         "author": serialize_author(thread.author),
         "community": serialize_community(thread.community),
         "visible_reply_count": count_visible_replies_for_thread(thread),
-        "replies": [serialize_reply(r, viewer) for r in replies],
+        "replies": [
+            serialize_reply(
+                r,
+                viewer,
+                reply_number=number_by_id[r.pk],
+                number_by_id=number_by_id,
+            )
+            for r in replies
+        ],
     }
 
 

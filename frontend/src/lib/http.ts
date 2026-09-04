@@ -1,6 +1,5 @@
-/** Shared same-origin JSON fetch helpers (Django session + CSRF). */
-
 import { getCsrfToken } from "../features/timeline/api";
+import { userFacingMutationError } from "./rateLimit";
 
 export type ApiJsonResult<T = Record<string, unknown>> = {
   ok: boolean;
@@ -69,4 +68,12 @@ export async function apiPostJson(
     data,
     error,
   };
+}
+
+/** Prefer Japanese message when the API returned rate_limited. */
+export function mutationErrorMessage(
+  error: string | undefined,
+  fallback: string
+): string {
+  return userFacingMutationError(error, fallback);
 }

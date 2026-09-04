@@ -1,4 +1,5 @@
 import { getCsrfToken } from "../timeline/api";
+import { userFacingMutationError } from "../../lib/rateLimit";
 
 export type Author = {
   id: number | null;
@@ -241,7 +242,16 @@ export async function deleteProduct(pk: number): Promise<void> {
     headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
+  if (!res.ok || !data.ok) {
+    const code = data.error || "delete_failed";
+    const messages: Record<string, string> = {
+      sold: "売り切れの商品は削除できません。",
+      pending: "取引中の商品は削除できません。",
+      has_trade_history: "取引履歴がある商品は削除できません。",
+      forbidden: "この商品を削除する権限がありません。",
+    };
+    throw new Error(messages[code] || code);
+  }
 }
 
 export async function shareProductToTimeline(pk: number): Promise<void> {
@@ -287,7 +297,12 @@ export async function fetchChatMessages(
   roomPk: number,
   after?: number,
   signal?: AbortSignal
-): Promise<{ messages: ChatMessage[]; latest_id: number }> {
+): Promise<{
+  messages: ChatMessage[];
+  latest_id: number;
+  has_more?: boolean;
+  next_before?: number | null;
+}> {
   const qs = after ? `?after=${after}` : "";
   const res = await fetch(`/api/v1/flea/chats/${roomPk}/messages/${qs}`, {
     credentials: "same-origin",
@@ -295,6 +310,27 @@ export async function fetchChatMessages(
     signal,
   });
   if (!res.ok) throw new Error(`messages_${res.status}`);
+  return res.json();
+}
+
+export async function fetchOlderChatMessages(
+  roomPk: number,
+  before: number,
+  signal?: AbortSignal
+): Promise<{
+  messages: ChatMessage[];
+  has_more?: boolean;
+  next_before?: number | null;
+}> {
+  const res = await fetch(
+    `/api/v1/flea/chats/${roomPk}/messages/?before=${before}`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    }
+  );
+  if (!res.ok) throw new Error(`history_${res.status}`);
   return res.json();
 }
 
@@ -313,7 +349,11 @@ export async function sendChatMessage(
     body: JSON.stringify({ body }),
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      userFacingMutationError(data.error || "send_failed", "送信に失敗しました")
+    );
+  }
   return data.message as ChatMessage;
 }
 

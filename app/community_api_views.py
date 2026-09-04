@@ -23,6 +23,10 @@ from .community_services import (
     get_community_for_new_thread,
     get_community_reply,
     get_community_thread,
+    list_replies_for_thread,
+    notify_community_reply,
+    reply_numbers_for_thread,
+    resolve_reply_to_for_thread,
     soft_remove_community_reply,
     soft_remove_community_thread,
     update_community_reply,
@@ -139,16 +143,42 @@ def api_v1_community_thread_reply(
             status=400,
             errors=form.errors.get_json_data(),
         )
+    reply_raw = data.get("reply_to_id") if data else request.POST.get("reply_to_id")
+    try:
+        reply_to = resolve_reply_to_for_thread(thread, reply_raw)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
     reply = create_thread_reply(
-        thread, request.user, form.cleaned_data["body"]
+        thread,
+        request.user,
+        form.cleaned_data["body"],
+        reply_to=reply_to,
     )
-    reply = type(reply).objects.select_related(
-        "author", "author__profile"
-    ).get(pk=reply.pk)
+    reply = (
+        type(reply)
+        .objects.select_related(
+            "author",
+            "author__profile",
+            "reply_to",
+            "reply_to__author",
+            "reply_to__author__profile",
+            "thread",
+            "thread__community",
+        )
+        .get(pk=reply.pk)
+    )
+    notify_community_reply(reply=reply, thread=thread)
+    replies = list(list_replies_for_thread(thread, include_removed=True))
+    number_by_id = reply_numbers_for_thread(replies)
     return JsonResponse(
         {
             "ok": True,
-            "reply": serialize_reply(reply, request.user),
+            "reply": serialize_reply(
+                reply,
+                request.user,
+                reply_number=number_by_id.get(reply.pk),
+                number_by_id=number_by_id,
+            ),
             "visible_reply_count": thread.replies.filter(is_removed=False).count(),
         },
         status=201,
@@ -201,7 +231,27 @@ def api_v1_community_reply_edit(
             errors=form.errors.get_json_data(),
         )
     update_community_reply(reply, form.cleaned_data["body"])
-    reply.refresh_from_db()
+    reply = (
+        type(reply)
+        .objects.select_related(
+            "author",
+            "author__profile",
+            "reply_to",
+            "reply_to__author",
+            "reply_to__author__profile",
+        )
+        .get(pk=reply.pk)
+    )
+    replies = list(list_replies_for_thread(reply.thread, include_removed=True))
+    number_by_id = reply_numbers_for_thread(replies)
     return JsonResponse(
-        {"ok": True, "reply": serialize_reply(reply, request.user)}
+        {
+            "ok": True,
+            "reply": serialize_reply(
+                reply,
+                request.user,
+                reply_number=number_by_id.get(reply.pk),
+                number_by_id=number_by_id,
+            ),
+        }
     )

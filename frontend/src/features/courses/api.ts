@@ -1,5 +1,5 @@
 import { ensureAuthCsrf } from "../auth/api";
-import { apiGetJson, apiPostJson } from "../../lib/http";
+import { apiGetJson, apiPostJson, mutationErrorMessage } from "../../lib/http";
 
 export type CourseMeeting = {
   id: number;
@@ -409,6 +409,8 @@ export type CourseTalkPayload = {
   viewer_enrollment?: string | null;
   room: CourseTalkRoom;
   messages: CourseTalkMessage[];
+  has_more?: boolean;
+  next_before?: number | null;
 };
 
 export async function openCourseTalk(
@@ -443,7 +445,12 @@ export async function pollCourseTalkMessages(
   roomPk: number,
   afterId: number,
   signal?: AbortSignal
-): Promise<{ messages: CourseTalkMessage[]; latest_id: number }> {
+): Promise<{
+  messages: CourseTalkMessage[];
+  latest_id: number;
+  has_more?: boolean;
+  next_before?: number | null;
+}> {
   const qs = afterId > 0 ? `?after=${afterId}` : "";
   const res = await fetch(`/api/v1/courses/talk/${roomPk}/messages/${qs}`, {
     credentials: "same-origin",
@@ -457,6 +464,38 @@ export async function pollCourseTalkMessages(
   return {
     messages: (data.messages || []) as CourseTalkMessage[],
     latest_id: Number(data.latest_id || 0),
+    has_more: Boolean(data.has_more),
+    next_before:
+      data.next_before != null ? Number(data.next_before) : null,
+  };
+}
+
+export async function fetchOlderCourseTalkMessages(
+  roomPk: number,
+  before: number,
+  signal?: AbortSignal
+): Promise<{
+  messages: CourseTalkMessage[];
+  has_more?: boolean;
+  next_before?: number | null;
+}> {
+  const res = await fetch(
+    `/api/v1/courses/talk/${roomPk}/messages/?before=${before}`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "history_failed");
+  }
+  return {
+    messages: (data.messages || []) as CourseTalkMessage[],
+    has_more: Boolean(data.has_more),
+    next_before:
+      data.next_before != null ? Number(data.next_before) : null,
   };
 }
 
@@ -473,7 +512,7 @@ export async function sendCourseTalkMessage(
       ...(replyToId ? { reply_to_id: replyToId } : {}),
     }
   );
-  if (!ok) throw new Error(error || "send_failed");
+  if (!ok) throw new Error(mutationErrorMessage(error, "送信に失敗しました"));
   return data.message as unknown as CourseTalkMessage;
 }
 

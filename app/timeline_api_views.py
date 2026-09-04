@@ -20,6 +20,12 @@ from .forms import TimelineCommentForm, TimelinePostForm
 from .media_services import compose_save_error_message
 from .mention_services import notify_mentions
 from .models import Comment, Notification, TimelineLike, TimelinePost
+from .rate_limit_services import (
+    RATE_LIMIT_USER_MESSAGE,
+    allow_timeline_comment,
+    allow_timeline_like,
+    allow_timeline_post,
+)
 from .services import get_user_faculty
 from .timeline_api_services import (
     list_timeline_page,
@@ -34,8 +40,8 @@ def _viewer(request: HttpRequest):
     return request.user if request.user.is_authenticated else None
 
 
-def _json_error(message: str, *, status: int = 400, **extra) -> JsonResponse:
-    payload = {"ok": False, "error": message}
+def _json_error(code: str, *, status: int = 400, **extra) -> JsonResponse:
+    payload = {"ok": False, "error": code}
     payload.update(extra)
     return JsonResponse(payload, status=status)
 
@@ -83,6 +89,12 @@ def api_v1_timeline_list(request: HttpRequest) -> JsonResponse:
 @require_POST
 def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
     """POST multipart: body, image?, quoted_post_id?"""
+    if not allow_timeline_post(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     form = TimelinePostForm(request.POST, request.FILES, viewer=request.user)
     if not form.is_valid():
         return _json_error(
@@ -178,6 +190,12 @@ def api_v1_timeline_impressions(request: HttpRequest) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
+    if not allow_timeline_like(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     post_or_err = _require_visible_post(request, pk)
     if isinstance(post_or_err, JsonResponse):
         return post_or_err
@@ -222,6 +240,12 @@ def api_v1_timeline_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
+    if not allow_timeline_comment(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     post_or_err = _require_visible_post(request, pk)
     if isinstance(post_or_err, JsonResponse):
         return post_or_err

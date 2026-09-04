@@ -1736,6 +1736,14 @@ class CommunityThreadReply(models.Model):
         related_name="community_thread_replies",
     )
     body = models.TextField(max_length=2000)
+    reply_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="child_replies",
+        verbose_name="返信先",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     is_removed = models.BooleanField(default=False, db_index=True)
 
