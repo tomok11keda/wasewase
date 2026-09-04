@@ -80,7 +80,21 @@ class TimelineApiTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(comment.status_code, 201)
-        self.assertEqual(comment.json()["comment"]["body"], "nice")
+        comment_payload = comment.json()["comment"]
+        self.assertEqual(comment_payload["body"], "nice")
+        self.assertIn("author", comment_payload)
+        self.assertEqual(comment_payload["author"]["id"], self.user.pk)
+        self.assertIn("avatar_url", comment_payload["author"])
+        self.assertIn("initial", comment_payload["author"])
+        self.assertTrue(comment_payload["author"]["initial"])
+
+        listed = self.client.get("/api/v1/timeline/")
+        matched = next(
+            p for p in listed.json()["posts"] if p["id"] == created
+        )
+        listed_comment = matched["comments"][0]
+        self.assertIn("avatar_url", listed_comment["author"])
+        self.assertIn("initial", listed_comment["author"])
 
         deleted = self.client.delete(f"/api/v1/timeline/{created}/")
         self.assertEqual(deleted.status_code, 200)

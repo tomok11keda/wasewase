@@ -110,7 +110,7 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
             "quoted_post__author",
             "quoted_post__author__profile",
         )
-        .prefetch_related("comments__author")
+        .prefetch_related("comments__author", "comments__author__profile")
         .get(pk=post.pk)
     )
     post.user_has_liked = False

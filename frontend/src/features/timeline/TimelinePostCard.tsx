@@ -462,30 +462,72 @@ export function TimelinePostCard({
               <ul className="tweet-comment-list">
                 {post.comments.map((c) => (
                   <li key={c.id} className="tweet-comment">
-                    <div className="tweet-comment__meta">
-                      {c.author ? c.author.display_name : "削除済み"} ·{" "}
-                      {formatRelative(c.created_at)}
-                      {c.can_delete ? (
-                        <button
-                          type="button"
-                          className="tweet-menu-btn tweet-menu-btn--danger"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              const comment_count = await deleteComment(c.id);
-                              onChange({
-                                ...post,
-                                comments: post.comments.filter((x) => x.id !== c.id),
-                                comment_count,
-                              });
-                            })
-                          }
-                        >
-                          削除
-                        </button>
-                      ) : null}
+                    {c.author ? (
+                      <Link
+                        className="tweet-comment__avatar"
+                        to={`/users/${c.author.id}/posts`}
+                        aria-hidden="true"
+                        onClick={() => saveScrollPosition("/")}
+                      >
+                        {c.author.avatar_url ? (
+                          <img
+                            className="user-avatar--image tweet-avatar__img"
+                            src={c.author.avatar_url}
+                            alt=""
+                          />
+                        ) : (
+                          c.author.initial
+                        )}
+                      </Link>
+                    ) : (
+                      <span
+                        className="tweet-comment__avatar tweet-avatar--deleted"
+                        aria-hidden="true"
+                      >
+                        退
+                      </span>
+                    )}
+                    <div className="tweet-comment__content">
+                      <div className="tweet-comment__meta">
+                        {c.author ? (
+                          <Link
+                            className="tweet-comment__author"
+                            to={`/users/${c.author.id}/posts`}
+                            onClick={() => saveScrollPosition("/")}
+                          >
+                            {c.author.display_name}
+                          </Link>
+                        ) : (
+                          <span>削除済み</span>
+                        )}
+                        <span aria-hidden="true">·</span>
+                        <time dateTime={c.created_at}>
+                          {formatRelative(c.created_at)}
+                        </time>
+                        {c.can_delete ? (
+                          <button
+                            type="button"
+                            className="tweet-menu-btn tweet-menu-btn--danger"
+                            disabled={busy}
+                            onClick={() =>
+                              void run(async () => {
+                                const comment_count = await deleteComment(c.id);
+                                onChange({
+                                  ...post,
+                                  comments: post.comments.filter(
+                                    (x) => x.id !== c.id
+                                  ),
+                                  comment_count,
+                                });
+                              })
+                            }
+                          >
+                            削除
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="tweet-comment__body">{c.body}</div>
                     </div>
-                    <div className="tweet-comment__body">{c.body}</div>
                   </li>
                 ))}
               </ul>

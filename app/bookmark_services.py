@@ -291,7 +291,7 @@ def _timeline_posts_queryset_base():
         "quoted_post",
         "quoted_post__author",
         "quoted_post__author__profile",
-    ).prefetch_related("comments__author")
+    ).prefetch_related("comments__author", "comments__author__profile")
 
 
 def get_bookmarked_timeline_posts(

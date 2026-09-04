@@ -500,7 +500,7 @@ def search(request):
                     "quoted_post",
                     "quoted_post__author",
                 )
-                .prefetch_related("comments__author")
+                .prefetch_related("comments__author", "comments__author__profile")
             )
             if request.user.is_authenticated:
                 timeline_qs = timeline_qs.annotate(

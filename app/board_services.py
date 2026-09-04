@@ -53,7 +53,7 @@ def build_timeline_posts_queryset(request):
             "quoted_post__author",
             "quoted_post__author__profile",
         )
-        .prefetch_related("comments__author")
+        .prefetch_related("comments__author", "comments__author__profile")
     )
     if active_faculty:
         # 投稿に付けた学部ではなく、投稿者プロフィールの所属学部で絞り込む。
@@ -109,7 +109,7 @@ def get_profile_timeline_posts(
             "quoted_post__author",
             "quoted_post__author__profile",
         )
-        .prefetch_related("comments__author")
+        .prefetch_related("comments__author", "comments__author__profile")
         .filter(author=profile_user, is_removed=False)
         .order_by("-created_at")
     )
