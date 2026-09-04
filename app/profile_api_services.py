@@ -249,7 +249,7 @@ def _discover_timeline_candidates(
         "quoted_post",
         "quoted_post__author",
         "quoted_post__author__profile",
-    ).prefetch_related("comments__author")
+    ).prefetch_related("comments__author", "comments__author__profile")
     qs = filter_visible_timeline_posts(qs, viewer)
     if faculty:
         qs = qs.filter(
@@ -592,7 +592,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                 "quoted_post",
                 "quoted_post__author",
             )
-            .prefetch_related("comments__author")
+            .prefetch_related("comments__author", "comments__author__profile")
         )
         if viewer is not None and getattr(viewer, "is_authenticated", False):
             timeline_qs = timeline_qs.annotate(
