@@ -38,13 +38,17 @@ from .services import (
 )
 from .product_trade_schema_services import ensure_product_trade_schema
 from .trade_chat_services import (
+    PRODUCT_DELETE_BLOCK_MESSAGES,
+    can_physically_delete_product,
     complete_handover_by_seller,
     seller_can_complete_handover,
     confirm_negotiation_trade,
     get_confirmed_room_for_product,
+    get_product_physical_delete_block_reason,
     start_instant_purchase,
     start_negotiation,
 )
+from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
 from .trade_chat_inbox_services import (
     mark_product_chat_room_read,
     product_thumbnail_url,
@@ -79,10 +83,30 @@ def _serialize_room_message(message, current_user_id):
 
 
 def _room_messages_json(request, message_queryset):
-    after = request.GET.get("after", "").strip()
-    messages_qs = message_queryset.select_related("sender").order_by("created_at")
-    if after.isdigit():
-        messages_qs = messages_qs.filter(pk__gt=int(after))
+    from .chat_pagination import (
+        history_meta,
+        parse_message_pk,
+        slice_chat_history,
+        slice_chat_poll,
+    )
+
+    before_pk = parse_message_pk(request.GET.get("before", ""))
+    after_pk = parse_message_pk(request.GET.get("after", ""))
+    base_qs = message_queryset.select_related("sender")
+
+    if before_pk is not None:
+        page, has_more, next_before = slice_chat_history(
+            base_qs, before=before_pk
+        )
+        messages = page
+        history = history_meta(has_more, next_before)
+    elif after_pk is not None:
+        messages = slice_chat_poll(base_qs, after=after_pk)
+        history = history_meta(False, None)
+    else:
+        messages, has_more, next_before = slice_chat_history(base_qs)
+        history = history_meta(has_more, next_before)
+
     latest_id = (
         message_queryset.order_by("-pk").values_list("pk", flat=True).first() or 0
     )
@@ -90,9 +114,10 @@ def _room_messages_json(request, message_queryset):
         {
             "messages": [
                 _serialize_room_message(message, request.user.id)
-                for message in messages_qs
+                for message in messages
             ],
             "latest_id": latest_id,
+            **history,
         }
     )
 
@@ -392,6 +417,9 @@ def product_detail(request, pk):
             "can_contact_seller": can_contact_seller,
             "user_chat_room": user_chat_room,
             "seller_chat_rooms": seller_chat_rooms,
+            "can_delete_product": can_physically_delete_product(
+                product, request.user if request.user.is_authenticated else None
+            ),
         },
     )
 
@@ -496,6 +524,10 @@ def send_chat_message(request, room_pk):
     if not can_access_chat_room(room, request.user):
         messages.error(request, "このチャットルームにはアクセスできません。")
         return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+
+    if not allow_chat_message(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
     body = request.POST.get("body", "").strip()
     if not body:
@@ -927,6 +959,16 @@ def delete_product(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if product.seller_id != request.user.id:
         messages.error(request, "この商品を削除する権限がありません。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    block = get_product_physical_delete_block_reason(product)
+    if block:
+        messages.error(
+            request,
+            PRODUCT_DELETE_BLOCK_MESSAGES.get(
+                block, "この商品は削除できません。"
+            ),
+        )
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
     product.delete()

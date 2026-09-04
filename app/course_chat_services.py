@@ -14,6 +14,12 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
+from .chat_pagination import (
+    history_meta,
+    parse_message_pk,
+    slice_chat_history,
+    slice_chat_poll,
+)
 from .course_services import (
     day_label,
     period_label,
@@ -284,11 +290,19 @@ def build_course_talk_payload(
     joined_now: bool = False,
 ) -> dict[str, Any]:
     mark_group_room_read(room, viewer)
-    messages = list(visible_course_messages_qs(room).order_by("created_at"))
+    messages, has_more, next_before = slice_chat_history(
+        visible_course_messages_qs(room)
+    )
     sender_ids = [m.sender_id for m in messages if m.sender_id]
     roles = enrollment_roles_map(sender_ids, offering)
     viewer_role = enrollment_role_for(viewer, offering)
-    latest_id = messages[-1].pk if messages else 0
+    latest_id = (
+        visible_course_messages_qs(room)
+        .order_by("-pk")
+        .values_list("pk", flat=True)
+        .first()
+        or 0
+    )
     return {
         "ok": True,
         "joined": True,
@@ -313,6 +327,7 @@ def build_course_talk_payload(
             )
             for m in messages
         ],
+        **history_meta(has_more, next_before),
     }
 
 
@@ -322,11 +337,25 @@ def build_course_talk_messages_payload(
     viewer: AbstractBaseUser,
     *,
     after: str = "",
+    before: str = "",
 ) -> dict[str, Any]:
-    qs = visible_course_messages_qs(room).order_by("created_at")
-    if after.isdigit():
-        qs = qs.filter(pk__gt=int(after))
-    messages = list(qs)
+    base_qs = visible_course_messages_qs(room)
+    before_pk = parse_message_pk(before)
+    after_pk = parse_message_pk(after)
+
+    if before_pk is not None:
+        page, has_more, next_before = slice_chat_history(
+            base_qs, before=before_pk
+        )
+        messages = page
+        history = history_meta(has_more, next_before)
+    elif after_pk is not None:
+        messages = slice_chat_poll(base_qs, after=after_pk)
+        history = history_meta(False, None)
+    else:
+        messages, has_more, next_before = slice_chat_history(base_qs)
+        history = history_meta(has_more, next_before)
+
     roles = enrollment_roles_map(
         [m.sender_id for m in messages if m.sender_id], offering
     )
@@ -350,6 +379,7 @@ def build_course_talk_messages_payload(
         ],
         "latest_id": latest_id,
         "can_send": is_course_talk_member(room, viewer),
+        **history,
     }
 
 

@@ -26,6 +26,7 @@ from .dm_request_services import (
     list_pending_dm_requests_payload,
 )
 from .models import ChatMessage, ChatRoom, UserDirectMessageRoom
+from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
 from .dm_api_services import (
     build_dm_messages_payload,
     build_dm_room_payload,
@@ -44,8 +45,8 @@ from .dm_api_services import (
 User = get_user_model()
 
 
-def _json_error(message: str, *, status: int = 400, **extra) -> JsonResponse:
-    payload = {"ok": False, "error": message}
+def _json_error(code: str, *, status: int = 400, **extra) -> JsonResponse:
+    payload = {"ok": False, "error": code}
     payload.update(extra)
     return JsonResponse(payload, status=status)
 
@@ -123,7 +124,10 @@ def api_v1_dm_messages(request: HttpRequest, room_pk: int) -> JsonResponse:
         return JsonResponse({"error": "forbidden"}, status=403)
     return JsonResponse(
         build_dm_messages_payload(
-            room, request.user, after=request.GET.get("after", "")
+            room,
+            request.user,
+            after=request.GET.get("after", ""),
+            before=request.GET.get("before", ""),
         )
     )
 
@@ -131,6 +135,12 @@ def api_v1_dm_messages(request: HttpRequest, room_pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_dm_send(request: HttpRequest, room_pk: int) -> JsonResponse:
+    if not allow_chat_message(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     room = get_object_or_404(
         UserDirectMessageRoom.objects.select_related("user_a", "user_b"),
         pk=room_pk,
@@ -212,7 +222,10 @@ def api_v1_dm_group_messages(request: HttpRequest, room_pk: int) -> JsonResponse
         return JsonResponse({"error": "forbidden"}, status=403)
     return JsonResponse(
         build_group_messages_payload(
-            room, request.user, after=request.GET.get("after", "")
+            room,
+            request.user,
+            after=request.GET.get("after", ""),
+            before=request.GET.get("before", ""),
         )
     )
 
@@ -220,6 +233,12 @@ def api_v1_dm_group_messages(request: HttpRequest, room_pk: int) -> JsonResponse
 @login_required
 @require_POST
 def api_v1_dm_group_send(request: HttpRequest, room_pk: int) -> JsonResponse:
+    if not allow_chat_message(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     room = get_object_or_404(ChatRoom, pk=room_pk, kind=ChatRoom.Kind.GROUP)
     data = _parse_json(request)
     body = str(data.get("body") if data else request.POST.get("body", ""))

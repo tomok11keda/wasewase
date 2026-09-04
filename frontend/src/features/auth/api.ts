@@ -1,4 +1,5 @@
 import { getCsrfToken } from "../timeline/api";
+import { unregisterNativePushForSession } from "../../lib/nativePush";
 
 async function postJson(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {
@@ -33,6 +34,20 @@ export async function loginRequest(payload: {
 export async function logoutRequest() {
   return postJson("/api/v1/auth/logout/", {});
 }
+
+/**
+ * ネイティブ Push 紐付けを外してからセッションを破棄する。
+ * ログアウト→別アカウントログイン時に旧ユーザーへ Push が届き続けるのを防ぐ。
+ */
+export async function performSpaLogout(): Promise<void> {
+  try {
+    await unregisterNativePushForSession();
+  } catch {
+    /* ignore push unregister failures */
+  }
+  await logoutRequest();
+}
+
 
 export async function browseRequest(next?: string) {
   return postJson("/api/v1/auth/browse/", { next: next || "/app/" });

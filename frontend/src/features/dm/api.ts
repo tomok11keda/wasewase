@@ -1,4 +1,5 @@
 import { getCsrfToken } from "../timeline/api";
+import { userFacingMutationError } from "../../lib/rateLimit";
 
 export type Author = {
   id: number | null;
@@ -165,7 +166,12 @@ export async function fetchDmRoom(roomPk: number, signal?: AbortSignal) {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "room_failed");
-  return data as { room: DmRoomDetail; messages: ChatMessage[] };
+  return data as {
+    room: DmRoomDetail;
+    messages: ChatMessage[];
+    has_more?: boolean;
+    next_before?: number | null;
+  };
 }
 
 export async function pollDmMessages(
@@ -186,6 +192,29 @@ export async function pollDmMessages(
     can_send: boolean;
     is_blocked: boolean;
     read_message_ids?: number[];
+    has_more?: boolean;
+    next_before?: number | null;
+  }>;
+}
+
+export async function fetchOlderDmMessages(
+  roomPk: number,
+  before: number,
+  signal?: AbortSignal
+) {
+  const res = await fetch(
+    `/api/v1/dm/rooms/${roomPk}/messages/?before=${before}`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    }
+  );
+  if (!res.ok) throw new Error(`history_${res.status}`);
+  return res.json() as Promise<{
+    messages: ChatMessage[];
+    has_more?: boolean;
+    next_before?: number | null;
   }>;
 }
 
@@ -204,7 +233,11 @@ export async function sendDmMessage(
     body: JSON.stringify({ body }),
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      userFacingMutationError(data.error || "send_failed", "送信に失敗しました")
+    );
+  }
   return data.message as ChatMessage;
 }
 
@@ -259,6 +292,9 @@ export async function fetchGroupRoom(roomPk: number, signal?: AbortSignal) {
         : [],
     },
     messages: (data.messages || []) as ChatMessage[],
+    has_more: Boolean(data.has_more),
+    next_before:
+      data.next_before != null ? Number(data.next_before) : null,
   };
 }
 
@@ -278,6 +314,29 @@ export async function pollGroupMessages(
     messages: ChatMessage[];
     latest_id: number;
     can_send?: boolean;
+    has_more?: boolean;
+    next_before?: number | null;
+  }>;
+}
+
+export async function fetchOlderGroupMessages(
+  roomPk: number,
+  before: number,
+  signal?: AbortSignal
+) {
+  const res = await fetch(
+    `/api/v1/dm/groups/${roomPk}/messages/?before=${before}`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    }
+  );
+  if (!res.ok) throw new Error(`history_${res.status}`);
+  return res.json() as Promise<{
+    messages: ChatMessage[];
+    has_more?: boolean;
+    next_before?: number | null;
   }>;
 }
 
@@ -300,7 +359,11 @@ export async function sendGroupMessage(
     }),
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "send_failed");
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      userFacingMutationError(data.error || "send_failed", "送信に失敗しました")
+    );
+  }
   return data.message as ChatMessage;
 }
 
@@ -361,7 +424,12 @@ export async function acceptGroupInvitation(roomPk: number) {
   );
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "accept_failed");
-  return data as { room: GroupRoomDetail; messages: ChatMessage[] };
+  return data as {
+    room: GroupRoomDetail;
+    messages: ChatMessage[];
+    has_more?: boolean;
+    next_before?: number | null;
+  };
 }
 
 export async function declineGroupInvitation(roomPk: number) {

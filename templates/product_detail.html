@@ -813,9 +813,9 @@
         </div>
         {% endif %}
 
-        {% if user.is_authenticated and product.seller_id == user.id %}
+        {% if can_delete_product %}
         <div class="owner-actions">
-          <form method="post" action="{% url 'delete_product' product.pk %}" onsubmit="return confirm('この商品を削除しますか？取引中のデータも消えます。');">
+          <form method="post" action="{% url 'delete_product' product.pk %}" onsubmit="return confirm('この商品を削除しますか？');">
             {% csrf_token %}
             <button type="submit" class="btn-delete-product">この商品を削除する</button>
           </form>

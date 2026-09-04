@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useSession } from "../lib/session";
-import { logoutRequest, spaLoginPath } from "../features/auth/api";
+import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
 
@@ -57,9 +57,13 @@ export function AccountMenuContent({
 
   const onLogout = async () => {
     try {
-      await logoutRequest();
+      await performSpaLogout();
     } catch {
-      /* ignore */
+      try {
+        await logoutRequest();
+      } catch {
+        /* ignore */
+      }
     }
     analyticsLogout();
     setMeFromAuth({

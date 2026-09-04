@@ -234,7 +234,9 @@ export function CourseDetailPage() {
           "レビューするには、この授業を時間割に登録した実績が必要です。"
         );
       } else if (code === "rate_limited") {
-        window.alert("操作が多すぎます。時間をおいて再度お試しください。");
+        window.alert(
+          "短時間に操作が集中しています。少し待ってからもう一度お試しください。"
+        );
       } else {
         window.alert("レビューの保存に失敗しました。");
       }

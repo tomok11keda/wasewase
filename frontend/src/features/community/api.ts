@@ -11,6 +11,14 @@ export type CommunityRef = {
 
 export type FacultyTab = { value: string; label: string };
 
+export type CommunityAuthor = {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  initial: string;
+} | null;
+
 export type ThreadSummary = {
   id: number;
   title: string;
@@ -20,24 +28,27 @@ export type ThreadSummary = {
   updated_at: string;
   replies_count: number;
   can_delete: boolean;
-  author: {
-    id: number;
-    username: string;
-    display_name: string;
-    avatar_url: string;
-    initial: string;
-  } | null;
+  author: CommunityAuthor;
   community: CommunityRef;
 };
+
+export type ReplyToPreview = {
+  id: number;
+  reply_number: number | null;
+  display_name: string;
+  is_unavailable: boolean;
+} | null;
 
 export type ThreadReply = {
   id: number;
   body: string;
   created_at: string;
   is_removed: boolean;
+  reply_number: number | null;
+  reply_to: ReplyToPreview;
   can_delete: boolean;
   can_edit: boolean;
-  author: ThreadSummary["author"];
+  author: CommunityAuthor;
 };
 
 export type ThreadDetail = {
@@ -47,7 +58,7 @@ export type ThreadDetail = {
   created_at: string;
   updated_at: string;
   can_delete: boolean;
-  author: ThreadSummary["author"];
+  author: CommunityAuthor;
   community: CommunityRef;
   visible_reply_count: number;
   replies: ThreadReply[];
@@ -117,7 +128,8 @@ export async function fetchThreadDetail(
 export async function createReply(
   slug: string,
   threadPk: number,
-  body: string
+  body: string,
+  replyToId?: number | null
 ): Promise<ThreadReply> {
   const res = await fetch(
     `/api/v1/communities/${slug}/threads/${threadPk}/replies/`,
@@ -129,7 +141,10 @@ export async function createReply(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({
+        body,
+        ...(replyToId ? { reply_to_id: replyToId } : {}),
+      }),
     }
   );
   const data = await res.json();

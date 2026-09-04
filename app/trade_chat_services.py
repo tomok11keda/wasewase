@@ -273,3 +273,46 @@ def get_confirmed_room_for_product(product: Product) -> ChatRoom | None:
         .order_by("-updated_at")
         .first()
     )
+
+
+def get_product_physical_delete_block_reason(product: Product) -> str | None:
+    """物理削除を拒否する理由コード。削除可なら None。
+
+    取引中・売切・取引チャット／評価などの履歴がある商品は CASCADE で
+    履歴が消えるため、物理削除させない。
+    """
+    if product.is_sold:
+        return "sold"
+    if product.is_pending:
+        return "pending"
+    if product.buyer_id:
+        return "has_trade_history"
+    if product.seller_trade_completed or product.buyer_trade_completed:
+        return "has_trade_history"
+    if (getattr(product, "stripe_checkout_session_id", None) or "").strip():
+        return "has_trade_history"
+    if ChatRoom.objects.filter(product_id=product.pk).exists():
+        return "has_trade_history"
+    if product.reviews.exists():
+        return "has_trade_history"
+    if product.trade_messages.exists():
+        return "has_trade_history"
+    return None
+
+
+def can_physically_delete_product(
+    product: Product, user: AbstractBaseUser | None
+) -> bool:
+    """出品者本人かつ取引履歴のない出品中商品のみ物理削除可。"""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if product.seller_id != user.id:
+        return False
+    return get_product_physical_delete_block_reason(product) is None
+
+
+PRODUCT_DELETE_BLOCK_MESSAGES = {
+    "sold": "売り切れの商品は削除できません。取引履歴を残すため、削除できません。",
+    "pending": "取引中の商品は削除できません。",
+    "has_trade_history": "取引履歴がある商品は削除できません。",
+}

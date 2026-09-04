@@ -10,6 +10,7 @@ import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
   deleteCourseTalkMessage,
+  fetchOlderCourseTalkMessages,
   leaveCourseTalk,
   offeringScheduleText,
   openCourseTalk,
@@ -25,9 +26,11 @@ import { ChatReplyPreview, type ReplyTarget } from "../features/chat/ChatReplyPr
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
 import {
   isChatNearBottom,
+  mergeUniqueByIdAsc,
   scrollChatToBottom,
   useChatVisibleFrameHeight,
   useKeepChatPinnedOnCompose,
+  useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
@@ -46,6 +49,8 @@ export function CourseTalkPage() {
   const [offering, setOffering] = useState<CourseOffering | null>(null);
   const [room, setRoom] = useState<CourseTalkRoom | null>(null);
   const [messages, setMessages] = useState<CourseTalkMessage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
   const latestIdRef = useRef(0);
   const roomIdRef = useRef(0);
   const [body, setBody] = useState("");
@@ -70,11 +75,7 @@ export function CourseTalkPage() {
 
   const appendMessages = useCallback((incoming: CourseTalkMessage[]) => {
     if (!incoming.length) return;
-    setMessages((prev) => {
-      const known = new Set(prev.map((m) => m.id));
-      const next = incoming.filter((m) => !known.has(m.id));
-      return next.length ? [...prev, ...next] : prev;
-    });
+    setMessages((prev) => mergeUniqueByIdAsc(prev, incoming, "append"));
   }, []);
 
   const upsertMessage = useCallback((message: CourseTalkMessage) => {
@@ -103,14 +104,23 @@ export function CourseTalkPage() {
     const ac = new AbortController();
     setLoading(true);
     setError(null);
+    setHasMore(false);
+    setNextBefore(null);
     void openCourseTalk(offeringId)
       .then((data) => {
         if (ac.signal.aborted) return;
         setOffering(data.offering);
         setRoom(data.room);
         setMessages(data.messages || []);
+        setHasMore(Boolean(data.has_more));
+        setNextBefore(
+          data.next_before != null ? Number(data.next_before) : null
+        );
         latestIdRef.current = data.room.latest_id || 0;
         roomIdRef.current = data.room.id;
+        requestAnimationFrame(() => {
+          scrollChatToBottom(threadRef.current, "auto");
+        });
         if (data.joined_now) {
           analytics.courseChatJoined();
         }
@@ -134,6 +144,24 @@ export function CourseTalkPage() {
     return () => ac.abort();
   }, [me?.authenticated, sessionLoading, offeringId, offeringPk, fromInbox, navigate]);
 
+  const fetchOlder = useCallback(
+    (beforeId: number) =>
+      fetchOlderCourseTalkMessages(roomIdRef.current, beforeId),
+    []
+  );
+
+  const { loadingOlder } = useLoadOlderChatMessages({
+    enabled: Boolean(me?.authenticated && room && !loading),
+    scrollerRef: threadRef,
+    messages,
+    hasMore,
+    setHasMore,
+    setNextBefore,
+    nextBefore,
+    setMessages,
+    fetchOlder,
+  });
+
   useChatPoll(
     Boolean(me?.authenticated && room && !loading),
     DM_POLL_MS,
@@ -154,10 +182,11 @@ export function CourseTalkPage() {
   );
 
   useEffect(() => {
+    if (loadingOlder) return;
     const scroller = threadRef.current;
     if (!isChatNearBottom(scroller)) return;
     scrollChatToBottom(scroller, "smooth");
-  }, [messages.length]);
+  }, [messages.length, loadingOlder]);
 
   const scrollToReply = useCallback((messageId: number) => {
     const el = document.getElementById(`chat-msg-${messageId}`);
@@ -273,6 +302,15 @@ export function CourseTalkPage() {
         </section>
 
         <div className="dm-thread course-talk-thread" ref={threadRef}>
+          {loadingOlder ? (
+            <p className="chat-hint" style={{ textAlign: "center" }}>
+              過去のメッセージを読み込み中…
+            </p>
+          ) : hasMore ? (
+            <p className="chat-hint" style={{ textAlign: "center" }}>
+              上にスクロールして過去のメッセージを表示
+            </p>
+          ) : null}
           {messages.length === 0 ? (
             <div className="course-talk-empty">
               <strong>まだトークはありません</strong>

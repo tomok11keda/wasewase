@@ -92,6 +92,111 @@ class CommunityApiTests(TestCase):
             CommunityThread.objects.get(pk=pk).is_removed
         )
 
+    def test_nested_reply_one_level_display_payload(self):
+        self.client.force_login(self.user)
+        created = self.client.post(
+            "/api/v1/communities/threads/",
+            data=json.dumps(
+                {
+                    "title": "楽単教えて",
+                    "body": "秋学期のおすすめは？",
+                    "tag": self.community.faculty or "",
+                }
+            ),
+            content_type="application/json",
+        )
+        thread = created.json()["thread"]
+        slug = thread["community"]["slug"]
+        pk = thread["id"]
+
+        a = self.client.post(
+            f"/api/v1/communities/{slug}/threads/{pk}/replies/",
+            data=json.dumps({"body": "マーケティング論おすすめ"}),
+            content_type="application/json",
+        )
+        self.assertEqual(a.status_code, 201)
+        a_payload = a.json()["reply"]
+        self.assertEqual(a_payload["reply_number"], 1)
+        self.assertIsNone(a_payload["reply_to"])
+        self.assertIn("avatar_url", a_payload["author"])
+        self.assertIn("initial", a_payload["author"])
+
+        self.client.force_login(self.other)
+        b = self.client.post(
+            f"/api/v1/communities/{slug}/threads/{pk}/replies/",
+            data=json.dumps(
+                {
+                    "body": "テスト難しかった？",
+                    "reply_to_id": a_payload["id"],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(b.status_code, 201)
+        b_payload = b.json()["reply"]
+        self.assertEqual(b_payload["reply_number"], 2)
+        self.assertEqual(b_payload["reply_to"]["id"], a_payload["id"])
+        self.assertEqual(b_payload["reply_to"]["reply_number"], 1)
+        self.assertFalse(b_payload["reply_to"]["is_unavailable"])
+
+        self.client.force_login(self.user)
+        c = self.client.post(
+            f"/api/v1/communities/{slug}/threads/{pk}/replies/",
+            data=json.dumps(
+                {
+                    "body": "去年は簡単だったよ",
+                    "reply_to_id": b_payload["id"],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(c.status_code, 201)
+        c_payload = c.json()["reply"]
+        self.assertEqual(c_payload["reply_number"], 3)
+        self.assertEqual(c_payload["reply_to"]["id"], b_payload["id"])
+
+        # Cross-thread reply_to must be rejected
+        other_thread = self.client.post(
+            "/api/v1/communities/threads/",
+            data=json.dumps(
+                {
+                    "title": "別スレ",
+                    "body": "別",
+                    "tag": self.community.faculty or "",
+                }
+            ),
+            content_type="application/json",
+        ).json()["thread"]
+        rejected = self.client.post(
+            f"/api/v1/communities/{slug}/threads/{pk}/replies/",
+            data=json.dumps(
+                {
+                    "body": "横取り",
+                    "reply_to_id": 999999,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(rejected.json()["error"], "invalid_reply_to")
+
+        # Soft-delete parent keeps child and marks unavailable
+        self.client.delete(
+            f"/api/v1/communities/{slug}/threads/{pk}/replies/{a_payload['id']}/delete/"
+        )
+        detail = self.client.get(
+            f"/api/v1/communities/{slug}/threads/{pk}/"
+        ).json()["thread"]
+        by_id = {r["id"]: r for r in detail["replies"]}
+        self.assertTrue(by_id[a_payload["id"]]["is_removed"])
+        self.assertEqual(by_id[a_payload["id"]]["reply_number"], 1)
+        self.assertTrue(by_id[b_payload["id"]]["reply_to"]["is_unavailable"])
+        self.assertEqual(by_id[c_payload["id"]]["reply_to"]["id"], b_payload["id"])
+        # Numbers stay stable after soft-delete
+        self.assertEqual(by_id[b_payload["id"]]["reply_number"], 2)
+        self.assertEqual(by_id[c_payload["id"]]["reply_number"], 3)
+        self.assertNotEqual(other_thread["id"], pk)
+
     def test_create_requires_login(self):
         response = self.client.post(
             "/api/v1/communities/threads/",

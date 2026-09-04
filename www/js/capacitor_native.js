@@ -1048,7 +1048,7 @@
 
   async function registerTokenWithBackend(token) {
     if (!token) {
-      return;
+      return false;
     }
 
     try {
@@ -1057,6 +1057,7 @@
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrfToken(),
+          Accept: "application/json",
         },
         credentials: "same-origin",
         body: JSON.stringify({
@@ -1067,12 +1068,52 @@
 
       if (!response.ok) {
         logNative("Push token registration failed", response.status);
-        return;
+        return false;
       }
 
       logNative("Push token registered with backend");
+      return true;
     } catch (error) {
       logNative("Push token registration error", error);
+      return false;
+    }
+  }
+
+  /**
+   * ログアウト前に自ユーザー紐付けを外す。
+   * 他ユーザーのトークンは Backend 側で削除されない。
+   */
+  async function unregisterTokenWithBackend(token) {
+    var value = token || window.WASE_PUSH_TOKEN;
+    if (!value) {
+      return false;
+    }
+
+    try {
+      var response = await fetch("/api/push-token/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+          Accept: "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          token: value,
+          unregister: true,
+        }),
+      });
+
+      if (!response.ok) {
+        logNative("Push token unregister failed", response.status);
+        return false;
+      }
+
+      logNative("Push token unregistered from backend");
+      return true;
+    } catch (error) {
+      logNative("Push token unregister error", error);
+      return false;
     }
   }
 
@@ -1801,6 +1842,7 @@
       return window.WASE_PUSH_TOKEN || null;
     },
     registerPushToken: registerTokenWithBackend,
+    unregisterPushToken: unregisterTokenWithBackend,
   };
 
   function startWhenReady() {

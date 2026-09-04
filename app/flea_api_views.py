@@ -46,16 +46,18 @@ from .trade_chat_inbox_services import mark_product_chat_room_read
 from .trade_chat_services import (
     complete_handover_by_seller,
     confirm_negotiation_trade,
+    get_product_physical_delete_block_reason,
     start_instant_purchase,
     start_negotiation,
 )
+from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
 from .ugc_services import filter_visible_products, get_visible_product_or_404
 
 logger = logging.getLogger(__name__)
 
 
-def _json_error(message: str, *, status: int = 400, **extra) -> JsonResponse:
-    payload = {"ok": False, "error": message}
+def _json_error(code: str, *, status: int = 400, **extra) -> JsonResponse:
+    payload = {"ok": False, "error": code}
     payload.update(extra)
     return JsonResponse(payload, status=status)
 
@@ -235,6 +237,9 @@ def api_v1_flea_product_delete(request: HttpRequest, pk: int) -> JsonResponse:
     product = get_object_or_404(Product, pk=pk)
     if product.seller_id != request.user.id:
         return _json_error("forbidden", status=403)
+    block = get_product_physical_delete_block_reason(product)
+    if block:
+        return _json_error(block, status=400)
     product.delete()
     return JsonResponse({"ok": True})
 
@@ -330,6 +335,12 @@ def api_v1_flea_chat_messages(request: HttpRequest, room_pk: int) -> JsonRespons
 @login_required
 @require_POST
 def api_v1_flea_chat_send(request: HttpRequest, room_pk: int) -> JsonResponse:
+    if not allow_chat_message(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     room = get_object_or_404(
         ChatRoom.objects.select_related("product", "product__seller", "buyer"),
         pk=room_pk,

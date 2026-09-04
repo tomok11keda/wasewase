@@ -13,6 +13,7 @@ import {
   declineGroupInvitation,
   deleteGroupMessage,
   fetchGroupRoom,
+  fetchOlderGroupMessages,
   pollGroupMessages,
   sendGroupMessage,
   type ChatMessage,
@@ -27,9 +28,11 @@ import {
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
 import {
   isChatNearBottom,
+  mergeUniqueByIdAsc,
   scrollChatToBottom,
   useChatVisibleFrameHeight,
   useKeepChatPinnedOnCompose,
+  useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
 
@@ -40,6 +43,8 @@ export function GroupRoomPage() {
   const { me, loading: sessionLoading } = useSession();
   const [room, setRoom] = useState<GroupRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
@@ -64,11 +69,7 @@ export function GroupRoomPage() {
 
   const appendMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) return;
-    setMessages((prev) => {
-      const known = new Set(prev.map((m) => m.id));
-      const next = incoming.filter((m) => !known.has(m.id));
-      return next.length ? [...prev, ...next] : prev;
-    });
+    setMessages((prev) => mergeUniqueByIdAsc(prev, incoming, "append"));
   }, []);
 
   const upsertMessage = useCallback((message: ChatMessage) => {
@@ -98,13 +99,22 @@ export function GroupRoomPage() {
     setLoading(true);
     setRoom(null);
     setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
     latestIdRef.current = 0;
     void fetchGroupRoom(roomId, ac.signal)
       .then((data) => {
         setRoom(data.room);
         setMessages(data.messages || []);
+        setHasMore(Boolean(data.has_more));
+        setNextBefore(
+          data.next_before != null ? Number(data.next_before) : null
+        );
         latestIdRef.current = data.room.latest_id || 0;
         setError(null);
+        requestAnimationFrame(() => {
+          scrollChatToBottom(threadRef.current, "auto");
+        });
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -116,6 +126,23 @@ export function GroupRoomPage() {
 
   const isPending = room?.membership_status === "pending_invite";
   const canSend = Boolean(room?.can_send && !isPending);
+
+  const fetchOlder = useCallback(
+    (beforeId: number) => fetchOlderGroupMessages(roomIdRef.current, beforeId),
+    []
+  );
+
+  const { loadingOlder } = useLoadOlderChatMessages({
+    enabled: Boolean(me?.authenticated && room && !loading && !isPending),
+    scrollerRef: threadRef,
+    messages,
+    hasMore,
+    setHasMore,
+    setNextBefore,
+    nextBefore,
+    setMessages,
+    fetchOlder,
+  });
 
   useChatPoll(
     Boolean(me?.authenticated && room && !loading),
@@ -133,10 +160,11 @@ export function GroupRoomPage() {
   );
 
   useEffect(() => {
+    if (loadingOlder) return;
     const scroller = threadRef.current;
     if (!isChatNearBottom(scroller)) return;
     scrollChatToBottom(scroller, "smooth");
-  }, [messages.length]);
+  }, [messages.length, loadingOlder]);
 
   const scrollToReply = useCallback(
     (messageId: number) => {
@@ -186,6 +214,10 @@ export function GroupRoomPage() {
           : [],
       });
       setMessages(data.messages || []);
+      setHasMore(Boolean(data.has_more));
+      setNextBefore(
+        data.next_before != null ? Number(data.next_before) : null
+      );
       latestIdRef.current = data.room.latest_id || latestIdRef.current;
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "参加に失敗しました");
@@ -297,6 +329,15 @@ export function GroupRoomPage() {
           <p className="chat-hint">グループのやり取りです（15秒ごとに自動更新）</p>
 
           <div className="dm-message-area" ref={threadRef}>
+            {loadingOlder ? (
+              <p className="chat-hint" style={{ textAlign: "center" }}>
+                過去のメッセージを読み込み中…
+              </p>
+            ) : hasMore ? (
+              <p className="chat-hint" style={{ textAlign: "center" }}>
+                上にスクロールして過去のメッセージを表示
+              </p>
+            ) : null}
             {messages.length === 0 ? (
               <p className="empty-message">まだメッセージはありません。</p>
             ) : (
