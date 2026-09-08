@@ -2863,14 +2863,14 @@ class PwaTests(TestCase):
         privacy = self.client.get(reverse("privacy"))
         self.assertEqual(privacy.status_code, 200)
         self.assertContains(privacy, "プライバシーポリシー")
-        self.assertContains(privacy, "Google AdSense")
+        self.assertContains(privacy, "PostHog")
         self.assertContains(privacy, "wasewaseofficial@gmail.com")
 
         terms = self.client.get(reverse("terms"))
         self.assertEqual(terms.status_code, 200)
         self.assertContains(terms, "利用規約")
-        self.assertContains(terms, "第1条（利用資格）")
-        self.assertContains(terms, "不適切なコンテンツ")
+        self.assertContains(terms, "第1条（サービス・適用・運営主体）")
+        self.assertContains(terms, "公式サービスではありません")
 
         support = self.client.get(reverse("support"))
         self.assertEqual(support.status_code, 200)
@@ -3533,7 +3533,7 @@ class AccountDeletionTests(TestCase):
         self.assertContains(response, "アカウントを削除する")
         self.assertContains(
             response,
-            "アカウントを完全に削除しますか？この操作は取り消せません。",
+            "アカウントを削除しますか？この操作は取り消せません。",
         )
         self.assertContains(response, ">はい<")
         self.assertContains(response, ">いいえ<")
