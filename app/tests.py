@@ -2942,75 +2942,129 @@ class TimelineInfiniteScrollTests(TestCase):
 
 
 class EnsureSuperuserCommandTests(TestCase):
-    def test_promotes_existing_user_without_resetting_password(self):
-        from io import StringIO
-        from unittest.mock import patch
-
-        from django.contrib.auth import get_user_model
-        from django.core.management import call_command
-
-        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
-
-        get_user_model().objects.create_user(
-            email=SUPERUSER_EMAIL,
-            password="old-password",
-            username="tomok11keda",
+    def _create_user(self, email, password="old-password", **extra):
+        return get_user_model().objects.create_user(
+            email=email,
+            password=password,
+            **extra,
         )
-        out = StringIO()
-        with patch.dict("os.environ", {"WASE_SUPERUSER_PASSWORD": ""}, clear=False):
-            # Reload module constants would be stale; patch the command module attrs.
-            with patch(
-                "app.management.commands.ensure_superuser.SUPERUSER_PASSWORD",
-                "",
-            ):
-                call_command("ensure_superuser", stdout=out)
 
-        user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
-        self.assertTrue(user.is_superuser)
-        self.assertTrue(user.is_staff)
+    def test_requires_email_and_does_not_change_users(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        user = self._create_user(email="member@waseda.jp", username="plainuser")
+        with self.assertRaises(CommandError) as ctx:
+            call_command("ensure_superuser")
+        self.assertIn("--email", str(ctx.exception))
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
         self.assertTrue(user.is_active)
         self.assertTrue(user.check_password("old-password"))
-        self.assertIn("管理者に設定しました", out.getvalue())
-        self.assertIn("パスワードは変更していません", out.getvalue())
 
-    def test_updates_password_when_env_set(self):
+    def test_email_only_does_not_promote_or_change_password(self):
         from io import StringIO
-        from unittest.mock import patch
 
-        from django.contrib.auth import get_user_model
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
-
-        get_user_model().objects.create_superuser(
-            email=SUPERUSER_EMAIL,
-            password="different-password",
-            username="admin",
+        user = self._create_user(email="member@waseda.jp", username="plainuser")
+        out = StringIO()
+        call_command(
+            "ensure_superuser",
+            "--email",
+            "member@waseda.jp",
+            stdout=out,
         )
-        out = StringIO()
-        with patch(
-            "app.management.commands.ensure_superuser.SUPERUSER_PASSWORD",
-            "new-secure-pass",
-        ):
-            call_command("ensure_superuser", stdout=out)
 
-        user = get_user_model().objects.get(email=SUPERUSER_EMAIL)
-        self.assertTrue(user.check_password("new-secure-pass"))
-        self.assertFalse(user.check_password("different-password"))
-        self.assertIn("パスワードを更新しました", out.getvalue())
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.is_active)
+        self.assertTrue(user.check_password("old-password"))
+        self.assertIn("権限は変更していません", out.getvalue())
 
-    def test_reports_missing_user(self):
-        from io import StringIO
-
+    def test_promote_sets_staff_and_superuser_without_activating(self):
         from django.core.management import call_command
 
-        from app.management.commands.ensure_superuser import SUPERUSER_EMAIL
+        user = self._create_user(email="member@waseda.jp", username="plainuser")
+        call_command("ensure_superuser", "--email", "member@waseda.jp", "--promote")
 
-        out = StringIO()
-        err = StringIO()
-        call_command("ensure_superuser", stdout=out, stderr=err)
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_active)
+        self.assertTrue(user.check_password("old-password"))
 
-        self.assertIn("見つかりません", err.getvalue())
+    def test_promote_does_not_reactivate_inactive_user(self):
+        from django.core.management import call_command
+
+        user = self._create_user(
+            email="banned@waseda.jp",
+            username="banneduser",
+            is_active=False,
+        )
+        call_command("ensure_superuser", "--email", "banned@waseda.jp", "--promote")
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertFalse(user.is_active)
+
+    def test_activate_reactivates_inactive_user(self):
+        from django.core.management import call_command
+
+        user = self._create_user(
+            email="banned@waseda.jp",
+            username="banneduser",
+            is_active=False,
+        )
+        call_command("ensure_superuser", "--email", "banned@waseda.jp", "--activate")
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.is_active)
+
+    def test_missing_user_is_not_created(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        missing = "nobody@waseda.jp"
+        with self.assertRaises(CommandError) as ctx:
+            call_command(
+                "ensure_superuser",
+                "--email",
+                missing,
+                "--promote",
+            )
+        self.assertIn("見つかりません", str(ctx.exception))
+        self.assertIn("作成しません", str(ctx.exception))
+        self.assertFalse(get_user_model().objects.filter(email=missing).exists())
+
+    def test_does_not_use_legacy_hardcoded_email_or_env_as_default(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        legacy_email = "tomok11keda@toki.waseda.jp"
+        user = self._create_user(email=legacy_email, username="legacyuser")
+        with patch.dict(
+            os.environ,
+            {
+                "WASE_SUPERUSER_EMAIL": legacy_email,
+                "WASE_SUPERUSER_PASSWORD": "should-not-apply",
+            },
+            clear=False,
+        ):
+            with self.assertRaises(CommandError):
+                call_command("ensure_superuser")
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.check_password("old-password"))
+        self.assertFalse(user.check_password("should-not-apply"))
 
 
 class PushNotificationTests(TestCase):

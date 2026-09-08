@@ -46,5 +46,5 @@ if [ ! -f staticfiles/js/ugc_report.js ]; then
   ls -la static/js >&2 || true
   exit 1
 fi
-# 本番 SQLite は永続ディスク上のため、build 時の migrate / ensure_superuser は効かない。
-# これらは start.sh（起動時）で実行する。
+# 本番 SQLite は永続ディスク上のため、build 時の migrate は効かない。
+# migrate は start.sh（起動時）で実行する。

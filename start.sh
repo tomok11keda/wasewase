@@ -20,6 +20,5 @@ if [ ! -f staticfiles/js/ugc_report.js ]; then
 fi
 
 python manage.py migrate --noinput
-python manage.py ensure_superuser
 
 exec gunicorn wasewase.wsgi --bind "0.0.0.0:${PORT}"
