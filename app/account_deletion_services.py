@@ -37,6 +37,7 @@ from .models import (
     UserDirectMessage,
     UserDirectMessageReadState,
     UserDirectMessageRoom,
+    UserProfile,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,11 +159,129 @@ def _safe_values_list(queryset, *fields, flat: bool = False) -> list:
         raise
 
 
+def _owned_media_name(value) -> str | None:
+    name = (value or "").strip() if isinstance(value, str) else str(value or "").strip()
+    return name or None
+
+
+def _collect_user_owned_media_names(user) -> list[str]:
+    """当該ユーザーが所有する ImageField のストレージ名を集める。
+
+    コミュニティ・掲示板・DM には画像フィールドがない。Product.image_url は
+    外部 URL のため対象外。
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str | None) -> None:
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+
+    if _table_exists(UserProfile):
+        for raw in _safe_values_list(
+            UserProfile.objects.filter(user=user).exclude(avatar="").exclude(
+                avatar__isnull=True
+            ),
+            "avatar",
+            flat=True,
+        ):
+            add(_owned_media_name(raw))
+
+    if _table_exists(TimelinePost):
+        for raw in _safe_values_list(
+            TimelinePost.objects.filter(author=user).exclude(image="").exclude(
+                image__isnull=True
+            ),
+            "image",
+            flat=True,
+        ):
+            add(_owned_media_name(raw))
+
+    if _table_exists(Product):
+        for raw in _safe_values_list(
+            Product.objects.filter(seller=user).exclude(image=""),
+            "image",
+            flat=True,
+        ):
+            add(_owned_media_name(raw))
+
+    return names
+
+
+def _media_name_still_referenced(name: str) -> bool:
+    """他レコードが同じストレージ名を参照していれば True。"""
+    try:
+        if _table_exists(TimelinePost) and TimelinePost.objects.filter(
+            image=name
+        ).exists():
+            return True
+        if _table_exists(Product) and Product.objects.filter(image=name).exists():
+            return True
+        if _table_exists(UserProfile) and UserProfile.objects.filter(
+            avatar=name
+        ).exists():
+            return True
+    except (OperationalError, ProgrammingError) as exc:
+        logger.warning(
+            "Account deletion could not check media references name=%s: %s",
+            name,
+            exc,
+        )
+        return True
+    return False
+
+
+def _delete_stored_media_names(names: list[str]) -> None:
+    """DB 削除後に、他ユーザーから参照されていないファイルだけ物理削除する。"""
+    from django.core.files.storage import default_storage
+
+    for name in names:
+        if _media_name_still_referenced(name):
+            logger.info(
+                "Account deletion skipped shared media name=%s",
+                name,
+            )
+            continue
+        try:
+            default_storage.delete(name)
+            logger.info("Account deletion deleted stored media name=%s", name)
+        except Exception as exc:
+            logger.warning(
+                "Account deletion could not delete stored media name=%s: %s",
+                name,
+                exc,
+            )
+
+
+def _delete_user_firestore_bookmarks_best_effort(user_id: int) -> None:
+    from app.bookmark_services import delete_user_firestore_bookmarks
+
+    try:
+        delete_user_firestore_bookmarks(user_id)
+    except Exception as exc:
+        logger.warning(
+            "Account deletion Firestore bookmark cleanup failed user_id=%s: %s",
+            user_id,
+            exc,
+        )
+
+
 def delete_user_account(user) -> None:
     """退会処理: ユーザーと関連データをデータベースから物理削除する。"""
     _ensure_deletion_schema()
     user_id = user.pk
-    logger.info("Account deletion started for user_id=%s email=%s", user_id, user.email)
+    logger.info("Account deletion started for user_id=%s", user_id)
+
+    try:
+        media_names = _collect_user_owned_media_names(user)
+    except Exception as exc:
+        logger.warning(
+            "Account deletion could not collect media names for user_id=%s: %s",
+            user_id,
+            exc,
+        )
+        media_names = []
 
     try:
         with transaction.atomic():
@@ -351,6 +470,16 @@ def delete_user_account(user) -> None:
     if get_user_model().objects.filter(pk=user_id).exists():
         raise RuntimeError(
             f"User record still exists after delete for user_id={user_id}"
+        )
+
+    _delete_user_firestore_bookmarks_best_effort(user_id)
+    try:
+        _delete_stored_media_names(media_names)
+    except Exception as exc:
+        logger.warning(
+            "Account deletion media cleanup failed user_id=%s: %s",
+            user_id,
+            exc,
         )
 
     logger.info("Account physically deleted for user_id=%s", user_id)

@@ -40,6 +40,7 @@ from .community_services import (
     update_community_reply,
 )
 from .constants import FACULTY_CHOICES
+from .terms_services import terms_acceptance_defaults
 from .mention_services import notify_mentions
 from .dm_services import (
     build_dm_conversations,
@@ -1115,11 +1116,10 @@ def delete_account(request):
 
     user = request.user
     user_id = user.pk
-    user_email = user.email
     deletion_logger = logging.getLogger(__name__)
 
     print(
-        f"DEBUG: delete_account starting deletion user_id={user_id} email={user_email}",
+        f"DEBUG: delete_account starting deletion user_id={user_id}",
         flush=True,
     )
 
@@ -1135,9 +1135,8 @@ def delete_account(request):
         sys.stdout.flush()
         sys.stderr.flush()
         deletion_logger.error(
-            "Account deletion failed for user_id=%s email=%s: %s (%s)",
+            "Account deletion failed for user_id=%s: %s (%s)",
             user_id,
-            user_email,
             exc,
             type(exc).__name__,
             exc_info=True,
@@ -1164,9 +1163,8 @@ def delete_account(request):
         sys.stdout.flush()
         sys.stderr.flush()
         deletion_logger.error(
-            "Account deletion incomplete for user_id=%s email=%s: user row still exists",
+            "Account deletion incomplete for user_id=%s: user row still exists",
             user_id,
-            user_email,
         )
         messages.error(
             request,
@@ -1176,14 +1174,12 @@ def delete_account(request):
 
     logout(request)
     print(
-        f"DEBUG: delete_account success user_id={user_id} email={user_email} "
-        "redirecting to login",
+        f"DEBUG: delete_account success user_id={user_id} redirecting to login",
         flush=True,
     )
     deletion_logger.info(
-        "Account deletion completed and session cleared for user_id=%s email=%s",
+        "Account deletion completed and session cleared for user_id=%s",
         user_id,
-        user_email,
     )
     messages.success(request, "アカウントを削除しました。ご利用ありがとうございました。")
     return redirect(reverse("login"))
@@ -1913,7 +1909,7 @@ def _persist_signup_user(form):
         defaults={
             "department": faculty,
             "name": nickname,
-            "terms_accepted": True,
+            **terms_acceptance_defaults(),
         },
     )
     return user

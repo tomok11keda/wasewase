@@ -137,6 +137,19 @@ class UserProfile(models.Model):
         default=False,
         help_text="新規登録時に利用規約・プライバシーポリシーへ同意したか。",
     )
+    terms_accepted_at = models.DateTimeField(
+        "利用規約への同意日時",
+        null=True,
+        blank=True,
+        help_text="同意した日時。既存ユーザーで正確な日時が不明な場合は空。",
+    )
+    terms_version = models.CharField(
+        "同意した利用規約の版",
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="同意した規約の版。既存ユーザーで正確な版が不明な場合は空。",
+    )
     is_timetable_public = models.BooleanField(
         "時間割を公開する",
         default=False,

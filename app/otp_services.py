@@ -111,11 +111,10 @@ def create_and_send_signup_otp(user) -> str:
     use_console = getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False)
 
     logger.info(
-        "Sending signup OTP to %s via %s (console=%s, from=%s)",
-        recipient,
+        "Sending signup OTP for user_id=%s via %s (console=%s)",
+        user.pk,
         settings.EMAIL_BACKEND,
         use_console,
-        from_email,
     )
 
     subject = "【わせわせ】新規登録の認証コード"
@@ -135,7 +134,7 @@ def create_and_send_signup_otp(user) -> str:
             fail_silently=False,
         )
     except UnicodeEncodeError as exc:
-        logger.exception("UnicodeEncodeError while sending OTP to %s", recipient)
+        logger.exception("UnicodeEncodeError while sending OTP for user_id=%s", user.pk)
         if settings.DEBUG:
             traceback.print_exc()
         raise EmailConfigurationError(
@@ -143,7 +142,7 @@ def create_and_send_signup_otp(user) -> str:
             " 環境変数に日本語のプレースホルダーが残っていないか確認してください。"
         ) from exc
     except Exception as exc:
-        logger.exception("SMTP send failed for %s", recipient)
+        logger.exception("SMTP send failed for signup OTP user_id=%s", user.pk)
         if settings.DEBUG:
             print(
                 f"[WASE EMAIL SEND FAILED] to={recipient} error={exc}",
@@ -153,7 +152,7 @@ def create_and_send_signup_otp(user) -> str:
             traceback.print_exc()
         raise
 
-    logger.info("Signup OTP sent to %s", recipient)
+    logger.info("Signup OTP sent for user_id=%s", user.pk)
     if settings.DEBUG:
         backend_note = (
             " (console backend — ターミナルを確認)"
@@ -221,11 +220,10 @@ def create_and_send_password_reset_otp(user) -> str:
     use_console = getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False)
 
     logger.info(
-        "Sending password reset OTP to %s via %s (console=%s, from=%s)",
-        recipient,
+        "Sending password reset OTP for user_id=%s via %s (console=%s)",
+        user.pk,
         settings.EMAIL_BACKEND,
         use_console,
-        from_email,
     )
 
     subject = "【わせわせ】パスワード再設定の確認コード"
@@ -247,7 +245,8 @@ def create_and_send_password_reset_otp(user) -> str:
         )
     except UnicodeEncodeError as exc:
         logger.exception(
-            "UnicodeEncodeError while sending password reset OTP to %s", recipient
+            "UnicodeEncodeError while sending password reset OTP for user_id=%s",
+            user.pk,
         )
         if settings.DEBUG:
             traceback.print_exc()
@@ -256,7 +255,9 @@ def create_and_send_password_reset_otp(user) -> str:
             " 環境変数に日本語のプレースホルダーが残っていないか確認してください。"
         ) from exc
     except Exception as exc:
-        logger.exception("SMTP send failed for password reset to %s", recipient)
+        logger.exception(
+            "SMTP send failed for password reset OTP user_id=%s", user.pk
+        )
         if settings.DEBUG:
             print(
                 f"[WASE EMAIL SEND FAILED] to={recipient} error={exc}",
@@ -266,7 +267,7 @@ def create_and_send_password_reset_otp(user) -> str:
             traceback.print_exc()
         raise
 
-    logger.info("Password reset OTP sent to %s", recipient)
+    logger.info("Password reset OTP sent for user_id=%s", user.pk)
     if settings.DEBUG:
         backend_note = (
             " (console backend — ターミナルを確認)"

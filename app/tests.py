@@ -51,6 +51,7 @@ from wasewase.email_env import (
 )
 
 from .otp_services import SIGNUP_PENDING_SESSION_KEY, create_and_send_signup_otp
+from .constants import CURRENT_TERMS_VERSION
 from .services import build_product_share_timeline_body, notify_seller
 
 
@@ -427,6 +428,8 @@ class EmailAuthTests(TestCase):
         self.assertEqual(profile.name, "わせ太郎")
         self.assertEqual(profile.department, "法学部")
         self.assertTrue(profile.terms_accepted)
+        self.assertIsNotNone(profile.terms_accepted_at)
+        self.assertEqual(profile.terms_version, CURRENT_TERMS_VERSION)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("認証コード", mail.outbox[0].subject)
         self.assertTrue(SignupOTP.objects.filter(user=user).exists())
@@ -3478,6 +3481,12 @@ class UGCSafetyTests(TestCase):
 
 class AccountDeletionTests(TestCase):
     def setUp(self):
+        self._firestore_patcher = patch(
+            "app.bookmark_services.get_firestore_client",
+            return_value=None,
+        )
+        self._firestore_patcher.start()
+        self.addCleanup(self._firestore_patcher.stop)
         User = get_user_model()
         self.user = User.objects.create_user(
             email="delete_me@example.com",
@@ -3646,6 +3655,14 @@ class AccountDeletionTests(TestCase):
 
 
 class AccountDeletionServiceTests(TestCase):
+    def setUp(self):
+        self._firestore_patcher = patch(
+            "app.bookmark_services.get_firestore_client",
+            return_value=None,
+        )
+        self._firestore_patcher.start()
+        self.addCleanup(self._firestore_patcher.stop)
+
     def test_safe_delete_step_skips_when_table_missing(self):
         with patch("app.account_deletion_services._table_exists", return_value=False):
             deleted = _safe_delete_step("chat_read_states", ChatReadState.objects.all())

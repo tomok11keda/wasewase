@@ -61,6 +61,10 @@ TRADE_LOCATION_PRESETS = [
 WASEDA_EMAIL_DOMAIN = "waseda.jp"
 WASEDA_EMAIL_ERROR = "早稲田大学のメールアドレス（waseda.jp）のみ登録可能です"
 
+# 現在公開中の利用規約の版（templates/terms.html の改定日と揃える）。
+# 規約本文を改定したら、この定数だけを更新する。
+CURRENT_TERMS_VERSION = "2026-07-10"
+
 # 授業DB（CourseOffering）学期・キャンパス
 COURSE_SEMESTER_CHOICES = [
     ("spring", "春学期"),

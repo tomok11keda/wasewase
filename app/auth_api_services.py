@@ -22,6 +22,7 @@ from .forms import (
     SignupOTPVerifyForm,
 )
 from .models import User, UserProfile
+from .terms_services import terms_acceptance_defaults
 from .otp_services import (
     PASSWORD_RESET_USER_SESSION_KEY,
     PASSWORD_RESET_VERIFIED_SESSION_KEY,
@@ -118,6 +119,8 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
 
 
 def signup_meta() -> dict[str, Any]:
+    from .constants import CURRENT_TERMS_VERSION
+
     return {
         "ok": True,
         "faculties": [{"value": v, "label": label} for v, label in FACULTY_CHOICES],
@@ -125,6 +128,7 @@ def signup_meta() -> dict[str, Any]:
             getattr(settings, "EMAIL_USE_CONSOLE_FALLBACK", False)
         ),
         "email_config_errors": get_email_config_errors(),
+        "terms_version": CURRENT_TERMS_VERSION,
     }
 
 
@@ -149,7 +153,7 @@ def _persist_signup_user(form: SignUpForm) -> AbstractBaseUser:
         defaults={
             "department": faculty,
             "name": nickname,
-            "terms_accepted": True,
+            **terms_acceptance_defaults(),
         },
     )
     return user

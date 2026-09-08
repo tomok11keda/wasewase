@@ -262,6 +262,59 @@ def _toggle_firestore_bookmark(
         raise BookmarkServiceError("Bookmark toggle failed.") from exc
 
 
+# 退会時に削除するユーザー配下の既知コレクション。親ドキュメント
+# users/{userId}（isTimetablePublic）は別用途のためここでは削除しない。
+USER_FIRESTORE_BOOKMARK_COLLECTIONS = ("bookmarks", "product_bookmarks")
+
+
+def delete_user_firestore_bookmarks(user_id: int) -> None:
+    """users/{userId}/bookmarks および product_bookmarks を削除する。
+
+    Firestore 未設定・失敗時は例外を外へ出さない。他ユーザーのパスは触らない。
+    """
+    if not isinstance(user_id, int) or user_id <= 0:
+        logger.warning(
+            "Skipping Firestore bookmark deletion: invalid user_id=%r", user_id
+        )
+        return
+
+    db = get_firestore_client()
+    if db is None:
+        logger.info(
+            "Skipping Firestore bookmark deletion: client unavailable user_id=%s",
+            user_id,
+        )
+        return
+
+    user_key = str(user_id)
+    user_doc = db.collection("users").document(user_key)
+    for collection_name in USER_FIRESTORE_BOOKMARK_COLLECTIONS:
+        try:
+            deleted = _delete_firestore_collection_docs(
+                user_doc.collection(collection_name)
+            )
+            logger.info(
+                "Account deletion Firestore %s deleted_count=%s user_id=%s",
+                collection_name,
+                deleted,
+                user_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Account deletion Firestore %s delete failed user_id=%s: %s",
+                collection_name,
+                user_id,
+                exc,
+            )
+
+
+def _delete_firestore_collection_docs(collection_ref) -> int:
+    docs = list(collection_ref.stream())
+    for doc in docs:
+        doc.reference.delete()
+    return len(docs)
+
+
 def attach_bookmark_state(posts: Iterable[TimelinePost], viewer: AbstractBaseUser | None) -> None:
     post_list = list(posts)
     if not post_list:

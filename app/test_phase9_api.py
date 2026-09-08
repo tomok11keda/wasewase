@@ -8,6 +8,7 @@ from django.core import mail
 from django.test import Client, TestCase, override_settings
 
 from .models import Notification, User, UserProfile
+from .constants import CURRENT_TERMS_VERSION
 from .notification_api_services import notification_spa_path
 from .otp_services import (
     PASSWORD_RESET_USER_SESSION_KEY,
@@ -163,6 +164,10 @@ class AuthApiTests(TestCase):
         self.assertEqual(signup.json()["redirect"], "/app/verify")
         user = User.objects.get(email="new9@waseda.jp")
         self.assertFalse(user.is_active)
+        profile = UserProfile.objects.get(user=user)
+        self.assertTrue(profile.terms_accepted)
+        self.assertIsNotNone(profile.terms_accepted_at)
+        self.assertEqual(profile.terms_version, CURRENT_TERMS_VERSION)
 
         # Pull OTP from SignupOTP via creating known code
         from django.contrib.auth.hashers import make_password
