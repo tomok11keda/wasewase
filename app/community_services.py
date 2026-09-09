@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -7,6 +7,13 @@ from urllib.parse import urlencode
 
 from .constants import FACULTY_CHOICES
 from .models import Community, CommunityThread, CommunityThreadReply
+from .ugc_services import get_either_blocked_user_ids, is_either_blocked
+
+
+class CommunityInteractionBlocked(Exception):
+    """Bilateral block forbids this Community write."""
+
+    code = "blocked"
 
 
 def build_communities_index_url(*, tag="", query=""):
@@ -28,13 +35,16 @@ def _thread_queryset_base():
     )
 
 
-def _annotate_thread_queryset(queryset):
+def _annotate_thread_queryset(queryset, blocked_ids=None):
+    reply_filter = Q(replies__is_removed=False)
+    if blocked_ids:
+        reply_filter &= ~Q(replies__author_id__in=blocked_ids)
     return (
         queryset.select_related("author", "author__profile", "community")
         .annotate(
             replies_count=Count(
                 "replies",
-                filter=Q(replies__is_removed=False),
+                filter=reply_filter,
                 distinct=True,
             )
         )
@@ -42,24 +52,34 @@ def _annotate_thread_queryset(queryset):
     )
 
 
-def _apply_thread_search(queryset, query):
+def _apply_thread_search(queryset, query, blocked_ids=None):
     query = (query or "").strip()
     if not query:
         return queryset
+    reply_hits = CommunityThreadReply.objects.filter(
+        thread_id=OuterRef("pk"),
+        is_removed=False,
+        body__icontains=query,
+    )
+    if blocked_ids:
+        reply_hits = reply_hits.exclude(author_id__in=blocked_ids)
     return queryset.filter(
         Q(title__icontains=query)
         | Q(body__icontains=query)
-        | Q(replies__body__icontains=query, replies__is_removed=False)
-    ).distinct()
+        | Exists(reply_hits)
+    )
 
 
-def list_community_threads(*, query="", faculty=""):
+def list_community_threads(*, query="", faculty="", viewer=None):
     queryset = _thread_queryset_base()
     faculty = (faculty or "").strip()
     if faculty:
         queryset = queryset.filter(community__faculty=faculty)
-    queryset = _apply_thread_search(queryset, query)
-    return _annotate_thread_queryset(queryset)
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    queryset = _apply_thread_search(queryset, query, blocked_ids=blocked_ids)
+    if blocked_ids:
+        queryset = queryset.exclude(author_id__in=blocked_ids)
+    return _annotate_thread_queryset(queryset, blocked_ids=blocked_ids)
 
 
 def get_community_for_new_thread(*, faculty=""):
@@ -195,20 +215,29 @@ def create_community_thread(community, user, title, body):
     return thread
 
 
-def get_community_thread(community, thread_pk):
-    return get_object_or_404(
-        CommunityThread.objects.select_related(
-            "community",
-            "author",
-            "author__profile",
-        ),
+def get_community_thread(community, thread_pk, viewer=None):
+    qs = CommunityThread.objects.select_related(
+        "community",
+        "author",
+        "author__profile",
+    ).filter(
         pk=thread_pk,
         community=community,
         is_removed=False,
     )
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    if blocked_ids:
+        qs = qs.exclude(author_id__in=blocked_ids)
+    return get_object_or_404(qs)
 
 
 def create_thread_reply(thread, user, body, *, reply_to=None):
+    if is_either_blocked(user, getattr(thread, "author", None)):
+        raise CommunityInteractionBlocked()
+    if reply_to is not None and is_either_blocked(
+        user, getattr(reply_to, "author", None)
+    ):
+        raise CommunityInteractionBlocked()
     with transaction.atomic():
         reply = CommunityThreadReply.objects.create(
             thread=thread,
@@ -234,7 +263,7 @@ def create_thread_reply(thread, user, body, *, reply_to=None):
     return reply
 
 
-def resolve_reply_to_for_thread(thread, reply_to_id):
+def resolve_reply_to_for_thread(thread, reply_to_id, viewer=None):
     """同一スレッド内の返信先を検証。無効なら ValueError('invalid_reply_to')。"""
     if reply_to_id is None or reply_to_id == "":
         return None
@@ -250,6 +279,8 @@ def resolve_reply_to_for_thread(thread, reply_to_id):
         .first()
     )
     if target is None:
+        raise ValueError("invalid_reply_to")
+    if is_either_blocked(viewer, getattr(target, "author", None)):
         raise ValueError("invalid_reply_to")
     return target
 
@@ -276,6 +307,8 @@ def notify_community_reply(
         title = (thread.title or "スレッド")[:40]
         message = f"{actor_name}さんが「{title}」に返信しました"
     if recipient is None or recipient.pk == reply.author_id:
+        return
+    if is_either_blocked(reply.author, recipient):
         return
     slug = thread.community.slug
     link = f"/app/communities/{slug}/threads/{thread.pk}#reply-{reply.pk}"
@@ -367,8 +400,8 @@ def update_community_reply(reply: CommunityThreadReply, body: str) -> None:
     reply.save(update_fields=["body"])
 
 
-def get_community_reply(community, thread_pk, reply_pk):
-    thread = get_community_thread(community, thread_pk)
+def get_community_reply(community, thread_pk, reply_pk, viewer=None):
+    thread = get_community_thread(community, thread_pk, viewer=viewer)
     return get_object_or_404(
         CommunityThreadReply.objects.select_related(
             "author",
@@ -383,7 +416,9 @@ def get_community_reply(community, thread_pk, reply_pk):
     )
 
 
-def list_replies_for_thread(thread, *, include_removed=True):
+def list_replies_for_thread(
+    thread, *, include_removed=True, viewer=None, blocked_ids=None
+):
     queryset = thread.replies.select_related(
         "author",
         "author__profile",
@@ -393,13 +428,34 @@ def list_replies_for_thread(thread, *, include_removed=True):
     ).order_by("created_at", "pk")
     if not include_removed:
         queryset = queryset.filter(is_removed=False)
+    ids = (
+        blocked_ids
+        if blocked_ids is not None
+        else get_either_blocked_user_ids(viewer)
+    )
+    if ids:
+        queryset = queryset.exclude(author_id__in=ids)
     return queryset
 
 
-def count_visible_replies_for_thread(thread) -> int:
-    return thread.replies.filter(is_removed=False).count()
+def count_visible_replies_for_thread(thread, viewer=None, blocked_ids=None) -> int:
+    queryset = thread.replies.filter(is_removed=False)
+    ids = (
+        blocked_ids
+        if blocked_ids is not None
+        else get_either_blocked_user_ids(viewer)
+    )
+    if ids:
+        queryset = queryset.exclude(author_id__in=ids)
+    return queryset.count()
 
 
 def reply_numbers_for_thread(replies) -> dict[int, int]:
     """soft-delete 行も含めた作成順でスレッド内番号を振る（安定）。"""
     return {reply.pk: index for index, reply in enumerate(replies, start=1)}
+
+
+def reply_numbers_for_thread_all(thread) -> dict[int, int]:
+    """Viewer 非依存の番号。blocked 行も含めて欠番を維持する。"""
+    pks = thread.replies.order_by("created_at", "pk").values_list("pk", flat=True)
+    return {pk: index for index, pk in enumerate(pks, start=1)}

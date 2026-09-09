@@ -23,6 +23,7 @@ from django.urls import reverse
 from .account_deletion_services import delete_user_account
 from .report_notification_services import notify_moderation_team_of_report
 from .community_services import (
+    CommunityInteractionBlocked,
     build_communities_index_url,
     can_delete_community_content,
     can_edit_community_reply,
@@ -767,7 +768,9 @@ def communities_index(request):
     if active_tag not in faculty_values:
         active_tag = ""
     query = request.GET.get("q", "").strip()
-    threads = list_community_threads(query=query, faculty=active_tag)
+    threads = list_community_threads(
+        query=query, faculty=active_tag, viewer=request.user
+    )
     thread_form = CommunityThreadForm() if request.user.is_authenticated else None
 
     return render(
@@ -822,8 +825,12 @@ def create_community_thread(request):
 
 def community_thread_detail(request, slug, thread_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
-    replies = list(list_replies_for_thread(thread, include_removed=True))
+    thread = get_community_thread(community, thread_pk, viewer=request.user)
+    replies = list(
+        list_replies_for_thread(
+            thread, include_removed=True, viewer=request.user
+        )
+    )
     reply_form = CommunityThreadReplyForm() if request.user.is_authenticated else None
     return render(
         request,
@@ -832,7 +839,9 @@ def community_thread_detail(request, slug, thread_pk):
             "community": community,
             "thread": thread,
             "replies": replies,
-            "visible_reply_count": count_visible_replies_for_thread(thread),
+            "visible_reply_count": count_visible_replies_for_thread(
+                thread, viewer=request.user
+            ),
             "reply_form": reply_form,
             "can_delete_thread": can_delete_community_content(
                 request.user, thread.author_id
@@ -846,7 +855,7 @@ def community_thread_detail(request, slug, thread_pk):
 @require_POST
 def delete_community_thread(request, slug, thread_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
+    thread = get_community_thread(community, thread_pk, viewer=request.user)
     if not can_delete_community_content(request.user, thread.author_id):
         messages.error(request, "このスレッドを削除する権限がありません。")
         return redirect(
@@ -865,7 +874,9 @@ def delete_community_thread(request, slug, thread_pk):
 @require_POST
 def delete_community_thread_reply(request, slug, thread_pk, reply_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    reply = get_community_reply(community, thread_pk, reply_pk)
+    reply = get_community_reply(
+        community, thread_pk, reply_pk, viewer=request.user
+    )
     if reply.is_removed:
         messages.info(request, "この返信はすでに削除されています。")
     elif not can_delete_community_content(request.user, reply.author_id):
@@ -887,7 +898,9 @@ def delete_community_thread_reply(request, slug, thread_pk, reply_pk):
 @require_POST
 def edit_community_thread_reply(request, slug, thread_pk, reply_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    reply = get_community_reply(community, thread_pk, reply_pk)
+    reply = get_community_reply(
+        community, thread_pk, reply_pk, viewer=request.user
+    )
     if not can_edit_community_reply(request.user, reply):
         messages.error(request, "この返信を編集する権限がありません。")
         return redirect(
@@ -919,10 +932,21 @@ def edit_community_thread_reply(request, slug, thread_pk, reply_pk):
 @require_POST
 def create_community_thread_reply(request, slug, thread_pk):
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
+    thread = get_community_thread(community, thread_pk, viewer=request.user)
     form = CommunityThreadReplyForm(request.POST)
     if form.is_valid():
-        reply = save_thread_reply(thread, request.user, form.cleaned_data["body"])
+        try:
+            reply = save_thread_reply(
+                thread, request.user, form.cleaned_data["body"]
+            )
+        except CommunityInteractionBlocked:
+            messages.error(request, "このスレッドに返信できません。")
+            return redirect(
+                reverse(
+                    "community_thread_detail",
+                    kwargs={"slug": community.slug, "thread_pk": thread.pk},
+                )
+            )
         messages.success(request, "返信を投稿しました。")
         return redirect(
             reverse(

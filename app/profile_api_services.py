@@ -454,7 +454,9 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
 
     trending_posts = _discover_timeline_candidates(viewer)
     trending_threads = list(
-        list_community_threads(query="", faculty="")[:DISCOVER_CANDIDATE_LIMIT]
+        list_community_threads(query="", faculty="", viewer=viewer)[
+            :DISCOVER_CANDIDATE_LIMIT
+        ]
     )
 
     product_fetch_limit = max(
@@ -491,7 +493,7 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
     if faculty:
         faculty_posts = _discover_timeline_candidates(viewer, faculty=faculty)
         faculty_threads = list(
-            list_community_threads(query="", faculty=faculty)[
+            list_community_threads(query="", faculty=faculty, viewer=viewer)[
                 :DISCOVER_CANDIDATE_LIMIT
             ]
         )
@@ -611,9 +613,9 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
 
     def _load_threads() -> None:
         nonlocal threads_payload
-        thread_qs = list_community_threads(query=query, faculty="").order_by(
-            "-created_at"
-        )
+        thread_qs = list_community_threads(
+            query=query, faculty="", viewer=viewer
+        ).order_by("-created_at")
         threads = list(thread_qs[:SEARCH_RESULT_LIMIT])
         threads_payload = [
             serialize_thread_summary(thread, viewer) for thread in threads

@@ -77,12 +77,20 @@ def search_home_posts(query: str, viewer=None, *, limit: int = SEARCH_RESULT_LIM
 
 
 def search_community_threads_api(
-    query: str, *, faculty: str = "", limit: int = SEARCH_RESULT_LIMIT
+    query: str,
+    *,
+    faculty: str = "",
+    limit: int = SEARCH_RESULT_LIMIT,
+    viewer=None,
 ):
     query = (query or "").strip()
     if not query:
         return []
-    threads = list(list_community_threads(query=query, faculty=faculty)[:limit])
+    threads = list(
+        list_community_threads(query=query, faculty=faculty, viewer=viewer)[
+            :limit
+        ]
+    )
     return [_serialize_thread(thread) for thread in threads]
 
 
@@ -116,7 +124,9 @@ def run_scoped_search(
         return {"q": "", "scope": normalized_scope, "results": [], "count": 0}
 
     if normalized_scope == "communities":
-        results = search_community_threads_api(q, faculty=faculty)
+        results = search_community_threads_api(
+            q, faculty=faculty, viewer=viewer
+        )
     elif normalized_scope == "flea":
         results = search_flea_products_api(q, viewer=viewer)
     else:

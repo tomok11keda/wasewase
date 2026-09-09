@@ -16,16 +16,17 @@ from .community_api_services import (
     serialize_thread_summary,
 )
 from .community_services import (
+    CommunityInteractionBlocked,
     can_delete_community_content,
     can_edit_community_reply,
+    count_visible_replies_for_thread,
     create_community_thread,
     create_thread_reply,
     get_community_for_new_thread,
     get_community_reply,
     get_community_thread,
-    list_replies_for_thread,
     notify_community_reply,
-    reply_numbers_for_thread,
+    reply_numbers_for_thread_all,
     resolve_reply_to_for_thread,
     soft_remove_community_reply,
     soft_remove_community_thread,
@@ -121,8 +122,8 @@ def api_v1_community_thread_detail(
     request: HttpRequest, slug: str, thread_pk: int
 ) -> JsonResponse:
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
     viewer = request.user if request.user.is_authenticated else None
+    thread = get_community_thread(community, thread_pk, viewer=viewer)
     return JsonResponse(
         {"ok": True, "thread": serialize_thread_detail(thread, viewer)}
     )
@@ -134,7 +135,7 @@ def api_v1_community_thread_reply(
     request: HttpRequest, slug: str, thread_pk: int
 ) -> JsonResponse:
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
+    thread = get_community_thread(community, thread_pk, viewer=request.user)
     data = _parse_json(request)
     form = CommunityThreadReplyForm(data if data else request.POST)
     if not form.is_valid():
@@ -145,15 +146,20 @@ def api_v1_community_thread_reply(
         )
     reply_raw = data.get("reply_to_id") if data else request.POST.get("reply_to_id")
     try:
-        reply_to = resolve_reply_to_for_thread(thread, reply_raw)
+        reply_to = resolve_reply_to_for_thread(
+            thread, reply_raw, viewer=request.user
+        )
     except ValueError as exc:
         return _json_error(str(exc), status=400)
-    reply = create_thread_reply(
-        thread,
-        request.user,
-        form.cleaned_data["body"],
-        reply_to=reply_to,
-    )
+    try:
+        reply = create_thread_reply(
+            thread,
+            request.user,
+            form.cleaned_data["body"],
+            reply_to=reply_to,
+        )
+    except CommunityInteractionBlocked:
+        return _json_error("blocked", status=403)
     reply = (
         type(reply)
         .objects.select_related(
@@ -168,8 +174,7 @@ def api_v1_community_thread_reply(
         .get(pk=reply.pk)
     )
     notify_community_reply(reply=reply, thread=thread)
-    replies = list(list_replies_for_thread(thread, include_removed=True))
-    number_by_id = reply_numbers_for_thread(replies)
+    number_by_id = reply_numbers_for_thread_all(thread)
     return JsonResponse(
         {
             "ok": True,
@@ -179,7 +184,9 @@ def api_v1_community_thread_reply(
                 reply_number=number_by_id.get(reply.pk),
                 number_by_id=number_by_id,
             ),
-            "visible_reply_count": thread.replies.filter(is_removed=False).count(),
+            "visible_reply_count": count_visible_replies_for_thread(
+                thread, viewer=request.user
+            ),
         },
         status=201,
     )
@@ -191,7 +198,7 @@ def api_v1_community_thread_delete(
     request: HttpRequest, slug: str, thread_pk: int
 ) -> JsonResponse:
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    thread = get_community_thread(community, thread_pk)
+    thread = get_community_thread(community, thread_pk, viewer=request.user)
     if not can_delete_community_content(request.user, thread.author_id):
         return _json_error("forbidden", status=403)
     soft_remove_community_thread(thread)
@@ -204,7 +211,9 @@ def api_v1_community_reply_delete(
     request: HttpRequest, slug: str, thread_pk: int, reply_pk: int
 ) -> JsonResponse:
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    reply = get_community_reply(community, thread_pk, reply_pk)
+    reply = get_community_reply(
+        community, thread_pk, reply_pk, viewer=request.user
+    )
     if reply.is_removed:
         return JsonResponse({"ok": True, "already_removed": True})
     if not can_delete_community_content(request.user, reply.author_id):
@@ -219,7 +228,9 @@ def api_v1_community_reply_edit(
     request: HttpRequest, slug: str, thread_pk: int, reply_pk: int
 ) -> JsonResponse:
     community = get_object_or_404(Community, slug=slug, is_active=True)
-    reply = get_community_reply(community, thread_pk, reply_pk)
+    reply = get_community_reply(
+        community, thread_pk, reply_pk, viewer=request.user
+    )
     if not can_edit_community_reply(request.user, reply):
         return _json_error("forbidden", status=403)
     data = _parse_json(request)
@@ -242,8 +253,7 @@ def api_v1_community_reply_edit(
         )
         .get(pk=reply.pk)
     )
-    replies = list(list_replies_for_thread(reply.thread, include_removed=True))
-    number_by_id = reply_numbers_for_thread(replies)
+    number_by_id = reply_numbers_for_thread_all(reply.thread)
     return JsonResponse(
         {
             "ok": True,
