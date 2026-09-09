@@ -442,6 +442,51 @@ def _validate_offering_inputs(
     }
 
 
+def _offering_meetings_locked(
+    offering: CourseOffering, user: AbstractBaseUser
+) -> bool:
+    """他ユーザーの CourseEnrollment が1件でもあれば True。role は区別しない。"""
+    return (
+        CourseEnrollment.objects.filter(offering=offering)
+        .exclude(user_id=user.pk)
+        .exists()
+    )
+
+
+def _meeting_spec_identity(spec: dict) -> tuple[int, str, int]:
+    return (int(spec["day_of_week"]), spec["period_kind"], int(spec["period"]))
+
+
+def _requested_meetings_missing(
+    offering: CourseOffering, specs: list[dict]
+) -> bool:
+    from .models import CourseMeeting
+
+    existing = set(
+        CourseMeeting.objects.filter(offering=offering).values_list(
+            "day_of_week", "period_kind", "period"
+        )
+    )
+    return any(_meeting_spec_identity(spec) not in existing for spec in specs)
+
+
+def _ensure_meetings_for_existing_offering(
+    offering: CourseOffering,
+    user: AbstractBaseUser,
+    specs: list[dict],
+) -> CourseOffering:
+    """Reuse 済み Offering に missing meeting を足す。共有時は拒否。"""
+    from .course_meeting_services import ensure_meetings_for_offering
+
+    locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
+    if _requested_meetings_missing(locked, specs) and _offering_meetings_locked(
+        locked, user
+    ):
+        raise ValueError("meeting_locked")
+    ensure_meetings_for_offering(locked, specs)
+    return locked
+
+
 @transaction.atomic
 def create_offering(
     *,
@@ -519,8 +564,10 @@ def create_offering(
             == normalize_course_text(cleaned["instructor"])
         ]
         if exact:
-            ensure_meetings_for_offering(exact[0], specs)
-            return exact[0], []
+            locked = _ensure_meetings_for_existing_offering(
+                exact[0], user, specs
+            )
+            return locked, []
         return duplicates[0], duplicates
 
     exact_existing = (
@@ -534,8 +581,10 @@ def create_offering(
         .first()
     )
     if exact_existing and not force_create:
-        ensure_meetings_for_offering(exact_existing, specs)
-        return exact_existing, []
+        locked = _ensure_meetings_for_existing_offering(
+            exact_existing, user, specs
+        )
+        return locked, []
 
     course = get_or_create_course(cleaned["title"])
     try:
@@ -576,8 +625,10 @@ def create_offering(
             .first()
         )
         if existing:
-            ensure_meetings_for_offering(existing, specs)
-            return existing, [existing]
+            locked = _ensure_meetings_for_existing_offering(
+                existing, user, specs
+            )
+            return locked, [locked]
         raise
     return offering, []
 
@@ -615,11 +666,7 @@ def enroll_user_in_offering(
                 raise ValueError("slot_mismatch")
             # 他ユーザーが既に履修している Offering の Meeting は拡張しない
             # （共有マスター汚染を防ぐ）
-            if (
-                CourseEnrollment.objects.filter(offering=offering)
-                .exclude(user_id=user.pk)
-                .exists()
-            ):
+            if _offering_meetings_locked(offering, user):
                 raise ValueError("meeting_locked")
             parsed = parse_slot_key(target_key)
             if parsed is None:
