@@ -36,8 +36,8 @@ from .models import (
 from .product_trade_schema_services import ensure_product_trade_schema
 from .services import (
     build_product_share_timeline_body,
-    can_access_chat_room,
     chat_room_link,
+    get_accessible_product_chat_room,
     get_reviewee,
     get_user_faculty,
     notify_seller,
@@ -305,17 +305,8 @@ def api_v1_flea_product_review(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_GET
 def api_v1_flea_chat_detail(request: HttpRequest, room_pk: int) -> JsonResponse:
-    room = get_object_or_404(
-        ChatRoom.objects.select_related(
-            "product",
-            "product__seller",
-            "product__seller__profile",
-            "buyer",
-            "buyer__profile",
-        ),
-        pk=room_pk,
-    )
-    if not can_access_chat_room(room, request.user):
+    room = get_accessible_product_chat_room(room_pk, request.user)
+    if room is None:
         return _json_error("forbidden", status=403)
     mark_product_chat_room_read(room, request.user)
     return JsonResponse({"ok": True, "room": serialize_chat_room(room, request.user)})
@@ -324,11 +315,8 @@ def api_v1_flea_chat_detail(request: HttpRequest, room_pk: int) -> JsonResponse:
 @login_required
 @require_GET
 def api_v1_flea_chat_messages(request: HttpRequest, room_pk: int) -> JsonResponse:
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
-    if not can_access_chat_room(room, request.user):
+    room = get_accessible_product_chat_room(room_pk, request.user)
+    if room is None:
         return JsonResponse({"error": "forbidden"}, status=403)
     return _room_messages_json(request, room.messages)
 
@@ -342,11 +330,8 @@ def api_v1_flea_chat_send(request: HttpRequest, room_pk: int) -> JsonResponse:
             status=429,
             message=RATE_LIMIT_USER_MESSAGE,
         )
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
-    if not can_access_chat_room(room, request.user):
+    room = get_accessible_product_chat_room(room_pk, request.user)
+    if room is None:
         return _json_error("forbidden", status=403)
     data = _parse_json(request)
     body = str(data.get("body") if data else request.POST.get("body", "")).strip()
@@ -385,10 +370,9 @@ def api_v1_flea_chat_send(request: HttpRequest, room_pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def api_v1_flea_chat_confirm(request: HttpRequest, room_pk: int) -> JsonResponse:
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
+    room = get_accessible_product_chat_room(room_pk, request.user)
+    if room is None:
+        return _json_error("forbidden", status=403)
     try:
         room = confirm_negotiation_trade(room, request.user)
     except ValueError as exc:
@@ -420,11 +404,8 @@ def api_v1_flea_chat_confirm(request: HttpRequest, room_pk: int) -> JsonResponse
 @require_POST
 def api_v1_flea_chat_handover(request: HttpRequest, room_pk: int) -> JsonResponse:
     ensure_product_trade_schema()
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
-    if not can_access_chat_room(room, request.user):
+    room = get_accessible_product_chat_room(room_pk, request.user)
+    if room is None:
         return _json_error("forbidden", status=403)
 
     try:

@@ -30,6 +30,7 @@ from .services import (
     can_access_chat_room,
     chat_room_link,
     get_following_user_ids,
+    get_product_trade_room_or_404,
     get_reviewee,
     get_user_faculty,
     is_trade_participant,
@@ -463,17 +464,20 @@ def start_product_chat(request, pk):
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
 
-@login_required
-def chat_room(request, room_pk):
-    room = get_object_or_404(
-        ChatRoom.objects.select_related(
-            "product", "product__seller", "buyer"
-        ).prefetch_related("messages__sender"),
-        pk=room_pk,
-    )
+def _accessible_product_chat_room_or_deny(request, room_pk):
+    """PRODUCT Trade room を返す。wrong-kind は 404。outsider は商品詳細へ。"""
+    room = get_product_trade_room_or_404(room_pk)
     if not can_access_chat_room(room, request.user):
         messages.error(request, "このチャットルームにはアクセスできません。")
-        return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+        return None, redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+    return room, None
+
+
+@login_required
+def chat_room(request, room_pk):
+    room, denied = _accessible_product_chat_room_or_deny(request, room_pk)
+    if denied:
+        return denied
 
     mark_product_chat_room_read(room, request.user)
 
@@ -521,13 +525,9 @@ def chat_room(request, room_pk):
 @login_required
 @require_POST
 def send_chat_message(request, room_pk):
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
-    if not can_access_chat_room(room, request.user):
-        messages.error(request, "このチャットルームにはアクセスできません。")
-        return redirect(reverse("product_detail", kwargs={"pk": room.product_id}))
+    room, denied = _accessible_product_chat_room_or_deny(request, room_pk)
+    if denied:
+        return denied
 
     if not allow_chat_message(request.user):
         messages.error(request, RATE_LIMIT_USER_MESSAGE)
@@ -572,10 +572,9 @@ def send_chat_message(request, room_pk):
 @require_POST
 def confirm_product_trade(request, room_pk):
     """出品者が交渉チャットで「取引開始」→ pending。"""
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
+    room, denied = _accessible_product_chat_room_or_deny(request, room_pk)
+    if denied:
+        return denied
     try:
         room = confirm_negotiation_trade(room, request.user)
     except ValueError as exc:
@@ -606,10 +605,9 @@ def complete_product_handover(request, room_pk):
     """出品者が「受け渡し完了」→ sold。"""
     # 本番 SQLite で is_system / sender_id NULL が未修復だとシステムメッセージ作成で 500 になる
     ensure_product_trade_schema()
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
+    room, denied = _accessible_product_chat_room_or_deny(request, room_pk)
+    if denied:
+        return denied
     try:
         product = complete_handover_by_seller(room, request.user)
     except ValueError as exc:
@@ -653,10 +651,7 @@ def complete_product_handover(request, room_pk):
 @login_required
 @require_GET
 def chat_room_messages(request, room_pk):
-    room = get_object_or_404(
-        ChatRoom.objects.select_related("product", "product__seller", "buyer"),
-        pk=room_pk,
-    )
+    room = get_product_trade_room_or_404(room_pk)
     if not can_access_chat_room(room, request.user):
         return JsonResponse({"error": "forbidden"}, status=403)
 

@@ -4,7 +4,17 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Avg, Case, Count, IntegerField, Q, Sum, Value, When
 from django.urls import reverse
 
-from .models import Comment, Follow, Notification, Product, Review, ThreadPost, TimelinePost, UserProfile
+from .models import (
+    ChatRoom,
+    Comment,
+    Follow,
+    Notification,
+    Product,
+    Review,
+    ThreadPost,
+    TimelinePost,
+    UserProfile,
+)
 from .ugc_services import filter_visible_products, filter_visible_timeline_posts
 
 
@@ -319,10 +329,58 @@ def is_trade_participant(product: Product, user: AbstractBaseUser) -> bool:
     return user.id in (product.seller_id, product.buyer_id)
 
 
+def product_trade_room_queryset():
+    """Trade Chat として有効な room（kind=PRODUCT かつ商品あり）。"""
+    return ChatRoom.objects.filter(
+        kind=ChatRoom.Kind.PRODUCT,
+        product_id__isnull=False,
+    )
+
+
+def get_product_trade_room_or_404(
+    room_pk: int,
+    *,
+    select_related: tuple[str, ...] | None = None,
+):
+    """wrong-kind / product-null / missing → Http404。ACL は見ない。"""
+    from django.shortcuts import get_object_or_404
+
+    related = select_related or (
+        "product",
+        "product__seller",
+        "product__seller__profile",
+        "buyer",
+        "buyer__profile",
+    )
+    return get_object_or_404(
+        product_trade_room_queryset().select_related(*related),
+        pk=room_pk,
+    )
+
+
 def can_access_chat_room(chat_room, user: AbstractBaseUser) -> bool:
-    if not user.is_authenticated:
+    """Trade Chat の seller/buyer ACL。product 無し・他 kind では False（500 にしない）。"""
+    if user is None or not getattr(user, "is_authenticated", False):
         return False
-    return user.id in (chat_room.product.seller_id, chat_room.buyer_id)
+    if getattr(chat_room, "kind", ChatRoom.Kind.PRODUCT) != ChatRoom.Kind.PRODUCT:
+        return False
+    product = getattr(chat_room, "product", None)
+    if not getattr(chat_room, "product_id", None) or product is None:
+        return False
+    return user.id in (product.seller_id, chat_room.buyer_id)
+
+
+def get_accessible_product_chat_room(
+    room_pk: int,
+    user: AbstractBaseUser,
+    *,
+    select_related: tuple[str, ...] | None = None,
+):
+    """有効な PRODUCT Trade room かつ participant なら room。outsider は None。wrong-kind は 404。"""
+    room = get_product_trade_room_or_404(room_pk, select_related=select_related)
+    if not can_access_chat_room(room, user):
+        return None
+    return room
 
 
 def chat_room_link(chat_room) -> str:

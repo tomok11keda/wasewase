@@ -10,7 +10,16 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from .bookmark_services import BookmarkServiceError
-from .models import ChatRoom, Comment, Message, Notification, Product, User
+from .models import (
+    ChatRoom,
+    ChatRoomMembership,
+    Comment,
+    Message,
+    Notification,
+    Product,
+    TradeMessage,
+    User,
+)
 
 _MINIMAL_GIF = (
     b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04"
@@ -468,3 +477,337 @@ class FleaCommentBrowseModeAuthTests(TestCase):
         self.assertFalse(
             Notification.objects.filter(recipient=self.seller).exists()
         )
+
+
+_TRADE_STATE_ORACLE_ERRORS = frozenset(
+    {"not_seller", "not_negotiating", "not_available"}
+)
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class TradeChatKindAclTests(TestCase):
+    """Trade Chat は kind=PRODUCT + participant ACL を business validation より先に見る。"""
+
+    def setUp(self):
+        self.seller = User.objects.create_user(
+            email="trade-acl-seller@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.buyer = User.objects.create_user(
+            email="trade-acl-buyer@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.member = User.objects.create_user(
+            email="trade-acl-member@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.outsider = User.objects.create_user(
+            email="trade-acl-outsider@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.product = Product.objects.create(
+            seller=self.seller,
+            name="ACL教科書",
+            price=1500,
+            description="desc",
+            category="未分類",
+            faculty="政治経済学部",
+            handover_campus="waseda",
+            status=Product.Status.AVAILABLE,
+        )
+        self.client = Client()
+
+    def _group_room(self, user):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            name="security-group",
+            created_by=user,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=user,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        return room
+
+    def _course_room(self, user):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.COURSE,
+            name="security-course",
+            created_by=user,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=user,
+            role=ChatRoomMembership.Role.MEMBER,
+        )
+        return room
+
+    def _negotiating_product_room(self):
+        return ChatRoom.objects.create(
+            product=self.product,
+            buyer=self.buyer,
+            kind=ChatRoom.Kind.PRODUCT,
+            deal_status=ChatRoom.DealStatus.NEGOTIATING,
+        )
+
+    def _assert_not_state_oracle(self, response):
+        self.assertNotEqual(response.status_code, 500)
+        content_type = response.headers.get("Content-Type", "")
+        if "application/json" in content_type:
+            payload = response.json()
+            self.assertNotIn(payload.get("error"), _TRADE_STATE_ORACLE_ERRORS)
+            body = json.dumps(payload)
+            self.assertNotIn("secret-group-body", body)
+            self.assertNotIn("secret-course-body", body)
+
+    def test_wrong_kind_group_detail_is_404(self):
+        room = self._group_room(self.member)
+        Message.objects.create(
+            chat_room=room, sender=self.member, body="secret-group-body"
+        )
+        self.client.force_login(self.member)
+        res = self.client.get(f"/api/v1/flea/chats/{room.pk}/")
+        self.assertEqual(res.status_code, 404)
+        self._assert_not_state_oracle(res)
+
+    def test_wrong_kind_course_detail_is_404(self):
+        room = self._course_room(self.member)
+        self.client.force_login(self.member)
+        res = self.client.get(f"/api/v1/flea/chats/{room.pk}/")
+        self.assertEqual(res.status_code, 404)
+        self.assertNotEqual(res.status_code, 500)
+
+    def test_wrong_kind_messages_do_not_leak_bodies(self):
+        group = self._group_room(self.member)
+        course = self._course_room(self.member)
+        Message.objects.create(
+            chat_room=group, sender=self.member, body="secret-group-body"
+        )
+        Message.objects.create(
+            chat_room=course, sender=self.member, body="secret-course-body"
+        )
+        self.client.force_login(self.member)
+        for room in (group, course):
+            for suffix in ("", "?before=1", "?after=1"):
+                res = self.client.get(
+                    f"/api/v1/flea/chats/{room.pk}/messages/{suffix}"
+                )
+                self.assertEqual(res.status_code, 404)
+                self._assert_not_state_oracle(res)
+
+    def test_wrong_kind_send_does_not_create_message(self):
+        group = self._group_room(self.member)
+        course = self._course_room(self.member)
+        self.client.force_login(self.member)
+        for room in (group, course):
+            before_messages = Message.objects.count()
+            before_trade = TradeMessage.objects.count()
+            before_notes = Notification.objects.count()
+            res = self.client.post(
+                f"/api/v1/flea/chats/{room.pk}/messages/send/",
+                data=json.dumps({"body": "cross-kind leak"}),
+                content_type="application/json",
+            )
+            self.assertEqual(res.status_code, 404)
+            self.assertNotEqual(res.status_code, 500)
+            self.assertEqual(Message.objects.count(), before_messages)
+            self.assertEqual(TradeMessage.objects.count(), before_trade)
+            self.assertEqual(Notification.objects.count(), before_notes)
+
+    def test_wrong_kind_confirm_is_404_without_mutation(self):
+        group = self._group_room(self.member)
+        course = self._course_room(self.member)
+        self.client.force_login(self.member)
+        for room in (group, course):
+            res = self.client.post(f"/api/v1/flea/chats/{room.pk}/confirm/")
+            self.assertEqual(res.status_code, 404)
+            self._assert_not_state_oracle(res)
+            self.product.refresh_from_db()
+            self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+
+    def test_wrong_kind_handover_api_and_classic_are_404(self):
+        group = self._group_room(self.member)
+        course = self._course_room(self.member)
+        self.client.force_login(self.member)
+        for room in (group, course):
+            api = self.client.post(
+                f"/api/v1/flea/chats/{room.pk}/handover-complete/"
+            )
+            self.assertEqual(api.status_code, 404)
+            self._assert_not_state_oracle(api)
+            classic = self.client.post(
+                reverse("complete_product_handover", args=[room.pk])
+            )
+            self.assertEqual(classic.status_code, 404)
+            self.product.refresh_from_db()
+            self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+
+    def test_outsider_product_confirm_is_acl_first_regardless_of_state(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.outsider)
+        states = [
+            (Product.Status.AVAILABLE, ChatRoom.DealStatus.NEGOTIATING),
+            (Product.Status.AVAILABLE, ChatRoom.DealStatus.CONFIRMED),
+            (Product.Status.PENDING, ChatRoom.DealStatus.CONFIRMED),
+            (Product.Status.SOLD, ChatRoom.DealStatus.CLOSED),
+        ]
+        for product_status, deal_status in states:
+            self.product.status = product_status
+            if product_status == Product.Status.PENDING:
+                self.product.buyer = self.buyer
+            elif product_status == Product.Status.AVAILABLE:
+                self.product.buyer = None
+            self.product.save(update_fields=["status", "buyer"])
+            room.deal_status = deal_status
+            room.save(update_fields=["deal_status", "updated_at"])
+
+            res = self.client.post(f"/api/v1/flea/chats/{room.pk}/confirm/")
+            self.assertEqual(res.status_code, 403, msg=(product_status, deal_status))
+            self.assertEqual(res.json()["error"], "forbidden")
+            self._assert_not_state_oracle(res)
+            self.product.refresh_from_db()
+            self.assertEqual(self.product.status, product_status)
+            room.refresh_from_db()
+            self.assertEqual(room.deal_status, deal_status)
+
+    def test_buyer_confirm_still_returns_not_seller_after_acl(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.buyer)
+        res = self.client.post(f"/api/v1/flea/chats/{room.pk}/confirm/")
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["error"], "not_seller")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+
+    def test_valid_seller_confirm_still_succeeds(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.seller)
+        res = self.client.post(f"/api/v1/flea/chats/{room.pk}/confirm/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["product_status"], Product.Status.PENDING)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.PENDING)
+
+    def test_valid_participant_detail_messages_send(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.buyer)
+        detail = self.client.get(f"/api/v1/flea/chats/{room.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        send = self.client.post(
+            f"/api/v1/flea/chats/{room.pk}/messages/send/",
+            data=json.dumps({"body": "受け渡し希望"}),
+            content_type="application/json",
+        )
+        self.assertEqual(send.status_code, 201)
+        msgs = self.client.get(f"/api/v1/flea/chats/{room.pk}/messages/")
+        self.assertEqual(msgs.status_code, 200)
+        self.assertTrue(
+            any("受け渡し希望" in m["body"] for m in msgs.json()["messages"])
+        )
+        older = self.client.get(
+            f"/api/v1/flea/chats/{room.pk}/messages/?before={msgs.json()['messages'][0]['id']}"
+        )
+        self.assertEqual(older.status_code, 200)
+        newer = self.client.get(
+            f"/api/v1/flea/chats/{room.pk}/messages/?after=0"
+        )
+        self.assertEqual(newer.status_code, 200)
+
+    def test_unauthorized_product_send_still_denied(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.outsider)
+        before = Message.objects.filter(chat_room=room).count()
+        res = self.client.post(
+            f"/api/v1/flea/chats/{room.pk}/messages/send/",
+            data=json.dumps({"body": "outsider leak"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(Message.objects.filter(chat_room=room).count(), before)
+
+    def test_product_null_room_is_404(self):
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.PRODUCT,
+            product=None,
+            buyer=self.buyer,
+        )
+        self.client.force_login(self.buyer)
+        res = self.client.get(f"/api/v1/flea/chats/{room.pk}/")
+        self.assertEqual(res.status_code, 404)
+
+    def test_nonexistent_room_is_404_not_500(self):
+        missing = 9_999_999
+        self.client.force_login(self.buyer)
+        paths = [
+            (self.client.get, f"/api/v1/flea/chats/{missing}/"),
+            (self.client.get, f"/api/v1/flea/chats/{missing}/messages/"),
+            (self.client.post, f"/api/v1/flea/chats/{missing}/messages/send/"),
+            (self.client.post, f"/api/v1/flea/chats/{missing}/confirm/"),
+            (self.client.post, f"/api/v1/flea/chats/{missing}/handover-complete/"),
+        ]
+        for method, path in paths:
+            if method is self.client.post:
+                res = method(
+                    path, data=json.dumps({}), content_type="application/json"
+                )
+            else:
+                res = method(path)
+            self.assertEqual(res.status_code, 404, msg=path)
+            self.assertNotEqual(res.status_code, 500)
+
+    def test_classic_wrong_kind_confirm_send_handover_are_safe_deny(self):
+        rooms = (self._group_room(self.member), self._course_room(self.member))
+        self.client.force_login(self.member)
+        for room in rooms:
+            Message.objects.create(
+                chat_room=room, sender=self.member, body="secret-group-body"
+            )
+            before_messages = Message.objects.count()
+            confirm = self.client.post(
+                reverse("confirm_product_trade", args=[room.pk])
+            )
+            self.assertEqual(confirm.status_code, 404)
+            send = self.client.post(
+                reverse("send_chat_message", args=[room.pk]),
+                {"body": "classic cross-kind"},
+            )
+            self.assertEqual(send.status_code, 404)
+            messages_poll = self.client.get(
+                reverse("chat_room_messages", args=[room.pk])
+            )
+            self.assertEqual(messages_poll.status_code, 404)
+            handover = self.client.post(
+                reverse("complete_product_handover", args=[room.pk])
+            )
+            self.assertEqual(handover.status_code, 404)
+            self.assertEqual(Message.objects.count(), before_messages)
+            self.product.refresh_from_db()
+            self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+
+    def test_classic_outsider_confirm_acl_first(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.outsider)
+        res = self.client.post(reverse("confirm_product_trade", args=[room.pk]))
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[self.product.pk])
+        )
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.AVAILABLE)
+        room.refresh_from_db()
+        self.assertEqual(room.deal_status, ChatRoom.DealStatus.NEGOTIATING)
+
+    def test_classic_valid_seller_confirm_and_handover(self):
+        room = self._negotiating_product_room()
+        self.client.force_login(self.seller)
+        confirm = self.client.post(reverse("confirm_product_trade", args=[room.pk]))
+        self.assertEqual(confirm.status_code, 302)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.PENDING)
+        handover = self.client.post(
+            reverse("complete_product_handover", args=[room.pk])
+        )
+        self.assertEqual(handover.status_code, 302)
+        self.product.refresh_from_db()
+        self.assertTrue(self.product.is_sold)

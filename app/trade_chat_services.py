@@ -35,6 +35,8 @@ def seller_can_complete_handover(
     0036 / schema repair で deal_status が negotiating のまま残った
     「取引中」商品も、buyer が一致していれば完了対象とする（仕様変更ではなく整合修復）。
     """
+    if product is None:
+        return False
     if product.seller_id != seller.id:
         return False
     if not product.is_pending:
@@ -155,7 +157,12 @@ def confirm_negotiation_trade(room: ChatRoom, seller: AbstractBaseUser) -> ChatR
         .select_related("product")
         .get(pk=room.pk)
     )
-    product = Product.objects.select_for_update().get(pk=room.product_id)
+    if room.kind != ChatRoom.Kind.PRODUCT or not room.product_id:
+        raise ValueError("no_product")
+    try:
+        product = Product.objects.select_for_update().get(pk=room.product_id)
+    except Product.DoesNotExist:
+        raise ValueError("no_product")
 
     if product.seller_id != seller.id:
         raise ValueError("not_seller")
@@ -203,9 +210,12 @@ def _commit_handover_sold(
         .select_related("product")
         .get(pk=room.pk)
     )
-    if not room.product_id:
+    if room.kind != ChatRoom.Kind.PRODUCT or not room.product_id:
         raise ValueError("no_product")
-    product = Product.objects.select_for_update().get(pk=room.product_id)
+    try:
+        product = Product.objects.select_for_update().get(pk=room.product_id)
+    except Product.DoesNotExist:
+        raise ValueError("no_product")
 
     if product.seller_id != seller.id:
         raise ValueError("not_seller")
