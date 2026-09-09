@@ -34,11 +34,13 @@ from app.rate_limit_services import (
     TIMELINE_LIKE_LIMIT,
     TIMELINE_LIKE_SCOPE,
     TIMELINE_POST_LIMIT,
+    TIMELINE_POST_SCOPE,
     allow_chat_message,
     allow_timeline_comment,
     allow_timeline_like,
     allow_timeline_post,
 )
+from app.services import build_product_share_timeline_body
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -563,3 +565,203 @@ class WriteRateLimitTests(TestCase):
         self.assertEqual(res["Location"], reverse("user_dm_inbox"))
         self.assertFalse(ChatMessage.objects.filter(room=room).exists())
         self.assertIsNone(cache.get(self._chat_key(self.user_b)))
+
+    def _post_key(self, user) -> str:
+        return f"rl:{TIMELINE_POST_SCOPE}:{user.pk}"
+
+    def _make_share_product(self, seller, *, status=Product.Status.AVAILABLE) -> Product:
+        return Product.objects.create(
+            seller=seller,
+            name="rl share book",
+            price=800,
+            category="本",
+            course_name="経済学",
+            professor_name="RL教授",
+            status=status,
+        )
+
+    def _share_posts(self, user):
+        return TimelinePost.objects.filter(author=user, body__startswith="【出品シェア】")
+
+    def test_api_flea_share_succeeds_under_limit(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_a)
+        res = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json().get("ok"))
+        detail_url = f"http://testserver{reverse('product_detail', args=[product.pk])}"
+        post = self._share_posts(self.user_a).get()
+        self.assertEqual(post.author, self.user_a)
+        self.assertEqual(
+            post.body, build_product_share_timeline_body(product, detail_url)
+        )
+        self.assertEqual(post.course_name, "経済学")
+        self.assertEqual(post.professor_name, "RL教授")
+        self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
+
+    def test_classic_flea_share_succeeds_under_limit(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        detail_url = f"http://testserver{reverse('product_detail', args=[product.pk])}"
+        post = self._share_posts(self.user_a).get()
+        self.assertEqual(post.author, self.user_a)
+        self.assertEqual(
+            post.body, build_product_share_timeline_body(product, detail_url)
+        )
+        self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
+
+    def test_api_flea_share_exhausted_does_not_create_post(self):
+        product = self._make_share_product(self.user_a)
+        before_status = product.status
+        self._exhaust(allow_timeline_post, self.user_a, TIMELINE_POST_LIMIT)
+        self.client.force_login(self.user_a)
+        res = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        self.assertEqual(res.status_code, 429)
+        body = res.json()
+        self.assertEqual(body["error"], "rate_limited")
+        self.assertEqual(body["message"], RATE_LIMIT_USER_MESSAGE)
+        self.assertFalse(self._share_posts(self.user_a).exists())
+        product.refresh_from_db()
+        self.assertEqual(product.status, before_status)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_classic_flea_share_exhausted_does_not_mutate(self):
+        product = self._make_share_product(self.user_a)
+        before_status = product.status
+        self._exhaust(allow_timeline_post, self.user_a, TIMELINE_POST_LIMIT)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+            {"next": "https://evil.example/phish"},
+        )
+        self._assert_classic_rate_limited(res)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        self.assertFalse(self._share_posts(self.user_a).exists())
+        product.refresh_from_db()
+        self.assertEqual(product.status, before_status)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_api_timeline_then_flea_share_shares_bucket(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_a)
+        api = self.client.post("/api/v1/timeline/", data={"body": "normal first"})
+        self.assertEqual(api.status_code, 201, api.content)
+        self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
+        for _ in range(TIMELINE_POST_LIMIT - 1):
+            self.assertTrue(allow_timeline_post(self.user_a))
+        self.assertFalse(allow_timeline_post(self.user_a))
+
+        share = self.client.post(
+            reverse("api_v1_flea_product_share", args=[product.pk])
+        )
+        self.assertEqual(share.status_code, 429)
+        self.assertEqual(share.json()["error"], "rate_limited")
+        self.assertFalse(self._share_posts(self.user_a).exists())
+        self.assertEqual(
+            TimelinePost.objects.filter(author=self.user_a).count(), 1
+        )
+
+    def test_api_flea_share_then_timeline_shares_bucket(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_a)
+        share = self.client.post(
+            reverse("api_v1_flea_product_share", args=[product.pk])
+        )
+        self.assertEqual(share.status_code, 200)
+        self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
+        for _ in range(TIMELINE_POST_LIMIT - 1):
+            self.assertTrue(allow_timeline_post(self.user_a))
+        self.assertFalse(allow_timeline_post(self.user_a))
+
+        api = self.client.post("/api/v1/timeline/", data={"body": "after share"})
+        self.assertEqual(api.status_code, 429)
+        self.assertEqual(api.json()["error"], "rate_limited")
+        self.assertEqual(self._share_posts(self.user_a).count(), 1)
+        self.assertEqual(
+            TimelinePost.objects.filter(author=self.user_a).count(), 1
+        )
+
+        classic = self.client.post(
+            reverse("board_compose"),
+            {"body": "classic after share"},
+        )
+        self._assert_classic_rate_limited(classic)
+        self.assertEqual(
+            TimelinePost.objects.filter(author=self.user_a).count(), 1
+        )
+
+    def test_api_flea_share_then_classic_share_shares_bucket(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_a)
+        api = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        self.assertEqual(api.status_code, 200)
+        self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
+        for _ in range(TIMELINE_POST_LIMIT - 1):
+            self.assertTrue(allow_timeline_post(self.user_a))
+        self.assertFalse(allow_timeline_post(self.user_a))
+
+        classic = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+        )
+        self._assert_classic_rate_limited(classic)
+        self.assertEqual(
+            classic["Location"], reverse("product_detail", args=[product.pk])
+        )
+        self.assertEqual(self._share_posts(self.user_a).count(), 1)
+
+    def test_api_flea_share_non_seller_does_not_consume_budget(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.json()["error"], "forbidden")
+        self.assertFalse(self._share_posts(self.user_b).exists())
+        self.assertIsNone(cache.get(self._post_key(self.user_b)))
+
+    def test_classic_flea_share_non_seller_does_not_consume_budget(self):
+        product = self._make_share_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        msgs = [m.message for m in get_messages(res.wsgi_request)]
+        self.assertIn("自分の出品のみスレッドにシェアできます。", msgs)
+        self.assertFalse(self._share_posts(self.user_b).exists())
+        self.assertIsNone(cache.get(self._post_key(self.user_b)))
+
+    def test_api_flea_share_sold_product_does_not_consume_budget(self):
+        product = self._make_share_product(self.user_a, status=Product.Status.SOLD)
+        self.client.force_login(self.user_a)
+        res = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["error"], "not_available")
+        self.assertFalse(self._share_posts(self.user_a).exists())
+        self.assertIsNone(cache.get(self._post_key(self.user_a)))
+
+    def test_classic_flea_share_pending_product_does_not_consume_budget(self):
+        product = self._make_share_product(self.user_a, status=Product.Status.PENDING)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("share_product_to_timeline", args=[product.pk]),
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        msgs = [m.message for m in get_messages(res.wsgi_request)]
+        self.assertIn("出品中の商品のみシェアできます。", msgs)
+        self.assertFalse(self._share_posts(self.user_a).exists())
+        self.assertIsNone(cache.get(self._post_key(self.user_a)))

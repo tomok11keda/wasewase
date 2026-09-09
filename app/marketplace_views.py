@@ -50,7 +50,11 @@ from .trade_chat_services import (
     start_instant_purchase,
     start_negotiation,
 )
-from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
+from .rate_limit_services import (
+    RATE_LIMIT_USER_MESSAGE,
+    allow_chat_message,
+    allow_timeline_post,
+)
 from .trade_chat_inbox_services import (
     mark_product_chat_room_read,
     product_thumbnail_url,
@@ -668,6 +672,10 @@ def share_product_to_timeline(request, pk):
 
     if product.status != Product.Status.AVAILABLE:
         messages.error(request, "出品中の商品のみシェアできます。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+
+    if not allow_timeline_post(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
     detail_url = request.build_absolute_uri(

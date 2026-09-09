@@ -50,7 +50,11 @@ from .trade_chat_services import (
     start_instant_purchase,
     start_negotiation,
 )
-from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
+from .rate_limit_services import (
+    RATE_LIMIT_USER_MESSAGE,
+    allow_chat_message,
+    allow_timeline_post,
+)
 from .ugc_services import filter_visible_products, get_visible_product_or_404
 
 logger = logging.getLogger(__name__)
@@ -253,6 +257,12 @@ def api_v1_flea_product_share(request: HttpRequest, pk: int) -> JsonResponse:
         return _json_error("forbidden", status=403)
     if product.status != Product.Status.AVAILABLE:
         return _json_error("not_available", status=400)
+    if not allow_timeline_post(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     detail_url = request.build_absolute_uri(
         reverse("product_detail", kwargs={"pk": product.pk})
     )
