@@ -1640,6 +1640,74 @@ class ProfileAndFollowTests(TestCase):
             ).exists()
         )
 
+    def test_toggle_follow_safe_local_next_preserves_query(self):
+        self.client.force_login(self.viewer)
+        follow_url = reverse("toggle_follow", args=[self.target.pk])
+        profile_url = reverse("user_profile", args=[self.target.pk])
+        safe_next = f"{profile_url}?tab=test"
+        response = self.client.post(follow_url, {"next": safe_next})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], safe_next)
+        self.assertTrue(
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).exists()
+        )
+
+    def test_toggle_follow_rejects_external_and_scheme_relative_next(self):
+        self.client.force_login(self.viewer)
+        follow_url = reverse("toggle_follow", args=[self.target.pk])
+        profile_url = reverse("user_profile", args=[self.target.pk])
+        for unsafe in (
+            "https://evil.example/phish",
+            "//evil.example/phish",
+        ):
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).delete()
+            response = self.client.post(follow_url, {"next": unsafe})
+            self.assertEqual(response.status_code, 302, msg=unsafe)
+            self.assertEqual(response["Location"], profile_url, msg=unsafe)
+            self.assertNotIn("evil.example", response["Location"])
+            self.assertTrue(
+                Follow.objects.filter(
+                    follower=self.viewer, following=self.target
+                ).exists(),
+                msg=unsafe,
+            )
+
+    def test_toggle_follow_empty_next_falls_back_to_profile(self):
+        self.client.force_login(self.viewer)
+        follow_url = reverse("toggle_follow", args=[self.target.pk])
+        profile_url = reverse("user_profile", args=[self.target.pk])
+        response = self.client.post(follow_url, {"next": ""})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], profile_url)
+        self.assertTrue(
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).exists()
+        )
+
+    def test_toggle_follow_allows_same_host_absolute_next(self):
+        self.client.force_login(self.viewer)
+        follow_url = reverse("toggle_follow", args=[self.target.pk])
+        profile_url = reverse("user_profile", args=[self.target.pk])
+        same_host = f"http://testserver{profile_url}"
+        response = self.client.post(follow_url, {"next": same_host})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], same_host)
+        self.assertTrue(
+            Follow.objects.filter(
+                follower=self.viewer, following=self.target
+            ).exists()
+        )
+
+    def test_toggle_follow_get_not_allowed(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("toggle_follow", args=[self.target.pk]))
+        self.assertEqual(response.status_code, 405)
+
 
 class FeedAndShareTests(TestCase):
     def setUp(self):
@@ -3439,6 +3507,43 @@ class UGCSafetyTests(TestCase):
         self.assertContains(response, 'data-testid="footer-back"')
         self.assertContains(response, reverse("account_settings"))
 
+    def test_toggle_block_rejects_external_next(self):
+        self.client.force_login(self.viewer)
+        profile_url = reverse("user_profile", args=[self.author.pk])
+        block_url = reverse("toggle_block", args=[self.author.pk])
+        for unsafe in (
+            "https://evil.example/phish",
+            "//evil.example/phish",
+        ):
+            UserBlock.objects.filter(
+                blocker=self.viewer, blocked=self.author
+            ).delete()
+            response = self.client.post(block_url, {"next": unsafe})
+            self.assertEqual(response.status_code, 302, msg=unsafe)
+            self.assertEqual(response["Location"], profile_url, msg=unsafe)
+            self.assertNotIn("evil.example", response["Location"])
+            self.assertTrue(
+                UserBlock.objects.filter(
+                    blocker=self.viewer, blocked=self.author
+                ).exists(),
+                msg=unsafe,
+            )
+
+    def test_toggle_block_empty_next_falls_back_to_profile(self):
+        self.client.force_login(self.viewer)
+        profile_url = reverse("user_profile", args=[self.author.pk])
+        response = self.client.post(
+            reverse("toggle_block", args=[self.author.pk]),
+            {"next": ""},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], profile_url)
+        self.assertTrue(
+            UserBlock.objects.filter(
+                blocker=self.viewer, blocked=self.author
+            ).exists()
+        )
+
     def test_blocked_users_empty_state_has_back_navigation(self):
         self.client.force_login(self.viewer)
         response = self.client.get(reverse("blocked_users"))
@@ -4551,6 +4656,78 @@ class BookmarkTests(TestCase):
         response = self.client.post(reverse("board_timeline_bookmark", args=[self.post.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(mock_toggle.call_count, 1)
+
+    def test_bookmark_safe_local_next(self):
+        self.client.force_login(self.user)
+        safe_next = f"{reverse('home')}?tab=following"
+        with patch("app.views.toggle_bookmark", return_value=True) as mock_toggle:
+            response = self.client.post(
+                reverse("board_timeline_bookmark", args=[self.post.pk]),
+                {"next": safe_next},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], safe_next)
+        mock_toggle.assert_called_once_with(self.user, self.post.pk)
+
+    def test_bookmark_rejects_external_next(self):
+        from .services import build_home_url
+
+        self.client.force_login(self.user)
+        fallback = build_home_url(active_tag=self.post.course_name)
+        with patch("app.views.toggle_bookmark", return_value=True) as mock_toggle:
+            response = self.client.post(
+                reverse("board_timeline_bookmark", args=[self.post.pk]),
+                {"next": "https://evil.example/phish"},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], fallback)
+        self.assertNotIn("evil.example", response["Location"])
+        mock_toggle.assert_called_once_with(self.user, self.post.pk)
+
+    def test_bookmark_rejects_external_referer(self):
+        from .services import build_home_url
+
+        self.client.force_login(self.user)
+        fallback = build_home_url(active_tag=self.post.course_name)
+        with patch("app.views.toggle_bookmark", return_value=True) as mock_toggle:
+            response = self.client.post(
+                reverse("board_timeline_bookmark", args=[self.post.pk]),
+                HTTP_REFERER="https://evil.example/phish",
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], fallback)
+        self.assertNotIn("evil.example", response["Location"])
+        mock_toggle.assert_called_once_with(self.user, self.post.pk)
+
+    def test_bookmark_error_branch_rejects_external_next(self):
+        from .services import build_home_url
+
+        self.client.force_login(self.user)
+        fallback = build_home_url(active_tag=self.post.course_name)
+        with patch(
+            "app.views.toggle_bookmark",
+            side_effect=BookmarkServiceError("unavailable"),
+        ):
+            response = self.client.post(
+                reverse("board_timeline_bookmark", args=[self.post.pk]),
+                {"next": "https://evil.example/phish"},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], fallback)
+        self.assertNotIn("evil.example", response["Location"])
+
+    def test_bookmark_empty_next_falls_back_to_board(self):
+        from .services import build_home_url
+
+        self.client.force_login(self.user)
+        fallback = build_home_url(active_tag=self.post.course_name)
+        with patch("app.views.toggle_bookmark", return_value=True):
+            response = self.client.post(
+                reverse("board_timeline_bookmark", args=[self.post.pk]),
+                {"next": ""},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], fallback)
 
     @patch("app.bookmark_services.get_firestore_client")
     def test_toggle_bookmark_writes_to_firestore(self, mock_get_client):

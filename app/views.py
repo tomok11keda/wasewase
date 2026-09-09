@@ -1094,8 +1094,10 @@ def toggle_follow(request, pk):
     else:
         messages.success(request, f"{profile_user.username} さんをフォローしました。")
 
-    next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
-    return redirect(next_url)
+    return _redirect_after_action(
+        request,
+        fallback_url=reverse("user_profile", kwargs={"pk": pk}),
+    )
 
 
 @login_required
@@ -1116,8 +1118,10 @@ def toggle_block(request, pk):
             f"{profile_user.username} さんをブロックしました。このユーザーの投稿は表示されなくなります。",
         )
 
-    next_url = request.POST.get("next") or reverse("user_profile", kwargs={"pk": pk})
-    return redirect(next_url)
+    return _redirect_after_action(
+        request,
+        fallback_url=reverse("user_profile", kwargs={"pk": pk}),
+    )
 
 
 @login_required
@@ -1223,7 +1227,9 @@ def _wants_json_response(request) -> bool:
     return request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
-def _redirect_after_action(request, fallback_name: str = "home"):
+def _redirect_after_action(
+    request, fallback_name: str = "home", *, fallback_url: str | None = None
+):
     """POST の next または Referer へ戻す（なければ fallback）。"""
     allowed_hosts = {request.get_host()}
     require_https = request.is_secure()
@@ -1244,6 +1250,8 @@ def _redirect_after_action(request, fallback_name: str = "home"):
     ):
         return redirect(referer)
 
+    if fallback_url:
+        return redirect(fallback_url)
     return redirect(reverse(fallback_name))
 
 
@@ -2474,10 +2482,10 @@ def board_timeline_bookmark(request, pk):
             messages.success(request, "ブックマークに追加しました。")
         else:
             messages.success(request, "ブックマークを解除しました。")
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
-    if next_url:
-        return redirect(next_url)
-    return _board_redirect(request, tag=post.course_name)
+    return _redirect_after_action(
+        request,
+        fallback_url=build_home_url(active_tag=post.course_name),
+    )
 
 
 @login_required
