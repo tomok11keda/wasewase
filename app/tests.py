@@ -56,6 +56,11 @@ from .services import build_product_share_timeline_body, notify_seller
 
 
 class PasswordResetFlowTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
         DEFAULT_FROM_EMAIL="test@example.com",
@@ -274,6 +279,11 @@ class EmailEnvSanitizeTests(TestCase):
 
 
 class EmailAuthTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
     def test_signup_allows_duplicate_nickname(self):
         get_user_model().objects.create_user(
             email="taken@example.com",

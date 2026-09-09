@@ -62,6 +62,11 @@
   <main class="main-inner">
     <div class="form-card">
       <h1>ログイン</h1>
+      {% if messages %}
+      {% for message in messages %}
+      <p class="errors">{{ message }}</p>
+      {% endfor %}
+      {% endif %}
       {% if form.non_field_errors %}
       {% for error in form.non_field_errors %}
       <p class="errors">{{ error }}</p>

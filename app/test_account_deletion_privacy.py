@@ -53,6 +53,11 @@ def _firestore_db_for_users(user_docs: dict[str, dict[str, list]]) -> MagicMock:
 
 
 class TermsAcceptanceHistoryTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
     def test_existing_profile_does_not_invent_acceptance_time_or_version(self):
         User = get_user_model()
         user = User.objects.create_user(

@@ -35,6 +35,13 @@ from .otp_services import (
     verify_password_reset_otp,
     verify_signup_otp,
 )
+from .rate_limit_services import (
+    RATE_LIMIT_USER_MESSAGE,
+    allow_login_rate_limit,
+    allow_otp_verify_rate_limit,
+    allow_reset_otp_send,
+    allow_signup_otp_send,
+)
 from .inbox_services import get_unread_inbox_message_count
 from .notification_services import get_unread_notification_count
 from .spa_views import _avatar_url, _display_name, _initial
@@ -118,6 +125,17 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
     return payload
 
 
+def _rate_limited() -> tuple[dict, int]:
+    return (
+        {
+            "ok": False,
+            "error": "rate_limited",
+            "message": RATE_LIMIT_USER_MESSAGE,
+        },
+        429,
+    )
+
+
 def signup_meta() -> dict[str, Any]:
     from .constants import CURRENT_TERMS_VERSION
 
@@ -184,6 +202,9 @@ def login_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
             },
             200,
         )
+    email = data.get("email") or data.get("username") or ""
+    if not allow_login_rate_limit(request, email):
+        return _rate_limited()
     form = EmailAuthenticationForm(
         request,
         data={
@@ -258,6 +279,8 @@ def signup_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
             },
             400,
         )
+    if not allow_signup_otp_send(request, form.cleaned_data["email"]):
+        return _rate_limited()
     try:
         with transaction.atomic():
             user = _persist_signup_user(form)
@@ -297,6 +320,9 @@ def signup_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
 
 def verify_signup(request: HttpRequest, data: dict) -> tuple[dict, int]:
     user = _pending_signup_user(request)
+    email = user.email if user else ""
+    if not allow_otp_verify_rate_limit(request, email):
+        return _rate_limited()
     if not user:
         return (
             {
@@ -357,6 +383,8 @@ def resend_signup_otp(request: HttpRequest) -> tuple[dict, int]:
             },
             400,
         )
+    if not allow_signup_otp_send(request, user.email):
+        return _rate_limited()
     try:
         create_and_send_signup_otp(user)
     except EmailConfigurationError as exc:
@@ -392,6 +420,8 @@ def password_reset_request(request: HttpRequest, data: dict) -> tuple[dict, int]
             400,
         )
     email = form.cleaned_data["email"]
+    if not allow_reset_otp_send(request, email):
+        return _rate_limited()
     user = User.objects.filter(email__iexact=email).first()
     if not user:
         return (
@@ -448,6 +478,14 @@ def password_reset_request(request: HttpRequest, data: dict) -> tuple[dict, int]
 
 def password_reset_verify(request: HttpRequest, data: dict) -> tuple[dict, int]:
     user = _password_reset_user(request)
+    if user and request.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY):
+        return (
+            {"ok": True, "already_verified": True, "redirect": "/app/password-reset/set"},
+            200,
+        )
+    email = user.email if user else ""
+    if not allow_otp_verify_rate_limit(request, email):
+        return _rate_limited()
     if not user:
         return (
             {
@@ -457,11 +495,6 @@ def password_reset_verify(request: HttpRequest, data: dict) -> tuple[dict, int]:
                 "redirect": "/app/password-reset",
             },
             400,
-        )
-    if request.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY):
-        return (
-            {"ok": True, "already_verified": True, "redirect": "/app/password-reset/set"},
-            200,
         )
     form = PasswordResetOTPVerifyForm({"code": data.get("code") or ""})
     if not form.is_valid():
@@ -509,6 +542,8 @@ def password_reset_resend(request: HttpRequest) -> tuple[dict, int]:
             },
             400,
         )
+    if not allow_reset_otp_send(request, user.email):
+        return _rate_limited()
     try:
         create_and_send_password_reset_otp(user)
         request.session.pop(PASSWORD_RESET_VERIFIED_SESSION_KEY, None)

@@ -97,6 +97,9 @@ class NotificationApiTests(TestCase):
 )
 class AuthApiTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
         self.client = Client()
         self.user = User.objects.create_user(
             email="auth9@waseda.jp",

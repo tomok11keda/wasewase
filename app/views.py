@@ -157,6 +157,13 @@ from .otp_services import (
     verify_password_reset_otp,
     verify_signup_otp,
 )
+from .rate_limit_services import (
+    RATE_LIMIT_USER_MESSAGE,
+    allow_login_rate_limit,
+    allow_otp_verify_rate_limit,
+    allow_reset_otp_send,
+    allow_signup_otp_send,
+)
 
 logger = logging.getLogger(__name__)
 from .services import (
@@ -1780,6 +1787,14 @@ class AppLoginView(LoginView):
     authentication_form = EmailAuthenticationForm
     redirect_authenticated_user = True
 
+    def post(self, request, *args, **kwargs):
+        email = request.POST.get("username") or request.POST.get("email") or ""
+        if not allow_login_rate_limit(request, email):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            form = self.get_form_class()()
+            return self.render_to_response(self.get_context_data(form=form), status=429)
+        return super().post(request, *args, **kwargs)
+
     def get_success_url(self):
         url = super().get_success_url()
         separator = "&" if "?" in url else "?"
@@ -1960,6 +1975,10 @@ def signup(request):
             messages.error(request, error_summary)
             return render(request, "signup.html", {"form": form}, status=200)
 
+        if not allow_signup_otp_send(request, form.cleaned_data["email"]):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            return render(request, "signup.html", {"form": form}, status=429)
+
         try:
             with transaction.atomic():
                 user = _persist_signup_user(form)
@@ -2010,6 +2029,16 @@ def verify_otp(request):
         return redirect(reverse("signup"))
 
     if request.method == "POST" and "resend" not in request.POST:
+        pending_email = user.email
+        if not allow_otp_verify_rate_limit(request, pending_email):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            form = SignupOTPVerifyForm(request.POST)
+            return render(
+                request,
+                "verify_otp.html",
+                {"form": form, "masked_email": user.email},
+                status=429,
+            )
         form = SignupOTPVerifyForm(request.POST)
         if form.is_valid():
             error = verify_signup_otp(user, form.cleaned_data["code"])
@@ -2048,6 +2077,10 @@ def verify_otp_resend(request):
     if not user:
         messages.warning(request, "新規登録からやり直してください。")
         return redirect(reverse("signup"))
+
+    if not allow_signup_otp_send(request, user.email):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(reverse("verify_otp"))
 
     try:
         create_and_send_signup_otp(user)
@@ -2118,6 +2151,12 @@ def password_reset_request(request):
             )
 
         email = form.cleaned_data["email"]
+        if not allow_reset_otp_send(request, email):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            return render(
+                request, "password_reset_request.html", {"form": form}, status=429
+            )
+
         user = User.objects.filter(email__iexact=email).first()
         if not user:
             form.add_error(
@@ -2187,6 +2226,15 @@ def password_reset_verify(request):
         return redirect(reverse("password_reset_set"))
 
     if request.method == "POST":
+        if not allow_otp_verify_rate_limit(request, user.email):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            form = PasswordResetOTPVerifyForm(request.POST)
+            return render(
+                request,
+                "password_reset_verify.html",
+                {"form": form, "masked_email": user.email},
+                status=429,
+            )
         form = PasswordResetOTPVerifyForm(request.POST)
         if form.is_valid():
             error = verify_password_reset_otp(user, form.cleaned_data["code"])
@@ -2226,6 +2274,10 @@ def password_reset_verify_resend(request):
             request, "パスワード再設定はメールアドレスの入力からやり直してください。"
         )
         return redirect(reverse("password_reset_request"))
+
+    if not allow_reset_otp_send(request, user.email):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(reverse("password_reset_verify"))
 
     try:
         create_and_send_password_reset_otp(user)
