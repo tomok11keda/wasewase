@@ -160,6 +160,7 @@ from .otp_services import (
 )
 from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
+    allow_chat_message,
     allow_login_rate_limit,
     allow_otp_verify_rate_limit,
     allow_reset_otp_send,
@@ -1667,6 +1668,10 @@ def send_group_message(request, room_pk):
     if not can_access_group_room(room, request.user):
         messages.error(request, "このグループチャットにはアクセスできません。")
         return redirect(reverse("user_dm_inbox"))
+
+    if not allow_chat_message(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(group_room_link(room))
 
     body = request.POST.get("body", "").strip()
     if not body:

@@ -10,8 +10,12 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from app.course_services import create_offering
+from app.group_chat_services import group_room_link
 from app.models import (
+    ChatMessage,
     ChatRoom,
+    ChatRoomInvitation,
+    ChatRoomMembership,
     Comment,
     Notification,
     Product,
@@ -401,3 +405,161 @@ class WriteRateLimitTests(TestCase):
                 timeline_post=self.post, user=self.user_a
             ).exists()
         )
+
+    def _chat_key(self, user) -> str:
+        return f"rl:{CHAT_MESSAGE_SCOPE}:{user.pk}"
+
+    def _make_group(self, owner) -> ChatRoom:
+        room = ChatRoom.objects.create(
+            kind=ChatRoom.Kind.GROUP,
+            name="rl-classic-group",
+            created_by=owner,
+        )
+        ChatRoomMembership.objects.create(
+            room=room,
+            user=owner,
+            role=ChatRoomMembership.Role.OWNER,
+        )
+        return room
+
+    def test_classic_group_send_succeeds_under_limit(self):
+        room = self._make_group(self.user_a)
+        before_updated = room.updated_at
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "hello group"},
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res["Location"], group_room_link(room))
+        message = ChatMessage.objects.get(room=room)
+        self.assertEqual(message.sender, self.user_a)
+        self.assertEqual(message.body, "hello group")
+        room.refresh_from_db()
+        self.assertGreater(room.updated_at, before_updated)
+        self.assertEqual(cache.get(self._chat_key(self.user_a)), 1)
+
+    def test_classic_group_send_exhausted_does_not_mutate(self):
+        room = self._make_group(self.user_a)
+        room.refresh_from_db()
+        before_updated = room.updated_at
+        self._exhaust(allow_chat_message, self.user_a, CHAT_MESSAGE_LIMIT)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {
+                "body": "spam after limit",
+                "next": "https://evil.example/phish",
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        msgs = [m.message for m in get_messages(res.wsgi_request)]
+        self.assertIn(RATE_LIMIT_USER_MESSAGE, msgs)
+        self.assertEqual(res["Location"], group_room_link(room))
+        self.assertNotIn("evil.example", res["Location"])
+        self.assertFalse(ChatMessage.objects.filter(room=room).exists())
+        room.refresh_from_db()
+        self.assertEqual(room.updated_at, before_updated)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_api_group_then_classic_shares_bucket(self):
+        room = self._make_group(self.user_a)
+        self.client.force_login(self.user_a)
+        api = self.client.post(
+            f"/api/v1/dm/groups/{room.pk}/messages/send/",
+            data={"body": "api first"},
+            content_type="application/json",
+        )
+        self.assertEqual(api.status_code, 201, api.content)
+        self.assertEqual(cache.get(self._chat_key(self.user_a)), 1)
+        for _ in range(CHAT_MESSAGE_LIMIT - 1):
+            self.assertTrue(allow_chat_message(self.user_a))
+        self.assertFalse(allow_chat_message(self.user_a))
+
+        classic = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "classic after api"},
+        )
+        self.assertEqual(classic.status_code, 302)
+        self.assertIn(
+            RATE_LIMIT_USER_MESSAGE,
+            [m.message for m in get_messages(classic.wsgi_request)],
+        )
+        self.assertEqual(ChatMessage.objects.filter(room=room).count(), 1)
+        self.assertEqual(ChatMessage.objects.get(room=room).body, "api first")
+
+    def test_classic_group_then_api_shares_bucket(self):
+        room = self._make_group(self.user_a)
+        self.client.force_login(self.user_a)
+        classic = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "classic first"},
+        )
+        self.assertEqual(classic.status_code, 302)
+        self.assertEqual(cache.get(self._chat_key(self.user_a)), 1)
+        for _ in range(CHAT_MESSAGE_LIMIT - 1):
+            self.assertTrue(allow_chat_message(self.user_a))
+        self.assertFalse(allow_chat_message(self.user_a))
+
+        api = self.client.post(
+            f"/api/v1/dm/groups/{room.pk}/messages/send/",
+            data={"body": "api after classic"},
+            content_type="application/json",
+        )
+        self.assertEqual(api.status_code, 429)
+        self.assertEqual(api.json()["error"], "rate_limited")
+        self.assertEqual(ChatMessage.objects.filter(room=room).count(), 1)
+
+    def test_classic_group_then_api_dm_shares_chat_scope(self):
+        room = self._make_group(self.user_a)
+        dm = UserDirectMessageRoom.objects.create(
+            user_a=self.user_a, user_b=self.user_b
+        )
+        self.client.force_login(self.user_a)
+        classic = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "classic group"},
+        )
+        self.assertEqual(classic.status_code, 302)
+        self.assertEqual(cache.get(self._chat_key(self.user_a)), 1)
+        for _ in range(CHAT_MESSAGE_LIMIT - 1):
+            self.assertTrue(allow_chat_message(self.user_a))
+        self.assertFalse(allow_chat_message(self.user_a))
+
+        api = self.client.post(
+            f"/api/v1/dm/rooms/{dm.pk}/messages/send/",
+            data={"body": "dm after group"},
+            content_type="application/json",
+        )
+        self.assertEqual(api.status_code, 429)
+        self.assertEqual(api.json()["error"], "rate_limited")
+
+    def test_classic_group_pending_invitee_cannot_send_or_consume_budget(self):
+        room = self._make_group(self.user_a)
+        ChatRoomInvitation.objects.create(
+            room=room,
+            inviter=self.user_a,
+            invitee=self.user_b,
+            status=ChatRoomInvitation.Status.PENDING,
+        )
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "pending should not send"},
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res["Location"], reverse("user_dm_inbox"))
+        self.assertFalse(ChatMessage.objects.filter(room=room).exists())
+        self.assertIsNone(cache.get(self._chat_key(self.user_b)))
+
+    def test_classic_group_non_member_does_not_consume_budget(self):
+        room = self._make_group(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("send_group_message", args=[room.pk]),
+            {"body": "outsider"},
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res["Location"], reverse("user_dm_inbox"))
+        self.assertFalse(ChatMessage.objects.filter(room=room).exists())
+        self.assertIsNone(cache.get(self._chat_key(self.user_b)))
