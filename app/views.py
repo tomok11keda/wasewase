@@ -164,6 +164,8 @@ from .rate_limit_services import (
     allow_otp_verify_rate_limit,
     allow_reset_otp_send,
     allow_signup_otp_send,
+    allow_timeline_comment,
+    allow_timeline_like,
 )
 
 logger = logging.getLogger(__name__)
@@ -2445,6 +2447,9 @@ def board_compose(request):
 @require_POST
 def board_timeline_like(request, pk):
     post = get_visible_timeline_post_or_404(request.user, pk)
+    if not allow_timeline_like(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return _board_redirect(request, tag=post.course_name)
     like, created = TimelineLike.objects.get_or_create(
         timeline_post=post,
         user=request.user,
@@ -2502,6 +2507,9 @@ def board_quote(request, pk):
 @require_POST
 def board_timeline_comment(request, pk):
     post = get_visible_timeline_post_or_404(request.user, pk)
+    if not allow_timeline_comment(request.user):
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return _board_redirect(request, tag=post.course_name, post_id=post.pk)
     form = TimelineCommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)
