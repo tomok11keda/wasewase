@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
+from django.urls import reverse
 
 from .bookmark_services import BookmarkServiceError
-from .models import ChatRoom, Message, Product, User
+from .models import ChatRoom, Comment, Message, Notification, Product, User
 
 _MINIMAL_GIF = (
     b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04"
@@ -150,6 +151,55 @@ class FleaApiTests(TestCase):
         self.assertEqual(handover2.status_code, 200)
         self.assertEqual(handover2.json()["product_status"], Product.Status.SOLD)
         self.assertTrue(handover2.json()["ok"])
+
+    def test_anonymous_cannot_create_comment(self):
+        res = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/comments/",
+            data=json.dumps({"body": "匿名でコメントします"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        self.assertFalse(
+            Comment.objects.filter(product=self.product).exists()
+        )
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.seller).exists()
+        )
+
+    def test_authenticated_comment_notifies_seller(self):
+        self.client.force_login(self.buyer)
+        res = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/comments/",
+            data=json.dumps({"body": "まだありますか？"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        data = res.json()
+        self.assertTrue(data["ok"])
+        comment = Comment.objects.get(product=self.product, body="まだありますか？")
+        self.assertEqual(comment.author_id, self.buyer.pk)
+        self.assertEqual(data["comment"]["id"], comment.pk)
+        self.assertEqual(data["comment"]["body"], "まだありますか？")
+        notes = Notification.objects.filter(recipient=self.seller)
+        self.assertEqual(notes.count(), 1)
+        self.assertIn("コメント", notes.get().message)
+
+    def test_seller_comment_does_not_notify_self(self):
+        self.client.force_login(self.seller)
+        res = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/comments/",
+            data=json.dumps({"body": "出品者からの補足です"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        comment = Comment.objects.get(
+            product=self.product, body="出品者からの補足です"
+        )
+        self.assertEqual(comment.author_id, self.seller.pk)
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.seller).exists()
+        )
 
     def test_cannot_buy_own_product(self):
         self.client.force_login(self.seller)
@@ -378,3 +428,43 @@ class FleaApiTests(TestCase):
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
         self.assertTrue(ChatRoom.objects.filter(pk=room_id).exists())
         self.assertTrue(Message.objects.filter(chat_room_id=room_id).exists())
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=True, WASE_REACT_SPA=False)
+class FleaCommentBrowseModeAuthTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user(
+            email="flea-browse-seller@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.product = Product.objects.create(
+            seller=self.seller,
+            name="閲覧モード教科書",
+            price=800,
+            description="コメント投稿不可確認",
+            category="未分類",
+            faculty="政治経済学部",
+            handover_campus="waseda",
+            status=Product.Status.AVAILABLE,
+        )
+        self.client = Client()
+
+    def test_browse_mode_anonymous_cannot_create_comment(self):
+        enter = self.client.get(reverse("enter_browse_mode"))
+        self.assertEqual(enter.status_code, 302)
+        detail = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
+        self.assertEqual(detail.status_code, 200)
+
+        res = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/comments/",
+            data=json.dumps({"body": "閲覧モードから投稿"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        self.assertFalse(
+            Comment.objects.filter(product=self.product).exists()
+        )
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.seller).exists()
+        )

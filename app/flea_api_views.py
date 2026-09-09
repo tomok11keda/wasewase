@@ -165,6 +165,7 @@ def api_v1_flea_product_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
     return JsonResponse({"ok": True, "bookmarked": bookmarked})
 
 
+@login_required
 @require_POST
 def api_v1_flea_product_comment(request: HttpRequest, pk: int) -> JsonResponse:
     product = _get_visible_product(request, pk)

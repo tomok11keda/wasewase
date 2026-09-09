@@ -3,6 +3,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
 from django.db.utils import IntegrityError, OperationalError, ProgrammingError
 from django.http import JsonResponse
@@ -291,6 +292,9 @@ def flea_index(request):
 
 
 def product_detail(request, pk):
+    if request.method == "POST" and not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+
     ensure_product_trade_schema()
     try:
         product = get_object_or_404(

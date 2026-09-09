@@ -1217,6 +1217,25 @@ class ProductTimestampDisplayTests(TestCase):
         comment = Comment.objects.get(product=self.product, body="購入したいです。")
         self.assertEqual(comment.author, self.buyer)
 
+    def test_anonymous_product_comment_post_redirects_to_login(self):
+        get_res = self.client.get(reverse("product_detail", args=[self.product.pk]))
+        self.assertEqual(get_res.status_code, 200)
+
+        post_res = self.client.post(
+            reverse("product_detail", args=[self.product.pk]),
+            {"body": "匿名でコメントします。"},
+        )
+        self.assertEqual(post_res.status_code, 302)
+        self.assertIn("/login", post_res["Location"])
+        self.assertFalse(
+            Comment.objects.filter(
+                product=self.product, body="匿名でコメントします。"
+            ).exists()
+        )
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.seller).exists()
+        )
+
     def test_home_product_filter_matches_faculty(self):
         Product.objects.create(
             seller=self.seller,
