@@ -53,6 +53,7 @@ from .trade_chat_services import (
 from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
     allow_chat_message,
+    allow_flea_comment,
     allow_timeline_post,
 )
 from .ugc_services import filter_visible_products, get_visible_product_or_404
@@ -173,6 +174,12 @@ def api_v1_flea_product_bookmark(request: HttpRequest, pk: int) -> JsonResponse:
 @require_POST
 def api_v1_flea_product_comment(request: HttpRequest, pk: int) -> JsonResponse:
     product = _get_visible_product(request, pk)
+    if not allow_flea_comment(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     data = _parse_json(request)
     form = CommentForm(data if data else request.POST)
     if not form.is_valid():

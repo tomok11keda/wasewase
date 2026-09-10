@@ -53,6 +53,7 @@ from .trade_chat_services import (
 from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
     allow_chat_message,
+    allow_flea_comment,
     allow_timeline_post,
 )
 from .trade_chat_inbox_services import (
@@ -333,6 +334,9 @@ def product_detail(request, pk):
         user_liked = product.likes.filter(user=request.user).exists()
 
     if request.method == "POST":
+        if not allow_flea_comment(request.user):
+            messages.error(request, RATE_LIMIT_USER_MESSAGE)
+            return redirect(reverse("product_detail", kwargs={"pk": pk}))
         form = CommentForm(request.POST)
         if form.is_valid():
             comment = form.save(commit=False)

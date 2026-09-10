@@ -49,6 +49,11 @@ REPORT_SCOPE = "report"
 REPORT_LIMIT = 10
 REPORT_WINDOW = 3600
 
+# Flea comments notify/push the seller. Independent from timeline_comment.
+FLEA_COMMENT_SCOPE = "flea_comment"
+FLEA_COMMENT_LIMIT = 40
+FLEA_COMMENT_WINDOW = 600
+
 
 def allow_user_rate_limit(
     user: AbstractBaseUser | None,
@@ -106,6 +111,15 @@ def allow_report(user: AbstractBaseUser | None) -> bool:
         REPORT_SCOPE,
         limit=REPORT_LIMIT,
         window=REPORT_WINDOW,
+    )
+
+
+def allow_flea_comment(user: AbstractBaseUser | None) -> bool:
+    return allow_user_rate_limit(
+        user,
+        FLEA_COMMENT_SCOPE,
+        limit=FLEA_COMMENT_LIMIT,
+        window=FLEA_COMMENT_WINDOW,
     )
 
 

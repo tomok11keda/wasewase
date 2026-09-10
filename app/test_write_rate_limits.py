@@ -27,6 +27,8 @@ from app.models import (
 from app.rate_limit_services import (
     CHAT_MESSAGE_LIMIT,
     CHAT_MESSAGE_SCOPE,
+    FLEA_COMMENT_LIMIT,
+    FLEA_COMMENT_SCOPE,
     RATE_LIMIT_USER_MESSAGE,
     REPORT_LIMIT,
     TIMELINE_COMMENT_LIMIT,
@@ -36,6 +38,7 @@ from app.rate_limit_services import (
     TIMELINE_POST_LIMIT,
     TIMELINE_POST_SCOPE,
     allow_chat_message,
+    allow_flea_comment,
     allow_timeline_comment,
     allow_timeline_like,
     allow_timeline_post,
@@ -765,3 +768,189 @@ class WriteRateLimitTests(TestCase):
         self.assertIn("出品中の商品のみシェアできます。", msgs)
         self.assertFalse(self._share_posts(self.user_a).exists())
         self.assertIsNone(cache.get(self._post_key(self.user_a)))
+
+    def _flea_comment_key(self, user) -> str:
+        return f"rl:{FLEA_COMMENT_SCOPE}:{user.pk}"
+
+    def _make_flea_comment_product(self, seller) -> Product:
+        return Product.objects.create(
+            seller=seller,
+            name="rl comment book",
+            price=800,
+            category="本",
+        )
+
+    def _product_comments(self, product):
+        return Comment.objects.filter(product=product)
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_comment_succeeds_under_limit(self, mock_push):
+        mock_push.return_value = 1
+        product = self._make_flea_comment_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "まだありますか？"},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(res.json().get("ok"))
+        comment = self._product_comments(product).get()
+        self.assertEqual(comment.author, self.user_b)
+        self.assertEqual(comment.body, "まだありますか？")
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_comment_key(self.user_b)), 1)
+        mock_push.assert_called_once()
+
+    def test_classic_flea_comment_succeeds_under_limit(self):
+        product = self._make_flea_comment_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("product_detail", args=[product.pk]),
+            {"body": "購入したいです。"},
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        comment = self._product_comments(product).get()
+        self.assertEqual(comment.author, self.user_b)
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_comment_key(self.user_b)), 1)
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_comment_exhausted_does_not_mutate(self, mock_push):
+        product = self._make_flea_comment_product(self.user_a)
+        before_status = product.status
+        self._exhaust(allow_flea_comment, self.user_b, FLEA_COMMENT_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "spam after limit"},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 429)
+        body = res.json()
+        self.assertEqual(body["error"], "rate_limited")
+        self.assertEqual(body["message"], RATE_LIMIT_USER_MESSAGE)
+        self.assertFalse(self._product_comments(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        product.refresh_from_db()
+        self.assertEqual(product.status, before_status)
+        mock_push.assert_not_called()
+
+    @patch("app.push_services.notify_user_push")
+    def test_classic_flea_comment_exhausted_does_not_mutate(self, mock_push):
+        product = self._make_flea_comment_product(self.user_a)
+        self._exhaust(allow_flea_comment, self.user_b, FLEA_COMMENT_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("product_detail", args=[product.pk]),
+            {
+                "body": "spam after limit",
+                "next": "https://evil.example/phish",
+            },
+        )
+        self._assert_classic_rate_limited(res)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        self.assertFalse(self._product_comments(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        mock_push.assert_not_called()
+
+    def test_api_flea_comment_then_classic_shares_bucket(self):
+        product = self._make_flea_comment_product(self.user_a)
+        self.client.force_login(self.user_b)
+        api = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "api first"},
+            content_type="application/json",
+        )
+        self.assertEqual(api.status_code, 201)
+        self.assertEqual(cache.get(self._flea_comment_key(self.user_b)), 1)
+        for _ in range(FLEA_COMMENT_LIMIT - 1):
+            self.assertTrue(allow_flea_comment(self.user_b))
+        self.assertFalse(allow_flea_comment(self.user_b))
+
+        classic = self.client.post(
+            reverse("product_detail", args=[product.pk]),
+            {"body": "classic after api"},
+        )
+        self._assert_classic_rate_limited(classic)
+        self.assertEqual(self._product_comments(product).count(), 1)
+        self.assertEqual(self._product_comments(product).get().body, "api first")
+
+    def test_classic_flea_comment_then_api_shares_bucket(self):
+        product = self._make_flea_comment_product(self.user_a)
+        self.client.force_login(self.user_b)
+        classic = self.client.post(
+            reverse("product_detail", args=[product.pk]),
+            {"body": "classic first"},
+        )
+        self.assertEqual(classic.status_code, 302)
+        self.assertEqual(cache.get(self._flea_comment_key(self.user_b)), 1)
+        for _ in range(FLEA_COMMENT_LIMIT - 1):
+            self.assertTrue(allow_flea_comment(self.user_b))
+        self.assertFalse(allow_flea_comment(self.user_b))
+
+        api = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "api after classic"},
+            content_type="application/json",
+        )
+        self.assertEqual(api.status_code, 429)
+        self.assertEqual(api.json()["error"], "rate_limited")
+        self.assertEqual(self._product_comments(product).count(), 1)
+
+    def test_flea_comment_bucket_does_not_share_timeline_comment(self):
+        self._exhaust(allow_flea_comment, self.user_b, FLEA_COMMENT_LIMIT)
+        self.assertFalse(allow_flea_comment(self.user_b))
+        self.assertTrue(allow_timeline_comment(self.user_b))
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_self_comment_creates_comment_without_notify(self, mock_push):
+        product = self._make_flea_comment_product(self.user_a)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "出品者からの補足です"},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        comment = self._product_comments(product).get()
+        self.assertEqual(comment.author, self.user_a)
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertEqual(cache.get(self._flea_comment_key(self.user_a)), 1)
+        mock_push.assert_not_called()
+
+    def test_api_anonymous_flea_comment_does_not_consume_budget(self):
+        product = self._make_flea_comment_product(self.user_a)
+        res = self.client.post(
+            reverse("api_v1_flea_product_comment", args=[product.pk]),
+            data={"body": "匿名でコメントします"},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        self.assertFalse(self._product_comments(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertIsNone(cache.get(self._flea_comment_key(self.user_a)))
+        self.assertIsNone(cache.get(self._flea_comment_key(self.user_b)))
+
+    def test_classic_anonymous_flea_comment_does_not_consume_budget(self):
+        product = self._make_flea_comment_product(self.user_a)
+        res = self.client.post(
+            reverse("product_detail", args=[product.pk]),
+            {"body": "匿名でコメントします。"},
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/login", res["Location"])
+        self.assertFalse(self._product_comments(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertIsNone(cache.get(self._flea_comment_key(self.user_a)))
+        self.assertIsNone(cache.get(self._flea_comment_key(self.user_b)))
