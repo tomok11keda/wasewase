@@ -119,6 +119,11 @@ def serialize_chat_message(
         "sender_name": user_display_name(message.sender)
         if message.sender_id
         else "システム",
+        "sender_username": (
+            (getattr(message.sender, "username", None) or "").strip()
+            if message.sender_id
+            else ""
+        ),
         "sender_initial": user_avatar_initial(message.sender)
         if message.sender_id
         else "?",

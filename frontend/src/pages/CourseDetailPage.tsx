@@ -300,9 +300,9 @@ export function CourseDetailPage() {
               className="course-detail__talk-cta"
               to={`/courses/${offering.id}/talk`}
             >
-              授業トーク
+              授業掲示板
               <span className="course-detail__talk-cta-sub">
-                質問・口コミを話す
+                質問・情報交換（履修していなくてもOK）
               </span>
             </Link>
           ) : (
@@ -310,7 +310,7 @@ export function CourseDetailPage() {
               className="course-detail__talk-cta"
               to={spaLoginPath(`/app/courses/${offering.id}/talk`)}
             >
-              ログインして授業トーク
+              ログインして授業掲示板
             </Link>
           )}
         </div>

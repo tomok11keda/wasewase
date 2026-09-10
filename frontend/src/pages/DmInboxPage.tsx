@@ -49,13 +49,13 @@ function emptyCopy(tab: string) {
   }
   if (tab === "course") {
     return {
-      title: "参加中の授業トークはありません",
-      body: "授業詳細の「授業トーク」を開くと、ここに表示されます。履修前の質問もOKです。",
+      title: "参加中の授業掲示板はありません",
+      body: "授業詳細の「授業掲示板」を開くと、ここに表示されます。履修前の質問もOKです。",
     };
   }
   return {
     title: "まだ会話がありません",
-    body: "通常のDM・グループ、授業トーク、またはフリマの取引チャットがここに表示されます。",
+    body: "通常のDM・グループ、授業掲示板、またはフリマの取引チャットがここに表示されます。",
   };
 }
 
@@ -119,7 +119,7 @@ export function DmInboxPage() {
       <main className="main-inner" data-dm-inbox>
         <header className="dm-inbox-header">
           <h1>メッセージ</h1>
-          <p>DM・授業トーク・取引チャットをまとめて確認できます。</p>
+          <p>DM・授業掲示板・取引チャットをまとめて確認できます。</p>
           <nav className="dm-inbox-tabs" aria-label="メッセージの種類">
             {TABS.map((t) => (
               <button

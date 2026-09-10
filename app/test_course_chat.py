@@ -15,6 +15,7 @@ from app.models import (
     ChatRoomMembership,
     CourseEnrollment,
     CourseOffering,
+    UserProfile,
 )
 
 User = get_user_model()
@@ -85,6 +86,70 @@ class CourseTalkApiTests(TestCase):
         )
         self.assertEqual(send.status_code, 200, send.content)
         self.assertEqual(ChatMessage.objects.filter(room_id=room_id).count(), 1)
+        message = send.json()["message"]
+        self.assertEqual(message["sender_id"], self.user.pk)
+        self.assertTrue(message["sender_name"])
+        self.assertEqual(message["sender_username"], self.user.username)
+
+    def test_cannot_delete_another_users_message(self):
+        opened = self._open()
+        room_id = opened.json()["room"]["id"]
+        sent = self.client.post(
+            f"/api/v1/courses/talk/{room_id}/messages/send/",
+            data={"body": "消さないで"},
+            content_type="application/json",
+        )
+        self.assertEqual(sent.status_code, 200, sent.content)
+        msg_id = sent.json()["message"]["id"]
+
+        other_client = Client()
+        other_client.force_login(self.other)
+        self.assertEqual(self._open(client=other_client).status_code, 200)
+        denied = other_client.post(
+            f"/api/v1/courses/talk/{room_id}/messages/{msg_id}/delete/",
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertIsNone(ChatMessage.objects.get(pk=msg_id).deleted_at)
+
+    def test_private_author_visible_on_board_but_profile_stays_gated(self):
+        UserProfile.objects.update_or_create(
+            user=self.user,
+            defaults={"name": "掲示板太郎", "is_private": True},
+        )
+        opened = self._open()
+        room_id = opened.json()["room"]["id"]
+        sent = self.client.post(
+            f"/api/v1/courses/talk/{room_id}/messages/send/",
+            data={"body": "非公開でも掲示板には名前が出る"},
+            content_type="application/json",
+        )
+        self.assertEqual(sent.status_code, 200, sent.content)
+        own_msg = sent.json()["message"]
+        self.assertEqual(own_msg["sender_name"], "掲示板太郎")
+        self.assertEqual(own_msg["sender_username"], self.user.username)
+        self.assertEqual(own_msg["sender_id"], self.user.pk)
+
+        other_client = Client()
+        other_client.force_login(self.other)
+        self.assertEqual(self._open(client=other_client).status_code, 200)
+        payload = other_client.get(f"/api/v1/courses/talk/{room_id}/")
+        self.assertEqual(payload.status_code, 200)
+        found = next(
+            m for m in payload.json()["messages"] if m["id"] == own_msg["id"]
+        )
+        self.assertEqual(found["sender_name"], "掲示板太郎")
+        self.assertEqual(found["sender_id"], self.user.pk)
+
+        profile = other_client.get(f"/api/v1/profile/{self.user.pk}/")
+        self.assertEqual(profile.status_code, 200)
+        self.assertTrue(profile.json()["is_private"])
+        self.assertFalse(profile.json()["can_view_content"])
+        posts = other_client.get(f"/api/v1/profile/{self.user.pk}/posts/")
+        self.assertEqual(posts.status_code, 200)
+        self.assertFalse(posts.json()["can_view_content"])
+        self.assertEqual(posts.json()["posts"], [])
 
     def test_current_and_past_enrollment_labels(self):
         enroll_user_in_offering(self.user, self.offering)

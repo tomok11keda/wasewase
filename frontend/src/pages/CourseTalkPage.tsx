@@ -229,7 +229,7 @@ export function CourseTalkPage() {
     if (!offering) return;
     if (
       !window.confirm(
-        "授業トークから退出しますか？\nメッセージ履歴は残ります。再度開くと再参加できます。"
+        "授業掲示板から退出しますか？\n投稿は残ります。再度開くと再参加できます。"
       )
     ) {
       return;
@@ -248,7 +248,7 @@ export function CourseTalkPage() {
 
   if (loading || sessionLoading) {
     return (
-      <div className="dm-page course-talk-page" data-spa-page="授業トーク">
+      <div className="dm-page course-talk-page" data-spa-page="授業掲示板">
         <div className="main-inner">
           <p>読み込み中…</p>
         </div>
@@ -258,12 +258,12 @@ export function CourseTalkPage() {
 
   if (error || !room || !offering) {
     return (
-      <div className="dm-page course-talk-page" data-spa-page="授業トーク">
+      <div className="dm-page course-talk-page" data-spa-page="授業掲示板">
         <div className="main-inner">
           <Link className="dm-back-text" to="/dm?tab=course">
-            ← 授業トーク一覧
+            ← 授業掲示板一覧
           </Link>
-          <p>授業トークを表示できません（{error || "not_found"}）</p>
+          <p>授業掲示板を表示できません（{error || "not_found"}）</p>
         </div>
       </div>
     );
@@ -272,12 +272,12 @@ export function CourseTalkPage() {
   return (
     <div
       className="dm-page dm-room-page course-talk-page"
-      data-spa-page="授業トーク"
+      data-spa-page="授業掲示板"
     >
       <main className="main-inner dm-room-main">
         <p className="dm-room-top">
           <Link className="dm-back-text" to="/dm?tab=course">
-            ← 授業トーク一覧
+            ← 授業掲示板一覧
           </Link>
         </p>
 
@@ -313,8 +313,8 @@ export function CourseTalkPage() {
           ) : null}
           {messages.length === 0 ? (
             <div className="course-talk-empty">
-              <strong>まだトークはありません</strong>
-              <p>この授業について気になることを聞いてみよう</p>
+              <strong>まだ投稿はありません</strong>
+              <p>履修中・履修済み・検討中の人も、この授業について質問できます</p>
               <ul>
                 {EMPTY_PROMPTS.map((p) => (
                   <li key={p}>

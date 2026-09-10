@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useLongPress } from "./useLongPress";
 import { MessageActionSheet } from "./MessageActionSheet";
 import { ChatMessageReportSheet } from "./ChatMessageReportSheet";
@@ -7,7 +8,9 @@ import { analytics } from "../../lib/analytics/events";
 
 export type ThreadMessage = {
   id: number;
+  sender_id?: number | null;
   sender_name: string;
+  sender_username?: string;
   sender_initial?: string;
   avatar_url?: string;
   body: string;
@@ -60,6 +63,15 @@ export function ChatThreadMessage({
   }, [canAct, m.is_deleted, kind]);
 
   const lp = useLongPress({ onLongPress: openSheet, enabled: canAct && !m.is_deleted });
+  const profilePath =
+    kind === "course" && m.sender_id
+      ? `/users/${m.sender_id}/posts`
+      : null;
+  const avatar = m.avatar_url ? (
+    <img className="user-avatar--image" src={m.avatar_url} alt="" />
+  ) : (
+    <span className="user-avatar--initial">{m.sender_initial || "?"}</span>
+  );
 
   const copyBody = async () => {
     const text = m.body || "";
@@ -104,19 +116,32 @@ export function ChatThreadMessage({
         data-message-id={m.id}
         {...lp}
       >
-        <div className="chat-row__avatar" aria-hidden="true">
-          {m.avatar_url ? (
-            <img className="user-avatar--image" src={m.avatar_url} alt="" />
-          ) : (
-            <span className="user-avatar--initial">
-              {m.sender_initial || "?"}
-            </span>
-          )}
-        </div>
+        {profilePath ? (
+          <Link
+            className="chat-row__avatar"
+            to={profilePath}
+            aria-label={`${m.sender_name}のプロフィール`}
+          >
+            {avatar}
+          </Link>
+        ) : (
+          <div className="chat-row__avatar" aria-hidden="true">
+            {avatar}
+          </div>
+        )}
         <div className="chat-row__main">
           {!m.is_mine ? (
             <div className="chat-row__sender">
-              {m.sender_name}
+              {profilePath ? (
+                <Link className="chat-row__sender-link" to={profilePath}>
+                  {m.sender_name}
+                  {m.sender_username ? (
+                    <span className="chat-row__handle">@{m.sender_username}</span>
+                  ) : null}
+                </Link>
+              ) : (
+                m.sender_name
+              )}
               {m.enrollment_label ? (
                 <span
                   className={`course-talk-badge${

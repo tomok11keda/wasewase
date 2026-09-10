@@ -947,7 +947,7 @@ export function CourseAddSheet({
               ) : null}
             </p>
             <p className="course-sheet__confirm-note">
-              新しい授業は作りません。同じ授業の開講時間に追加し、レビューや授業トークもそのまま共有されます。
+              新しい授業は作りません。同じ授業の開講時間に追加し、レビューや授業掲示板もそのまま共有されます。
             </p>
             <button
               type="button"

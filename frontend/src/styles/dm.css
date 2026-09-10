@@ -656,6 +656,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: inherit;
+  text-decoration: none;
 }
 
 .chat-row__avatar .user-avatar--image {
@@ -697,6 +699,30 @@
   color: var(--dm-muted);
   margin-bottom: 2px;
   width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.chat-row__sender-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.chat-row__sender-link:hover,
+.chat-row__sender-link:focus-visible {
+  text-decoration: underline;
+}
+
+.chat-row__handle {
+  font-weight: 600;
+  color: var(--dm-muted);
+  opacity: 0.85;
 }
 
 .chat-row:not(.is-mine) .chat-row__main {

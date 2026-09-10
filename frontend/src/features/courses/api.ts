@@ -374,6 +374,7 @@ export type CourseTalkMessage = {
   id: number;
   sender_id: number | null;
   sender_name: string;
+  sender_username?: string;
   sender_initial?: string;
   avatar_url?: string;
   body: string;
