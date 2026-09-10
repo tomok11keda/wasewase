@@ -54,6 +54,11 @@ FLEA_COMMENT_SCOPE = "flea_comment"
 FLEA_COMMENT_LIMIT = 40
 FLEA_COMMENT_WINDOW = 600
 
+# Flea likes notify/push the seller. Independent from timeline_like.
+FLEA_LIKE_SCOPE = "flea_like"
+FLEA_LIKE_LIMIT = 60
+FLEA_LIKE_WINDOW = 300
+
 
 def allow_user_rate_limit(
     user: AbstractBaseUser | None,
@@ -120,6 +125,15 @@ def allow_flea_comment(user: AbstractBaseUser | None) -> bool:
         FLEA_COMMENT_SCOPE,
         limit=FLEA_COMMENT_LIMIT,
         window=FLEA_COMMENT_WINDOW,
+    )
+
+
+def allow_flea_like(user: AbstractBaseUser | None) -> bool:
+    return allow_user_rate_limit(
+        user,
+        FLEA_LIKE_SCOPE,
+        limit=FLEA_LIKE_LIMIT,
+        window=FLEA_LIKE_WINDOW,
     )
 
 

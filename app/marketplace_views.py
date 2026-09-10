@@ -54,6 +54,7 @@ from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
     allow_chat_message,
     allow_flea_comment,
+    allow_flea_like,
     allow_timeline_post,
 )
 from .trade_chat_inbox_services import (
@@ -745,6 +746,18 @@ def toggle_like(request, pk):
         request.user if request.user.is_authenticated else None,
         pk,
     )
+    if not allow_flea_like(request.user):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "rate_limited",
+                    "message": RATE_LIMIT_USER_MESSAGE,
+                },
+                status=429,
+            )
+        messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
     like = Like.objects.filter(user=request.user, product=product).first()
 
     if like:

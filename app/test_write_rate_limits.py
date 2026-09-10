@@ -17,6 +17,7 @@ from app.models import (
     ChatRoomInvitation,
     ChatRoomMembership,
     Comment,
+    Like,
     Notification,
     Product,
     TimelineLike,
@@ -29,6 +30,8 @@ from app.rate_limit_services import (
     CHAT_MESSAGE_SCOPE,
     FLEA_COMMENT_LIMIT,
     FLEA_COMMENT_SCOPE,
+    FLEA_LIKE_LIMIT,
+    FLEA_LIKE_SCOPE,
     RATE_LIMIT_USER_MESSAGE,
     REPORT_LIMIT,
     TIMELINE_COMMENT_LIMIT,
@@ -39,6 +42,7 @@ from app.rate_limit_services import (
     TIMELINE_POST_SCOPE,
     allow_chat_message,
     allow_flea_comment,
+    allow_flea_like,
     allow_timeline_comment,
     allow_timeline_like,
     allow_timeline_post,
@@ -954,3 +958,255 @@ class WriteRateLimitTests(TestCase):
         self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
         self.assertIsNone(cache.get(self._flea_comment_key(self.user_a)))
         self.assertIsNone(cache.get(self._flea_comment_key(self.user_b)))
+
+    def _flea_like_key(self, user) -> str:
+        return f"rl:{FLEA_LIKE_SCOPE}:{user.pk}"
+
+    def _make_flea_like_product(self, seller) -> Product:
+        return Product.objects.create(
+            seller=seller,
+            name="rl like book",
+            price=1200,
+            category="本",
+        )
+
+    def _product_likes(self, product, user=None):
+        qs = Like.objects.filter(product=product)
+        if user is not None:
+            qs = qs.filter(user=user)
+        return qs
+
+    def _classic_like(self, product, *, xhr=True):
+        kwargs = {}
+        if xhr:
+            kwargs["HTTP_X_REQUESTED_WITH"] = "XMLHttpRequest"
+        return self.client.post(
+            reverse("toggle_like", args=[product.pk]),
+            **kwargs,
+        )
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_like_succeeds_under_limit(self, mock_push):
+        mock_push.return_value = 1
+        product = self._make_flea_like_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body.get("ok"))
+        self.assertTrue(body["liked"])
+        self.assertTrue(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        mock_push.assert_called_once()
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_unlike_consumes_budget_without_notify(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        Like.objects.create(user=self.user_b, product=product)
+        Notification.objects.create(
+            recipient=self.user_a,
+            message="existing like notice",
+            link="/",
+        )
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body.get("ok"))
+        self.assertFalse(body["liked"])
+        self.assertFalse(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        mock_push.assert_not_called()
+
+    @patch("app.push_services.notify_user_push")
+    def test_classic_flea_like_succeeds_under_limit(self, mock_push):
+        mock_push.return_value = 1
+        product = self._make_flea_like_product(self.user_a)
+        self.client.force_login(self.user_b)
+        res = self._classic_like(product)
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body["liked"])
+        self.assertTrue(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        mock_push.assert_called_once()
+
+    @patch("app.push_services.notify_user_push")
+    def test_classic_flea_unlike_consumes_budget_without_notify(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        Like.objects.create(user=self.user_b, product=product)
+        Notification.objects.create(
+            recipient=self.user_a,
+            message="existing like notice",
+            link="/",
+        )
+        self.client.force_login(self.user_b)
+        res = self._classic_like(product)
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertFalse(body["liked"])
+        self.assertFalse(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_a).count(), 1
+        )
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        mock_push.assert_not_called()
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_like_exhausted_does_not_mutate(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        before_status = product.status
+        self._exhaust(allow_flea_like, self.user_b, FLEA_LIKE_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 429)
+        body = res.json()
+        self.assertEqual(body["error"], "rate_limited")
+        self.assertEqual(body["message"], RATE_LIMIT_USER_MESSAGE)
+        self.assertFalse(self._product_likes(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        product.refresh_from_db()
+        self.assertEqual(product.status, before_status)
+        mock_push.assert_not_called()
+
+    @patch("app.push_services.notify_user_push")
+    def test_classic_flea_like_exhausted_does_not_mutate(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        before_status = product.status
+        self._exhaust(allow_flea_like, self.user_b, FLEA_LIKE_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self._classic_like(product)
+        self.assertEqual(res.status_code, 429)
+        body = res.json()
+        self.assertEqual(body["error"], "rate_limited")
+        self.assertEqual(body["message"], RATE_LIMIT_USER_MESSAGE)
+        self.assertFalse(self._product_likes(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        product.refresh_from_db()
+        self.assertEqual(product.status, before_status)
+        mock_push.assert_not_called()
+
+    @patch("app.push_services.notify_user_push")
+    def test_classic_flea_like_exhausted_form_path_redirects(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        self._exhaust(allow_flea_like, self.user_b, FLEA_LIKE_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("toggle_like", args=[product.pk]),
+            {"next": "https://evil.example/phish"},
+        )
+        self._assert_classic_rate_limited(res)
+        self.assertEqual(
+            res["Location"], reverse("product_detail", args=[product.pk])
+        )
+        self.assertFalse(self._product_likes(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        mock_push.assert_not_called()
+
+    def test_api_flea_like_then_classic_shares_bucket(self):
+        product = self._make_flea_like_product(self.user_a)
+        self.client.force_login(self.user_b)
+        api = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(api.status_code, 200)
+        self.assertTrue(api.json()["liked"])
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        for _ in range(FLEA_LIKE_LIMIT - 1):
+            self.assertTrue(allow_flea_like(self.user_b))
+        self.assertFalse(allow_flea_like(self.user_b))
+
+        classic = self._classic_like(product)
+        self.assertEqual(classic.status_code, 429)
+        self.assertEqual(classic.json()["error"], "rate_limited")
+        self.assertTrue(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(self._product_likes(product).count(), 1)
+
+    def test_classic_flea_like_then_api_shares_bucket(self):
+        product = self._make_flea_like_product(self.user_a)
+        self.client.force_login(self.user_b)
+        classic = self._classic_like(product)
+        self.assertEqual(classic.status_code, 200)
+        self.assertTrue(classic.json()["liked"])
+        self.assertEqual(cache.get(self._flea_like_key(self.user_b)), 1)
+        for _ in range(FLEA_LIKE_LIMIT - 1):
+            self.assertTrue(allow_flea_like(self.user_b))
+        self.assertFalse(allow_flea_like(self.user_b))
+
+        api = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(api.status_code, 429)
+        self.assertEqual(api.json()["error"], "rate_limited")
+        self.assertTrue(self._product_likes(product, self.user_b).exists())
+        self.assertEqual(self._product_likes(product).count(), 1)
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_unlike_blocked_when_exhausted(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        Like.objects.create(user=self.user_b, product=product)
+        self._exhaust(allow_flea_like, self.user_b, FLEA_LIKE_LIMIT)
+        self.client.force_login(self.user_b)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 429)
+        self.assertEqual(res.json()["error"], "rate_limited")
+        self.assertTrue(self._product_likes(product, self.user_b).exists())
+        mock_push.assert_not_called()
+
+    def test_flea_like_bucket_does_not_share_timeline_like(self):
+        self._exhaust(allow_flea_like, self.user_b, FLEA_LIKE_LIMIT)
+        self.assertFalse(allow_flea_like(self.user_b))
+        self.assertTrue(allow_timeline_like(self.user_b))
+
+    @patch("app.push_services.notify_user_push")
+    def test_api_flea_self_like_toggles_without_notify(self, mock_push):
+        product = self._make_flea_like_product(self.user_a)
+        self.client.force_login(self.user_a)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json()["liked"])
+        self.assertTrue(self._product_likes(product, self.user_a).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertEqual(cache.get(self._flea_like_key(self.user_a)), 1)
+        mock_push.assert_not_called()
+
+    def test_api_anonymous_flea_like_does_not_consume_budget(self):
+        product = self._make_flea_like_product(self.user_a)
+        res = self.client.post(
+            reverse("api_v1_flea_product_like", args=[product.pk])
+        )
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        self.assertFalse(self._product_likes(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertIsNone(cache.get(self._flea_like_key(self.user_a)))
+        self.assertIsNone(cache.get(self._flea_like_key(self.user_b)))
+
+    def test_classic_anonymous_flea_like_does_not_consume_budget(self):
+        product = self._make_flea_like_product(self.user_a)
+        res = self._classic_like(product)
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/login", res["Location"])
+        self.assertFalse(self._product_likes(product).exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.user_a).exists())
+        self.assertIsNone(cache.get(self._flea_like_key(self.user_a)))
+        self.assertIsNone(cache.get(self._flea_like_key(self.user_b)))

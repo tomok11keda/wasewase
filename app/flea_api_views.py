@@ -54,6 +54,7 @@ from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
     allow_chat_message,
     allow_flea_comment,
+    allow_flea_like,
     allow_timeline_post,
 )
 from .ugc_services import filter_visible_products, get_visible_product_or_404
@@ -140,6 +141,12 @@ def api_v1_flea_product_detail(request: HttpRequest, pk: int) -> JsonResponse:
 @require_POST
 def api_v1_flea_product_like(request: HttpRequest, pk: int) -> JsonResponse:
     product = _get_visible_product(request, pk)
+    if not allow_flea_like(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
     like = Like.objects.filter(user=request.user, product=product).first()
     if like:
         like.delete()
