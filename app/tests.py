@@ -798,6 +798,56 @@ class GlobalSearchTests(TestCase):
         self.assertContains(response, "search_bar.js")
         self.assertContains(response, reverse("api_search"))
 
+    def test_search_users_tab_hides_blocked_user_both_directions(self):
+        from .ugc_services import block_user
+
+        alice = get_user_model().objects.create_user(
+            email="classic-block-a@ex.com",
+            password="password",
+            username="classic_block_alice",
+        )
+        bob = get_user_model().objects.create_user(
+            email="classic-block-b@ex.com",
+            password="password",
+            username="classic_block_bob",
+        )
+        carol = get_user_model().objects.create_user(
+            email="classic-block-c@ex.com",
+            password="password",
+            username="classic_block_carol",
+        )
+        UserProfile.objects.update_or_create(
+            user=alice, defaults={"name": "クラシックアリス"}
+        )
+        block_user(alice, bob)
+
+        self.client.force_login(alice)
+        forward = self.client.get(
+            reverse("search"), {"q": "classic_block_bob", "tab": "users"}
+        )
+        self.assertEqual(forward.status_code, 200)
+        self.assertNotContains(forward, "@classic_block_bob")
+        self.assertNotContains(
+            forward, reverse("user_profile", args=[bob.pk])
+        )
+
+        self.client.force_login(bob)
+        reverse_hit = self.client.get(
+            reverse("search"), {"q": "classic_block_alice", "tab": "users"}
+        )
+        self.assertEqual(reverse_hit.status_code, 200)
+        self.assertNotContains(reverse_hit, "@classic_block_alice")
+        self.assertNotContains(
+            reverse_hit, reverse("user_profile", args=[alice.pk])
+        )
+        self.assertNotContains(reverse_hit, "クラシックアリス")
+
+        self.client.force_login(alice)
+        control = self.client.get(
+            reverse("search"), {"q": "classic_block_carol", "tab": "users"}
+        )
+        self.assertContains(control, "@classic_block_carol")
+
 
 class BoardTimelineSearchTests(TestCase):
     def test_board_search_matches_professor_name(self):

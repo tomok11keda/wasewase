@@ -222,3 +222,94 @@ class GlobalSearchExpansionTests(TestCase):
         self.assertIn("enrollment_count", offering)
         self.assertIn("day_label", offering)
         self.assertIn("period_label", offering)
+
+
+class GlobalSearchBlockFilterTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.alice = User.objects.create_user(
+            email="block-alice@ex.com",
+            password="pass12345",
+            username="block_alice_us",
+        )
+        alice_profile, _ = UserProfile.objects.get_or_create(user=self.alice)
+        alice_profile.name = "ブロック検証アリス"
+        alice_profile.bio = "unique_alice_bio_token_xyz"
+        alice_profile.department = "ブロック検証学部"
+        alice_profile.save(update_fields=["name", "bio", "department"])
+
+        self.bob = User.objects.create_user(
+            email="block-bob@ex.com",
+            password="pass12345",
+            username="block_bob_us",
+        )
+        bob_profile, _ = UserProfile.objects.get_or_create(user=self.bob)
+        bob_profile.name = "ブロック検証ボブ"
+        bob_profile.save(update_fields=["name"])
+
+        self.carol = User.objects.create_user(
+            email="block-carol@ex.com",
+            password="pass12345",
+            username="block_carol_us",
+        )
+        carol_profile, _ = UserProfile.objects.get_or_create(user=self.carol)
+        carol_profile.name = "ブロック検証キャロル"
+        carol_profile.save(update_fields=["name"])
+
+        from app.ugc_services import block_user
+
+        block_user(self.alice, self.bob)
+
+    def _search_as(self, user, q: str, tab: str):
+        self.client.force_login(user)
+        return self.client.get("/api/v1/search/", {"q": q, "tab": tab})
+
+    def _user_ids(self, payload):
+        return [u.get("id") for u in payload.get("users") or []]
+
+    def _mixed_user_ids(self, payload):
+        ids = []
+        for row in payload.get("results") or []:
+            if row.get("kind") == "user":
+                user = row.get("user") or {}
+                ids.append(user.get("id"))
+        return ids
+
+    def test_blocker_does_not_see_blocked_user_in_users_tab(self):
+        res = self._search_as(self.alice, "block_bob_us", "users")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertNotIn(self.bob.pk, self._user_ids(data))
+        self.assertEqual(data["user_count"], 0)
+
+    def test_blocked_user_does_not_see_blocker_in_users_tab(self):
+        res = self._search_as(self.bob, "block_alice_us", "users")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertNotIn(self.alice.pk, self._user_ids(data))
+        self.assertEqual(data["user_count"], 0)
+
+    def test_blocked_user_does_not_see_blocker_in_mixed_all_tab(self):
+        res = self._search_as(self.bob, "block_alice_us", "all")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertNotIn(self.alice.pk, self._user_ids(data))
+        self.assertNotIn(self.alice.pk, self._mixed_user_ids(data))
+        self.assertEqual(data["user_count"], 0)
+
+    def test_display_name_and_bio_search_also_hide_blocked_counterpart(self):
+        by_name = self._search_as(self.bob, "ブロック検証アリス", "users")
+        self.assertNotIn(self.alice.pk, self._user_ids(by_name.json()))
+        by_bio = self._search_as(self.bob, "unique_alice_bio_token_xyz", "users")
+        self.assertNotIn(self.alice.pk, self._user_ids(by_bio.json()))
+        by_dept = self._search_as(self.bob, "ブロック検証学部", "users")
+        self.assertNotIn(self.alice.pk, self._user_ids(by_dept.json()))
+        partial = self._search_as(self.bob, "block_alice", "users")
+        self.assertNotIn(self.alice.pk, self._user_ids(partial.json()))
+
+    def test_unblocked_user_still_appears(self):
+        res = self._search_as(self.alice, "block_carol_us", "users")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn(self.carol.pk, self._user_ids(data))
+        self.assertGreaterEqual(data["user_count"], 1)

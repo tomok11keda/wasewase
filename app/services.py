@@ -141,7 +141,7 @@ def search_users(query: str, viewer=None):
     from django.contrib.auth import get_user_model
     from django.db.models import Case, IntegerField, Value, When
 
-    from .ugc_services import get_blocked_user_ids
+    from .ugc_services import get_either_blocked_user_ids
 
     User = get_user_model()
     if not query:
@@ -172,7 +172,7 @@ def search_users(query: str, viewer=None):
         )
         .order_by("search_match_rank", "username")
     )
-    blocked_ids = get_blocked_user_ids(viewer)
+    blocked_ids = get_either_blocked_user_ids(viewer)
     if blocked_ids:
         qs = qs.exclude(pk__in=blocked_ids)
     return qs
