@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.test import Client, TestCase, override_settings
 
-from .models import Community, CommunityThread, Product, TimelinePost, User, UserProfile
+from .models import (
+    Community,
+    CommunityThread,
+    Follow,
+    FollowRequest,
+    Product,
+    TimelinePost,
+    User,
+    UserProfile,
+)
+from .ugc_services import block_user
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -138,3 +150,195 @@ class ProfileSearchApiTests(TestCase):
         ok = self.client.get(f"/api/v1/profile/{self.other.pk}/bookmarks/")
         self.assertEqual(ok.status_code, 200)
         self.assertIn("posts", ok.json())
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class FollowListApiTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="flist-owner@waseda.jp",
+            password="test-pass-12345",
+            username="flistowner",
+        )
+        self.alice = User.objects.create_user(
+            email="flist-a@waseda.jp",
+            password="test-pass-12345",
+            username="flistalice",
+        )
+        self.bob = User.objects.create_user(
+            email="flist-b@waseda.jp",
+            password="test-pass-12345",
+            username="flistbob",
+        )
+        self.dana = User.objects.create_user(
+            email="flist-d@waseda.jp",
+            password="test-pass-12345",
+            username="flistdana",
+        )
+        UserProfile.objects.update_or_create(
+            user=self.owner, defaults={"name": "オーナー", "is_private": False}
+        )
+        for user, name in (
+            (self.alice, "アリス"),
+            (self.bob, "ボブ"),
+            (self.dana, "ダナ"),
+        ):
+            UserProfile.objects.update_or_create(
+                user=user, defaults={"name": name, "is_private": False}
+            )
+        self.client = Client()
+
+    def _ids(self, payload):
+        return [row["id"] for row in payload["users"]]
+
+    def test_own_followers_and_following(self):
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        Follow.objects.create(follower=self.owner, following=self.dana)
+        self.client.force_login(self.owner)
+        followers = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        following = self.client.get(f"/api/v1/profile/{self.owner.pk}/following/")
+        self.assertEqual(followers.status_code, 200, followers.content)
+        self.assertEqual(following.status_code, 200, following.content)
+        self.assertEqual(self._ids(followers.json()), [self.alice.pk])
+        self.assertEqual(self._ids(following.json()), [self.dana.pk])
+        self.assertEqual(followers.json()["count"], 1)
+        self.assertEqual(following.json()["count"], 1)
+        self.assertFalse(followers.json()["has_more"])
+
+    def test_public_profile_other_viewer(self):
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        Follow.objects.create(follower=self.owner, following=self.dana)
+        self.client.force_login(self.bob)
+        followers = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        following = self.client.get(f"/api/v1/profile/{self.owner.pk}/following/")
+        self.assertEqual(followers.status_code, 200)
+        self.assertEqual(following.status_code, 200)
+        self.assertEqual(self._ids(followers.json()), [self.alice.pk])
+        self.assertEqual(self._ids(following.json()), [self.dana.pk])
+
+    def test_private_followed_and_unapproved(self):
+        UserProfile.objects.filter(user=self.owner).update(is_private=True)
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        Follow.objects.create(follower=self.owner, following=self.dana)
+        self.client.force_login(self.alice)
+        self.assertEqual(
+            self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(f"/api/v1/profile/{self.owner.pk}/following/").status_code,
+            200,
+        )
+        self.client.force_login(self.bob)
+        denied_f = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        denied_g = self.client.get(f"/api/v1/profile/{self.owner.pk}/following/")
+        self.assertEqual(denied_f.status_code, 403)
+        self.assertEqual(denied_f.json()["error"], "forbidden")
+        self.assertEqual(denied_g.status_code, 403)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertEqual(shell.status_code, 200)
+        self.assertFalse(shell.json()["can_view_content"])
+
+    def test_pending_request_not_listed_or_counted(self):
+        UserProfile.objects.filter(user=self.owner).update(is_private=True)
+        FollowRequest.objects.create(from_user=self.alice, to_user=self.owner)
+        self.client.force_login(self.owner)
+        followers = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertEqual(followers.status_code, 200)
+        self.assertEqual(followers.json()["users"], [])
+        self.assertEqual(followers.json()["count"], 0)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertEqual(shell.json()["stats"]["follower_count"], 0)
+        self.client.force_login(self.alice)
+        denied = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertEqual(denied.status_code, 403)
+
+    def test_bilateral_block_hides_third_party_rows_and_counts(self):
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        Follow.objects.create(follower=self.bob, following=self.owner)
+        Follow.objects.create(follower=self.dana, following=self.owner)
+        Follow.objects.create(follower=self.owner, following=self.alice)
+        Follow.objects.create(follower=self.owner, following=self.bob)
+        Follow.objects.create(follower=self.owner, following=self.dana)
+        block_user(self.alice, self.bob)
+
+        self.client.force_login(self.alice)
+        followers = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        following = self.client.get(f"/api/v1/profile/{self.owner.pk}/following/")
+        self.assertEqual(followers.status_code, 200)
+        self.assertCountEqual(
+            self._ids(followers.json()), [self.alice.pk, self.dana.pk]
+        )
+        self.assertEqual(followers.json()["count"], 2)
+        self.assertCountEqual(
+            self._ids(following.json()), [self.alice.pk, self.dana.pk]
+        )
+        self.assertEqual(following.json()["count"], 2)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertEqual(shell.json()["stats"]["follower_count"], 2)
+        self.assertEqual(shell.json()["stats"]["following_count"], 2)
+
+        self.client.force_login(self.bob)
+        followers_b = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        following_b = self.client.get(f"/api/v1/profile/{self.owner.pk}/following/")
+        self.assertCountEqual(
+            self._ids(followers_b.json()), [self.bob.pk, self.dana.pk]
+        )
+        self.assertCountEqual(
+            self._ids(following_b.json()), [self.bob.pk, self.dana.pk]
+        )
+        self.assertNotIn(self.alice.pk, self._ids(followers_b.json()))
+        self.assertNotIn(self.alice.pk, self._ids(following_b.json()))
+
+        self.client.force_login(self.dana)
+        visible = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertCountEqual(
+            self._ids(visible.json()),
+            [self.alice.pk, self.bob.pk, self.dana.pk],
+        )
+
+    def test_direct_blocked_counterpart_lists_forbidden_shell_unchanged(self):
+        block_user(self.alice, self.bob)
+        self.client.force_login(self.alice)
+        denied = self.client.get(f"/api/v1/profile/{self.bob.pk}/followers/")
+        self.assertEqual(denied.status_code, 403)
+        shell = self.client.get(f"/api/v1/profile/{self.bob.pk}/")
+        self.assertEqual(shell.status_code, 200)
+        self.client.force_login(self.bob)
+        self.assertEqual(
+            self.client.get(f"/api/v1/profile/{self.alice.pk}/following/").status_code,
+            403,
+        )
+        shell_b = self.client.get(f"/api/v1/profile/{self.alice.pk}/")
+        self.assertEqual(shell_b.status_code, 200)
+
+    def test_anonymous_rejected_and_no_email(self):
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        guest = Client()
+        res = guest.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json().get("error"), "unauthorized")
+        self.client.force_login(self.alice)
+        data = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/").json()
+        self.assertEqual(data["users"][0]["id"], self.alice.pk)
+        blob = str(data)
+        self.assertNotIn("flist-a@waseda.jp", blob)
+        self.assertNotIn("email", data["users"][0])
+
+    def test_missing_user_404(self):
+        self.client.force_login(self.alice)
+        res = self.client.get("/api/v1/profile/999999/followers/")
+        self.assertEqual(res.status_code, 404)
+
+    def test_has_more_when_over_cap(self):
+        Follow.objects.create(follower=self.alice, following=self.owner)
+        Follow.objects.create(follower=self.bob, following=self.owner)
+        Follow.objects.create(follower=self.dana, following=self.owner)
+        self.client.force_login(self.owner)
+        with patch("app.profile_api_services.FOLLOW_LIST_LIMIT", 2):
+            res = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["count"], 3)
+        self.assertEqual(len(data["users"]), 2)
+        self.assertTrue(data["has_more"])

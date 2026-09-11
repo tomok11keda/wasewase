@@ -259,6 +259,43 @@ export async function fetchProfileProducts(pk: number): Promise<ProductCard[]> {
   return data.products as ProductCard[];
 }
 
+export type FollowListKind = "followers" | "following";
+
+export type FollowListUser = {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  initial: string;
+};
+
+export type FollowListPayload = {
+  ok: boolean;
+  users: FollowListUser[];
+  count: number;
+  has_more: boolean;
+};
+
+export async function fetchFollowList(
+  pk: number,
+  kind: FollowListKind
+): Promise<FollowListPayload> {
+  const res = await fetch(`/api/v1/profile/${pk}/${kind}/`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `follow_list_${res.status}`);
+  }
+  return {
+    ok: true,
+    users: (data.users || []) as FollowListUser[],
+    count: Number(data.count || 0),
+    has_more: Boolean(data.has_more),
+  };
+}
+
 export async function fetchProfileBookmarks(pk: number): Promise<TimelinePost[]> {
   const res = await fetch(`/api/v1/profile/${pk}/bookmarks/`, {
     credentials: "same-origin",

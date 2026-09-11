@@ -13,7 +13,9 @@ from .models import Follow, FollowRequest, Notification, UserProfile
 from .services import count_followers, is_following, user_display_name
 from .spa_canonical import app_absolute
 from .timetable_privacy_services import get_or_create_profile
-from .ugc_services import is_either_blocked
+from .ugc_services import get_either_blocked_user_ids, is_either_blocked
+
+FOLLOW_LIST_LIMIT = 100
 
 FollowState = Literal["self", "following", "requested", "none", "blocked"]
 
@@ -86,6 +88,32 @@ def get_follow_state(
     return "none"
 
 
+def visible_follower_qs(
+    owner: AbstractBaseUser, viewer: AbstractBaseUser | None
+) -> QuerySet[Follow]:
+    """Accepted Follow rows pointing at owner, minus viewer's bilateral blocks."""
+    qs = Follow.objects.filter(following=owner).select_related(
+        "follower", "follower__profile"
+    )
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    if blocked_ids:
+        qs = qs.exclude(follower_id__in=blocked_ids)
+    return qs
+
+
+def visible_following_qs(
+    owner: AbstractBaseUser, viewer: AbstractBaseUser | None
+) -> QuerySet[Follow]:
+    """Accepted Follow rows from owner, minus viewer's bilateral blocks."""
+    qs = Follow.objects.filter(follower=owner).select_related(
+        "following", "following__profile"
+    )
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    if blocked_ids:
+        qs = qs.exclude(following_id__in=blocked_ids)
+    return qs
+
+
 def can_view_timetable_for(
     viewer: AbstractBaseUser | None,
     owner: AbstractBaseUser,
@@ -140,7 +168,7 @@ def toggle_follow_relationship(
             "ok": True,
             "is_following": False,
             "follow_state": "none",
-            "follower_count": count_followers(target),
+            "follower_count": count_followers(target, viewer=actor),
             "action": "unfollowed",
         }
 
@@ -151,7 +179,7 @@ def toggle_follow_relationship(
             "ok": True,
             "is_following": False,
             "follow_state": "none",
-            "follower_count": count_followers(target),
+            "follower_count": count_followers(target, viewer=actor),
             "action": "request_cancelled",
         }
 
@@ -165,7 +193,7 @@ def toggle_follow_relationship(
             "ok": True,
             "is_following": False,
             "follow_state": "requested",
-            "follower_count": count_followers(target),
+            "follower_count": count_followers(target, viewer=actor),
             "action": "requested",
         }
 
@@ -175,7 +203,7 @@ def toggle_follow_relationship(
         "ok": True,
         "is_following": True,
         "follow_state": "following",
-        "follower_count": count_followers(target),
+        "follower_count": count_followers(target, viewer=actor),
         "action": "followed",
     }
 

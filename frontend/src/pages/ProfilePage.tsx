@@ -222,6 +222,14 @@ export function ProfilePage() {
   }
 
   const u = profile.user;
+  const followListPath = (kind: "followers" | "following"): string | null => {
+    if (!profile.can_view_content) return null;
+    const dest = `/users/${pk}/${kind}`;
+    if (!me?.authenticated) {
+      return spaLoginPath(`/app${dest}`);
+    }
+    return dest;
+  };
 
   return (
     <div className="profile-page" data-spa-page="プロフィール">
@@ -292,14 +300,34 @@ export function ProfilePage() {
               <strong>{profile.stats.left_count}</strong>
               <span>{profile.stats.left_label}</span>
             </div>
-            <div>
-              <strong>{profile.stats.follower_count}</strong>
-              <span>フォロワー</span>
-            </div>
-            <div>
-              <strong>{profile.stats.following_count}</strong>
-              <span>フォロー中</span>
-            </div>
+            {followListPath("followers") ? (
+              <Link
+                className="profile-stats__link"
+                to={followListPath("followers")!}
+              >
+                <strong>{profile.stats.follower_count}</strong>
+                <span>フォロワー</span>
+              </Link>
+            ) : (
+              <div>
+                <strong>{profile.stats.follower_count}</strong>
+                <span>フォロワー</span>
+              </div>
+            )}
+            {followListPath("following") ? (
+              <Link
+                className="profile-stats__link"
+                to={followListPath("following")!}
+              >
+                <strong>{profile.stats.following_count}</strong>
+                <span>フォロー中</span>
+              </Link>
+            ) : (
+              <div>
+                <strong>{profile.stats.following_count}</strong>
+                <span>フォロー中</span>
+              </div>
+            )}
           </div>
 
           <div

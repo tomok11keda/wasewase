@@ -15,14 +15,19 @@ from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_p
 from .dm_services import find_dm_room
 from .flea_api_services import serialize_product_card
 from .follow_services import (
+    FOLLOW_LIST_LIMIT,
     can_view_private_content,
     can_view_timetable_for,
     get_follow_state,
     is_account_private,
     toggle_follow_relationship,
+    visible_follower_qs,
+    visible_following_qs,
 )
 from .models import Product, TimelineLike, TimelinePost
 from .services import (
+    count_followers,
+    count_following,
     get_profile_stats,
     get_user_avatar_url,
     is_following,
@@ -145,8 +150,8 @@ def build_profile_payload(
         "stats": {
             "post_count": stats["post_count"],
             "product_count": stats["product_count"],
-            "follower_count": stats["follower_count"],
-            "following_count": stats["following_count"],
+            "follower_count": count_followers(profile_user, viewer=viewer_auth),
+            "following_count": count_following(profile_user, viewer=viewer_auth),
             "left_label": stats["left_label"],
             "left_count": stats["left_count"],
         },
@@ -197,6 +202,42 @@ def list_profile_products(
         "ok": True,
         "products": [serialize_product_card(p) for p in products],
         "can_view_content": True,
+    }
+
+
+def list_profile_followers(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser,
+) -> dict[str, Any]:
+    return _serialize_follow_list(
+        visible_follower_qs(profile_user, viewer),
+        user_attr="follower",
+    )
+
+
+def list_profile_following(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser,
+) -> dict[str, Any]:
+    return _serialize_follow_list(
+        visible_following_qs(profile_user, viewer),
+        user_attr="following",
+    )
+
+
+def _serialize_follow_list(qs, *, user_attr: str) -> dict[str, Any]:
+    total = qs.count()
+    rows = list(qs[:FOLLOW_LIST_LIMIT])
+    users = []
+    for row in rows:
+        payload = serialize_author(getattr(row, user_attr))
+        if payload:
+            users.append(payload)
+    return {
+        "ok": True,
+        "users": users,
+        "count": total,
+        "has_more": total > FOLLOW_LIST_LIMIT,
     }
 
 

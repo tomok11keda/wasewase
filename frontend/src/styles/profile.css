@@ -111,6 +111,25 @@
   color: var(--muted);
 }
 
+.profile-stats__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-stats__link:hover strong,
+.profile-stats__link:focus-visible strong {
+  text-decoration: underline;
+}
+
+.follow-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .profile-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

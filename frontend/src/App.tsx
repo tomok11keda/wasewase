@@ -39,6 +39,7 @@ import { HomePage } from "./pages/HomePage";
 import { MorePage } from "./pages/tabs";
 import { SettingsPage } from "./pages/SettingsPage";
 import { FollowRequestsPage } from "./pages/FollowRequestsPage";
+import { FollowListPage } from "./pages/FollowListPage";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
@@ -68,6 +69,14 @@ function NestedAppRoutes() {
       <Route path="courses/:offeringPk/talk" element={<CourseTalkPage />} />
       <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
+      <Route
+        path="users/:userId/followers"
+        element={<FollowListPage kind="followers" />}
+      />
+      <Route
+        path="users/:userId/following"
+        element={<FollowListPage kind="following" />}
+      />
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="settings" element={<SettingsPage />} />

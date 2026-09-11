@@ -279,6 +279,16 @@ urlpatterns = [
         name="api_v1_profile_bookmarks",
     ),
     path(
+        "api/v1/profile/<int:pk>/followers/",
+        profile_api_views.api_v1_profile_followers,
+        name="api_v1_profile_followers",
+    ),
+    path(
+        "api/v1/profile/<int:pk>/following/",
+        profile_api_views.api_v1_profile_following,
+        name="api_v1_profile_following",
+    ),
+    path(
         "api/v1/profile/<int:pk>/follow/",
         profile_api_views.api_v1_profile_follow,
         name="api_v1_profile_follow",

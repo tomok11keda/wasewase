@@ -15,7 +15,11 @@ from .models import (
     TimelinePost,
     UserProfile,
 )
-from .ugc_services import filter_visible_products, filter_visible_timeline_posts
+from .ugc_services import (
+    filter_visible_products,
+    filter_visible_timeline_posts,
+    get_either_blocked_user_ids,
+)
 
 
 def user_display_name(user: AbstractBaseUser | None) -> str:
@@ -270,12 +274,28 @@ def count_user_posts(user: AbstractBaseUser) -> int:
     )
 
 
-def count_followers(user: AbstractBaseUser) -> int:
-    return Follow.objects.filter(following=user).count()
+def count_followers(
+    user: AbstractBaseUser, viewer: AbstractBaseUser | None = None
+) -> int:
+    """Accepted followers. Optional viewer applies bilateral block filtering."""
+    qs = Follow.objects.filter(following=user)
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        blocked_ids = get_either_blocked_user_ids(viewer)
+        if blocked_ids:
+            qs = qs.exclude(follower_id__in=blocked_ids)
+    return qs.count()
 
 
-def count_following(user: AbstractBaseUser) -> int:
-    return Follow.objects.filter(follower=user).count()
+def count_following(
+    user: AbstractBaseUser, viewer: AbstractBaseUser | None = None
+) -> int:
+    """Accepted following. Optional viewer applies bilateral block filtering."""
+    qs = Follow.objects.filter(follower=user)
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        blocked_ids = get_either_blocked_user_ids(viewer)
+        if blocked_ids:
+            qs = qs.exclude(following_id__in=blocked_ids)
+    return qs.count()
 
 
 def is_following(follower: AbstractBaseUser, target: AbstractBaseUser) -> bool:

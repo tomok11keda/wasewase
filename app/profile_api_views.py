@@ -12,12 +12,14 @@ from .profile_api_services import (
     build_profile_payload,
     build_search_page_payload,
     list_profile_bookmarks,
+    list_profile_followers,
+    list_profile_following,
     list_profile_posts,
     list_profile_products,
     toggle_block_for_api,
     toggle_follow_for_api,
 )
-from .follow_services import FollowForbidden
+from .follow_services import FollowForbidden, can_view_private_content
 
 User = get_user_model()
 
@@ -59,6 +61,28 @@ def api_v1_profile_bookmarks(request: HttpRequest, pk: int) -> HttpResponse:
     if viewer is None or viewer.pk != profile_user.pk:
         return _json_error("forbidden", status=403)
     return JsonResponse(list_profile_bookmarks(profile_user, viewer))
+
+
+@login_required
+@require_GET
+def api_v1_profile_followers(request: HttpRequest, pk: int) -> JsonResponse:
+    profile_user = get_object_or_404(
+        User.objects.select_related("profile"), pk=pk
+    )
+    if not can_view_private_content(request.user, profile_user):
+        return _json_error("forbidden", status=403)
+    return JsonResponse(list_profile_followers(profile_user, request.user))
+
+
+@login_required
+@require_GET
+def api_v1_profile_following(request: HttpRequest, pk: int) -> JsonResponse:
+    profile_user = get_object_or_404(
+        User.objects.select_related("profile"), pk=pk
+    )
+    if not can_view_private_content(request.user, profile_user):
+        return _json_error("forbidden", status=403)
+    return JsonResponse(list_profile_following(profile_user, request.user))
 
 
 @login_required
