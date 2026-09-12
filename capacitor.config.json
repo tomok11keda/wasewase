@@ -6,7 +6,8 @@
   "server": {
     "url": "https://wasewase.onrender.com/app/",
     "cleartext": false,
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "allowNavigation": ["wasewase.onrender.com"]
   },
   "ios": {
     "contentInset": "never",

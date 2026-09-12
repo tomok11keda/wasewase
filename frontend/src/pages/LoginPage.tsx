@@ -10,26 +10,27 @@ import { analytics } from "../lib/analytics/events";
 import type { MeResponse } from "../lib/api";
 
 /**
- * After auth: stay in SPA for /app/… ; full navigation otherwise so Django
- * spa_get_redirect can map Classic next (e.g. /chat/123/) → /app/flea/chats/123.
- * Unmapped Classic islands (/mypage/…) stay on Classic via full load.
+ * After auth: stay in the React SPA. Never window.location.replace to a
+ * non-/app path — Capacitor treats those as external and opens Safari.
+ * Unmapped next/redirect values fall back to Home.
  */
+function spaPathFromAppRedirect(redirect: string): string {
+  const target = (redirect || "/app/").trim() || "/app/";
+  if (target.startsWith("/app/")) {
+    return target.slice(4) || "/";
+  }
+  if (target === "/app" || target.startsWith("/app?") || target.startsWith("/app#")) {
+    return target.slice(4) || "/";
+  }
+  return "/";
+}
+
 function goAfterAuth(
   redirect: string,
   navigate: ReturnType<typeof useNavigate>
 ) {
-  const target = (redirect || "/app/").trim() || "/app/";
-  if (target.startsWith("/app/") || target === "/app") {
-    navigate(target === "/app" ? "/" : target.slice(4) || "/", {
-      replace: true,
-    });
-    return;
-  }
-  if (target.startsWith("/")) {
-    window.location.replace(target);
-    return;
-  }
-  navigate("/", { replace: true });
+  const spaPath = spaPathFromAppRedirect(redirect);
+  navigate(spaPath.startsWith("/") ? spaPath : `/${spaPath}`, { replace: true });
 }
 
 export function LoginPage() {
