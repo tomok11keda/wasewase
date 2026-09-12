@@ -31,6 +31,8 @@ const emptyMe: MeResponse = {
   user: null,
   unread_notifications: 0,
   dm_unread_total: 0,
+  onboarding_required: false,
+  onboarding_completed: true,
 };
 
 export function SessionProvider({ children }: { children: ReactNode }) {

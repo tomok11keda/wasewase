@@ -13,6 +13,9 @@ export type MeResponse = {
   };
   unread_notifications: number;
   dm_unread_total: number;
+  onboarding_required?: boolean;
+  onboarding_step?: string | null;
+  onboarding_completed?: boolean;
 };
 
 export async function fetchMe(): Promise<MeResponse> {

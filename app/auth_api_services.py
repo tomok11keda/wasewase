@@ -44,7 +44,7 @@ from .rate_limit_services import (
 )
 from .inbox_services import get_unread_inbox_message_count
 from .notification_services import get_unread_notification_count
-from .spa_views import _avatar_url, _display_name, _initial
+from .spa_views import _avatar_url
 
 
 def form_field_errors(form) -> dict[str, list[str]]:
@@ -98,20 +98,36 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         "password_reset_verified": bool(
             request.session.get(PASSWORD_RESET_VERIFIED_SESSION_KEY)
         ),
+        "onboarding_required": False,
+        "onboarding_step": None,
+        "onboarding_completed": True,
     }
     if authenticated:
-        from .handle_services import public_username
+        from .onboarding_services import (
+            display_name_for_me,
+            needs_onboarding,
+            onboarding_payload,
+            public_handle_for_me,
+        )
         from .services import get_user_faculty
+        from .timetable_privacy_services import get_or_create_profile
 
+        profile = get_or_create_profile(user)
+        required = needs_onboarding(user)
+        status = onboarding_payload(user)
+        display = display_name_for_me(user, profile)
         payload["user"] = {
             "id": user.pk,
             "email": user.email,
-            "username": public_username(user),
-            "display_name": _display_name(user),
+            "username": public_handle_for_me(user, profile),
+            "display_name": display,
             "avatar_url": _avatar_url(user),
-            "initial": _initial(user),
+            "initial": (display[:1] or "?").upper(),
             "department": get_user_faculty(user),
         }
+        payload["onboarding_required"] = required
+        payload["onboarding_step"] = status["step"]
+        payload["onboarding_completed"] = not required
         payload["unread_notifications"] = get_unread_notification_count(user)
         try:
             payload["dm_unread_total"] = int(
@@ -152,16 +168,12 @@ def signup_meta() -> dict[str, Any]:
 
 def _persist_signup_user(form: SignUpForm) -> AbstractBaseUser:
     email = form.cleaned_data["email"]
-    faculty = form.cleaned_data["faculty"]
     password = form.cleaned_data["password1"]
-    nickname = form.cleaned_data["nickname"]
-    username = form.cleaned_data["username"]
 
     pending = User.objects.filter(email__iexact=email, is_active=False).first()
     if pending:
         pending.set_password(password)
-        pending.username = username
-        pending.save(update_fields=["password", "username"])
+        pending.save(update_fields=["password"])
         user = pending
     else:
         user = form.save()
@@ -169,8 +181,6 @@ def _persist_signup_user(form: SignUpForm) -> AbstractBaseUser:
     UserProfile.objects.update_or_create(
         user=user,
         defaults={
-            "department": faculty,
-            "name": nickname,
             **terms_acceptance_defaults(),
         },
     )
@@ -260,9 +270,6 @@ def signup_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
     form = SignUpForm(
         {
             "email": data.get("email") or "",
-            "nickname": data.get("nickname") or "",
-            "username": data.get("username") or "",
-            "faculty": data.get("faculty") or "",
             "password1": data.get("password1") or "",
             "password2": data.get("password2") or "",
             "accept_terms": data.get("accept_terms")
@@ -363,7 +370,7 @@ def verify_signup(request: HttpRequest, data: dict) -> tuple[dict, int]:
     return (
         {
             "ok": True,
-            "redirect": "/app/?login_success=1",
+            "redirect": "/app/onboarding",
             "me": serialize_me(request),
             "message": "メール認証が完了しました。ようこそ、わせわせへ！",
         },

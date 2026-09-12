@@ -51,9 +51,13 @@ export function LoginPage() {
   useEffect(() => {
     if (!loading && me?.authenticated) {
       if (skipQueryNextRedirect.current) return;
+      if (me.onboarding_required) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
       goAfterAuth(next, navigate);
     }
-  }, [loading, me?.authenticated, navigate, next]);
+  }, [loading, me?.authenticated, me?.onboarding_required, navigate, next]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,6 +79,10 @@ export function LoginPage() {
       }
       analytics.loginCompleted();
       const redirect = (data.redirect as string) || next;
+      if ((data.me as MeResponse | undefined)?.onboarding_required) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
       goAfterAuth(redirect, navigate);
     } catch {
       setError("ログインに失敗しました。");

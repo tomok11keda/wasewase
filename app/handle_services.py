@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
@@ -13,6 +15,21 @@ User = get_user_model()
 def normalize_handle(raw: str | None) -> str:
     """Trim and strip a leading @; does not validate format."""
     return (raw or "").strip().lstrip("@").strip()
+
+
+# Auto-generated handles from User.save (user_ + 8 alnum, pk, or token_hex).
+_PLACEHOLDER_HANDLE = re.compile(
+    r"^user_(?:[a-z0-9]{8}|[0-9]+(?:_[0-9]+)?|[a-f0-9]{16})$",
+    re.IGNORECASE,
+)
+
+
+def is_placeholder_handle(raw: str | None) -> bool:
+    """True for auto-generated signup placeholders, not a chosen public handle."""
+    handle = normalize_handle(raw)
+    if not handle:
+        return True
+    return bool(_PLACEHOLDER_HANDLE.match(handle))
 
 
 def public_username(user) -> str:

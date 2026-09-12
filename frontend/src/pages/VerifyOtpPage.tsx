@@ -45,7 +45,7 @@ export function VerifyOtpPage() {
       if (data.me) setMeFromAuth(data.me as MeResponse);
       else await refresh();
       analytics.signupCompleted();
-      navigate("/?login_success=1", { replace: true });
+      navigate("/onboarding", { replace: true });
     } catch {
       setError("認証に失敗しました。");
     } finally {

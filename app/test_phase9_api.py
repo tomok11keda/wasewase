@@ -153,9 +153,6 @@ class AuthApiTests(TestCase):
             data=json.dumps(
                 {
                     "email": "new9@waseda.jp",
-                    "nickname": "新規",
-                    "username": "new9user",
-                    "faculty": "政治経済学部",
                     "password1": "test-pass-12345",
                     "password2": "test-pass-12345",
                     "accept_terms": True,
@@ -199,6 +196,8 @@ class AuthApiTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_active)
         self.assertTrue(verify.json()["me"]["authenticated"])
+        self.assertEqual(verify.json()["redirect"], "/app/onboarding")
+        self.assertTrue(verify.json()["me"]["onboarding_required"])
 
     def test_password_reset_flow(self):
         from django.contrib.auth.hashers import make_password

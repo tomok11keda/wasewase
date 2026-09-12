@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ensureAuthCsrf,
-  fetchSignupMeta,
   signupRequest,
 } from "../features/auth/api";
 import { EmailDeliveryHint } from "../components/EmailDeliveryHint";
@@ -11,13 +10,7 @@ import { useSession } from "../lib/session";
 export function SignupPage() {
   const { me, loading } = useSession();
   const navigate = useNavigate();
-  const [faculties, setFaculties] = useState<{ value: string; label: string }[]>(
-    []
-  );
   const [email, setEmail] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [username, setUsername] = useState("");
-  const [faculty, setFaculty] = useState("");
   const [password1, setPassword1] = useState("");
   const [password2, setPassword2] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -28,16 +21,13 @@ export function SignupPage() {
 
   useEffect(() => {
     void ensureAuthCsrf();
-    void fetchSignupMeta()
-      .then((m) => setFaculties(m.faculties || []))
-      .catch(() => setFaculties([]));
   }, []);
 
   useEffect(() => {
     if (!loading && me?.authenticated) {
-      navigate("/", { replace: true });
+      navigate(me.onboarding_required ? "/onboarding" : "/", { replace: true });
     }
-  }, [loading, me?.authenticated, navigate]);
+  }, [loading, me?.authenticated, me?.onboarding_required, navigate]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -47,9 +37,6 @@ export function SignupPage() {
     try {
       const { res, data } = await signupRequest({
         email,
-        nickname,
-        username,
-        faculty,
         password1,
         password2,
         accept_terms: acceptTerms,
@@ -98,50 +85,6 @@ export function SignupPage() {
           <p className="hint">
             @waseda.jp または @〇〇.waseda.jp のアドレスのみ登録できます。
           </p>
-
-          <label htmlFor="su-nick">ユーザー名（表示名）</label>
-          <input
-            id="su-nick"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="例：田中太郎"
-            autoComplete="nickname"
-            required
-          />
-          {err("nickname")}
-          <p className="hint">タイムラインなどに表示される名前です。</p>
-
-          <label htmlFor="su-username">@ユーザー名</label>
-          <input
-            id="su-username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="例：tanaka_taro"
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-          />
-          {err("username")}
-          <p className="hint">
-            英数字と _ のみ、3〜30文字。他のユーザーには @付きで表示されます（メールアドレスは公開されません）。
-          </p>
-
-          <label htmlFor="su-faculty">学部（わせわせ認証バッジ）</label>
-          <select
-            id="su-faculty"
-            value={faculty}
-            onChange={(e) => setFaculty(e.target.value)}
-            required
-          >
-            <option value="">学部を選択してください</option>
-            {faculties.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          {err("faculty")}
 
           <label htmlFor="su-p1">パスワード</label>
           <input

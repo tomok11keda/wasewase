@@ -160,6 +160,32 @@ class UserProfile(models.Model):
         default=False,
         help_text="true のときフォローにはリクエスト承認が必要で、投稿等は承認フォロワーのみ閲覧可。",
     )
+    ONBOARDING_STEP_PROFILE = "profile"
+    ONBOARDING_STEP_FOLLOW = "follow"
+    ONBOARDING_STEP_WELCOME = "welcome"
+    ONBOARDING_STEP_CHOICES = [
+        (ONBOARDING_STEP_PROFILE, "プロフィール"),
+        (ONBOARDING_STEP_FOLLOW, "フォロー"),
+        (ONBOARDING_STEP_WELCOME, "完了画面"),
+    ]
+    onboarding_step = models.CharField(
+        "オンボーディングの位置",
+        max_length=16,
+        choices=ONBOARDING_STEP_CHOICES,
+        default=ONBOARDING_STEP_PROFILE,
+        help_text="未完了ユーザーが再開するステップ。完了後は参照しない。",
+    )
+    onboarding_completed_at = models.DateTimeField(
+        "オンボーディング完了日時",
+        null=True,
+        blank=True,
+        help_text="Welcome CTA でセット。NULL の一般ユーザーはオンボーディング対象。",
+    )
+    onboarding_exempt = models.BooleanField(
+        "オンボーディング対象外",
+        default=False,
+        help_text="staff/superuser 以外のテストアカウントをゲートから除外する。",
+    )
 
     def __str__(self) -> str:
         label = self.name or self.user.username

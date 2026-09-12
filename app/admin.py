@@ -186,8 +186,18 @@ class UserProfileAdmin(admin.ModelAdmin):
         "has_avatar",
         "is_timetable_public",
         "is_private",
+        "onboarding_step",
+        "onboarding_completed_at",
+        "onboarding_exempt",
     )
-    list_filter = ("department", "grade", "is_timetable_public", "is_private")
+    list_filter = (
+        "department",
+        "grade",
+        "is_timetable_public",
+        "is_private",
+        "onboarding_step",
+        "onboarding_exempt",
+    )
     search_fields = ("user__username", "user__email", "name")
 
     @admin.display(boolean=True, description="画像あり")

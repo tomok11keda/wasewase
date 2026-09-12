@@ -169,9 +169,6 @@ class SignupOtpRateLimitTests(TestCase):
             **_json(
                 {
                     "email": email,
-                    "nickname": "OTP User",
-                    "username": username,
-                    "faculty": "法学部",
                     "password1": "test-pass-12345",
                     "password2": "test-pass-12345",
                     "accept_terms": True,
@@ -214,9 +211,6 @@ class SignupOtpRateLimitTests(TestCase):
     def test_signup_classic_shares_api_budget(self):
         payload = {
             "email": "share@waseda.jp",
-            "nickname": "Share",
-            "username": "otpshare2",
-            "faculty": "法学部",
             "password1": "test-pass-12345",
             "password2": "test-pass-12345",
             "accept_terms": "on",
@@ -233,7 +227,7 @@ class SignupOtpRateLimitTests(TestCase):
         self.assertEqual(blocked_api.status_code, 429)
         blocked_classic = self.client.post(
             reverse("signup"),
-            {**payload, "username": "otpshare3"},
+            payload,
         )
         self.assertEqual(blocked_classic.status_code, 429)
         self.assertContains(

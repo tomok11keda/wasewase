@@ -80,11 +80,8 @@ class TermsAcceptanceHistoryTests(TestCase):
                 reverse("signup"),
                 {
                     "email": "terms-new@waseda.jp",
-                    "nickname": "同意太郎",
-                    "username": "terms_new",
                     "password1": "newpass123",
                     "password2": "newpass123",
-                    "faculty": "法学部",
                     "accept_terms": "on",
                 },
             )

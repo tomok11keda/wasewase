@@ -39,7 +39,9 @@ import { HomePage } from "./pages/HomePage";
 import { MorePage } from "./pages/tabs";
 import { SettingsPage } from "./pages/SettingsPage";
 import { FollowRequestsPage } from "./pages/FollowRequestsPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { FollowListPage } from "./pages/FollowListPage";
+import { OnboardingGate } from "./features/onboarding/OnboardingGate";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
@@ -101,6 +103,7 @@ function AppRoutes() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="verify" element={<VerifyOtpPage />} />
+        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="password-reset" element={<PasswordResetRequestPage />} />
         <Route
           path="password-reset/verify"
@@ -110,25 +113,29 @@ function AppRoutes() {
       </Route>
 
       {diag.disableKeepAlive ? (
-        <Route element={<AppShellLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="communities" element={<CommunitiesPage />} />
-          <Route path="search" element={<SearchPage />} />
-          <Route path="flea" element={<FleaPage />} />
-          <Route path="timetable" element={<TimetablePage />} />
-          <Route path="more" element={<MorePage />} />
-          {NestedAppRoutes()}
-        </Route>
-      ) : (
-        <Route element={<AppShellLayout />}>
-          <Route element={<TabKeepAliveLayout />}>
-            <Route index element={<MainTabRoute />} />
-            <Route path="communities" element={<MainTabRoute />} />
-            <Route path="search" element={<MainTabRoute />} />
-            <Route path="flea" element={<MainTabRoute />} />
-            <Route path="timetable" element={<MainTabRoute />} />
+        <Route element={<OnboardingGate />}>
+          <Route element={<AppShellLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="communities" element={<CommunitiesPage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="flea" element={<FleaPage />} />
+            <Route path="timetable" element={<TimetablePage />} />
             <Route path="more" element={<MorePage />} />
             {NestedAppRoutes()}
+          </Route>
+        </Route>
+      ) : (
+        <Route element={<OnboardingGate />}>
+          <Route element={<AppShellLayout />}>
+            <Route element={<TabKeepAliveLayout />}>
+              <Route index element={<MainTabRoute />} />
+              <Route path="communities" element={<MainTabRoute />} />
+              <Route path="search" element={<MainTabRoute />} />
+              <Route path="flea" element={<MainTabRoute />} />
+              <Route path="timetable" element={<MainTabRoute />} />
+              <Route path="more" element={<MorePage />} />
+              {NestedAppRoutes()}
+            </Route>
           </Route>
         </Route>
       )}

@@ -20,6 +20,7 @@ from app import course_chat_api_views
 from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
+from app import onboarding_api_views
 from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
@@ -88,6 +89,31 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # React SPA (feature-flagged). Classic routes below remain the default UX.
     path("api/v1/me/", spa_views.api_v1_me, name="api_v1_me"),
+    path(
+        "api/v1/onboarding/",
+        onboarding_api_views.api_v1_onboarding,
+        name="api_v1_onboarding",
+    ),
+    path(
+        "api/v1/onboarding/profile/",
+        onboarding_api_views.api_v1_onboarding_profile,
+        name="api_v1_onboarding_profile",
+    ),
+    path(
+        "api/v1/onboarding/suggestions/",
+        onboarding_api_views.api_v1_onboarding_suggestions,
+        name="api_v1_onboarding_suggestions",
+    ),
+    path(
+        "api/v1/onboarding/follow-step/",
+        onboarding_api_views.api_v1_onboarding_follow_step,
+        name="api_v1_onboarding_follow_step",
+    ),
+    path(
+        "api/v1/onboarding/complete/",
+        onboarding_api_views.api_v1_onboarding_complete,
+        name="api_v1_onboarding_complete",
+    ),
     path(
         "api/v1/me/privacy/",
         follow_api_views.api_v1_me_privacy,

@@ -49,38 +49,6 @@ class EmailAuthenticationForm(AuthenticationForm):
 
 
 class SignUpForm(UserCreationForm):
-    nickname = forms.CharField(
-        label="ユーザー名（表示名）",
-        max_length=80,
-        required=True,
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "例：田中太郎",
-                "autocomplete": "nickname",
-            }
-        ),
-    )
-    username = forms.CharField(
-        label="@ユーザー名",
-        max_length=30,
-        min_length=3,
-        required=True,
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "例：tanaka_taro",
-                "autocomplete": "off",
-                "autocapitalize": "none",
-                "spellcheck": "false",
-            }
-        ),
-        help_text="英数字とアンダースコア（_）のみ、3〜30文字。他のユーザーに @ 付きで表示されます。",
-    )
-    faculty = forms.ChoiceField(
-        label="学部",
-        choices=[("", "学部を選択してください")] + list(FACULTY_CHOICES),
-        required=True,
-        widget=forms.Select(attrs={"id": "id_faculty"}),
-    )
     accept_terms = forms.BooleanField(
         label="利用規約とプライバシーポリシーに同意する",
         required=True,
@@ -91,45 +59,17 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("email", "username")
+        fields = ("email",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields.pop("username", None)
         self.fields["email"].widget = forms.EmailInput(
             attrs={
                 "placeholder": "example@waseda.jp",
                 "autocomplete": "email",
             }
         )
-        # UserCreationForm のデフォルト username ラベルを上書き
-        self.fields["username"].label = "@ユーザー名"
-        self.fields["username"].help_text = (
-            "英数字とアンダースコア（_）のみ、3〜30文字。他のユーザーに @ 付きで表示されます。"
-        )
-
-    def clean_nickname(self):
-        nickname = (self.cleaned_data.get("nickname") or "").strip()
-        if not nickname:
-            raise ValidationError("ユーザー名（表示名）を入力してください。")
-        return nickname
-
-    def clean_username(self):
-        email = (self.data.get("email") or "").strip().lower()
-        exclude_pk = None
-        if email:
-            pending = User.objects.filter(email__iexact=email, is_active=False).first()
-            if pending:
-                exclude_pk = pending.pk
-        return clean_unique_handle(
-            self.cleaned_data.get("username"),
-            exclude_user_pk=exclude_pk,
-        )
-
-    def clean_faculty(self):
-        faculty = self.cleaned_data.get("faculty")
-        if not faculty:
-            raise ValidationError("学部を選択してください。")
-        return faculty
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
@@ -142,22 +82,19 @@ class SignUpForm(UserCreationForm):
 
     def validate_unique(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
+        exclude = self._get_validation_exclusions() | {"username"}
         if User.objects.filter(email__iexact=email, is_active=False).exists():
-            # 未認証の仮登録は再登録を許可するため、email の unique をスキップ。
-            # username の重複は clean_username でチェック済み。
-            exclude = self._get_validation_exclusions()
-            self.instance.email = self.cleaned_data.get("email", self.instance.email)
-            try:
-                self.instance.validate_unique(exclude=exclude | {"email", "username"})
-            except ValidationError as e:
-                self._update_errors(e)
-            return
-        super().validate_unique()
+            exclude = exclude | {"email"}
+        self.instance.email = self.cleaned_data.get("email", self.instance.email)
+        try:
+            self.instance.validate_unique(exclude=exclude)
+        except ValidationError as e:
+            self._update_errors(e)
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data["email"].strip().lower()
-        user.username = self.cleaned_data["username"]
+        user.username = ""
         user.is_active = False
         if commit:
             user.save()

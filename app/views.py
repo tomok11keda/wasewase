@@ -1944,16 +1944,12 @@ def _signup_form_errors_message(form) -> str:
 def _persist_signup_user(form):
     """新規または認証待ちユーザーを保存し、プロフィールを更新する。"""
     email = form.cleaned_data["email"]
-    faculty = form.cleaned_data["faculty"]
     password = form.cleaned_data["password1"]
-    nickname = form.cleaned_data["nickname"]
-    username = form.cleaned_data["username"]
 
     pending = User.objects.filter(email__iexact=email, is_active=False).first()
     if pending:
         pending.set_password(password)
-        pending.username = username
-        pending.save(update_fields=["password", "username"])
+        pending.save(update_fields=["password"])
         user = pending
     else:
         user = form.save()
@@ -1961,8 +1957,6 @@ def _persist_signup_user(form):
     UserProfile.objects.update_or_create(
         user=user,
         defaults={
-            "department": faculty,
-            "name": nickname,
             **terms_acceptance_defaults(),
         },
     )
@@ -2092,6 +2086,10 @@ def verify_otp(request):
                 messages.success(
                     request, "メール認証が完了しました。ようこそ、わせわせへ！"
                 )
+                from .spa_canonical import app_absolute, spa_enabled
+
+                if spa_enabled():
+                    return redirect(app_absolute("/onboarding"))
                 return redirect(reverse("home") + "?login_success=1")
         else:
             _log_auth_debug(
