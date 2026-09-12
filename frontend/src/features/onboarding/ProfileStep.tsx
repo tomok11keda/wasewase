@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ImagePickField } from "../../components/ImagePickField";
 import type { OnboardingProfile } from "./api";
 import { saveOnboardingProfile } from "./api";
@@ -32,6 +24,7 @@ function normalizeHandle(raw: string) {
 
 export function ProfileStep({ profile, faculties, onDone }: Props) {
   const [slide, setSlide] = useState(0);
+  const [motion, setMotion] = useState<"none" | "forward" | "back">("none");
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(
     profile.username_is_placeholder ? "" : profile.username
@@ -42,20 +35,6 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [paneWidth, setPaneWidth] = useState(0);
-
-  useLayoutEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const measure = () => {
-      setPaneWidth(el.clientWidth);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   const previewUrl = useMemo(
     () => (avatar ? URL.createObjectURL(avatar) : null),
@@ -70,23 +49,17 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
 
   const avatarSrc = previewUrl || profile.avatar_url || "";
   const fieldError = (key: string) => fieldErrors[key]?.[0] || null;
-  const paneStyle: CSSProperties | undefined =
-    paneWidth > 0
-      ? { width: paneWidth, flexBasis: paneWidth, minWidth: paneWidth, maxWidth: paneWidth }
-      : undefined;
-  const trackStyle: CSSProperties | undefined =
-    paneWidth > 0
-      ? {
-          width: paneWidth * SLIDE_COUNT,
-          transform: `translate3d(-${slide * paneWidth}px, 0, 0)`,
-        }
-      : undefined;
 
   useEffect(() => {
     if (slide === 0) document.getElementById("ob-name")?.focus();
     if (slide === 1) document.getElementById("ob-username")?.focus();
     if (slide === 2) document.getElementById("ob-faculty")?.focus();
   }, [slide]);
+
+  const goTo = (next: number) => {
+    setMotion(next > slide ? "forward" : "back");
+    setSlide(next);
+  };
 
   const validateSlide = (index: number): Record<string, string[]> => {
     if (index === 0) {
@@ -129,7 +102,7 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
         setFieldErrors(errors);
         setError("入力内容を確認してください。");
         const firstKey = Object.keys(errors).find((key) => ERROR_SLIDE[key] != null);
-        if (firstKey) setSlide(ERROR_SLIDE[firstKey]);
+        if (firstKey) goTo(ERROR_SLIDE[firstKey]);
         return;
       }
       onDone();
@@ -152,7 +125,7 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
     setFieldErrors({});
     setError(null);
     if (slide < SLIDE_COUNT - 1) {
-      setSlide(slide + 1);
+      goTo(slide + 1);
       return;
     }
     void submitProfile();
@@ -163,7 +136,7 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
     setFieldErrors({});
     setError(null);
     setPhotoPickerOpen(false);
-    setSlide(slide - 1);
+    goTo(slide - 1);
   };
 
   const skipAvatar = () => {
@@ -179,6 +152,104 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
 
   const err = (key: string) =>
     fieldError(key) ? <p className="field-error">{fieldError(key)}</p> : null;
+
+  let body: ReactNode = null;
+  if (slide === 0) {
+    body = (
+      <>
+        <h1 className="onboarding-question">WaseWaseで使う名前は？</h1>
+        <label className="visually-hidden" htmlFor="ob-name">
+          表示名
+        </label>
+        <input
+          id="ob-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="例：田中太郎"
+          autoComplete="nickname"
+          maxLength={80}
+        />
+        {err("name")}
+      </>
+    );
+  } else if (slide === 1) {
+    body = (
+      <>
+        <h1 className="onboarding-question">ユーザーネームを決めよう</h1>
+        <label className="visually-hidden" htmlFor="ob-username">
+          ユーザーネーム
+        </label>
+        <div className="onboarding-handle">
+          <span className="onboarding-handle-at" aria-hidden="true">
+            @
+          </span>
+          <input
+            id="ob-username"
+            value={username}
+            onChange={(e) => setUsername(normalizeHandle(e.target.value))}
+            placeholder="tanaka_taro"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+          />
+        </div>
+        {err("username")}
+        <p className="onboarding-note">
+          英数字と _ のみ、3〜30文字。他の早稲田生から見える、公開ユーザーネームです。
+        </p>
+      </>
+    );
+  } else if (slide === 2) {
+    body = (
+      <>
+        <h1 className="onboarding-question">学部を教えてください</h1>
+        <label className="visually-hidden" htmlFor="ob-faculty">
+          学部
+        </label>
+        <select
+          id="ob-faculty"
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+        >
+          <option value="">学部を選択</option>
+          {faculties.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        {err("department")}
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <h1 className="onboarding-question">プロフィール写真を追加しよう</h1>
+        <div
+          className={`onboarding-avatar-btn${avatarSrc ? "" : " is-empty"}`}
+          aria-hidden="true"
+        >
+          {avatarSrc ? <img src={avatarSrc} alt="" /> : <span>+</span>}
+        </div>
+        <button
+          type="button"
+          className="onboarding-photo-add"
+          onClick={() => setPhotoPickerOpen((open) => !open)}
+        >
+          写真を追加
+        </button>
+        <ImagePickField
+          id="ob-avatar"
+          value={avatar}
+          onChange={onAvatarChange}
+          disabled={busy || !photoPickerOpen}
+          hint="JPEG / PNG / GIF / WebP、5MB以下。あとからでも設定できます。"
+          allowClear={Boolean(avatar)}
+        />
+        {err("avatar")}
+      </>
+    );
+  }
 
   return (
     <div className="onboarding-wizard">
@@ -212,146 +283,19 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
 
       {error ? <p className="field-error">{error}</p> : null}
 
-      <div className="onboarding-slides" ref={viewportRef}>
-        <div className="onboarding-track" style={trackStyle}>
-          <section
-            className="onboarding-pane"
-            aria-hidden={slide !== 0}
-            style={paneStyle}
-          >
-            <form onSubmit={goNext}>
-              <div className="onboarding-pane-body">
-                <h1 className="onboarding-question">WaseWaseで使う名前は？</h1>
-                <label className="visually-hidden" htmlFor="ob-name">
-                  表示名
-                </label>
-                <input
-                  id="ob-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="例：田中太郎"
-                  autoComplete="nickname"
-                  maxLength={80}
-                  tabIndex={slide === 0 ? 0 : -1}
-                />
-                {err("name")}
-              </div>
-              <button type="submit" className="btn onboarding-cta" disabled={busy}>
-                次へ
-              </button>
-            </form>
-          </section>
-
-          <section
-            className="onboarding-pane"
-            aria-hidden={slide !== 1}
-            style={paneStyle}
-          >
-            <form onSubmit={goNext}>
-              <div className="onboarding-pane-body">
-                <h1 className="onboarding-question">ユーザーネームを決めよう</h1>
-                <label className="visually-hidden" htmlFor="ob-username">
-                  ユーザーネーム
-                </label>
-                <div className="onboarding-handle">
-                  <span className="onboarding-handle-at" aria-hidden="true">
-                    @
-                  </span>
-                  <input
-                    id="ob-username"
-                    value={username}
-                    onChange={(e) => setUsername(normalizeHandle(e.target.value))}
-                    placeholder="tanaka_taro"
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    tabIndex={slide === 1 ? 0 : -1}
-                  />
-                </div>
-                {err("username")}
-                <p className="onboarding-note">
-                  英数字と _ のみ、3〜30文字。他の早稲田生から見える、公開ユーザーネームです。
-                </p>
-              </div>
-              <button type="submit" className="btn onboarding-cta" disabled={busy}>
-                次へ
-              </button>
-            </form>
-          </section>
-
-          <section
-            className="onboarding-pane"
-            aria-hidden={slide !== 2}
-            style={paneStyle}
-          >
-            <form onSubmit={goNext}>
-              <div className="onboarding-pane-body">
-                <h1 className="onboarding-question">学部を教えてください</h1>
-                <label className="visually-hidden" htmlFor="ob-faculty">
-                  学部
-                </label>
-                <select
-                  id="ob-faculty"
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  tabIndex={slide === 2 ? 0 : -1}
-                >
-                  <option value="">学部を選択</option>
-                  {faculties.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-                {err("department")}
-              </div>
-              <button type="submit" className="btn onboarding-cta" disabled={busy}>
-                次へ
-              </button>
-            </form>
-          </section>
-
-          <section
-            className={`onboarding-pane onboarding-avatar-step${
-              photoPickerOpen ? " is-picking" : ""
-            }`}
-            aria-hidden={slide !== 3}
-            style={paneStyle}
-          >
-            <form onSubmit={goNext}>
-              <div className="onboarding-pane-body">
-                <h1 className="onboarding-question">プロフィール写真を追加しよう</h1>
-                <div
-                  className={`onboarding-avatar-btn${avatarSrc ? "" : " is-empty"}`}
-                  aria-hidden="true"
-                >
-                  {avatarSrc ? (
-                    <img src={avatarSrc} alt="" />
-                  ) : (
-                    <span>+</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="onboarding-photo-add"
-                  onClick={() => setPhotoPickerOpen((open) => !open)}
-                  tabIndex={slide === 3 ? 0 : -1}
-                >
-                  写真を追加
-                </button>
-                <ImagePickField
-                  id="ob-avatar"
-                  value={avatar}
-                  onChange={onAvatarChange}
-                  disabled={busy || slide !== 3 || !photoPickerOpen}
-                  hint="JPEG / PNG / GIF / WebP、5MB以下。あとからでも設定できます。"
-                  allowClear={Boolean(avatar)}
-                />
-                {err("avatar")}
-              </div>
-              <button type="submit" className="btn onboarding-cta" disabled={busy}>
-                次へ
-              </button>
+      <div className="onboarding-slides">
+        <section
+          key={slide}
+          className={`onboarding-pane${motion !== "none" ? ` is-${motion}` : ""}${
+            slide === 3 ? " onboarding-avatar-step" : ""
+          }${slide === 3 && photoPickerOpen ? " is-picking" : ""}`}
+        >
+          <form onSubmit={goNext}>
+            <div className="onboarding-pane-body">{body}</div>
+            <button type="submit" className="btn onboarding-cta" disabled={busy}>
+              次へ
+            </button>
+            {slide === 3 ? (
               <p className="onboarding-skip-wrap">
                 <button
                   type="button"
@@ -362,9 +306,9 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
                   今はスキップ
                 </button>
               </p>
-            </form>
-          </section>
-        </div>
+            ) : null}
+          </form>
+        </section>
       </div>
     </div>
   );

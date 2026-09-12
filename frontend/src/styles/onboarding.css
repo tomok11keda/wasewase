@@ -91,37 +91,52 @@
 
 .onboarding-slides {
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  touch-action: pan-y;
-  transform: translateZ(0);
-}
-
-.onboarding-track {
-  display: flex;
-  flex-wrap: nowrap;
-  height: 100%;
-  width: 100%;
-  transition: transform 280ms ease;
-  will-change: transform;
 }
 
 .onboarding-pane {
   box-sizing: border-box;
-  flex: 0 0 100%;
+  display: block;
   width: 100%;
-  min-width: 100%;
   max-width: 100%;
   padding: 0 4px;
   overflow-x: hidden;
 }
 
-.onboarding-pane[aria-hidden="true"] {
-  pointer-events: none;
+.onboarding-pane.is-forward {
+  animation: onboarding-in-forward 220ms ease;
+}
+
+.onboarding-pane.is-back {
+  animation: onboarding-in-back 220ms ease;
+}
+
+@keyframes onboarding-in-forward {
+  from {
+    opacity: 0.4;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes onboarding-in-back {
+  from {
+    opacity: 0.4;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .onboarding-pane form {
@@ -323,8 +338,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-track {
-    transition: none;
+  .onboarding-pane.is-forward,
+  .onboarding-pane.is-back {
+    animation: none;
   }
 }
 
