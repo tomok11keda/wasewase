@@ -63,7 +63,7 @@ export function OnboardingPage() {
       <div
         className={`form-card onboarding-card${
           step === "profile" ? " is-wizard" : ""
-        }`}
+        }${step === "welcome" ? " is-welcome" : ""}`}
       >
         {error ? <p className="field-error">{error}</p> : null}
         {!status ? <p>読み込み中…</p> : null}

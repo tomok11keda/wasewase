@@ -292,21 +292,23 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
         >
           <form onSubmit={goNext}>
             <div className="onboarding-pane-body">{body}</div>
-            <button type="submit" className="btn onboarding-cta" disabled={busy}>
-              次へ
-            </button>
-            {slide === 3 ? (
-              <p className="onboarding-skip-wrap">
-                <button
-                  type="button"
-                  className="onboarding-skip"
-                  disabled={busy}
-                  onClick={skipAvatar}
-                >
-                  今はスキップ
-                </button>
-              </p>
-            ) : null}
+            <div className="onboarding-pane-footer">
+              <button type="submit" className="btn onboarding-cta" disabled={busy}>
+                次へ
+              </button>
+              {slide === 3 ? (
+                <p className="onboarding-skip-wrap">
+                  <button
+                    type="button"
+                    className="onboarding-skip"
+                    disabled={busy}
+                    onClick={skipAvatar}
+                  >
+                    今はスキップ
+                  </button>
+                </p>
+              ) : null}
+            </div>
           </form>
         </section>
       </div>
