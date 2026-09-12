@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { ImagePickField } from "../../components/ImagePickField";
 import type { OnboardingProfile } from "./api";
 import { saveOnboardingProfile } from "./api";
@@ -34,6 +42,20 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [paneWidth, setPaneWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const measure = () => {
+      setPaneWidth(el.clientWidth);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const previewUrl = useMemo(
     () => (avatar ? URL.createObjectURL(avatar) : null),
@@ -48,6 +70,17 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
 
   const avatarSrc = previewUrl || profile.avatar_url || "";
   const fieldError = (key: string) => fieldErrors[key]?.[0] || null;
+  const paneStyle: CSSProperties | undefined =
+    paneWidth > 0
+      ? { width: paneWidth, flexBasis: paneWidth, minWidth: paneWidth, maxWidth: paneWidth }
+      : undefined;
+  const trackStyle: CSSProperties | undefined =
+    paneWidth > 0
+      ? {
+          width: paneWidth * SLIDE_COUNT,
+          transform: `translate3d(-${slide * paneWidth}px, 0, 0)`,
+        }
+      : undefined;
 
   useEffect(() => {
     if (slide === 0) document.getElementById("ob-name")?.focus();
@@ -179,12 +212,13 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
 
       {error ? <p className="field-error">{error}</p> : null}
 
-      <div className="onboarding-slides">
-        <div
-          className="onboarding-track"
-          style={{ transform: `translateX(-${slide * 100}%)` }}
-        >
-          <section className="onboarding-pane" aria-hidden={slide !== 0}>
+      <div className="onboarding-slides" ref={viewportRef}>
+        <div className="onboarding-track" style={trackStyle}>
+          <section
+            className="onboarding-pane"
+            aria-hidden={slide !== 0}
+            style={paneStyle}
+          >
             <form onSubmit={goNext}>
               <div className="onboarding-pane-body">
                 <h1 className="onboarding-question">WaseWaseで使う名前は？</h1>
@@ -208,7 +242,11 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
             </form>
           </section>
 
-          <section className="onboarding-pane" aria-hidden={slide !== 1}>
+          <section
+            className="onboarding-pane"
+            aria-hidden={slide !== 1}
+            style={paneStyle}
+          >
             <form onSubmit={goNext}>
               <div className="onboarding-pane-body">
                 <h1 className="onboarding-question">ユーザーネームを決めよう</h1>
@@ -241,7 +279,11 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
             </form>
           </section>
 
-          <section className="onboarding-pane" aria-hidden={slide !== 2}>
+          <section
+            className="onboarding-pane"
+            aria-hidden={slide !== 2}
+            style={paneStyle}
+          >
             <form onSubmit={goNext}>
               <div className="onboarding-pane-body">
                 <h1 className="onboarding-question">学部を教えてください</h1>
@@ -274,6 +316,7 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
               photoPickerOpen ? " is-picking" : ""
             }`}
             aria-hidden={slide !== 3}
+            style={paneStyle}
           >
             <form onSubmit={goNext}>
               <div className="onboarding-pane-body">
