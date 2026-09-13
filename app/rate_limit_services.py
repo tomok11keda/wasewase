@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser
@@ -143,7 +144,8 @@ AUTH_LOGIN_ID_LIMIT = 10
 AUTH_LOGIN_ID_WINDOW = 600
 
 AUTH_LOGIN_IP_SCOPE = "auth_login_ip"
-AUTH_LOGIN_IP_LIMIT = 40
+# Campus NAT / launch: many students may share one public IP.
+AUTH_LOGIN_IP_LIMIT = 200
 AUTH_LOGIN_IP_WINDOW = 600
 
 AUTH_SIGNUP_OTP_EMAIL_SCOPE = "auth_signup_otp_email"
@@ -155,7 +157,9 @@ AUTH_SIGNUP_OTP_EMAIL_HOUR_LIMIT = 5
 AUTH_SIGNUP_OTP_EMAIL_HOUR_WINDOW = 3600
 
 AUTH_SIGNUP_OTP_IP_SCOPE = "auth_signup_otp_ip"
-AUTH_SIGNUP_OTP_IP_LIMIT = 15
+# Per-email limits stay tight. IP cap must allow a campus NAT launch spike
+# (100+ signups / 10 min) without becoming a global ceiling on Render.
+AUTH_SIGNUP_OTP_IP_LIMIT = 250
 AUTH_SIGNUP_OTP_IP_WINDOW = 600
 
 AUTH_RESET_OTP_EMAIL_SCOPE = "auth_reset_otp_email"
@@ -171,7 +175,7 @@ AUTH_OTP_VERIFY_ID_LIMIT = 20
 AUTH_OTP_VERIFY_ID_WINDOW = 600
 
 AUTH_OTP_VERIFY_IP_SCOPE = "auth_otp_verify_ip"
-AUTH_OTP_VERIFY_IP_LIMIT = 40
+AUTH_OTP_VERIFY_IP_LIMIT = 400
 AUTH_OTP_VERIFY_IP_WINDOW = 600
 
 
@@ -197,12 +201,79 @@ def auth_identifier_digest(value: str | None) -> str:
     return digest
 
 
+def _normalize_ip_token(token: str | None) -> str | None:
+    """Return a canonical IPv4/IPv6 string, or None if the token is not an IP."""
+    value = (token or "").strip().strip('"').strip("'")
+    if not value:
+        return None
+    if value.startswith("[") and "]" in value:
+        value = value[1 : value.find("]")]
+    elif value.count(":") == 1:
+        host, port = value.rsplit(":", 1)
+        if port.isdigit():
+            value = host
+    try:
+        ip = ipaddress.ip_address(value)
+    except ValueError:
+        return None
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        return str(mapped)
+    return str(ip)
+
+
+def _client_ip_from_cf_connecting(raw: str | None) -> str | None:
+    """Cloudflare edge header: exactly one IP. Ignore lists and junk."""
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    if not value or "," in value:
+        return None
+    return _normalize_ip_token(value)
+
+
+def _client_ip_from_forwarded_for(raw: str | None) -> str | None:
+    """Render fallback: FIRST / LEFTMOST X-Forwarded-For entry only.
+
+    Do not walk later hops if the first token is malformed — those are
+    typically Cloudflare/Render proxy IPs.
+    """
+    if not raw:
+        return None
+    first = str(raw).split(",", 1)[0]
+    return _normalize_ip_token(first)
+
+
+def _trust_proxy_client_ip() -> bool:
+    """Trust CF / XFF only behind Render's proxy."""
+    return bool(getattr(settings, "RENDER_EXTERNAL_HOSTNAME", "") or "")
+
+
 def client_ip(request: HttpRequest | None) -> str:
-    """REMOTE_ADDR only. Do not trust client-controlled forwarded headers."""
+    """Client IP for auth rate-limit keys.
+
+    Direct / non-Render: REMOTE_ADDR only.
+    Render (RENDER_EXTERNAL_HOSTNAME set):
+      1. CF-Connecting-IP (single valid IP)
+      2. leftmost X-Forwarded-For token
+      3. REMOTE_ADDR
+    Malformed headers never raise and never select a later XFF hop.
+    """
     if request is None:
         return "unknown"
-    raw = (request.META.get("REMOTE_ADDR") or "").strip()
-    return raw or "unknown"
+    remote_raw = (request.META.get("REMOTE_ADDR") or "").strip()
+    remote = _normalize_ip_token(remote_raw) or remote_raw or "unknown"
+    if not _trust_proxy_client_ip():
+        return remote
+    cf_ip = _client_ip_from_cf_connecting(
+        request.META.get("HTTP_CF_CONNECTING_IP")
+    )
+    if cf_ip:
+        return cf_ip
+    forwarded = _client_ip_from_forwarded_for(
+        request.META.get("HTTP_X_FORWARDED_FOR")
+    )
+    return forwarded or remote
 
 
 def _allow_keyed(scope: str, token: str, *, limit: int, window: int) -> bool:

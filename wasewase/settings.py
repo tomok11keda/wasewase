@@ -516,6 +516,8 @@ class UnverifiedTTLEmailBackend(DjangoSMTPBackend):
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+# Fail signup SMTP before Gunicorn's 30s worker timeout (single sync worker).
+EMAIL_TIMEOUT = 10
 
 EMAIL_USE_BUILTIN_GMAIL = WASE_USE_BUILTIN_GMAIL
 

@@ -89,9 +89,28 @@ def generate_otp_code() -> str:
     return "".join(str(secrets.randbelow(10)) for _ in range(OTP_LENGTH))
 
 
+def _otp_row_snapshot(otp) -> dict:
+    return {
+        "code_hash": otp.code_hash,
+        "expires_at": otp.expires_at,
+        "failed_attempts": otp.failed_attempts,
+    }
+
+
+def _restore_otp_after_send_failure(model, user, snapshot: dict | None) -> None:
+    """SMTP 失敗時に未送信コードを残さない。既存コードがあれば復元する。"""
+    if snapshot is None:
+        model.objects.filter(user=user).delete()
+        return
+    model.objects.filter(user=user).update(**snapshot)
+
+
 def create_and_send_signup_otp(user) -> str:
     """OTPを生成・保存しメール送信する。戻り値は平文コード（テスト用）。"""
     assert_email_configured()
+
+    previous = SignupOTP.objects.filter(user=user).first()
+    snapshot = _otp_row_snapshot(previous) if previous is not None else None
 
     code = generate_otp_code()
     expires_at = timezone.now() + timedelta(minutes=OTP_VALID_MINUTES)
@@ -133,23 +152,25 @@ def create_and_send_signup_otp(user) -> str:
             recipient_list=[recipient],
             fail_silently=False,
         )
-    except UnicodeEncodeError as exc:
+    except UnicodeEncodeError as extra:
         logger.exception("UnicodeEncodeError while sending OTP for user_id=%s", user.pk)
         if settings.DEBUG:
             traceback.print_exc()
+        _restore_otp_after_send_failure(SignupOTP, user, snapshot)
         raise EmailConfigurationError(
             "メール送信時に文字コードエラーが発生しました。"
             " 環境変数に日本語のプレースホルダーが残っていないか確認してください。"
-        ) from exc
-    except Exception as exc:
+        ) from extra
+    except Exception as extra:
         logger.exception("SMTP send failed for signup OTP user_id=%s", user.pk)
         if settings.DEBUG:
             print(
-                f"[WASE EMAIL SEND FAILED] to={recipient} error={exc}",
+                f"[WASE EMAIL SEND FAILED] to={recipient} error={extra}",
                 file=sys.stderr,
                 flush=True,
             )
             traceback.print_exc()
+        _restore_otp_after_send_failure(SignupOTP, user, snapshot)
         raise
 
     logger.info("Signup OTP sent for user_id=%s", user.pk)
@@ -202,6 +223,9 @@ def create_and_send_password_reset_otp(user) -> str:
     """パスワード再設定 OTP を生成・保存しメール送信する。戻り値は平文コード（テスト用）。"""
     assert_email_configured()
 
+    previous = PasswordResetOTP.objects.filter(user=user).first()
+    snapshot = _otp_row_snapshot(previous) if previous is not None else None
+
     code = generate_otp_code()
     expires_at = timezone.now() + timedelta(minutes=OTP_VALID_MINUTES)
     PasswordResetOTP.objects.update_or_create(
@@ -243,28 +267,30 @@ def create_and_send_password_reset_otp(user) -> str:
             recipient_list=[recipient],
             fail_silently=False,
         )
-    except UnicodeEncodeError as exc:
+    except UnicodeEncodeError as extra:
         logger.exception(
             "UnicodeEncodeError while sending password reset OTP for user_id=%s",
             user.pk,
         )
         if settings.DEBUG:
             traceback.print_exc()
+        _restore_otp_after_send_failure(PasswordResetOTP, user, snapshot)
         raise EmailConfigurationError(
             "メール送信時に文字コードエラーが発生しました。"
             " 環境変数に日本語のプレースホルダーが残っていないか確認してください。"
-        ) from exc
-    except Exception as exc:
+        ) from extra
+    except Exception as extra:
         logger.exception(
             "SMTP send failed for password reset OTP user_id=%s", user.pk
         )
         if settings.DEBUG:
             print(
-                f"[WASE EMAIL SEND FAILED] to={recipient} error={exc}",
+                f"[WASE EMAIL SEND FAILED] to={recipient} error={extra}",
                 file=sys.stderr,
                 flush=True,
             )
             traceback.print_exc()
+        _restore_otp_after_send_failure(PasswordResetOTP, user, snapshot)
         raise
 
     logger.info("Password reset OTP sent for user_id=%s", user.pk)
