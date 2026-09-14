@@ -84,9 +84,6 @@
         {% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
         <button type="submit" class="btn">ログイン</button>
       </form>
-      <p class="footer-link browse-cta">
-        <a href="{% url 'enter_browse_mode' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">ログインせずに閲覧モードで始める（受験生の方など）</a>
-      </p>
       <p class="footer-link"><a href="{% url 'password_reset_request' %}">パスワードを忘れた方はこちら</a></p>
       <p class="footer-link">アカウントをお持ちでない方は <a href="{% url 'signup' %}">新規登録</a></p>
     </div>

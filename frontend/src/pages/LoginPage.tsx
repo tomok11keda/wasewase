@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
-import {
-  browseRequest,
-  ensureAuthCsrf,
-  loginRequest,
-} from "../features/auth/api";
+import { ensureAuthCsrf, loginRequest } from "../features/auth/api";
 import { analytics } from "../lib/analytics/events";
 import type { MeResponse } from "../lib/api";
 
@@ -92,22 +88,6 @@ export function LoginPage() {
     }
   };
 
-  const onBrowse = async () => {
-    setBusy(true);
-    try {
-      const { data } = await browseRequest(next);
-      skipQueryNextRedirect.current = true;
-      if (data.me) setMeFromAuth(data.me as MeResponse);
-      else await refresh();
-      const redirect = (data.redirect as string) || "/app/";
-      goAfterAuth(redirect, navigate);
-    } catch {
-      setError("閲覧モードの開始に失敗しました。");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <main className="main-inner" data-spa-page="ログイン">
       <div className="form-card">
@@ -137,16 +117,6 @@ export function LoginPage() {
             ログイン
           </button>
         </form>
-        <p className="footer-link browse-cta">
-          <button
-            type="button"
-            className="linkish"
-            disabled={busy}
-            onClick={() => void onBrowse()}
-          >
-            ログインせずに閲覧モードで始める（受験生の方など）
-          </button>
-        </p>
         <p className="footer-link">
           <Link to="/password-reset">パスワードを忘れた方はこちら</Link>
         </p>
