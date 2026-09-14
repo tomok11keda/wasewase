@@ -460,6 +460,12 @@
     gap: 6px 8px;
   }
 
+  /* OP has avatar + main only; keep 2 columns so the later
+     3-column .forum-post rule above does not squeeze body into ~28px. */
+  .forum-post--op {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
   .forum-post__avatar {
     width: 28px;
     height: 28px;
