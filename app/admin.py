@@ -64,9 +64,16 @@ def restore_removed(modeladmin, request, queryset):
 
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
-    list_display = ("email", "username", "is_staff", "is_active")
+    list_display = (
+        "email",
+        "username",
+        "date_joined",
+        "last_login",
+        "is_staff",
+        "is_active",
+    )
     search_fields = ("email", "username")
-    ordering = ("email",)
+    ordering = ("-date_joined",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (
