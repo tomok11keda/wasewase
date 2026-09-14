@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import {
   fetchFleaList,
   type FilterTab,
@@ -8,6 +8,7 @@ import {
 } from "../features/flea/api";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 
@@ -44,7 +45,8 @@ function ProductGridCard({ product }: { product: ProductCard }) {
 }
 
 export function FleaPage() {
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const [searchParams, setSearchParams] = useSearchParams();
   const feed = searchParams.get("feed") || "all";
   const qParam = searchParams.get("q") || "";
@@ -79,6 +81,14 @@ export function FleaPage() {
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      if (browsePreview) {
+        setProducts([]);
+        setCampusTabs([]);
+        setOrderOptions([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
@@ -104,12 +114,13 @@ export function FleaPage() {
         setLoading(false);
       }
     },
-    [feed, qParam, faculty, campus, order]
+    [feed, qParam, faculty, campus, order, browsePreview]
   );
 
   useEffect(() => {
+    if (sessionLoading) return;
     void load(hasDataRef.current ? "soft" : "initial");
-  }, [load]);
+  }, [sessionLoading, load]);
 
   useEffect(() => {
     analytics.fleaViewed();
@@ -252,6 +263,10 @@ export function FleaPage() {
 
         {loading && products.length === 0 ? (
           <p className="empty-message">読み込み中…</p>
+        ) : browsePreview ? (
+          <BrowsePreviewNotice nextPath="/app/flea">
+            フリマの出品はログイン後に表示されます。
+          </BrowsePreviewNotice>
         ) : error && products.length === 0 ? (
           <p className="empty-message">読み込みに失敗しました（{error}）</p>
         ) : products.length ? (

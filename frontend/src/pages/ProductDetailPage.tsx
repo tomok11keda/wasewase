@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookmarkButton } from "../components/BookmarkButton";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import {
   deleteProduct,
   fetchProductDetail,
@@ -16,13 +16,15 @@ import {
   type ProductDetail,
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { analytics } from "../lib/analytics/events";
 
 export function ProductDetailPage() {
   const { pk } = useParams();
   const productId = Number(pk);
   const navigate = useNavigate();
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +55,15 @@ export function ProductDetailPage() {
   }, [productId]);
 
   useEffect(() => {
+    if (sessionLoading) return;
+    if (browsePreview) {
+      setProduct(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [sessionLoading, browsePreview, load]);
 
   useEffect(() => {
     if (!product) return;
@@ -235,6 +244,21 @@ export function ProductDetailPage() {
       setBusy(false);
     }
   };
+
+  if (browsePreview) {
+    return (
+      <div className="product-detail-page" data-spa-page="フリマ">
+        <div className="main-inner">
+          <Link className="back-link" to="/flea">
+            ← フリマへ戻る
+          </Link>
+          <BrowsePreviewNotice nextPath={`/app/flea/products/${productId}`}>
+            出品の詳細はログイン後に表示されます。
+          </BrowsePreviewNotice>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

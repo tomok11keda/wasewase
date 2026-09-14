@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createTimelinePost,
   fetchQuotable,
@@ -24,6 +25,7 @@ import { analytics } from "../lib/analytics/events";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = useActiveMainTab();
@@ -198,6 +200,14 @@ export function HomePage() {
   }, [composeOpen]);
   const loadInitial = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      if (browsePreview) {
+        setPosts([]);
+        setHasMore(false);
+        setNextOffset(0);
+        setError(null);
+        setLoading(false);
+        return;
+      }
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
@@ -219,12 +229,13 @@ export function HomePage() {
         setLoading(false);
       }
     },
-    [sort, faculty, qParam]
+    [sort, faculty, qParam, browsePreview]
   );
 
   useEffect(() => {
+    if (sessionLoading) return;
     void loadInitial(hasDataRef.current ? "soft" : "initial");
-  }, [loadInitial]);
+  }, [sessionLoading, loadInitial]);
 
   useSoftTabRefetch("home", () => loadInitial("soft"));
 
@@ -234,7 +245,7 @@ export function HomePage() {
   }, [loading, posts.length]);
 
   useEffect(() => {
-    if (!hasMore || loading || loadingMore) return;
+    if (browsePreview || !hasMore || loading || loadingMore) return;
     const el = sentinelRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
@@ -266,7 +277,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
+  }, [browsePreview, sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -424,6 +435,10 @@ export function HomePage() {
       )}
       {sessionLoading || (loading && posts.length === 0) ? (
         <p className="empty-message">読み込み中…</p>
+      ) : browsePreview ? (
+        <BrowsePreviewNotice nextPath="/app/">
+          タイムラインはログイン後に表示されます。
+        </BrowsePreviewNotice>
       ) : error && posts.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : posts.length === 0 ? (

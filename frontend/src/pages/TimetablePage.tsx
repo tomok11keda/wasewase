@@ -6,8 +6,9 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   emptyEntry,
   fetchOwnSlots,
@@ -102,6 +103,7 @@ export function TimetablePage({
   const userPk = overrideUserPk != null ? String(overrideUserPk) : routeUserPk;
   const viewingOther = Boolean(userPk);
   const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const [slots, setSlots] = useState<SlotsMap>({});
   const [isPublic, setIsPublic] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
@@ -142,6 +144,15 @@ export function TimetablePage({
       setError(null);
       try {
         if (viewingOther && userPk) {
+          if (!me?.authenticated) {
+            setSlots({});
+            setIsPublic(false);
+            setReadOnly(true);
+            setTitle("時間割");
+            readyRef.current = true;
+            setReady(true);
+            return;
+          }
           const data = await fetchUserSlots(Number(userPk));
           if (data.is_own && !embedded) {
             navigate("/timetable", { replace: true });
@@ -467,6 +478,20 @@ export function TimetablePage({
               </button>
             ))}
           </nav>
+        ) : null}
+
+        {browsePreview ? (
+          <BrowsePreviewNotice
+            nextPath={
+              viewingOther && userPk
+                ? `/app/timetable/user/${userPk}`
+                : "/app/timetable"
+            }
+          >
+            {viewingOther
+              ? "他の人の時間割はログイン後に表示されます。"
+              : "時間割の保存と授業情報はログイン後に利用できます。"}
+          </BrowsePreviewNotice>
         ) : null}
 
         {(loading || sessionLoading) && !ready ? (

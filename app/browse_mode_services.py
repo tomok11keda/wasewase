@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from django.http import HttpRequest
+from django.http import HttpRequest, JsonResponse
 
 BROWSE_MODE_SESSION_KEY = "browse_mode"
 
@@ -32,6 +32,34 @@ BROWSE_MODE_ALLOW_PREFIXES = (
     "/api/v1/me",
 )
 
+# Browse Mode 中に呼べる API。これ以外の /api/* は学生データとして 401。
+BROWSE_MODE_API_ALLOW_PREFIXES = (
+    "/api/v1/auth",
+    "/api/v1/me",
+    "/api/v1/courses/meta",
+)
+
+
+def unauthorized_json_response() -> JsonResponse:
+    return JsonResponse(
+        {
+            "ok": False,
+            "error": "unauthorized",
+            "message": "authentication_required",
+        },
+        status=401,
+    )
+
+
+def _path_matches_prefixes(path: str, prefixes: tuple[str, ...]) -> bool:
+    path = path or "/"
+    normalized = path.rstrip("/") or "/"
+    for prefix in prefixes:
+        base = prefix.rstrip("/") or "/"
+        if normalized == base or normalized.startswith(base + "/"):
+            return True
+    return False
+
 
 def is_browse_mode(request: HttpRequest) -> bool:
     user = getattr(request, "user", None)
@@ -52,12 +80,19 @@ def clear_browse_mode(request: HttpRequest) -> None:
 
 
 def path_allows_without_browse_mode(path: str) -> bool:
-    path = path or "/"
-    normalized = path.rstrip("/") or "/"
-    for prefix in BROWSE_MODE_ALLOW_PREFIXES:
-        base = prefix.rstrip("/") or "/"
-        if normalized == base or normalized.startswith(base + "/"):
-            return True
-        if path.startswith(prefix):
-            return True
-    return False
+    return _path_matches_prefixes(path, BROWSE_MODE_ALLOW_PREFIXES)
+
+
+def path_allows_browse_mode_api(path: str) -> bool:
+    return _path_matches_prefixes(path, BROWSE_MODE_API_ALLOW_PREFIXES)
+
+
+def path_is_api(path: str) -> bool:
+    return (path or "").startswith("/api/")
+
+
+def path_denies_student_data_in_browse_mode(path: str) -> bool:
+    """Browse Mode でも SPA/HTML は通す。学生データ API だけ拒否。"""
+    if not path_is_api(path):
+        return False
+    return not path_allows_browse_mode_api(path)

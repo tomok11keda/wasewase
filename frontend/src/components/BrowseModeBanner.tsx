@@ -10,7 +10,7 @@ export function BrowseModeBanner() {
 
   return (
     <div className="browse-mode-banner" role="status">
-      <span>閲覧モードです。投稿やいいねにはログインが必要です。</span>
+      <span>閲覧モードです。早稲田メールでログインすると利用できます。</span>
       <Link to={spaLoginPath("/app/")}>ログイン</Link>
     </div>
   );

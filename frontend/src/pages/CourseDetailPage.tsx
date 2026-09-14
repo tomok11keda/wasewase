@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createAbsenceRecord,
   deleteAbsenceRecord,
@@ -52,7 +53,8 @@ function Stars({
 export function CourseDetailPage() {
   const { offeringPk } = useParams();
   const navigate = useNavigate();
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const pk = Number(offeringPk);
   const [offering, setOffering] = useState<CourseOffering | null>(null);
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
@@ -115,9 +117,18 @@ export function CourseDetailPage() {
   };
 
   useEffect(() => {
+    if (sessionLoading) return;
+    if (browsePreview) {
+      setOffering(null);
+      setReviews([]);
+      setSummary(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pk]);
+  }, [pk, sessionLoading, browsePreview]);
 
   useEffect(() => {
     if (!absenceToast) return;
@@ -244,6 +255,18 @@ export function CourseDetailPage() {
       setBusy(false);
     }
   };
+
+  if (browsePreview) {
+    return (
+      <div className="course-detail-page" data-spa-page="時間割">
+        <div className="main-inner">
+          <BrowsePreviewNotice nextPath={`/app/courses/${offeringPk || ""}`}>
+            授業の詳細はログイン後に表示されます。
+          </BrowsePreviewNotice>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

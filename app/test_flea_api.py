@@ -462,7 +462,9 @@ class FleaCommentBrowseModeAuthTests(TestCase):
         enter = self.client.get(reverse("enter_browse_mode"))
         self.assertEqual(enter.status_code, 302)
         detail = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
-        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.status_code, 401)
+        self.assertEqual(detail.json()["error"], "unauthorized")
+        self.assertNotIn("閲覧モード教科書", json.dumps(detail.json()))
 
         res = self.client.post(
             f"/api/v1/flea/products/{self.product.pk}/comments/",

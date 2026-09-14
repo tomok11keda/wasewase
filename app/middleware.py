@@ -14,13 +14,16 @@ from .browse_mode_services import (
     clear_browse_mode,
     is_browse_mode,
     path_allows_without_browse_mode,
+    path_denies_student_data_in_browse_mode,
+    unauthorized_json_response,
 )
 
 
 class BrowseModeGateMiddleware:
     """
     未ログインかつ閲覧モード未選択のアクセスを /login/ へ誘導する。
-    ログイン済み・許可パス・閲覧モード中はそのまま通す。
+    ログイン済み・許可パスはそのまま通す。
+    閲覧モード中は SPA/HTML シェルを通すが、学生データ API は 401 にする。
     """
 
     def __init__(self, get_response):
@@ -45,21 +48,14 @@ class BrowseModeGateMiddleware:
 
         if is_browse_mode(request):
             request.is_browse_mode = True
+            if path_denies_student_data_in_browse_mode(path):
+                return unauthorized_json_response()
             return self.get_response(request)
 
         request.is_browse_mode = False
         # SPA JSON APIs must not receive HTML login redirects
         if (request.path or "").startswith("/api/v1/"):
-            from django.http import JsonResponse
-
-            return JsonResponse(
-                {
-                    "ok": False,
-                    "error": "unauthorized",
-                    "message": "authentication_required",
-                },
-                status=401,
-            )
+            return unauthorized_json_response()
         if getattr(settings, "WASE_REACT_SPA", False):
             login_url = "/app/login"
         else:

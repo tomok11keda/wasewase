@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createCommunityThread,
   fetchCommunityThreads,
@@ -20,7 +21,8 @@ import { analytics } from "../lib/analytics/events";
 type Hub = "community" | "courses";
 
 export function CommunitiesPage() {
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const hub: Hub =
@@ -69,6 +71,12 @@ export function CommunitiesPage() {
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      if (browsePreview) {
+        setThreads([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
@@ -87,11 +95,19 @@ export function CommunitiesPage() {
         setLoading(false);
       }
     },
-    [tag, qParam, sort]
+    [tag, qParam, sort, browsePreview]
   );
 
   const loadCourses = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      if (browsePreview) {
+        setEnrolled([]);
+        setActive([]);
+        setPopular([]);
+        setCourseError(null);
+        setCourseLoading(false);
+        return;
+      }
       if (mode === "initial" && !hasCourseDataRef.current) {
         setCourseLoading(true);
       }
@@ -108,20 +124,22 @@ export function CommunitiesPage() {
         setCourseLoading(false);
       }
     },
-    []
+    [browsePreview]
   );
 
   useEffect(() => {
+    if (sessionLoading) return;
     if (hub === "community") {
       void load(hasDataRef.current ? "soft" : "initial");
     }
-  }, [hub, load]);
+  }, [sessionLoading, hub, load]);
 
   useEffect(() => {
+    if (sessionLoading) return;
     if (hub === "courses") {
       void loadCourses(hasCourseDataRef.current ? "soft" : "initial");
     }
-  }, [hub, loadCourses]);
+  }, [sessionLoading, hub, loadCourses]);
 
   useEffect(() => {
     analytics.communityViewed();
@@ -246,6 +264,11 @@ export function CommunitiesPage() {
       </div>
 
       {hub === "courses" ? (
+        browsePreview ? (
+          <BrowsePreviewNotice nextPath="/app/communities?hub=courses">
+            授業の発見はログイン後に利用できます。
+          </BrowsePreviewNotice>
+        ) : (
         <CourseDiscoveryPanel
           enrolled={enrolled}
           active={active}
@@ -254,6 +277,7 @@ export function CommunitiesPage() {
           error={courseError}
           authenticated={Boolean(me?.authenticated)}
         />
+        )
       ) : (
         <>
           {composeOpen ? (
@@ -281,6 +305,10 @@ export function CommunitiesPage() {
 
           {loading && threads.length === 0 ? (
             <p className="empty-message">読み込み中…</p>
+          ) : browsePreview ? (
+            <BrowsePreviewNotice nextPath="/app/communities">
+              コミュニティの投稿はログイン後に表示されます。
+            </BrowsePreviewNotice>
           ) : error && threads.length === 0 ? (
             <p className="empty-message">読み込みに失敗しました（{error}）</p>
           ) : threads.length === 0 ? (

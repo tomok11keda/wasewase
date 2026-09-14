@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import type { ProductCard } from "../features/flea/api";
@@ -21,6 +21,7 @@ import {
 } from "../features/profile/api";
 import { startDm } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { analytics } from "../lib/analytics/events";
 import { TimetablePage } from "./TimetablePage";
 
@@ -43,7 +44,8 @@ export function ProfilePage() {
   const { userId, tab: tabParam } = useParams();
   const pk = Number(userId);
   const navigate = useNavigate();
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [products, setProducts] = useState<ProductCard[]>([]);
@@ -77,8 +79,15 @@ export function ProfilePage() {
   }, [pk]);
 
   useEffect(() => {
+    if (sessionLoading) return;
+    if (browsePreview) {
+      setLoading(false);
+      setProfile(null);
+      setError(null);
+      return;
+    }
     void loadProfile();
-  }, [loadProfile]);
+  }, [sessionLoading, browsePreview, loadProfile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -196,6 +205,21 @@ export function ProfilePage() {
 
   if (!Number.isFinite(pk)) {
     return <Navigate to="/" replace />;
+  }
+
+  if (browsePreview) {
+    return (
+      <div className="profile-page" data-spa-page="プロフィール">
+        <div className="main-inner">
+          <Link className="profile-back" to="/">
+            ← ホームへ戻る
+          </Link>
+          <BrowsePreviewNotice nextPath={`/app/users/${pk}`}>
+            プロフィールはログイン後に表示されます。
+          </BrowsePreviewNotice>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {

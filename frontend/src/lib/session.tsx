@@ -101,3 +101,8 @@ export function useSession(): SessionState {
   }
   return ctx;
 }
+
+/** Unauthenticated Browse Mode preview — no student-data API access. */
+export function isBrowsePreview(me: MeResponse | null | undefined): boolean {
+  return Boolean(me && !me.authenticated && me.is_browse_mode);
+}

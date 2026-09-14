@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import {
@@ -366,7 +367,8 @@ function SearchDiscoverView({
 }
 
 export function SearchPage() {
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") || "";
@@ -387,6 +389,14 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (browsePreview) {
+      setLoading(false);
+      setError(null);
+      setDiscover(null);
+      setResults([]);
+      setUsers([]);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -419,11 +429,12 @@ export function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [qParam, activeTab]);
+  }, [qParam, activeTab, browsePreview]);
 
   useEffect(() => {
+    if (sessionLoading) return;
     void load();
-  }, [load]);
+  }, [sessionLoading, load]);
 
   useSoftTabRefetch("search", () => load());
 
@@ -537,7 +548,11 @@ export function SearchPage() {
           </p>
         ) : null}
 
-        {loading ? (
+        {browsePreview ? (
+          <BrowsePreviewNotice nextPath="/app/search">
+            検索と話題の投稿はログイン後に表示されます。
+          </BrowsePreviewNotice>
+        ) : loading ? (
           <p className="search-empty">
             {showDiscover ? "読み込み中…" : "検索中…"}
           </p>

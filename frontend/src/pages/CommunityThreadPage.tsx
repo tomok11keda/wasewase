@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { isBrowsePreview, useSession } from "../lib/session";
 import {
   createReply,
   deleteReply,
@@ -11,6 +11,7 @@ import {
   type ThreadReply,
 } from "../features/community/api";
 import { spaLoginPath } from "../features/auth/api";
+import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 
 function formatTime(iso: string): string {
   try {
@@ -49,7 +50,8 @@ function AuthorAvatar({
 export function CommunityThreadPage() {
   const { slug = "", threadPk = "" } = useParams();
   const pk = Number(threadPk);
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -77,8 +79,15 @@ export function CommunityThreadPage() {
   }, [slug, pk]);
 
   useEffect(() => {
+    if (sessionLoading) return;
+    if (browsePreview) {
+      setThread(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [sessionLoading, browsePreview, load]);
 
   const requireLogin = () => {
     navigate(spaLoginPath(`/app/communities/${slug}/threads/${pk}`));
@@ -204,6 +213,21 @@ export function CommunityThreadPage() {
       setBusy(false);
     }
   };
+
+  if (browsePreview) {
+    return (
+      <div>
+        <Link className="community-back" to="/communities">
+          ← コミュニティ
+        </Link>
+        <BrowsePreviewNotice
+          nextPath={`/app/communities/${slug}/threads/${threadPk}`}
+        >
+          スレッドはログイン後に表示されます。
+        </BrowsePreviewNotice>
+      </div>
+    );
+  }
 
   if (loading) {
     return <p className="empty-message">読み込み中…</p>;
