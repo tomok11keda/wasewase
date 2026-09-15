@@ -166,8 +166,8 @@ urlpatterns = [
     ),
     path(
         "api/v1/timeline/<int:pk>/",
-        timeline_api_views.api_v1_timeline_delete,
-        name="api_v1_timeline_delete",
+        timeline_api_views.api_v1_timeline_item,
+        name="api_v1_timeline_item",
     ),
     path(
         "api/v1/timeline/comments/<int:pk>/",

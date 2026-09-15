@@ -53,6 +53,10 @@ class NotificationApiTests(TestCase):
         self.assertEqual(notification_spa_path("/product/4/"), "/flea/products/4")
         self.assertEqual(notification_spa_path("/#post-12"), "/#post-12")
         self.assertEqual(
+            notification_spa_path("/?tag=民法#post-12"),
+            "/?tag=民法#post-12",
+        )
+        self.assertEqual(
             notification_spa_path("/communities/foo/threads/9/"),
             "/communities/foo/threads/9",
         )

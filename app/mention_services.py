@@ -8,7 +8,7 @@ from django.utils.safestring import SafeString, mark_safe
 from .constants import HANDLE_MENTION_PATTERN
 from .handle_services import resolve_user_by_username
 from .models import Notification, User
-from .services import user_display_name
+from .notification_services import notification_actor_label
 from .ugc_services import get_blocked_user_ids, is_user_blocked
 
 
@@ -51,7 +51,7 @@ def notify_mentions(
     exclude = set(exclude_user_ids or [])
     exclude.add(actor.pk)
     blocked_ids = get_blocked_user_ids(actor)
-    actor_label = user_display_name(actor)
+    actor_label = notification_actor_label(actor)
 
     for username in usernames:
         user = resolve_user_by_username(username)

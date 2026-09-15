@@ -38,6 +38,7 @@ from .services import (
     prioritize_same_faculty,
     user_display_name,
 )
+from .notification_services import notification_actor_label
 from .product_trade_schema_services import ensure_product_trade_schema
 from .trade_chat_services import (
     PRODUCT_DELETE_BLOCK_MESSAGES,
@@ -949,7 +950,7 @@ def complete_trade(request, pk):
         if partner:
             Notification.objects.create(
                 recipient=partner,
-                message=f"{request.user.username}さんが「{product.name}」の取引完了を確認しました。",
+                message=f"{notification_actor_label(request.user)}さんが「{product.name}」の取引完了を確認しました。",
                 link=product_detail_url(pk),
             )
 

@@ -105,6 +105,41 @@ class TimelineApiTests(TestCase):
         response = self.client.delete(f"/api/v1/timeline/{self.post.pk}/")
         self.assertEqual(response.status_code, 403)
 
+    def test_get_single_post_matches_feed_serializer(self):
+        listed = self.client.get("/api/v1/timeline/")
+        listed_post = next(
+            p for p in listed.json()["posts"] if p["id"] == self.post.pk
+        )
+        detail = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        data = detail.json()
+        self.assertTrue(data["ok"])
+        post = data["post"]
+        self.assertEqual(post["id"], self.post.pk)
+        self.assertEqual(post["body"], "hello timeline api")
+        self.assertEqual(post["comments"], listed_post["comments"])
+        self.assertIn("user_has_liked", post)
+        self.assertIn("user_has_bookmarked", post)
+        self.assertFalse(post["user_has_liked"])
+
+    def test_get_single_post_includes_like_state(self):
+        self.client.force_login(self.user)
+        self.client.post(f"/api/v1/timeline/{self.post.pk}/like/")
+        detail = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertTrue(detail.json()["post"]["user_has_liked"])
+        self.assertEqual(detail.json()["post"]["like_count"], 1)
+
+    def test_get_single_post_missing_is_not_found(self):
+        response = self.client.get("/api/v1/timeline/999999/")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["error"], "not_found")
+
+    def test_get_removed_post_is_not_found(self):
+        self.post.is_removed = True
+        self.post.save(update_fields=["is_removed"])
+        response = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertEqual(response.status_code, 404)
+
     def test_quote_endpoint(self):
         self.client.force_login(self.user)
         response = self.client.get(

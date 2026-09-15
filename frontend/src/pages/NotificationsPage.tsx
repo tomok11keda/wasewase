@@ -6,6 +6,7 @@ import {
   type NotificationItem,
 } from "../features/notifications/api";
 import { spaLoginPath } from "../features/auth/api";
+import { spaHrefTo } from "../lib/spaHref";
 import { analytics } from "../lib/analytics/events";
 
 function formatBadgeCount(n: number): string {
@@ -22,11 +23,9 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   );
 
   if (item.spa_path) {
-    const [path, hash] = item.spa_path.split("#");
     return (
       <Link
-        to={path || "/"}
-        state={hash ? { hash } : undefined}
+        to={spaHrefTo(item.spa_path)}
         onClick={() => analytics.notificationOpened()}
       >
         {body}
@@ -36,13 +35,9 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   // Prefer in-SPA navigation when link is already under /app/
   if (item.link?.startsWith("/app/") || item.link === "/app" || item.link?.startsWith("/app?")) {
     const raw = item.link === "/app" ? "/" : item.link.replace(/^\/app/, "") || "/";
-    const [pathAndQuery, hash] = raw.split("#");
-    const [path, query] = pathAndQuery.split("?");
-    const to = query ? `${path || "/"}?${query}` : path || "/";
     return (
       <Link
-        to={to}
-        state={hash ? { hash } : undefined}
+        to={spaHrefTo(raw)}
         onClick={() => analytics.notificationOpened()}
       >
         {body}

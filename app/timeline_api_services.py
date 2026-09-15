@@ -15,18 +15,19 @@ from .ads_services import (
 from .board_services import (
     TIMELINE_INITIAL_SIZE,
     TIMELINE_LOAD_MORE_SIZE,
+    annotate_timeline_quote_count,
     build_timeline_posts_queryset,
     prepare_timeline_post_for_save,
 )
 from .bookmark_services import prepare_timeline_posts
-from .models import Comment, TimelinePost
+from .models import Comment, TimelineLike, TimelinePost
 from .handle_services import public_username
 from .services import (
     get_user_avatar_url,
     user_avatar_initial,
     user_display_name,
 )
-from .ugc_services import filter_visible_comments
+from .ugc_services import filter_visible_comments, filter_visible_timeline_posts
 
 
 def serialize_author(user: AbstractBaseUser | None) -> dict[str, Any] | None:
@@ -178,6 +179,45 @@ def serialize_timeline_post(
         ),
         "comments": comments_payload,
     }
+
+
+def get_visible_timeline_post_payload(
+    viewer: AbstractBaseUser | None,
+    pk: int,
+) -> dict[str, Any] | None:
+    """One timeline post with the same visibility + serializer as the feed."""
+    from django.db.models import Exists, OuterRef
+
+    queryset = (
+        TimelinePost.objects.select_related(
+            "author",
+            "author__profile",
+            "quoted_post",
+            "quoted_post__author",
+            "quoted_post__author__profile",
+        ).prefetch_related("comments__author", "comments__author__profile")
+    )
+    auth_viewer = (
+        viewer
+        if viewer is not None and getattr(viewer, "is_authenticated", False)
+        else None
+    )
+    queryset = filter_visible_timeline_posts(queryset, auth_viewer)
+    queryset = annotate_timeline_quote_count(queryset)
+    if auth_viewer is not None:
+        queryset = queryset.annotate(
+            user_has_liked=Exists(
+                TimelineLike.objects.filter(
+                    timeline_post_id=OuterRef("pk"),
+                    user_id=auth_viewer.id,
+                )
+            )
+        )
+    post = queryset.filter(pk=pk).first()
+    if post is None:
+        return None
+    prepared = prepare_timeline_posts([post], auth_viewer)
+    return serialize_timeline_post(prepared[0], auth_viewer)
 
 
 def ads_meta_for_request(request: HttpRequest) -> dict[str, Any]:

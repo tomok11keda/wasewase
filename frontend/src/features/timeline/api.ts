@@ -113,6 +113,27 @@ export async function fetchTimeline(
   return res.json();
 }
 
+export async function fetchTimelinePost(postId: number): Promise<TimelinePost> {
+  const res = await fetch(`/api/v1/timeline/${postId}/`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  let data: { ok?: boolean; post?: TimelinePost; error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok || !data.ok || !data.post) {
+    throw new Error("この投稿は表示できません");
+  }
+  const post = data.post;
+  return {
+    ...post,
+    comments: post.comments || [],
+  };
+}
+
 export async function createTimelinePost(input: {
   body: string;
   image?: File | null;

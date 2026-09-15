@@ -44,6 +44,9 @@ class BrowseModePathHelperTests(SimpleTestCase):
     def test_student_data_apis_denied_in_browse_mode(self):
         self.assertTrue(path_denies_student_data_in_browse_mode("/api/v1/timeline/"))
         self.assertTrue(
+            path_denies_student_data_in_browse_mode("/api/v1/timeline/1/")
+        )
+        self.assertTrue(
             path_denies_student_data_in_browse_mode("/api/v1/timeline/impressions/")
         )
         self.assertTrue(path_denies_student_data_in_browse_mode("/api/v1/profile/1/"))

@@ -17,6 +17,7 @@ from .models import (
     UserDirectMessageRequest,
     UserDirectMessageRoom,
 )
+from .notification_services import notification_actor_label
 from .services import is_following, user_display_name
 from .ugc_services import is_user_blocked
 
@@ -178,7 +179,7 @@ def _notify_message_request(
     preview_body: str,
     is_follow_up: bool,
 ) -> None:
-    name = user_display_name(sender)
+    name = notification_actor_label(sender)
     if is_follow_up:
         message = f"{name}さんからメッセージリクエストに新しいメッセージがあります"
     else:

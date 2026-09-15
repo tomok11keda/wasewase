@@ -219,6 +219,8 @@ class PrivateAccountFollowTests(TestCase):
         self.client.force_login(self.alice)
         like = self.client.post(f"/api/v1/timeline/{self.bob_post.pk}/like/")
         self.assertEqual(like.status_code, 404)
+        detail = self.client.get(f"/api/v1/timeline/{self.bob_post.pk}/")
+        self.assertEqual(detail.status_code, 404)
         quote = self.client.get(f"/api/v1/timeline/{self.bob_post.pk}/quote/")
         self.assertEqual(quote.status_code, 404)
 

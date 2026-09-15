@@ -131,6 +131,7 @@ from .media_services import (
 from .notification_services import (
     get_unread_notification_count,
     mark_all_notifications_read,
+    notification_actor_label,
 )
 from .timetable_services import (
     build_timetable_grid_for_user,
@@ -2463,7 +2464,7 @@ def board_timeline_like(request, pk):
         notify_timeline_post_author(
             post,
             request.user,
-            f"{request.user.username}さんがあなたの投稿にいいねしました",
+            f"{notification_actor_label(request.user)}さんがあなたの投稿にいいねしました",
         )
         messages.success(request, "いいねしました。")
     else:
@@ -2524,7 +2525,7 @@ def board_timeline_comment(request, pk):
             Notification.objects.create(
                 recipient=post.author,
                 message=(
-                    f"「{request.user.username}さんが"
+                    f"「{notification_actor_label(request.user)}さんが"
                     "あなたの投稿にコメントしました」"
                 ),
                 link=link,

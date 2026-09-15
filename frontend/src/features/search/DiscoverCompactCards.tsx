@@ -34,7 +34,7 @@ export function DiscoverPostCard({ post }: { post: TimelinePost }) {
   return (
     <Link
       className="discover-compact-card"
-      to={{ pathname: "/", hash: `post-${post.id}` }}
+      to={{ pathname: "/", hash: `#post-${post.id}` }}
     >
       <div className="discover-compact-card__main">
         <div className="discover-compact-card__head">

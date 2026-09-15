@@ -38,6 +38,7 @@ from .models import (
     UserDirectMessage,
     UserDirectMessageRoom,
 )
+from .notification_services import notification_actor_label
 from .services import (
     get_user_avatar_url,
     user_avatar_initial,
@@ -303,7 +304,7 @@ def send_dm_message(
         if request is None:
             Notification.objects.create(
                 recipient=partner,
-                message=f"{sender.username} さんから DM: {body[:40]}",
+                message=f"{notification_actor_label(sender)} さんから DM: {body[:40]}",
                 link=dm_room_link(room),
             )
     return message

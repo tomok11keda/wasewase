@@ -292,9 +292,9 @@ def notify_community_reply(
 ) -> None:
     """返信先の著者（なければスレッド主）へ通知。自己通知は作らない。"""
     from .models import Notification
-    from .services import user_display_name
+    from .notification_services import notification_actor_label
 
-    actor_name = user_display_name(reply.author)
+    actor_name = notification_actor_label(reply.author)
     recipient = None
     message = ""
     if reply.reply_to_id:

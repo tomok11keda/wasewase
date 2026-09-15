@@ -100,7 +100,9 @@ def notification_spa_path(link: str) -> str:
         return f"/flea/chats/{m.group(1)}"
     m = _COMMUNITY_THREAD_RE.match(path)
     if m:
-        return f"/communities/{m.group(1)}/threads/{m.group(2)}"
+        return _with_query_fragment(
+            f"/communities/{m.group(1)}/threads/{m.group(2)}", query, fragment
+        )
     if _COMMUNITY_INDEX_RE.match(path):
         return _with_query_fragment("/communities", query, "")
     if _FLEA_EXHIBIT_RE.match(path) or _EXHIBIT_RE.match(path):

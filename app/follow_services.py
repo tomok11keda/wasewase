@@ -10,6 +10,7 @@ from django.db.models import QuerySet
 
 from .handle_services import public_username
 from .models import Follow, FollowRequest, Notification, UserProfile
+from .notification_services import notification_actor_label
 from .services import count_followers, is_following, user_display_name
 from .spa_canonical import app_absolute
 from .timetable_privacy_services import get_or_create_profile
@@ -137,7 +138,7 @@ def _notify_followed(actor: AbstractBaseUser, target: AbstractBaseUser) -> None:
 
     Notification.objects.create(
         recipient=target,
-        message=f"「{actor.username}さんにフォローされました！」",
+        message=f"「{notification_actor_label(actor)}さんにフォローされました！」",
         link=user_profile_url(actor.pk),
     )
 
@@ -145,7 +146,7 @@ def _notify_followed(actor: AbstractBaseUser, target: AbstractBaseUser) -> None:
 def _notify_follow_request(actor: AbstractBaseUser, target: AbstractBaseUser) -> None:
     Notification.objects.create(
         recipient=target,
-        message=f"「{actor.username}さんからフォローリクエストが届きました」",
+        message=f"「{notification_actor_label(actor)}さんからフォローリクエストが届きました」",
         link=follow_requests_app_url(),
     )
 

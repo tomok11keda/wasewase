@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
@@ -8,6 +8,7 @@ import {
   createTimelinePost,
   fetchQuotable,
   fetchTimeline,
+  fetchTimelinePost,
   type TimelineFeedResponse,
   type TimelinePost,
 } from "../features/timeline/api";
@@ -21,6 +22,10 @@ import { ImagePickField } from "../components/ImagePickField";
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { LocalSearchBar } from "../components/LocalSearchBar";
 import { getImpressedPostIds } from "../features/timeline/impressions";
+import {
+  parseTimelinePostHash,
+  scrollToTimelinePost,
+} from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
 
 export function HomePage() {
@@ -64,6 +69,8 @@ export function HomePage() {
   }, []);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
+  const [pinnedPost, setPinnedPost] = useState<TimelinePost | null>(null);
+  const [postUnavailable, setPostUnavailable] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -80,6 +87,7 @@ export function HomePage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasDataRef = useRef(false);
+  const ensurePostReqRef = useRef(0);
   const authenticated = Boolean(me?.authenticated);
   // Keep-alive panes use transform, so fixed FAB / modal must portal to body.
   // Show only while the home timeline is the active view.
@@ -239,10 +247,101 @@ export function HomePage() {
 
   useSoftTabRefetch("home", () => loadInitial("soft"));
 
+  const onVisibleHome =
+    activeTab === "home" ||
+    (activeTab === null && normalizedPath === "/");
+
+  const stateHash = (location.state as { hash?: string } | null)?.hash;
+  const targetPostId = onVisibleHome
+    ? parseTimelinePostHash(location.hash) ?? parseTimelinePostHash(stateHash)
+    : null;
+
+  const visiblePosts = useMemo(() => {
+    if (!pinnedPost) return posts;
+    if (posts.some((p) => p.id === pinnedPost.id)) return posts;
+    return [pinnedPost, ...posts];
+  }, [posts, pinnedPost]);
+
+  const waitingForTarget =
+    Boolean(targetPostId) &&
+    !postUnavailable &&
+    !visiblePosts.some((p) => p.id === targetPostId);
+
+  useEffect(() => {
+    if (!onVisibleHome || browsePreview) return;
+    if (!targetPostId) {
+      ensurePostReqRef.current += 1;
+      setPinnedPost(null);
+      setPostUnavailable(false);
+      return;
+    }
+    if (posts.some((p) => p.id === targetPostId)) {
+      ensurePostReqRef.current += 1;
+      setPinnedPost(null);
+      setPostUnavailable(false);
+      return;
+    }
+    if (pinnedPost?.id === targetPostId) {
+      setPostUnavailable(false);
+      return;
+    }
+    if (loading) return;
+
+    const req = ++ensurePostReqRef.current;
+    setPostUnavailable(false);
+    void fetchTimelinePost(targetPostId)
+      .then((post) => {
+        if (req !== ensurePostReqRef.current) return;
+        setPinnedPost(post);
+        setPostUnavailable(false);
+      })
+      .catch(() => {
+        if (req !== ensurePostReqRef.current) return;
+        setPinnedPost(null);
+        setPostUnavailable(true);
+      });
+  }, [
+    onVisibleHome,
+    browsePreview,
+    targetPostId,
+    loading,
+    posts,
+    pinnedPost?.id,
+  ]);
+
+  const visiblePostIdsKey = visiblePosts.map((p) => p.id).join(",");
+
+  useEffect(() => {
+    if (!onVisibleHome || loading || !targetPostId || postUnavailable) return;
+    if (!visiblePosts.some((p) => p.id === targetPostId)) return;
+
+    let cancelled = false;
+    const tryScroll = () => {
+      if (cancelled) return;
+      scrollToTimelinePost(targetPostId);
+    };
+    tryScroll();
+    const frame = window.requestAnimationFrame(tryScroll);
+    const timer = window.setTimeout(tryScroll, 120);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [
+    onVisibleHome,
+    loading,
+    targetPostId,
+    postUnavailable,
+    visiblePostIdsKey,
+    location.key,
+  ]);
+
   useEffect(() => {
     if (loading) return;
+    if (targetPostId) return;
     restoreScrollPosition("/");
-  }, [loading, posts.length]);
+  }, [loading, posts.length, targetPostId]);
 
   useEffect(() => {
     if (browsePreview || !hasMore || loading || loadingMore) return;
@@ -433,15 +532,19 @@ export function HomePage() {
           してください。
         </p>
       )}
-      {sessionLoading || (loading && posts.length === 0) ? (
+      {sessionLoading ||
+      (loading && visiblePosts.length === 0) ||
+      (waitingForTarget && visiblePosts.length === 0) ? (
         <p className="empty-message">読み込み中…</p>
       ) : browsePreview ? (
         <BrowsePreviewNotice nextPath="/app/">
           タイムラインはログイン後に表示されます。
         </BrowsePreviewNotice>
-      ) : error && posts.length === 0 ? (
+      ) : postUnavailable && visiblePosts.length === 0 ? (
+        <p className="empty-message">この投稿は表示できません</p>
+      ) : error && visiblePosts.length === 0 ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
-      ) : posts.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <p className="empty-message">
           {qParam
             ? "一致する投稿はありません。"
@@ -449,19 +552,28 @@ export function HomePage() {
         </p>
       ) : (
         <div className="timeline-list" id="timeline-list">
-          {posts.map((post) => (
+          {postUnavailable ? (
+            <p className="empty-message">この投稿は表示できません</p>
+          ) : null}
+          {visiblePosts.map((post) => (
             <TimelinePostCard
               key={post.id}
               post={post}
               authenticated={authenticated}
-              onChange={(next: TimelinePost) =>
+              onChange={(next: TimelinePost) => {
                 setPosts((prev) =>
                   prev.map((p) => (p.id === next.id ? next : p))
-                )
-              }
-              onRemove={(id: number) =>
-                setPosts((prev) => prev.filter((p) => p.id !== id))
-              }
+                );
+                setPinnedPost((prev) =>
+                  prev && prev.id === next.id ? next : prev
+                );
+              }}
+              onRemove={(id: number) => {
+                setPosts((prev) => prev.filter((p) => p.id !== id));
+                setPinnedPost((prev) =>
+                  prev && prev.id === id ? null : prev
+                );
+              }}
               onQuote={onQuote}
               onRequireLogin={requireLogin}
             />
@@ -471,7 +583,7 @@ export function HomePage() {
 
       <div ref={sentinelRef} className="timeline-scroll-sentinel" aria-hidden="true" />
       {loadingMore ? <p className="empty-message">読み込み中…</p> : null}
-      {!hasMore && posts.length > 0 ? (
+      {!hasMore && visiblePosts.length > 0 ? (
         <p className="empty-message">すべて表示しました</p>
       ) : null}
 

@@ -6,6 +6,16 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Q, QuerySet
 
 from .models import FollowRequest, Notification
+from .services import user_display_name
+
+
+def notification_actor_label(actor: AbstractBaseUser | None) -> str:
+    """Human-facing actor name in in-app notification copy.
+
+    Prefers profile display name, then username/handle, then a generic label.
+    Does not rewrite historical Notification.message rows.
+    """
+    return user_display_name(actor)
 
 # Follow-request notifications use link=/app/settings/follow-requests
 _FOLLOW_REQUEST_LINK_MARKER = "/settings/follow-requests"

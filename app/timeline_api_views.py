@@ -28,11 +28,13 @@ from .rate_limit_services import (
 )
 from .services import get_user_faculty
 from .timeline_api_services import (
+    get_visible_timeline_post_payload,
     list_timeline_page,
     save_timeline_post_instance,
     serialize_comment,
     serialize_timeline_post,
 )
+from .notification_services import notification_actor_label
 from .ugc_services import get_visible_timeline_post_or_404
 
 
@@ -210,7 +212,7 @@ def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
         notify_timeline_post_author(
             post,
             request.user,
-            f"{request.user.username}さんがあなたの投稿にいいねしました",
+            f"{notification_actor_label(request.user)}さんがあなたの投稿にいいねしました",
         )
         liked = True
     else:
@@ -273,7 +275,7 @@ def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
         Notification.objects.create(
             recipient=post.author,
             message=(
-                f"「{request.user.username}さんが"
+                f"「{notification_actor_label(request.user)}さんが"
                 "あなたの投稿にコメントしました」"
             ),
             link=link,
@@ -295,6 +297,15 @@ def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
     )
 
 
+@require_GET
+def api_v1_timeline_detail(request: HttpRequest, pk: int) -> JsonResponse:
+    """GET /api/v1/timeline/<pk>/ — same visibility/serializer as the feed."""
+    payload = get_visible_timeline_post_payload(_viewer(request), pk)
+    if payload is None:
+        return _json_error("not_found", status=404)
+    return JsonResponse({"ok": True, "post": payload})
+
+
 @login_required
 @require_http_methods(["DELETE", "POST"])
 def api_v1_timeline_delete(request: HttpRequest, pk: int) -> JsonResponse:
@@ -303,6 +314,13 @@ def api_v1_timeline_delete(request: HttpRequest, pk: int) -> JsonResponse:
         return _json_error("forbidden", status=403)
     post.delete()
     return JsonResponse({"ok": True})
+
+
+@require_http_methods(["GET", "DELETE", "POST"])
+def api_v1_timeline_item(request: HttpRequest, pk: int) -> JsonResponse:
+    if request.method == "GET":
+        return api_v1_timeline_detail(request, pk)
+    return api_v1_timeline_delete(request, pk)
 
 
 @login_required
