@@ -151,6 +151,49 @@ class OnboardingApiTests(TestCase):
         self.assertEqual(self.profile.name, "太郎")
         self.assertEqual(self.profile.department, "商学部")
 
+    def test_status_includes_affiliated_school_faculty(self):
+        from .constants import FACULTY_CHOICES
+
+        values = [value for value, _label in FACULTY_CHOICES]
+        self.assertIn("附属・系属校", values)
+        self.assertEqual(values[-1], "その他")
+        self.assertLess(values.index("附属・系属校"), values.index("その他"))
+
+        res = self.client.get("/api/v1/onboarding/")
+        self.assertEqual(res.status_code, 200)
+        faculties = res.json()["faculties"]
+        labels = [row["value"] for row in faculties]
+        self.assertIn("附属・系属校", labels)
+        self.assertEqual(
+            next(row["label"] for row in faculties if row["value"] == "附属・系属校"),
+            "附属・系属校",
+        )
+
+    def test_profile_saves_affiliated_school_faculty(self):
+        ok = self.client.post(
+            "/api/v1/onboarding/profile/",
+            **_json(
+                {
+                    "name": "附属生",
+                    "username": "affiliated_user",
+                    "department": "附属・系属校",
+                }
+            ),
+        )
+        self.assertEqual(ok.status_code, 200)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.department, "附属・系属校")
+
+    def test_existing_other_department_is_not_rewritten(self):
+        self.profile.department = "その他"
+        self.profile.name = "既存"
+        self.profile.save(update_fields=["department", "name"])
+        res = self.client.get("/api/v1/onboarding/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["profile"]["department"], "その他")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.department, "その他")
+
     def test_complete_before_profile_rejected(self):
         res = self.client.post("/api/v1/onboarding/complete/", **_json({}))
         self.assertEqual(res.status_code, 400)

@@ -1289,6 +1289,7 @@ class ProductTimestampDisplayTests(TestCase):
             "先進理工学部",
             "人間科学部",
             "スポーツ科学部",
+            "附属・系属校",
             "その他",
         ):
             self.assertContains(response, faculty)
@@ -1505,6 +1506,34 @@ class ProfileAndFollowTests(TestCase):
         self.assertEqual(profile.bio, "テスト概要")
         self.assertEqual(profile.department, "商学部")
         self.assertEqual(profile.grade, "3年")
+
+    def test_mypage_edit_accepts_affiliated_school_faculty(self):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "附属生",
+                "user_id": self.viewer.username,
+                "bio": "",
+                "department": "附属・系属校",
+                "grade": "2年",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        profile = UserProfile.objects.get(user=self.viewer)
+        self.assertEqual(profile.department, "附属・系属校")
+        self.assertEqual(profile.grade, "2年")
+        self.assertEqual(profile.department_grade_display, "附属・系属校 2年")
+
+        profile_page = self.client.get(reverse("user_profile", args=[self.viewer.pk]))
+        self.assertContains(profile_page, "附属・系属校 2年")
+
+        api = self.client.get(f"/api/v1/profile/{self.viewer.pk}/")
+        self.assertEqual(api.status_code, 200)
+        user = api.json()["user"]
+        self.assertEqual(user["department"], "附属・系属校")
+        self.assertEqual(user["grade"], "2年")
+        self.assertEqual(user["department_grade"], "附属・系属校 2年")
 
     def test_mypage_edit_uploads_avatar(self):
         self.client.force_login(self.viewer)
