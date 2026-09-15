@@ -978,6 +978,53 @@
     return platform === "android" ? "android" : "ios";
   }
 
+  function tokenPrefix(token) {
+    if (!token || typeof token !== "string") {
+      return "";
+    }
+    return token.slice(0, 8);
+  }
+
+  function isLikelyApnsDeviceToken(token) {
+    return /^[0-9a-fA-F]{64}$/.test(token || "") || /^[0-9a-fA-F]{128}$/.test(token || "");
+  }
+
+  function readPushStatus() {
+    return window.WASE_PUSH_STATUS || {
+      permission: "",
+      apns: false,
+      fcm: false,
+      fcmPrefix: "",
+      backend: false,
+      error: "",
+    };
+  }
+
+  function setPushStatus(patch) {
+    var next = Object.assign(readPushStatus(), patch || {});
+    window.WASE_PUSH_STATUS = next;
+    return next;
+  }
+
+  function isPushDiagEnabled() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      if (params.get("spa_push_diag") === "1") {
+        return true;
+      }
+      return window.localStorage.getItem("wase_spa_push_diag") === "1";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function logPushDiag(label, detail) {
+    logNative(label, detail);
+    if (isPushDiagEnabled() && window.console && console.info) {
+      console.info("[WasePushDiag] " + label, detail || "");
+    }
+  }
+
   function canShowInterstitialNow() {
     var lastShown = Number(sessionStorage.getItem("wase_last_interstitial_at") || "0");
     return Date.now() - lastShown >= MIN_INTERSTITIAL_INTERVAL_MS;
@@ -1050,6 +1097,14 @@
     if (!token) {
       return false;
     }
+    if (isLikelyApnsDeviceToken(token)) {
+      setPushStatus({
+        error: "apns_token_not_supported",
+        backend: false,
+      });
+      logPushDiag("Refusing to register APNs device token with backend", tokenPrefix(token));
+      return false;
+    }
 
     try {
       var response = await fetch("/api/push-token/", {
@@ -1067,13 +1122,16 @@
       });
 
       if (!response.ok) {
+        setPushStatus({ backend: false, error: "backend_" + response.status });
         logNative("Push token registration failed", response.status);
         return false;
       }
 
-      logNative("Push token registered with backend");
+      setPushStatus({ backend: true, error: "" });
+      logPushDiag("FCM token registered with backend", tokenPrefix(token));
       return true;
     } catch (error) {
+      setPushStatus({ backend: false, error: "backend_network" });
       logNative("Push token registration error", error);
       return false;
     }
@@ -1117,41 +1175,112 @@
     }
   }
 
+  function adoptFcmToken(token) {
+    if (!token || isLikelyApnsDeviceToken(token)) {
+      return false;
+    }
+    window.WASE_PUSH_TOKEN = token;
+    setPushStatus({
+      fcm: true,
+      fcmPrefix: tokenPrefix(token),
+      apns: true,
+      error: "",
+    });
+    logPushDiag("FCM token acquired", tokenPrefix(token));
+    window.dispatchEvent(new CustomEvent("wase:push-token", { detail: token }));
+    registerTokenWithBackend(token);
+    return true;
+  }
+
+  async function waitForFcmToken(FirebaseMessaging) {
+    var lastError = null;
+    var attempt;
+    for (attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        var result = await FirebaseMessaging.getToken();
+        if (result && result.token) {
+          return result.token;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+      await new Promise(function (resolve) {
+        window.setTimeout(resolve, 400);
+      });
+    }
+    if (lastError) {
+      throw lastError;
+    }
+    return null;
+  }
+
   async function initializePushNotifications() {
-    var PushNotifications = getPlugin("PushNotifications");
-    if (!PushNotifications) {
-      logNative("PushNotifications plugin not found");
+    var FirebaseMessaging = getPlugin("FirebaseMessaging");
+    if (!FirebaseMessaging) {
+      setPushStatus({ error: "plugin_missing" });
+      logNative("FirebaseMessaging plugin not found");
       return;
     }
 
-    await PushNotifications.addListener("registration", function (token) {
-      window.WASE_PUSH_TOKEN = token.value;
-      logNative("Push token acquired", token.value);
-      window.dispatchEvent(
-        new CustomEvent("wase:push-token", { detail: token.value })
+    try {
+      await FirebaseMessaging.addListener("tokenReceived", function (event) {
+        adoptFcmToken(event && event.token);
+      });
+    } catch (error) {
+      logNative("Push tokenReceived listener failed", error);
+    }
+
+    try {
+      await FirebaseMessaging.addListener("notificationReceived", function (event) {
+        logNative("Push received (foreground)");
+        dispatchPushReceivedEvent((event && event.notification) || event);
+      });
+    } catch (error) {
+      logNative("Push notificationReceived listener failed", error);
+    }
+
+    try {
+      await FirebaseMessaging.addListener(
+        "notificationActionPerformed",
+        function (event) {
+          logNative("Push action performed");
+          dispatchPushReceivedEvent(
+            (event && event.notification) || event
+          );
+        }
       );
-      registerTokenWithBackend(token.value);
-    });
+    } catch (error) {
+      logNative("Push notificationActionPerformed listener failed", error);
+    }
 
-    await PushNotifications.addListener("registrationError", function (error) {
-      logNative("Push registration error", error);
-    });
+    var permission = { receive: "prompt" };
+    try {
+      permission = await FirebaseMessaging.requestPermissions();
+    } catch (error) {
+      setPushStatus({ error: "permission_request_failed" });
+      logNative("Push permission request failed", error);
+      return;
+    }
 
-    await PushNotifications.addListener("pushNotificationReceived", function (notification) {
-      logNative("Push received (foreground)", notification);
-      dispatchPushReceivedEvent(notification);
-    });
+    setPushStatus({ permission: permission && permission.receive });
+    logPushDiag("Push permission", permission && permission.receive);
 
-    await PushNotifications.addListener("pushNotificationActionPerformed", function (action) {
-      logNative("Push action performed", action);
-      dispatchPushReceivedEvent(action && action.notification);
-    });
+    if (!permission || permission.receive !== "granted") {
+      setPushStatus({ error: "permission_denied" });
+      return;
+    }
 
-    var permission = await PushNotifications.requestPermissions();
-    logNative("Push permission", permission);
-
-    if (permission.receive === "granted") {
-      await PushNotifications.register();
+    try {
+      var token = await waitForFcmToken(FirebaseMessaging);
+      if (token) {
+        adoptFcmToken(token);
+      } else {
+        setPushStatus({ fcm: false, error: "fcm_token_missing" });
+        logNative("FCM token not available yet");
+      }
+    } catch (error) {
+      setPushStatus({ fcm: false, error: "fcm_token_failed" });
+      logNative("FCM getToken failed", error && error.message ? error.message : error);
     }
   }
 
@@ -1806,7 +1935,12 @@
         await runAdMobBootstrap();
       }
 
-      await initializePushNotifications();
+      try {
+        await initializePushNotifications();
+      } catch (pushError) {
+        setPushStatus({ error: "init_failed" });
+        logNativeError("Push init failed", pushError);
+      }
 
       if (window.WASE_PUSH_TOKEN) {
         await registerTokenWithBackend(window.WASE_PUSH_TOKEN);
@@ -1840,6 +1974,17 @@
     repositionBannerAd: repositionInlineBanner,
     getPushToken: function () {
       return window.WASE_PUSH_TOKEN || null;
+    },
+    getPushStatus: function () {
+      var status = readPushStatus();
+      return {
+        permission: status.permission || "",
+        apns: Boolean(status.apns),
+        fcm: Boolean(status.fcm),
+        fcmPrefix: status.fcmPrefix || "",
+        backend: Boolean(status.backend),
+        error: status.error || "",
+      };
     },
     registerPushToken: registerTokenWithBackend,
     unregisterPushToken: unregisterTokenWithBackend,

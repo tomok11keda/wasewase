@@ -2662,10 +2662,11 @@ def pwa_service_worker(request):
 @login_required
 @require_http_methods(["POST", "DELETE"])
 def register_push_token(request):
-    """Capacitor が取得したデバイストークンを保存・更新 / 解除する。
+    """FCM 登録トークンを保存・更新 / 解除する。
 
     POST  — 登録（別ユーザー所有トークンも現セッションへ付け替え）
     DELETE — ログアウト前の自ユーザー紐付け解除
+    生 APNs デバイストークンは 400 apns_token_not_supported。
     """
     if request.content_type == "application/json":
         try:
@@ -2688,7 +2689,9 @@ def register_push_token(request):
     platform = (payload.get("platform") or "ios").strip()
     try:
         device = register_device_token(request.user, token, platform=platform)
-    except ValueError:
+    except ValueError as exc:
+        if str(exc) == "apns_token_not_supported":
+            return JsonResponse({"error": "apns_token_not_supported"}, status=400)
         return JsonResponse({"error": "token_required"}, status=400)
 
     return JsonResponse(

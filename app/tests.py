@@ -3287,6 +3287,29 @@ class PushNotificationTests(TestCase):
             DevicePushToken.objects.filter(token="post-unregister").exists()
         )
 
+    def test_register_push_token_rejects_apns_hex_token(self):
+        self.client.force_login(self.seller)
+        apns_token = "a" * 64
+        response = self.client.post(
+            reverse("register_push_token"),
+            data=json.dumps({"token": apns_token, "platform": "ios"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "apns_token_not_supported")
+        self.assertFalse(DevicePushToken.objects.filter(token=apns_token).exists())
+
+    def test_register_push_token_accepts_fcm_shaped_token(self):
+        self.client.force_login(self.seller)
+        fcm_token = "dK3xYz:" + ("n" * 140)
+        response = self.client.post(
+            reverse("register_push_token"),
+            data=json.dumps({"token": fcm_token, "platform": "ios"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(DevicePushToken.objects.filter(token=fcm_token).exists())
+
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
     @patch("app.push_services.notify_user_push")
     def test_comment_notifies_seller_with_push(self, mock_notify_push):
@@ -3948,6 +3971,11 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("WaseNotifications", badge_js)
         self.assertIn("wase:push-received", capacitor_js)
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
+        self.assertIn("FirebaseMessaging", capacitor_js)
+        self.assertIn("waitForFcmToken", capacitor_js)
+        self.assertIn("apns_token_not_supported", capacitor_js)
+        self.assertNotIn("Push token acquired", capacitor_js)
+        self.assertNotIn('getPlugin("PushNotifications")', capacitor_js)
         self.assertIn("ensureCameraAccess", capacitor_js)
         self.assertIn("CameraPermission", capacitor_js)
         self.assertIn("isCameraAvailable", capacitor_js)

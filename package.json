@@ -16,10 +16,10 @@
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",
     "@capacitor-firebase/analytics": "^7.3.0",
+    "@capacitor-firebase/messaging": "^7.5.0",
     "@capacitor/camera": "^7.0.2",
     "@capacitor/core": "^7.6.7",
     "@capacitor/ios": "^7.6.7",
-    "@capacitor/push-notifications": "^7.0.6",
     "@capacitor/splash-screen": "^7.0.5",
     "firebase": "^11.10.0"
   },

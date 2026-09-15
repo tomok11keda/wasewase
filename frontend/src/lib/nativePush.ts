@@ -1,9 +1,17 @@
-/** Capacitor native push token ↔ Django session sync. */
+/** Capacitor native FCM token ↔ Django session sync. */
 
 import { getCsrfToken } from "../features/timeline/api";
 
 type WaseCapacitorPushBridge = {
   getPushToken?: () => string | null;
+  getPushStatus?: () => {
+    permission?: string;
+    apns?: boolean;
+    fcm?: boolean;
+    fcmPrefix?: string;
+    backend?: boolean;
+    error?: string;
+  };
   registerPushToken?: (token: string) => Promise<boolean | void>;
   unregisterPushToken?: (token?: string | null) => Promise<boolean | void>;
 };
@@ -65,6 +73,9 @@ function guessPlatform(): string {
 }
 
 async function registerTokenViaFetch(token: string): Promise<boolean> {
+  if (/^[0-9a-fA-F]{64}$/.test(token) || /^[0-9a-fA-F]{128}$/.test(token)) {
+    return false;
+  }
   try {
     const res = await fetch("/api/push-token/", {
       method: "POST",

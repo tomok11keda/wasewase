@@ -33,7 +33,7 @@
     "AdMob": {
       "appId": "ca-app-pub-3330130877204303~8437918867"
     },
-    "PushNotifications": {
+    "FirebaseMessaging": {
       "presentationOptions": ["badge", "sound", "alert"]
     },
     "Camera": {

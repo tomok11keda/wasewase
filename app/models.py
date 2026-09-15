@@ -988,7 +988,10 @@ class Notification(models.Model):
 
 
 class DevicePushToken(models.Model):
-    """FCM / APNs デバイストークン（Capacitor プッシュ通知用）。"""
+    """FCM 登録トークン（Capacitor + Firebase Messaging 用）。
+
+    iOS の生 APNs デバイストークンは保存しない。
+    """
 
     class Platform(models.TextChoices):
         IOS = "ios", "iOS"

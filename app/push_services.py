@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -22,6 +23,15 @@ _firebase_init_attempted = False
 
 PLATFORM_IOS = DevicePushToken.Platform.IOS
 PLATFORM_ANDROID = DevicePushToken.Platform.ANDROID
+
+# Capacitor PushNotifications on iOS returns a raw APNs device token (hex).
+# Django / firebase-admin send via FCM, so APNs hex tokens must not be stored.
+_APNS_DEVICE_TOKEN_RE = re.compile(r"^[0-9a-fA-F]{64}$|^[0-9a-fA-F]{128}$")
+
+
+def is_likely_apns_device_token(token: str) -> bool:
+    """True when the value looks like a raw APNs device token, not an FCM token."""
+    return bool(_APNS_DEVICE_TOKEN_RE.fullmatch((token or "").strip()))
 
 
 def _firebase_credentials_available() -> bool:
@@ -82,14 +92,17 @@ def register_device_token(
     *,
     platform: str = PLATFORM_IOS,
 ) -> DevicePushToken:
-    """デバイストークンを登録または更新する。
+    """FCM 登録トークンを登録または更新する。
 
     同一トークンが別ユーザーに紐付いていても、現在の user へ付け替える
     （端末のログアウト→別アカウントログイン向け）。
+    生の APNs デバイストークンは拒否する（FCM 送信と不一致になるため）。
     """
     token = (token or "").strip()
     if not token:
         raise ValueError("token is required")
+    if is_likely_apns_device_token(token):
+        raise ValueError("apns_token_not_supported")
 
     platform = normalize_platform(platform)
     now = timezone.now()
