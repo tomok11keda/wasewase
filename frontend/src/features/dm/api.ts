@@ -46,6 +46,9 @@ export type ChatMessage = {
   is_read?: boolean;
   is_system?: boolean;
   is_deleted?: boolean;
+  is_removed?: boolean;
+  can_appeal?: boolean;
+  appeal_status?: "pending" | "accepted" | "rejected" | null;
   reply_to?: ChatReplyPreview | null;
   enrollment_role?: string | null;
   enrollment_label?: string | null;
@@ -387,6 +390,48 @@ export async function deleteGroupMessage(
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
   return data.message as ChatMessage;
+}
+
+export async function submitChatModerationAppeal(
+  messagePk: number,
+  explanation: string
+): Promise<void> {
+  const res = await fetch(`/api/v1/chat/messages/${messagePk}/appeals/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCsrfToken(),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ explanation }),
+  });
+  let data: { ok?: boolean; error?: string; message?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("送信に失敗しました。時間をおいてもう一度お試しください。");
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(
+      data.error === "forbidden"
+        ? "このメッセージには異議申し立てできません。"
+        : "ログインが必要です。"
+    );
+  }
+  if (!res.ok || !data.ok) {
+    const code = data.error || "";
+    if (code === "already_pending") {
+      throw new Error("異議申し立てを確認中です");
+    }
+    if (code === "not_removed") {
+      throw new Error("このメッセージは異議申し立ての対象ではありません。");
+    }
+    if (code === "empty") {
+      throw new Error("理由を入力してください。");
+    }
+    throw new Error("送信に失敗しました。時間をおいてもう一度お試しください。");
+  }
 }
 
 export async function inviteToGroup(

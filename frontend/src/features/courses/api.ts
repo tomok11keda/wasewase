@@ -381,6 +381,9 @@ export type CourseTalkMessage = {
   created_at: string;
   is_mine: boolean;
   is_deleted?: boolean;
+  is_removed?: boolean;
+  can_appeal?: boolean;
+  appeal_status?: "pending" | "accepted" | "rejected" | null;
   reply_to?: {
     id: number;
     sender_name: string;

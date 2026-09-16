@@ -403,9 +403,7 @@ def send_course_talk_message(
 def list_course_talk_rooms_for_user(user: AbstractBaseUser):
     latest_message = Prefetch(
         "chat_messages",
-        queryset=ChatMessage.objects.filter(is_hidden=False)
-        .select_related("sender")
-        .order_by("-pk")[:1],
+        queryset=ChatMessage.objects.select_related("sender").order_by("-pk")[:1],
         to_attr="latest_messages",
     )
     return (

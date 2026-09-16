@@ -8,12 +8,23 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import transaction
 from django.utils import timezone
 
-from .models import ChatMessage, ChatRoom
+from .models import ChatMessage, ChatMessageModerationAppeal, ChatRoom
 from .services import get_user_avatar_url, user_avatar_initial, user_display_name
 
 REPLY_PREVIEW_MAX = 80
 DELETED_PREVIEW = "削除されたメッセージ"
-HIDDEN_PREVIEW = "削除されたメッセージ"
+HIDDEN_PREVIEW = "運営により削除されたメッセージ"
+STAFF_REMOVED_PLACEHOLDER = "このメッセージは運営により削除されました。"
+AUTHOR_DELETED_PLACEHOLDER = "このメッセージは削除されました"
+
+
+def public_chat_message_preview(message: ChatMessage, limit: int = 80) -> str:
+    """Inbox / プレビュー用。運営削除の元本文は出さない。"""
+    if message.is_hidden:
+        return STAFF_REMOVED_PLACEHOLDER
+    if message.deleted_at:
+        return AUTHOR_DELETED_PLACEHOLDER
+    return (message.body or "")[:limit]
 
 
 def resolve_reply_target(
@@ -112,7 +123,23 @@ def serialize_chat_message(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     created = timezone.localtime(message.created_at)
-    is_deleted = bool(message.deleted_at)
+    is_removed = bool(message.is_hidden)
+    is_deleted = bool(message.deleted_at) and not is_removed
+    hide_body = is_removed or bool(message.deleted_at)
+    is_mine = message.sender_id == current_user_id
+    appeal_status = None
+    can_appeal = False
+    if is_removed and is_mine:
+        latest_appeal = (
+            ChatMessageModerationAppeal.objects.filter(
+                message=message, appellant_id=current_user_id
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if latest_appeal is not None:
+            appeal_status = latest_appeal.status
+        can_appeal = appeal_status != ChatMessageModerationAppeal.Status.PENDING
     payload: dict[str, Any] = {
         "id": message.pk,
         "sender_id": message.sender_id,
@@ -130,10 +157,13 @@ def serialize_chat_message(
         "avatar_url": (get_user_avatar_url(message.sender) or "")
         if message.sender_id
         else "",
-        "body": "" if is_deleted else message.body,
+        "body": "" if hide_body else message.body,
         "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
+        "is_mine": is_mine,
         "is_deleted": is_deleted,
+        "is_removed": is_removed,
+        "can_appeal": can_appeal,
+        "appeal_status": appeal_status,
         "reply_to": serialize_reply_preview(
             getattr(message, "reply_to", None)
             if message.reply_to_id
@@ -146,8 +176,8 @@ def serialize_chat_message(
 
 
 def visible_chat_messages_qs(room: ChatRoom):
-    """モデレーション非表示を除外。ユーザー削除は tombstone として残す。"""
-    return room.chat_messages.filter(is_hidden=False).select_related(
+    """スレッド表示用。運営削除は tombstone として残し、元本文はシリアライズで落とす。"""
+    return room.chat_messages.select_related(
         "sender",
         "sender__profile",
         "reply_to",

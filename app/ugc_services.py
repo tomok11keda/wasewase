@@ -266,8 +266,16 @@ def soft_remove_content(
         )
     elif target_type == ContentReport.TargetType.CHAT_MESSAGE:
         from .models import ChatMessage
+        from .moderation_services import hide_chat_message
 
-        updated = ChatMessage.objects.filter(pk=target_id, is_hidden=False).update(
-            is_hidden=True
+        message = ChatMessage.objects.filter(pk=target_id).first()
+        if message is None:
+            return False
+        already_hidden = message.is_hidden
+        hide_chat_message(
+            message=message,
+            moderator=moderator,
+            reason="通報対応",
         )
+        return not already_hidden
     return updated > 0

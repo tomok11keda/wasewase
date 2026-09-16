@@ -101,7 +101,7 @@ class ChatMessageReplyDeleteTests(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         preview = res.json()["message"]["reply_to"]
         self.assertTrue(preview["is_unavailable"])
-        self.assertEqual(preview["text_preview"], "削除されたメッセージ")
+        self.assertEqual(preview["text_preview"], "運営により削除されたメッセージ")
 
     def test_author_soft_delete_and_reply_preview(self):
         parent = self._send(self.client, "消す予定").json()["message"]

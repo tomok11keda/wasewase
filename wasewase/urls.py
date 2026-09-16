@@ -17,6 +17,7 @@ from app import calendar_course_exception_api_views
 from app import course_api_views
 from app import course_attendance_api_views
 from app import course_chat_api_views
+from app import chat_moderation_api_views
 from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
@@ -458,6 +459,11 @@ urlpatterns = [
         "api/v1/courses/talk/<int:room_pk>/messages/<int:message_pk>/delete/",
         course_chat_api_views.api_v1_courses_talk_message_delete,
         name="api_v1_courses_talk_message_delete",
+    ),
+    path(
+        "api/v1/chat/messages/<int:message_pk>/appeals/",
+        chat_moderation_api_views.api_v1_chat_message_appeal,
+        name="api_v1_chat_message_appeal",
     ),
     path(
         "api/v1/dm/inbox/",

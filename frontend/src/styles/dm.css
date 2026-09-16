@@ -1308,13 +1308,59 @@
   outline-offset: 2px;
 }
 
-.chat-row.is-deleted .chat-row__bubble {
+.chat-row.is-deleted .chat-row__bubble,
+.chat-row.is-removed .chat-row__bubble {
   opacity: 0.75;
 }
 
 .chat-row__deleted {
   font-style: italic;
   color: #8899aa;
+  font-size: 13px;
+}
+
+.chat-row__appeal {
+  margin-top: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1a6b8a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-row__appeal-status {
+  margin: 6px 0 0;
+  color: #8899aa;
+  font-size: 12px;
+}
+
+.msg-action-sheet__lead {
+  margin: 0 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #5b6b78;
+}
+
+.msg-action-sheet__textarea {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 12px;
+  border: 1px solid #d7e0e7;
+  border-radius: 12px;
+  background: #fff;
+  color: #1a2a33;
+  font-size: 15px;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 96px;
+}
+
+.msg-action-sheet__error {
+  margin: 0 8px 10px;
+  color: #b42318;
   font-size: 13px;
 }
 

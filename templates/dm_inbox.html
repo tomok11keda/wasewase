@@ -402,7 +402,7 @@
                 {% endif %}
                 {% if item.latest_message %}
                 <p class="dm-inbox-preview{% if item.latest_message.sender_id == user.id %} is-mine{% endif %}">
-                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% elif item.kind == 'trade' and not item.latest_message.sender_id %}<span class="dm-inbox-preview-prefix">システム: </span>{% endif %}{{ item.latest_message.body|truncatechars:72 }}
+                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% elif item.kind == 'trade' and not item.latest_message.sender_id %}<span class="dm-inbox-preview-prefix">システム: </span>{% endif %}{% if item.kind == 'group' or item.kind == 'course' %}{{ item.latest_message.public_display_body|truncatechars:72 }}{% else %}{{ item.latest_message.body|truncatechars:72 }}{% endif %}
                 </p>
                 {% else %}
                 <p class="dm-inbox-preview">まだメッセージはありません</p>

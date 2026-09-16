@@ -255,11 +255,144 @@ def ensure_course_talk_schema() -> None:
                     )
     except (OperationalError, ProgrammingError) as exc:
         message = str(exc).lower()
-        if "duplicate column" in message or "already exists" in message:
-            return
-        logger.exception("Course talk schema repair failed: %s", exc)
+        if "duplicate column" not in message and "already exists" not in message:
+            logger.exception("Course talk schema repair failed: %s", exc)
     except Exception as exc:
         logger.exception("Course talk schema repair failed: %s", exc)
+    ensure_chat_message_moderation_schema()
+
+
+def _add_nullable_column(cursor, table: str, column: str, pg_ddl: str, sqlite_ddl: str) -> None:
+    cols = {
+        item.name
+        for item in connection.introspection.get_table_description(cursor, table)
+    }
+    if column in cols:
+        return
+    if connection.vendor == "postgresql":
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {pg_ddl}")
+    else:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sqlite_ddl}")
+    logger.warning("Added missing %s.%s", table, column)
+
+
+def ensure_chat_message_moderation_schema() -> None:
+    """運営削除列・異議申し立てテーブルが欠けている本番 DB を修復する。"""
+    user_table = get_user_model()._meta.db_table
+    try:
+        with connection.cursor() as cursor:
+            tables = set(connection.introspection.table_names(cursor))
+            if "app_chatmessage" in tables:
+                _add_nullable_column(
+                    cursor,
+                    "app_chatmessage",
+                    "removed_at",
+                    "timestamptz NULL",
+                    "datetime NULL",
+                )
+                _add_nullable_column(
+                    cursor,
+                    "app_chatmessage",
+                    "removed_by_id",
+                    f"bigint NULL REFERENCES {user_table}(id) ON DELETE SET NULL",
+                    f"integer NULL REFERENCES {user_table}(id)",
+                )
+                _add_nullable_column(
+                    cursor,
+                    "app_chatmessage",
+                    "removal_reason",
+                    "varchar(200) NOT NULL DEFAULT ''",
+                    "varchar(200) NOT NULL DEFAULT ''",
+                )
+                for ddl in (
+                    "CREATE INDEX IF NOT EXISTS app_chatmessage_removed_at_idx "
+                    "ON app_chatmessage (removed_at)",
+                    "CREATE INDEX IF NOT EXISTS app_chatmessage_removed_by_id_idx "
+                    "ON app_chatmessage (removed_by_id)",
+                ):
+                    try:
+                        cursor.execute(ddl)
+                    except (OperationalError, ProgrammingError):
+                        pass
+
+            if "app_contentreport" in tables:
+                _add_nullable_column(
+                    cursor,
+                    "app_contentreport",
+                    "handled_at",
+                    "timestamptz NULL",
+                    "datetime NULL",
+                )
+                _add_nullable_column(
+                    cursor,
+                    "app_contentreport",
+                    "handled_by_id",
+                    f"bigint NULL REFERENCES {user_table}(id) ON DELETE SET NULL",
+                    f"integer NULL REFERENCES {user_table}(id)",
+                )
+                try:
+                    cursor.execute(
+                        "CREATE INDEX IF NOT EXISTS app_contentreport_handled_at_idx "
+                        "ON app_contentreport (handled_at)"
+                    )
+                except (OperationalError, ProgrammingError):
+                    pass
+
+            appeal_table = "app_chatmessagemoderationappeal"
+            if appeal_table not in tables:
+                if connection.vendor == "postgresql":
+                    cursor.execute(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {appeal_table} (
+                            id bigserial PRIMARY KEY,
+                            explanation text NOT NULL,
+                            status varchar(16) NOT NULL DEFAULT 'pending',
+                            created_at timestamptz NOT NULL DEFAULT NOW(),
+                            reviewed_at timestamptz NULL,
+                            review_note text NOT NULL DEFAULT '',
+                            appellant_id bigint NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+                            message_id bigint NOT NULL REFERENCES app_chatmessage(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+                            reviewer_id bigint NULL REFERENCES {user_table}(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED
+                        )
+                        """
+                    )
+                else:
+                    cursor.execute(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {appeal_table} (
+                            id integer PRIMARY KEY AUTOINCREMENT,
+                            explanation text NOT NULL,
+                            status varchar(16) NOT NULL DEFAULT 'pending',
+                            created_at datetime NOT NULL,
+                            reviewed_at datetime NULL,
+                            review_note text NOT NULL DEFAULT '',
+                            appellant_id integer NOT NULL REFERENCES {user_table}(id) ON DELETE CASCADE,
+                            message_id integer NOT NULL REFERENCES app_chatmessage(id) ON DELETE CASCADE,
+                            reviewer_id integer NULL REFERENCES {user_table}(id) ON DELETE SET NULL
+                        )
+                        """
+                    )
+                logger.warning("Created missing %s table", appeal_table)
+            try:
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS {appeal_table}_status_idx "
+                    f"ON {appeal_table} (status)"
+                )
+                cursor.execute(
+                    f"CREATE UNIQUE INDEX IF NOT EXISTS "
+                    f"uniq_pending_chatmsg_moderation_appeal "
+                    f"ON {appeal_table} (message_id, appellant_id) "
+                    f"WHERE status = 'pending'"
+                )
+            except (OperationalError, ProgrammingError):
+                pass
+    except (OperationalError, ProgrammingError) as exc:
+        message = str(exc).lower()
+        if "already exists" in message or "duplicate column" in message:
+            return
+        logger.warning("Chat message moderation schema repair failed: %s", exc)
+    except Exception as exc:
+        logger.warning("Chat message moderation schema repair failed: %s", exc)
 
 
 def ensure_chatroom_invitation_table() -> None:

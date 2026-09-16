@@ -276,18 +276,9 @@ def _room_messages_json(request, room):
 
 
 def _serialize_group_message(message, current_user_id):
-    created = timezone.localtime(message.created_at)
-    avatar_url = get_user_avatar_url(message.sender)
-    return {
-        "id": message.pk,
-        "sender_id": message.sender_id,
-        "sender_name": user_display_name(message.sender),
-        "sender_initial": user_avatar_initial(message.sender),
-        "avatar_url": avatar_url or "",
-        "body": message.body,
-        "created_at": created.strftime("%m/%d %H:%M"),
-        "is_mine": message.sender_id == current_user_id,
-    }
+    from .chat_message_services import serialize_chat_message
+
+    return serialize_chat_message(message, current_user_id)
 
 
 def _group_messages_json(request, room):

@@ -330,7 +330,7 @@
               <div class="chat-row__sender">{{ msg.sender|display_name }}</div>
               {% endif %}
               <div class="chat-row__bubble-wrap">
-                <div class="chat-row__bubble">{{ msg.body }}</div>
+                <div class="chat-row__bubble">{{ msg.public_display_body }}</div>
                 <time class="chat-row__time" datetime="{{ msg.created_at|date:'c' }}">
                   {{ msg.created_at|date:"m/d H:i" }}
                 </time>

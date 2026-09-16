@@ -78,7 +78,13 @@
 
     var bubble = document.createElement("div");
     bubble.className = "chat-row__bubble";
-    bubble.textContent = msg.body;
+    if (msg.is_removed) {
+      bubble.textContent = "このメッセージは運営により削除されました。";
+    } else if (msg.is_deleted) {
+      bubble.textContent = "このメッセージは削除されました";
+    } else {
+      bubble.textContent = msg.body;
+    }
     bubbleWrap.appendChild(bubble);
 
     var time = document.createElement("time");

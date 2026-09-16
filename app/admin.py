@@ -1,11 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import format_html
 
 from .models import (
     User,
     ChatMessage,
+    ChatMessageModerationAppeal,
     ChatReadState,
     ChatRoom,
     ChatRoomMembership,
@@ -405,11 +407,27 @@ class FollowRequestAdmin(admin.ModelAdmin):
 
 @admin.register(ContentReport)
 class ContentReportAdmin(admin.ModelAdmin):
-    list_display = ("target_type", "target_id", "reason", "reporter", "created_at")
-    list_filter = ("target_type", "reason", "created_at")
+    list_display = (
+        "target_link",
+        "target_type",
+        "target_id",
+        "reason",
+        "reporter",
+        "handled_at",
+        "created_at",
+    )
+    list_filter = ("target_type", "reason", "created_at", "handled_at")
     search_fields = ("target_id", "reporter__email", "reporter__username", "detail")
-    readonly_fields = ("created_at",)
+    readonly_fields = ("created_at", "handled_at", "handled_by", "target_link")
+    raw_id_fields = ("reporter", "handled_by")
     actions = ["moderate_reported_content"]
+
+    @admin.display(description="対象")
+    def target_link(self, obj):
+        if obj.target_type == ContentReport.TargetType.CHAT_MESSAGE:
+            url = reverse("admin:app_chatmessage_change", args=[obj.target_id])
+            return format_html('<a href="{}">ChatMessage #{}</a>', url, obj.target_id)
+        return f"{obj.target_type}:{obj.target_id}"
 
     @admin.action(description="通報対象を運営削除（ユーザー通報は対象外）")
     def moderate_reported_content(self, request, queryset):
@@ -538,9 +556,170 @@ class ChatRoomMembershipAdmin(admin.ModelAdmin):
 
 @admin.register(ChatMessage)
 class GroupChatMessageAdmin(admin.ModelAdmin):
-    list_display = ("room", "sender", "body", "created_at")
-    list_filter = ("created_at",)
-    search_fields = ("body", "sender__username", "room__name")
+    list_display = (
+        "id",
+        "room",
+        "sender",
+        "body_preview",
+        "is_hidden",
+        "deleted_at",
+        "created_at",
+    )
+    list_filter = ("is_hidden", "created_at")
+    search_fields = ("body", "sender__username", "sender__email", "room__name")
+    raw_id_fields = ("room", "sender", "reply_to", "removed_by")
+    readonly_fields = (
+        "created_at",
+        "is_hidden",
+        "removed_at",
+        "removed_by",
+        "deleted_at",
+    )
+    fields = (
+        "room",
+        "sender",
+        "body",
+        "reply_to",
+        "created_at",
+        "is_hidden",
+        "removed_at",
+        "removed_by",
+        "removal_reason",
+        "deleted_at",
+    )
+    actions = ["hide_selected_chat_messages", "restore_selected_chat_messages"]
+
+    @admin.display(description="本文")
+    def body_preview(self, obj):
+        text = obj.body or ""
+        return text if len(text) <= 40 else f"{text[:40]}…"
+
+    @admin.action(description="運営により非表示（チャットに痕跡を残す）")
+    def hide_selected_chat_messages(self, request, queryset):
+        from .moderation_services import hide_chat_message
+
+        count = 0
+        for message in queryset:
+            if not message.is_hidden:
+                hide_chat_message(
+                    message=message,
+                    moderator=request.user,
+                    reason=message.removal_reason or "運営による非表示",
+                )
+                count += 1
+        self.message_user(request, f"{count} 件を運営削除（プレースホルダ表示）にしました。")
+
+    @admin.action(description="運営削除を解除して復元")
+    def restore_selected_chat_messages(self, request, queryset):
+        from .moderation_services import restore_chat_message
+
+        count = 0
+        for message in queryset:
+            if message.is_hidden:
+                restore_chat_message(message=message, moderator=request.user)
+                count += 1
+        self.message_user(request, f"{count} 件を通常表示に戻しました。")
+
+
+@admin.register(ChatMessageModerationAppeal)
+class ChatMessageModerationAppealAdmin(admin.ModelAdmin):
+    list_display = ("id", "message", "appellant", "status", "created_at")
+    list_filter = ("status", "created_at")
+    search_fields = (
+        "explanation",
+        "appellant__username",
+        "appellant__email",
+        "message__body",
+    )
+    raw_id_fields = ("message", "appellant", "reviewer")
+    readonly_fields = (
+        "created_at",
+        "reviewed_at",
+        "message_link",
+        "message_body",
+        "message_sender",
+        "message_room",
+    )
+    fields = (
+        "message",
+        "message_link",
+        "message_room",
+        "message_sender",
+        "message_body",
+        "appellant",
+        "explanation",
+        "status",
+        "created_at",
+        "reviewed_at",
+        "reviewer",
+        "review_note",
+    )
+    actions = ["accept_selected_appeals", "reject_selected_appeals"]
+
+    @admin.display(description="対象メッセージ")
+    def message_link(self, obj):
+        if obj.message_id is None:
+            return "-"
+        url = reverse("admin:app_chatmessage_change", args=[obj.message_id])
+        return format_html('<a href="{}">ChatMessage #{}</a>', url, obj.message_id)
+
+    @admin.display(description="元本文")
+    def message_body(self, obj):
+        return obj.message.body if obj.message_id else ""
+
+    @admin.display(description="送信者")
+    def message_sender(self, obj):
+        return obj.message.sender if obj.message_id else ""
+
+    @admin.display(description="ルーム")
+    def message_room(self, obj):
+        return obj.message.room if obj.message_id else ""
+
+    def save_model(self, request, obj, form, change):
+        from .moderation_services import (
+            accept_chat_message_appeal,
+            reject_chat_message_appeal,
+        )
+
+        if change:
+            previous = ChatMessageModerationAppeal.objects.get(pk=obj.pk)
+            if (
+                previous.status == ChatMessageModerationAppeal.Status.PENDING
+                and obj.status == ChatMessageModerationAppeal.Status.ACCEPTED
+            ):
+                accept_chat_message_appeal(
+                    previous, request.user, note=obj.review_note
+                )
+                return
+            if (
+                previous.status == ChatMessageModerationAppeal.Status.PENDING
+                and obj.status == ChatMessageModerationAppeal.Status.REJECTED
+            ):
+                reject_chat_message_appeal(
+                    previous, request.user, note=obj.review_note
+                )
+                return
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="認容してメッセージを復元")
+    def accept_selected_appeals(self, request, queryset):
+        from .moderation_services import accept_chat_message_appeal
+
+        count = 0
+        for appeal in queryset.filter(status=ChatMessageModerationAppeal.Status.PENDING):
+            accept_chat_message_appeal(appeal, request.user)
+            count += 1
+        self.message_user(request, f"{count} 件を認容し、メッセージを復元しました。")
+
+    @admin.action(description="却下（削除状態を維持）")
+    def reject_selected_appeals(self, request, queryset):
+        from .moderation_services import reject_chat_message_appeal
+
+        count = 0
+        for appeal in queryset.filter(status=ChatMessageModerationAppeal.Status.PENDING):
+            reject_chat_message_appeal(appeal, request.user)
+            count += 1
+        self.message_user(request, f"{count} 件を却下しました。")
 
 
 @admin.register(ChatReadState)

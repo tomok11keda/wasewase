@@ -89,6 +89,17 @@ def serialize_group_message(
     return serialize_chat_message(message, current_user_id)
 
 
+def _inbox_latest_body(latest) -> str:
+    if latest is None:
+        return ""
+    from .models import ChatMessage
+    from .chat_message_services import public_chat_message_preview
+
+    if isinstance(latest, ChatMessage):
+        return public_chat_message_preview(latest)
+    return (getattr(latest, "body", None) or "")[:80]
+
+
 def serialize_inbox_item(item: dict) -> dict[str, Any]:
     room = item["room"]
     kind = item.get("kind") or "dm"
@@ -110,7 +121,7 @@ def serialize_inbox_item(item: dict) -> dict[str, Any]:
         "unread_count": int(item.get("unread_count") or 0),
         "is_blocked": bool(item.get("is_blocked")),
         "updated_at": updated.isoformat() if updated is not None else "",
-        "latest_body": (getattr(latest, "body", None) or "")[:80] if latest else "",
+        "latest_body": _inbox_latest_body(latest),
         "latest_sender_name": item.get("latest_sender_display_name") or "",
         "partner": serialize_author(partner) if partner is not None else None,
         "product_id": product.pk if product is not None else None,

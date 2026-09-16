@@ -1056,6 +1056,21 @@ class ContentReport(models.Model):
     )
     detail = models.TextField("詳細", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    handled_at = models.DateTimeField(
+        "対応日時",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="運営が対象コンテンツを対応済みにした日時。未対応は空。",
+    )
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="content_reports_handled",
+        verbose_name="対応者",
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -1388,7 +1403,28 @@ class ChatMessage(models.Model):
         "非表示",
         default=False,
         db_index=True,
-        help_text="モデレーションにより一覧から隠す",
+        help_text="運営モデレーションによりチャット上をプレースホルダ表示にする。元本文は DB に残す。",
+    )
+    removed_at = models.DateTimeField(
+        "運営削除日時",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="運営が非表示にした日時。",
+    )
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chat_messages_removed",
+        help_text="運営削除を実行したスタッフ。",
+    )
+    removal_reason = models.CharField(
+        "運営内部用の削除理由",
+        max_length=200,
+        blank=True,
+        help_text="一般ユーザーには出さない。",
     )
     deleted_at = models.DateTimeField(
         "ユーザー削除日時",
@@ -1408,6 +1444,79 @@ class ChatMessage(models.Model):
     @property
     def is_deleted_by_author(self) -> bool:
         return self.deleted_at is not None
+
+    @property
+    def is_removed_by_staff(self) -> bool:
+        return bool(self.is_hidden)
+
+    @property
+    def public_display_body(self) -> str:
+        """一般ユーザー向け本文。運営削除時は元本文を返さない。"""
+        if self.is_hidden:
+            return "このメッセージは運営により削除されました。"
+        if self.deleted_at:
+            return "このメッセージは削除されました"
+        return self.body or ""
+
+
+class ChatMessageModerationAppeal(models.Model):
+    """運営削除されたグループ/授業トークメッセージへの異議申し立て。"""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "確認中"
+        ACCEPTED = "accepted", "認容（復元）"
+        REJECTED = "rejected", "却下"
+
+    message = models.ForeignKey(
+        ChatMessage,
+        on_delete=models.CASCADE,
+        related_name="moderation_appeals",
+        verbose_name="対象メッセージ",
+    )
+    appellant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_message_moderation_appeals",
+        verbose_name="申立人",
+    )
+    explanation = models.TextField(max_length=1000, verbose_name="申立理由")
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+        verbose_name="状態",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="申立日時")
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="審査日時",
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chat_message_appeals_reviewed",
+        verbose_name="審査者",
+    )
+    review_note = models.TextField(blank=True, verbose_name="運営メモ")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "チャットメッセージ異議申し立て"
+        verbose_name_plural = "チャットメッセージ異議申し立て"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["message", "appellant"],
+                condition=models.Q(status="pending"),
+                name="uniq_pending_chatmsg_moderation_appeal",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"appeal #{self.pk} message={self.message_id} {self.status}"
 
 
 class ChatReadState(models.Model):

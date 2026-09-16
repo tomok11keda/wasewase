@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLongPress } from "./useLongPress";
 import { MessageActionSheet } from "./MessageActionSheet";
 import { ChatMessageReportSheet } from "./ChatMessageReportSheet";
+import { ChatModerationAppealSheet } from "./ChatModerationAppealSheet";
 import type { ReplyTarget } from "./ChatReplyPreview";
 import { analytics } from "../../lib/analytics/events";
 
@@ -17,6 +18,9 @@ export type ThreadMessage = {
   created_at: string;
   is_mine: boolean;
   is_deleted?: boolean;
+  is_removed?: boolean;
+  can_appeal?: boolean;
+  appeal_status?: "pending" | "accepted" | "rejected" | null;
   reply_to?: {
     id: number;
     sender_name: string;
@@ -54,15 +58,25 @@ export function ChatThreadMessage({
 }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealStatus, setAppealStatus] = useState(m.appeal_status ?? null);
   const rowRef = useRef<HTMLLIElement | null>(null);
+  const isRemoved = Boolean(m.is_removed);
+  const isTombstone = isRemoved || Boolean(m.is_deleted);
+  const showAppeal = isRemoved && m.is_mine && Boolean(m.can_appeal) && appealStatus !== "pending";
+  const showAppealPending = isRemoved && m.is_mine && appealStatus === "pending";
+
+  useEffect(() => {
+    setAppealStatus(m.appeal_status ?? null);
+  }, [m.appeal_status]);
 
   const openSheet = useCallback(() => {
-    if (!canAct || m.is_deleted) return;
+    if (!canAct || isTombstone) return;
     analytics.chatMessageLongPressed({ kind });
     setSheetOpen(true);
-  }, [canAct, m.is_deleted, kind]);
+  }, [canAct, isTombstone, kind]);
 
-  const lp = useLongPress({ onLongPress: openSheet, enabled: canAct && !m.is_deleted });
+  const lp = useLongPress({ onLongPress: openSheet, enabled: canAct && !isTombstone });
   const profilePath =
     kind === "course" && m.sender_id
       ? `/users/${m.sender_id}/posts`
@@ -85,7 +99,7 @@ export function ChatThreadMessage({
   };
 
   const startReply = () => {
-    if (m.is_deleted || !canReply) return;
+    if (isTombstone || !canReply) return;
     analytics.chatReplyStarted({ kind });
     onReply({
       id: m.id,
@@ -112,7 +126,7 @@ export function ChatThreadMessage({
         id={`chat-msg-${m.id}`}
         className={`chat-row${m.is_mine ? " is-mine" : ""}${
           highlightedId === m.id ? " is-highlight" : ""
-        }${m.is_deleted ? " is-deleted" : ""}`}
+        }${m.is_deleted ? " is-deleted" : ""}${isRemoved ? " is-removed" : ""}`}
         data-message-id={m.id}
         {...lp}
       >
@@ -178,7 +192,11 @@ export function ChatThreadMessage({
                   </span>
                 </button>
               ) : null}
-              {m.is_deleted ? (
+              {isRemoved ? (
+                <span className="chat-row__deleted">
+                  このメッセージは運営により削除されました。
+                </span>
+              ) : m.is_deleted ? (
                 <span className="chat-row__deleted">
                   このメッセージは削除されました
                 </span>
@@ -186,9 +204,24 @@ export function ChatThreadMessage({
                 m.body
               )}
             </div>
+            {showAppealPending ? (
+              <p className="chat-row__appeal-status">異議申し立てを確認中です</p>
+            ) : null}
+            {showAppeal ? (
+              <button
+                type="button"
+                className="chat-row__appeal"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAppealOpen(true);
+                }}
+              >
+                異議申し立て
+              </button>
+            ) : null}
             <div className="chat-row__meta">
               <time className="chat-row__time">{m.created_at}</time>
-              {canAct && !m.is_deleted ? (
+              {canAct && !isTombstone ? (
                 <button
                   type="button"
                   className="chat-row__more"
@@ -209,10 +242,10 @@ export function ChatThreadMessage({
       <MessageActionSheet
         open={sheetOpen}
         isOwn={m.is_mine}
-        canReply={canReply && !m.is_deleted}
-        canCopy={!m.is_deleted && Boolean(m.body)}
-        canDelete={m.is_mine && !m.is_deleted}
-        canReport={!m.is_mine && !m.is_deleted}
+        canReply={canReply && !isTombstone}
+        canCopy={!isTombstone && Boolean(m.body)}
+        canDelete={m.is_mine && !isTombstone}
+        canReport={!m.is_mine && !isTombstone}
         onClose={() => setSheetOpen(false)}
         onReply={startReply}
         onCopy={() => void copyBody()}
@@ -226,6 +259,15 @@ export function ChatThreadMessage({
         onReported={() => {
           analytics.chatMessageReported({ kind });
           onToast("通報しました");
+        }}
+      />
+      <ChatModerationAppealSheet
+        messageId={m.id}
+        open={appealOpen}
+        onClose={() => setAppealOpen(false)}
+        onSubmitted={() => {
+          setAppealStatus("pending");
+          onToast("異議申し立てを受け付けました。運営が内容を確認します。");
         }}
       />
     </>
