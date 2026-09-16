@@ -12,6 +12,7 @@ import {
   toggleBookmark,
   toggleLike,
 } from "./api";
+import { ImageLightbox } from "./ImageLightbox";
 import { LikerListModal } from "./LikerListModal";
 import {
   hasRecordedImpression,
@@ -71,6 +72,7 @@ export function TimelinePostCard({
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportChoosing, setReportChoosing] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -387,14 +389,22 @@ export function TimelinePostCard({
           ) : null}
 
           {post.image_url ? (
-            <a
+            <button
+              type="button"
               className="tweet-media"
-              href={post.image_url}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setLightboxOpen(true);
+              }}
             >
-              <img className="tweet-image" src={post.image_url} alt="" loading="lazy" />
-            </a>
+              <img
+                className="tweet-image"
+                src={post.image_url}
+                alt="投稿の画像"
+                loading="lazy"
+              />
+            </button>
           ) : null}
 
           <div className="tweet-actionbar" role="group" aria-label="投稿アクション">
@@ -598,6 +608,14 @@ export function TimelinePostCard({
       open={likersOpen}
       onClose={() => setLikersOpen(false)}
     />
+    {post.image_url ? (
+      <ImageLightbox
+        src={post.image_url}
+        alt="投稿の画像"
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
+    ) : null}
     </>
   );
 }
