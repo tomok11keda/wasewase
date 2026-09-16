@@ -24,6 +24,7 @@ import { LocalSearchBar } from "../components/LocalSearchBar";
 import { getImpressedPostIds } from "../features/timeline/impressions";
 import {
   parseTimelinePostHash,
+  parseTimelinePostPath,
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
@@ -249,11 +250,14 @@ export function HomePage() {
 
   const onVisibleHome =
     activeTab === "home" ||
+    parseTimelinePostPath(normalizedPath) != null ||
     (activeTab === null && normalizedPath === "/");
 
   const stateHash = (location.state as { hash?: string } | null)?.hash;
   const targetPostId = onVisibleHome
-    ? parseTimelinePostHash(location.hash) ?? parseTimelinePostHash(stateHash)
+    ? parseTimelinePostPath(location.pathname) ??
+      parseTimelinePostHash(location.hash) ??
+      parseTimelinePostHash(stateHash)
     : null;
 
   const visiblePosts = useMemo(() => {
@@ -264,6 +268,7 @@ export function HomePage() {
 
   const waitingForTarget =
     Boolean(targetPostId) &&
+    !browsePreview &&
     !postUnavailable &&
     !visiblePosts.some((p) => p.id === targetPostId);
 
@@ -537,7 +542,11 @@ export function HomePage() {
       (waitingForTarget && visiblePosts.length === 0) ? (
         <p className="empty-message">読み込み中…</p>
       ) : browsePreview ? (
-        <BrowsePreviewNotice nextPath="/app/">
+        <BrowsePreviewNotice
+          nextPath={
+            targetPostId ? `/app/posts/${targetPostId}` : "/app/"
+          }
+        >
           タイムラインはログイン後に表示されます。
         </BrowsePreviewNotice>
       ) : postUnavailable && visiblePosts.length === 0 ? (

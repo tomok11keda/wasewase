@@ -14,6 +14,8 @@ import {
 } from "./api";
 import { ImageLightbox } from "./ImageLightbox";
 import { LikerListModal } from "./LikerListModal";
+import { ShareActionSheet } from "../../components/ShareActionSheet";
+import { genericSharePayload, timelinePostShareUrl } from "../../lib/share";
 import {
   hasRecordedImpression,
   IMPRESSION_DWELL_MS,
@@ -72,6 +74,7 @@ export function TimelinePostCard({
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportChoosing, setReportChoosing] = useState(false);
@@ -475,6 +478,18 @@ export function TimelinePostCard({
                 </button>
               ) : null}
             </div>
+            <button
+              type="button"
+              className="tweet-action tweet-action--share"
+              aria-label="シェア"
+              onClick={(event) => {
+                event.stopPropagation();
+                event.preventDefault();
+                setShareOpen(true);
+              }}
+            >
+              <SfIcon name="square_and_arrow_up" />
+            </button>
             <span
               className="tweet-action tweet-action--view tweet-action--static"
               aria-label={`閲覧数 ${post.view_count || 0}`}
@@ -607,6 +622,11 @@ export function TimelinePostCard({
       postId={post.id}
       open={likersOpen}
       onClose={() => setLikersOpen(false)}
+    />
+    <ShareActionSheet
+      open={shareOpen}
+      payload={genericSharePayload(timelinePostShareUrl(post.id))}
+      onClose={() => setShareOpen(false)}
     />
     {post.image_url ? (
       <ImageLightbox

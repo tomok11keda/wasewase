@@ -585,6 +585,23 @@
   border: 1px solid #e8d4d8;
 }
 
+.product-detail-page .btn-share-external {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid #d8dee6;
+}
+
 .product-detail-page .btn-chat-contact {
   border: 1px solid var(--accent);
   background: #fff;

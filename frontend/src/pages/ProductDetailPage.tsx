@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookmarkButton } from "../components/BookmarkButton";
+import { ShareActionSheet } from "../components/ShareActionSheet";
+import { SfIcon } from "../components/SfIcon";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { fleaProductShareUrl, genericSharePayload } from "../lib/share";
 import {
   deleteProduct,
   fetchProductDetail,
@@ -35,6 +38,7 @@ export function ProductDetailPage() {
   const [rating, setRating] = useState(3);
   const [reviewComment, setReviewComment] = useState("");
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(productId)) {
@@ -376,6 +380,15 @@ export function ProductDetailPage() {
                 ) : null}
               </div>
 
+              <button
+                type="button"
+                className="btn-share-external"
+                onClick={() => setShareOpen(true)}
+              >
+                <SfIcon name="square_and_arrow_up" />
+                シェア
+              </button>
+
               {product.can_share_to_timeline ? (
                 <button
                   type="button"
@@ -498,6 +511,11 @@ export function ProductDetailPage() {
           </form>
         </section>
       </div>
+      <ShareActionSheet
+        open={shareOpen}
+        payload={genericSharePayload(fleaProductShareUrl(product.id))}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

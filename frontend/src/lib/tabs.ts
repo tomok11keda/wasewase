@@ -49,6 +49,8 @@ export type MainTabId = TabId;
 export function matchMainTab(pathname: string): MainTabId | null {
   const normalized = pathname.replace(/\/$/, "") || "/";
   if (normalized === "/" || normalized === "") return "home";
+  // Canonical external share URL reuses the Home timeline shell.
+  if (/^\/posts\/\d+$/.test(normalized)) return "home";
   if (normalized === "/communities") return "communities";
   if (normalized === "/search") return "search";
   if (normalized === "/flea") return "flea";

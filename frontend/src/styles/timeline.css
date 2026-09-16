@@ -396,6 +396,7 @@
 .tweet-action--quote,
 .tweet-action--like,
 .tweet-action--likers,
+.tweet-action--share,
 .tweet-action--view,
 .tweet-action--report {
   position: relative;
@@ -436,6 +437,11 @@
 .tweet-action--quote:focus-visible {
   color: var(--tweet-quote);
   background: var(--tweet-quote-bg);
+}
+.tweet-action--share:hover,
+.tweet-action--share:focus-visible {
+  color: var(--tweet-comment);
+  background: var(--tweet-comment-bg);
 }
 .tweet-action--like:hover,
 .tweet-action--like:focus-visible,

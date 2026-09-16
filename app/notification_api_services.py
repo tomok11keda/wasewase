@@ -50,6 +50,7 @@ _VERIFY_RE = re.compile(r"^/verify(?:-otp)?/?$")
 _PASSWORD_RESET_RE = re.compile(r"^/password-reset/?$")
 _PASSWORD_RESET_VERIFY_RE = re.compile(r"^/password-reset/verify/?$")
 _PASSWORD_RESET_SET_RE = re.compile(r"^/password-reset/set/?$")
+_TIMELINE_POST_RE = re.compile(r"^/posts/(\d+)/?$")
 
 
 def _with_query_fragment(spa: str, query: str, fragment: str) -> str:
@@ -140,6 +141,9 @@ def notification_spa_path(link: str) -> str:
         return "/password-reset/verify"
     if _PASSWORD_RESET_RE.match(path):
         return "/password-reset"
+    m = _TIMELINE_POST_RE.match(path)
+    if m:
+        return _with_query_fragment(f"/posts/{m.group(1)}", query, fragment)
 
     if path in ("/", ""):
         return _with_query_fragment("/", query, fragment)

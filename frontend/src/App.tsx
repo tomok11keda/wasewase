@@ -116,6 +116,7 @@ function AppRoutes() {
         <Route element={<OnboardingGate />}>
           <Route element={<AppShellLayout />}>
             <Route index element={<HomePage />} />
+            <Route path="posts/:postId" element={<HomePage />} />
             <Route path="communities" element={<CommunitiesPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="flea" element={<FleaPage />} />
@@ -129,6 +130,7 @@ function AppRoutes() {
           <Route element={<AppShellLayout />}>
             <Route element={<TabKeepAliveLayout />}>
               <Route index element={<MainTabRoute />} />
+              <Route path="posts/:postId" element={<MainTabRoute />} />
               <Route path="communities" element={<MainTabRoute />} />
               <Route path="search" element={<MainTabRoute />} />
               <Route path="flea" element={<MainTabRoute />} />

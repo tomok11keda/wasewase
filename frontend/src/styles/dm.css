@@ -1410,3 +1410,39 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+.share-action-sheet__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 16px;
+}
+
+.share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 90;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(20, 28, 36, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .share-action-sheet {
+    align-items: center;
+  }
+
+  .share-action-sheet .msg-action-sheet__panel {
+    width: min(400px, calc(100% - 32px));
+    margin: 0;
+    border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  }
+}
