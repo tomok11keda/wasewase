@@ -20,6 +20,7 @@ import {
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { SharedContentCard } from "../features/share/SharedContentCard";
 import {
   isChatNearBottom,
   mergeUniqueByIdAsc,
@@ -364,7 +365,11 @@ export function DmRoomPage() {
                       )}
                     </div>
                     <div className="chat-row__main">
-                      <div className="chat-row__bubble">{m.body}</div>
+                      {m.message_kind === "share" && m.share ? (
+                        <SharedContentCard share={m.share} />
+                      ) : (
+                        <div className="chat-row__bubble">{m.body}</div>
+                      )}
                       <div className="chat-row__meta">
                         {m.is_mine && m.is_read ? (
                           <span className="chat-row__read">既読</span>

@@ -27,6 +27,7 @@ from .dm_request_services import (
 )
 from .models import ChatMessage, ChatRoom, UserDirectMessageRoom
 from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_chat_message
+from .share_dm_services import list_share_recipients, send_share_dm
 from .dm_api_services import (
     build_dm_messages_payload,
     build_dm_room_payload,
@@ -37,7 +38,7 @@ from .dm_api_services import (
     list_following_for_group,
     send_dm_message,
     send_group_chat_message,
-    serialize_dm_message,
+    serialize_dm_messages,
     serialize_group_message,
     start_dm,
 )
@@ -161,7 +162,7 @@ def api_v1_dm_send(request: HttpRequest, room_pk: int) -> JsonResponse:
     return JsonResponse(
         {
             "ok": True,
-            "message": serialize_dm_message(message, request.user.id),
+            "message": serialize_dm_messages([message], request.user)[0],
         },
         status=201,
     )
@@ -376,3 +377,58 @@ def api_v1_dm_request_decline(request: HttpRequest, room_pk: int) -> JsonRespons
     except ValueError as exc:
         return _json_error(str(exc), status=400)
     return JsonResponse({"ok": True, "declined": True, "spa_path": "/dm"})
+
+
+@login_required
+@require_GET
+def api_v1_dm_share_recipients(request: HttpRequest) -> JsonResponse:
+    return JsonResponse(list_share_recipients(request.user))
+
+
+@login_required
+@require_POST
+def api_v1_dm_share_send(request: HttpRequest) -> JsonResponse:
+    if not allow_chat_message(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
+    data = _parse_json(request)
+    raw_user = data.get("user_id")
+    raw_type = data.get("target_type")
+    raw_id = data.get("target_id")
+    try:
+        partner_id = int(raw_user)
+    except (TypeError, ValueError):
+        return _json_error("invalid_user", status=400)
+    try:
+        target_id = int(raw_id)
+    except (TypeError, ValueError):
+        return _json_error("invalid_target", status=400)
+    try:
+        message = send_share_dm(
+            request.user,
+            partner_id=partner_id,
+            target_type=str(raw_type or ""),
+            target_id=target_id,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code in ("forbidden", "blocked", "request_pending", "unavailable"):
+            status = 403
+        else:
+            status = 400
+        return _json_error(code, status=status)
+    message = (
+        type(message)
+        .objects.select_related("sender", "sender__profile")
+        .get(pk=message.pk)
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": serialize_dm_messages([message], request.user)[0],
+        },
+        status=201,
+    )

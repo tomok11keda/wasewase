@@ -1,5 +1,6 @@
 import { getCsrfToken } from "../timeline/api";
 import { userFacingMutationError } from "../../lib/rateLimit";
+import type { ShareCardPayload } from "../share/api";
 
 export type Author = {
   id: number | null;
@@ -52,6 +53,8 @@ export type ChatMessage = {
   reply_to?: ChatReplyPreview | null;
   enrollment_role?: string | null;
   enrollment_label?: string | null;
+  message_kind?: "text" | "share" | string;
+  share?: ShareCardPayload | null;
 };
 
 export type DmRoomDetail = {

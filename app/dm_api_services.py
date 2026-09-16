@@ -44,6 +44,12 @@ from .services import (
     user_avatar_initial,
     user_display_name,
 )
+from .share_dm_services import (
+    SHARE_KIND_SHARE,
+    SHARE_KIND_TEXT,
+    resolve_share_payloads,
+    share_preview_body,
+)
 from .timeline_api_services import serialize_author
 from .ugc_services import is_either_blocked, is_user_blocked
 
@@ -53,11 +59,13 @@ def serialize_dm_message(
     current_user_id: int,
     *,
     anonymize_partner: bool = False,
+    share_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     created = timezone.localtime(message.created_at)
     is_mine = message.sender_id == current_user_id
+    kind = getattr(message, "message_kind", None) or SHARE_KIND_TEXT
     if anonymize_partner and not is_mine:
-        return {
+        payload = {
             "id": message.pk,
             "sender_id": message.sender_id,
             "sender_name": "不明なユーザー",
@@ -67,7 +75,10 @@ def serialize_dm_message(
             "created_at": created.strftime("%m/%d %H:%M"),
             "is_mine": False,
             "is_read": message.is_read,
+            "message_kind": kind,
+            "share": share_payload,
         }
+        return payload
     return {
         "id": message.pk,
         "sender_id": message.sender_id,
@@ -78,7 +89,36 @@ def serialize_dm_message(
         "created_at": created.strftime("%m/%d %H:%M"),
         "is_mine": is_mine,
         "is_read": message.is_read,
+        "message_kind": kind,
+        "share": share_payload,
     }
+
+
+def serialize_dm_messages(
+    messages: list[UserDirectMessage],
+    viewer: AbstractBaseUser,
+    *,
+    anonymize_partner: bool = False,
+    hide_partner_shares: bool | None = None,
+) -> list[dict[str, Any]]:
+    hide_shares = (
+        anonymize_partner if hide_partner_shares is None else hide_partner_shares
+    )
+    share_map = resolve_share_payloads(
+        messages,
+        viewer,
+        hide_partner_shares=hide_shares,
+        viewer_id=viewer.id,
+    )
+    return [
+        serialize_dm_message(
+            message,
+            viewer.id,
+            anonymize_partner=anonymize_partner,
+            share_payload=share_map.get(message.pk),
+        )
+        for message in messages
+    ]
 
 
 def serialize_group_message(
@@ -92,11 +132,15 @@ def serialize_group_message(
 def _inbox_latest_body(latest) -> str:
     if latest is None:
         return ""
-    from .models import ChatMessage
+    from .models import ChatMessage, UserDirectMessage
     from .chat_message_services import public_chat_message_preview
 
     if isinstance(latest, ChatMessage):
         return public_chat_message_preview(latest)
+    if isinstance(latest, UserDirectMessage) and (
+        getattr(latest, "message_kind", SHARE_KIND_TEXT) == SHARE_KIND_SHARE
+    ):
+        return share_preview_body(getattr(latest, "share_target_type", "") or "")
     return (getattr(latest, "body", None) or "")[:80]
 
 
@@ -214,12 +258,12 @@ def build_dm_room_payload(
             "message_request": request_payload,
             "latest_id": latest_id or 0,
         },
-        "messages": [
-            serialize_dm_message(
-                m, viewer.id, anonymize_partner=is_blocked
-            )
-            for m in messages
-        ],
+        "messages": serialize_dm_messages(
+            list(messages),
+            viewer,
+            anonymize_partner=is_blocked,
+            hide_partner_shares=messaging_blocked,
+        ),
         **history_meta(has_more, next_before),
     }
 
@@ -265,12 +309,12 @@ def build_dm_messages_payload(
     can_send = (not messaging_blocked) and recipient_can_send_in_dm(room, viewer)
     mark_dm_room_read(room, viewer)
     return {
-        "messages": [
-            serialize_dm_message(
-                m, viewer.id, anonymize_partner=is_blocked
-            )
-            for m in messages
-        ],
+        "messages": serialize_dm_messages(
+            list(messages),
+            viewer,
+            anonymize_partner=is_blocked,
+            hide_partner_shares=messaging_blocked,
+        ),
         "latest_id": latest_id,
         "read_message_ids": list_dm_read_message_ids_for_sender(room, viewer),
         "is_blocked": is_blocked,

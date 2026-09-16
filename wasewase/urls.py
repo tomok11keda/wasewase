@@ -466,6 +466,16 @@ urlpatterns = [
         name="api_v1_chat_message_appeal",
     ),
     path(
+        "api/v1/dm/share/recipients/",
+        dm_api_views.api_v1_dm_share_recipients,
+        name="api_v1_dm_share_recipients",
+    ),
+    path(
+        "api/v1/dm/share/send/",
+        dm_api_views.api_v1_dm_share_send,
+        name="api_v1_dm_share_send",
+    ),
+    path(
         "api/v1/dm/inbox/",
         dm_api_views.api_v1_dm_inbox,
         name="api_v1_dm_inbox",

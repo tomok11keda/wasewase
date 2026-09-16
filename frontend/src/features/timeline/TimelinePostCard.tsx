@@ -626,6 +626,7 @@ export function TimelinePostCard({
     <ShareActionSheet
       open={shareOpen}
       payload={timelineSharePayload(post.id)}
+      shareTarget={{ type: "timeline", id: post.id }}
       onClose={() => setShareOpen(false)}
     />
     {post.image_url ? (

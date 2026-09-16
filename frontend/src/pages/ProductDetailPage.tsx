@@ -514,6 +514,7 @@ export function ProductDetailPage() {
       <ShareActionSheet
         open={shareOpen}
         payload={fleaSharePayload(product.id)}
+        shareTarget={{ type: "flea", id: product.id }}
         onClose={() => setShareOpen(false)}
       />
     </div>

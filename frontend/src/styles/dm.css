@@ -1441,6 +1441,256 @@
   line-height: 1.4;
 }
 
+.share-recipient-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 8px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.share-recipient {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: #1a2a33;
+}
+
+.share-recipient__avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e8eef2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.share-recipient__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.share-recipient__check {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1a7f4b;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.share-recipient.is-sending {
+  opacity: 0.55;
+}
+
+.share-recipient__name {
+  max-width: 72px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-recipient-more {
+  display: block;
+  margin: 0 8px 8px;
+  min-height: 44px;
+  width: calc(100% - 16px);
+  border: 0;
+  border-radius: 12px;
+  background: #f3f6f8;
+  color: #1a2a33;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.share-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.share-picker__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(10, 16, 22, 0.35);
+}
+
+.share-picker__panel {
+  position: relative;
+  width: 100%;
+  max-height: 70%;
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.share-picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.share-picker__head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.share-picker__close,
+.share-picker__list .share-recipient {
+  min-height: 44px;
+}
+
+.share-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.share-picker__list .share-recipient {
+  width: 100%;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 8px;
+}
+
+.share-picker__list .share-recipient__name {
+  max-width: none;
+  font-size: 15px;
+}
+
+.share-card {
+  display: block;
+  max-width: 260px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(20, 28, 36, 0.12);
+  color: inherit;
+  text-decoration: none;
+}
+
+.share-card__brand {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #8a1f2b;
+}
+
+.share-card__author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.share-card__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e8eef2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.share-card__author-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.share-card__handle,
+.share-card__seller {
+  font-size: 12px;
+  color: #667788;
+}
+
+.share-card__body,
+.share-card__title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.share-card__price {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.share-card__media {
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #eef2f5;
+}
+
+.share-card__cta {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #8a1f2b;
+}
+
+.share-card--unavailable {
+  background: #f3f6f8;
+  box-shadow: none;
+  color: #667788;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (min-width: 1024px) {
+  .share-picker {
+    align-items: center;
+  }
+
+  .share-picker__panel {
+    width: min(400px, calc(100% - 32px));
+    max-height: 60%;
+    border-radius: 16px;
+  }
+}
+
 .share-toast {
   position: fixed;
   left: 50%;

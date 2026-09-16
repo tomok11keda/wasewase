@@ -1619,6 +1619,14 @@ class UserDirectMessageReadState(models.Model):
 
 
 class UserDirectMessage(models.Model):
+    class MessageKind(models.TextChoices):
+        TEXT = "text", "テキスト"
+        SHARE = "share", "シェア"
+
+    class ShareTargetType(models.TextChoices):
+        TIMELINE = "timeline", "タイムライン"
+        FLEA = "flea", "フリマ"
+
     room = models.ForeignKey(
         UserDirectMessageRoom,
         on_delete=models.CASCADE,
@@ -1630,6 +1638,18 @@ class UserDirectMessage(models.Model):
         related_name="direct_messages_sent",
     )
     body = models.TextField(max_length=500)
+    message_kind = models.CharField(
+        max_length=16,
+        choices=MessageKind.choices,
+        default=MessageKind.TEXT,
+        db_index=True,
+    )
+    share_target_type = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+    )
+    share_target_id = models.PositiveIntegerField(null=True, blank=True)
     is_read = models.BooleanField(
         default=False,
         help_text="1対1 DM では相手が既読にしたか。グループ化時は ReadReceipt 等へ移行予定。",
@@ -1638,6 +1658,19 @@ class UserDirectMessage(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(message_kind="text")
+                    | (
+                        models.Q(message_kind="share")
+                        & models.Q(share_target_type__in=["timeline", "flea"])
+                        & models.Q(share_target_id__isnull=False)
+                    )
+                ),
+                name="dm_share_target_required",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.sender}: {self.body[:30]}"
