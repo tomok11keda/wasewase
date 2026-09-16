@@ -47,6 +47,9 @@ class BrowseModePathHelperTests(SimpleTestCase):
             path_denies_student_data_in_browse_mode("/api/v1/timeline/1/")
         )
         self.assertTrue(
+            path_denies_student_data_in_browse_mode("/api/v1/timeline/1/likers/")
+        )
+        self.assertTrue(
             path_denies_student_data_in_browse_mode("/api/v1/timeline/impressions/")
         )
         self.assertTrue(path_denies_student_data_in_browse_mode("/api/v1/profile/1/"))
@@ -192,6 +195,10 @@ class BrowseModePrivacyApiTests(TestCase):
         self._enter_browse()
         self._assert_denied(
             self.client.get("/api/v1/timeline/"), leak="キャンパスの投稿本文"
+        )
+        self._assert_denied(
+            self.client.get(f"/api/v1/timeline/{self.post.pk}/likers/"),
+            leak="閲覧対象",
         )
         self._assert_denied(
             self.client.get(f"/api/v1/profile/{self.user.pk}/"),

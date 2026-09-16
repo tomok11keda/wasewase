@@ -30,6 +30,7 @@ from .services import get_user_faculty
 from .timeline_api_services import (
     get_visible_timeline_post_payload,
     list_timeline_page,
+    list_visible_timeline_post_likers,
     save_timeline_post_instance,
     serialize_comment,
     serialize_timeline_post,
@@ -223,6 +224,16 @@ def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
     return JsonResponse(
         {"ok": True, "liked": liked, "like_count": post.like_count}
     )
+
+
+@login_required
+@require_GET
+def api_v1_timeline_likers(request: HttpRequest, pk: int) -> JsonResponse:
+    """GET /api/v1/timeline/<pk>/likers/ — who liked a visible post."""
+    payload = list_visible_timeline_post_likers(request.user, pk)
+    if payload is None:
+        return _json_error("not_found", status=404)
+    return JsonResponse(payload)
 
 
 @login_required

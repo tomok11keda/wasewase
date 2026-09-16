@@ -150,6 +150,11 @@ urlpatterns = [
         name="api_v1_timeline_like",
     ),
     path(
+        "api/v1/timeline/<int:pk>/likers/",
+        timeline_api_views.api_v1_timeline_likers,
+        name="api_v1_timeline_likers",
+    ),
+    path(
         "api/v1/timeline/<int:pk>/bookmark/",
         timeline_api_views.api_v1_timeline_bookmark,
         name="api_v1_timeline_bookmark",

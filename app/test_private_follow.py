@@ -221,6 +221,8 @@ class PrivateAccountFollowTests(TestCase):
         self.assertEqual(like.status_code, 404)
         detail = self.client.get(f"/api/v1/timeline/{self.bob_post.pk}/")
         self.assertEqual(detail.status_code, 404)
+        likers = self.client.get(f"/api/v1/timeline/{self.bob_post.pk}/likers/")
+        self.assertEqual(likers.status_code, 404)
         quote = self.client.get(f"/api/v1/timeline/{self.bob_post.pk}/quote/")
         self.assertEqual(quote.status_code, 404)
 

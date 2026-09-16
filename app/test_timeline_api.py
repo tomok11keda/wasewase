@@ -7,7 +7,7 @@ import json
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from .models import TimelineLike, TimelinePost, User
+from .models import TimelineLike, TimelinePost, User, UserBlock, UserProfile
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -210,3 +210,139 @@ class TimelineApiTests(TestCase):
         self.assertEqual(response.json()["counts"], {})
         self.post.refresh_from_db()
         self.assertEqual(self.post.view_count, 0)
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class TimelineLikerApiTests(TestCase):
+    def setUp(self):
+        self.author = User.objects.create_user(
+            email="liker-author@waseda.jp",
+            password="test-pass-12345",
+            username="liker_author",
+        )
+        self.viewer = User.objects.create_user(
+            email="liker-viewer@waseda.jp",
+            password="test-pass-12345",
+            username="liker_viewer",
+        )
+        self.alice = User.objects.create_user(
+            email="liker-alice@waseda.jp",
+            password="test-pass-12345",
+            username="liker_alice",
+        )
+        self.bob = User.objects.create_user(
+            email="liker-bob@waseda.jp",
+            password="test-pass-12345",
+            username="liker_bob",
+        )
+        UserProfile.objects.create(user=self.author, name="投稿者")
+        UserProfile.objects.create(user=self.viewer, name="閲覧者")
+        UserProfile.objects.create(user=self.alice, name="アリス表示")
+        UserProfile.objects.create(user=self.bob, name="")
+        self.post = TimelinePost.objects.create(
+            author=self.author,
+            body="liker list target",
+            like_count=0,
+        )
+        self.client = Client()
+
+    def _likers_url(self, pk=None):
+        return f"/api/v1/timeline/{pk or self.post.pk}/likers/"
+
+    def test_anonymous_cannot_list_likers(self):
+        response = self.client.get(self._likers_url())
+        self.assertIn(response.status_code, (302, 401, 403))
+
+    def test_empty_likers(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(self._likers_url())
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["users"], [])
+        self.assertEqual(data["count"], 0)
+        self.assertFalse(data["has_more"])
+
+    def test_lists_likers_with_display_name_and_username_fallback(self):
+        TimelineLike.objects.create(timeline_post=self.post, user=self.alice)
+        TimelineLike.objects.create(timeline_post=self.post, user=self.bob)
+        self.post.like_count = 2
+        self.post.save(update_fields=["like_count"])
+        self.client.force_login(self.viewer)
+        response = self.client.get(self._likers_url())
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        by_id = {u["id"]: u for u in data["users"]}
+        self.assertEqual(set(by_id), {self.alice.pk, self.bob.pk})
+        self.assertEqual(by_id[self.alice.pk]["display_name"], "アリス表示")
+        self.assertEqual(by_id[self.alice.pk]["username"], "liker_alice")
+        self.assertEqual(by_id[self.bob.pk]["display_name"], "liker_bob")
+        self.assertEqual(by_id[self.bob.pk]["username"], "liker_bob")
+        blob = json.dumps(data)
+        self.assertNotIn("waseda.jp", blob)
+        self.assertNotIn("email", data["users"][0])
+        self.assertNotIn("is_private", data["users"][0])
+        for user in data["users"]:
+            self.assertEqual(
+                set(user),
+                {"id", "username", "display_name", "avatar_url", "initial"},
+            )
+
+    def test_non_liker_is_absent(self):
+        TimelineLike.objects.create(timeline_post=self.post, user=self.alice)
+        self.client.force_login(self.viewer)
+        ids = [u["id"] for u in self.client.get(self._likers_url()).json()["users"]]
+        self.assertIn(self.alice.pk, ids)
+        self.assertNotIn(self.viewer.pk, ids)
+        self.assertNotIn(self.author.pk, ids)
+
+    def test_unlike_removes_liker(self):
+        self.client.force_login(self.alice)
+        self.client.post(f"/api/v1/timeline/{self.post.pk}/like/")
+        self.client.force_login(self.viewer)
+        ids = [u["id"] for u in self.client.get(self._likers_url()).json()["users"]]
+        self.assertEqual(ids, [self.alice.pk])
+        self.client.force_login(self.alice)
+        self.client.post(f"/api/v1/timeline/{self.post.pk}/like/")
+        self.client.force_login(self.viewer)
+        data = self.client.get(self._likers_url()).json()
+        self.assertEqual(data["users"], [])
+        self.assertEqual(data["count"], 0)
+
+    def test_duplicate_like_does_not_duplicate_rows(self):
+        TimelineLike.objects.get_or_create(
+            timeline_post=self.post, user=self.alice
+        )
+        TimelineLike.objects.get_or_create(
+            timeline_post=self.post, user=self.alice
+        )
+        self.assertEqual(
+            TimelineLike.objects.filter(
+                timeline_post=self.post, user=self.alice
+            ).count(),
+            1,
+        )
+        self.client.force_login(self.viewer)
+        ids = [u["id"] for u in self.client.get(self._likers_url()).json()["users"]]
+        self.assertEqual(ids, [self.alice.pk])
+
+    def test_removed_post_is_not_found(self):
+        TimelineLike.objects.create(timeline_post=self.post, user=self.alice)
+        self.post.is_removed = True
+        self.post.save(update_fields=["is_removed"])
+        self.client.force_login(self.viewer)
+        response = self.client.get(self._likers_url())
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn("アリス表示", response.content.decode())
+
+    def test_missing_post_is_not_found(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(self._likers_url(999999))
+        self.assertEqual(response.status_code, 404)
+
+    def test_blocked_liker_is_hidden(self):
+        TimelineLike.objects.create(timeline_post=self.post, user=self.alice)
+        UserBlock.objects.create(blocker=self.viewer, blocked=self.alice)
+        self.client.force_login(self.viewer)
+        ids = [u["id"] for u in self.client.get(self._likers_url()).json()["users"]]
+        self.assertNotIn(self.alice.pk, ids)

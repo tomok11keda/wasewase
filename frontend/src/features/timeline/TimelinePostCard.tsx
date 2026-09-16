@@ -12,6 +12,7 @@ import {
   toggleBookmark,
   toggleLike,
 } from "./api";
+import { LikerListModal } from "./LikerListModal";
 import {
   hasRecordedImpression,
   IMPRESSION_DWELL_MS,
@@ -69,6 +70,7 @@ export function TimelinePostCard({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportChoosing, setReportChoosing] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -179,6 +181,7 @@ export function TimelinePostCard({
   };
 
   return (
+    <>
     <article
       ref={articleRef}
       id={`post-${post.id}`}
@@ -419,33 +422,49 @@ export function TimelinePostCard({
                 {formatCount(post.quote_count || 0)}
               </span>
             </button>
-            <button
-              type="button"
-              className={`tweet-action tweet-action--like${
-                post.user_has_liked ? " is-liked" : ""
-              }`}
-              aria-label={`いいね ${post.like_count}`}
-              aria-pressed={post.user_has_liked}
-              disabled={busy}
-              onClick={() =>
-                guard(() => {
-                  void run(async () => {
-                    const { liked, like_count } = await toggleLike(post.id);
-                    if (liked) analytics.likeCreated();
-                    onChange({
-                      ...post,
-                      user_has_liked: liked,
-                      like_count,
+            <div className="tweet-action-cluster">
+              <button
+                type="button"
+                className={`tweet-action tweet-action--like${
+                  post.user_has_liked ? " is-liked" : ""
+                }`}
+                aria-label="いいね"
+                aria-pressed={post.user_has_liked}
+                disabled={busy}
+                onClick={() =>
+                  guard(() => {
+                    void run(async () => {
+                      const { liked, like_count } = await toggleLike(post.id);
+                      if (liked) analytics.likeCreated();
+                      onChange({
+                        ...post,
+                        user_has_liked: liked,
+                        like_count,
+                      });
                     });
-                  });
-                })
-              }
-            >
-              <SfIcon name={post.user_has_liked ? "heart_fill" : "heart"} />
-              <span className="tweet-action-count">
-                {formatCount(post.like_count)}
-              </span>
-            </button>
+                  })
+                }
+              >
+                <SfIcon name={post.user_has_liked ? "heart_fill" : "heart"} />
+              </button>
+              {post.like_count > 0 ? (
+                <button
+                  type="button"
+                  className={`tweet-action tweet-action--likers${
+                    post.user_has_liked ? " is-liked" : ""
+                  }`}
+                  aria-label={`いいねした人 ${post.like_count}人`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    guard(() => setLikersOpen(true));
+                  }}
+                >
+                  <span className="tweet-action-count">
+                    {formatCount(post.like_count)}
+                  </span>
+                </button>
+              ) : null}
+            </div>
             <span
               className="tweet-action tweet-action--view tweet-action--static"
               aria-label={`閲覧数 ${post.view_count || 0}`}
@@ -574,5 +593,11 @@ export function TimelinePostCard({
         </div>
       </div>
     </article>
+    <LikerListModal
+      postId={post.id}
+      open={likersOpen}
+      onClose={() => setLikersOpen(false)}
+    />
+    </>
   );
 }

@@ -20,6 +20,7 @@ from .board_services import (
     prepare_timeline_post_for_save,
 )
 from .bookmark_services import prepare_timeline_posts
+from .follow_services import FOLLOW_LIST_LIMIT
 from .models import Comment, TimelineLike, TimelinePost
 from .handle_services import public_username
 from .services import (
@@ -27,7 +28,11 @@ from .services import (
     user_avatar_initial,
     user_display_name,
 )
-from .ugc_services import filter_visible_comments, filter_visible_timeline_posts
+from .ugc_services import (
+    filter_visible_comments,
+    filter_visible_timeline_posts,
+    get_either_blocked_user_ids,
+)
 
 
 def serialize_author(user: AbstractBaseUser | None) -> dict[str, Any] | None:
@@ -218,6 +223,40 @@ def get_visible_timeline_post_payload(
         return None
     prepared = prepare_timeline_posts([post], auth_viewer)
     return serialize_timeline_post(prepared[0], auth_viewer)
+
+
+def list_visible_timeline_post_likers(
+    viewer: AbstractBaseUser,
+    pk: int,
+) -> dict[str, Any] | None:
+    """Likers for one visible post. Same visibility as the feed; no email."""
+    visible = filter_visible_timeline_posts(
+        TimelinePost.objects.filter(pk=pk),
+        viewer,
+    ).exists()
+    if not visible:
+        return None
+
+    likes = (
+        TimelineLike.objects.filter(timeline_post_id=pk)
+        .select_related("user", "user__profile")
+        .order_by("-created_at")
+    )
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    if blocked_ids:
+        likes = likes.exclude(user_id__in=blocked_ids)
+    total = likes.count()
+    users: list[dict[str, Any]] = []
+    for like in likes[:FOLLOW_LIST_LIMIT]:
+        payload = serialize_author(like.user)
+        if payload:
+            users.append(payload)
+    return {
+        "ok": True,
+        "users": users,
+        "count": total,
+        "has_more": total > FOLLOW_LIST_LIMIT,
+    }
 
 
 def ads_meta_for_request(request: HttpRequest) -> dict[str, Any]:

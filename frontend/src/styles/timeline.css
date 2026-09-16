@@ -324,9 +324,28 @@
 .tweet-action--comment,
 .tweet-action--quote,
 .tweet-action--like,
+.tweet-action--likers,
 .tweet-action--view,
 .tweet-action--report {
   position: relative;
+}
+.tweet-action-cluster {
+  display: inline-flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.tweet-action-cluster .tweet-action--like {
+  flex: 0 0 auto;
+  padding-right: 2px;
+}
+.tweet-action-cluster .tweet-action--likers {
+  flex: 0 1 auto;
+  min-width: 28px;
+  padding-left: 2px;
+}
+.tweet-action-cluster .tweet-action-count:empty {
+  display: none;
 }
 .tweet-action--static {
   cursor: default;
@@ -348,11 +367,14 @@
   background: var(--tweet-quote-bg);
 }
 .tweet-action--like:hover,
-.tweet-action--like:focus-visible {
+.tweet-action--like:focus-visible,
+.tweet-action--likers:hover,
+.tweet-action--likers:focus-visible {
   color: var(--tweet-like);
   background: var(--tweet-like-bg);
 }
-.tweet-action--like.is-liked { color: var(--tweet-like); }
+.tweet-action--like.is-liked,
+.tweet-action--likers.is-liked { color: var(--tweet-like); }
 .tweet-action--report:hover,
 .tweet-action--report:focus-visible {
   color: var(--tweet-report);

@@ -180,6 +180,44 @@ export async function toggleLike(
   return { liked: data.liked, like_count: data.like_count };
 }
 
+export async function fetchTimelineLikers(
+  postId: number,
+  signal?: AbortSignal
+): Promise<{
+  users: NonNullable<TimelineAuthor>[];
+  count: number;
+  has_more: boolean;
+}> {
+  const res = await fetch(`/api/v1/timeline/${postId}/likers/`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  let data: {
+    ok?: boolean;
+    users?: NonNullable<TimelineAuthor>[];
+    count?: number;
+    has_more?: boolean;
+    error?: string;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("unauthorized");
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || "この投稿は表示できません");
+  }
+  return {
+    users: (data.users || []).filter((u) => u && u.id),
+    count: Number(data.count || 0),
+    has_more: Boolean(data.has_more),
+  };
+}
+
 export async function toggleBookmark(postId: number): Promise<boolean> {
   const res = await fetch(`/api/v1/timeline/${postId}/bookmark/`, {
     method: "POST",
