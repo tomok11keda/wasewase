@@ -15,7 +15,7 @@ import {
 import { ImageLightbox } from "./ImageLightbox";
 import { LikerListModal } from "./LikerListModal";
 import { ShareActionSheet } from "../../components/ShareActionSheet";
-import { genericSharePayload, timelinePostShareUrl } from "../../lib/share";
+import { timelineSharePayload } from "../../lib/share";
 import {
   hasRecordedImpression,
   IMPRESSION_DWELL_MS,
@@ -625,7 +625,7 @@ export function TimelinePostCard({
     />
     <ShareActionSheet
       open={shareOpen}
-      payload={genericSharePayload(timelinePostShareUrl(post.id))}
+      payload={timelineSharePayload(post.id)}
       onClose={() => setShareOpen(false)}
     />
     {post.image_url ? (

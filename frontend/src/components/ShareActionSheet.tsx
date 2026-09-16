@@ -15,7 +15,7 @@ type Props = {
 };
 
 /**
- * External share sheet (OS share + copy link).
+ * Share sheet: internal DM slot (Phase B) above OS share + copy link.
  * Reuses the chat message action-sheet visual pattern.
  */
 export function ShareActionSheet({ open, payload, onClose }: Props) {
@@ -83,30 +83,58 @@ export function ShareActionSheet({ open, payload, onClose }: Props) {
             <h2 id={titleId} className="msg-action-sheet__title">
               シェア
             </h2>
-            <ul className="msg-action-sheet__list">
-              {webShare ? (
+
+            <section
+              className="share-action-sheet__section"
+              aria-labelledby={`${titleId}-internal`}
+            >
+              <h3
+                id={`${titleId}-internal`}
+                className="share-action-sheet__heading"
+              >
+                わせわせで送る
+              </h3>
+              <p className="share-action-sheet__empty">
+                まだメッセージできる相手がいません
+              </p>
+            </section>
+
+            <section
+              className="share-action-sheet__section"
+              aria-labelledby={`${titleId}-external`}
+            >
+              <h3
+                id={`${titleId}-external`}
+                className="share-action-sheet__heading"
+              >
+                その他の方法でシェア
+              </h3>
+              <ul className="msg-action-sheet__list">
+                {webShare ? (
+                  <li>
+                    <button
+                      type="button"
+                      className="msg-action-sheet__btn share-action-sheet__btn"
+                      onClick={() => void onNativeShare()}
+                    >
+                      <SfIcon name="square_and_arrow_up" />
+                      他のアプリでシェア
+                    </button>
+                  </li>
+                ) : null}
                 <li>
                   <button
                     type="button"
                     className="msg-action-sheet__btn share-action-sheet__btn"
-                    onClick={() => void onNativeShare()}
+                    onClick={() => void onCopy()}
                   >
-                    <SfIcon name="square_and_arrow_up" />
-                    他のアプリでシェア
+                    <SfIcon name="link" />
+                    リンクをコピー
                   </button>
                 </li>
-              ) : null}
-              <li>
-                <button
-                  type="button"
-                  className="msg-action-sheet__btn share-action-sheet__btn"
-                  onClick={() => void onCopy()}
-                >
-                  <SfIcon name="link" />
-                  リンクをコピー
-                </button>
-              </li>
-            </ul>
+              </ul>
+            </section>
+
             <button
               type="button"
               className="msg-action-sheet__cancel"

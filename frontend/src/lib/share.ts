@@ -1,7 +1,10 @@
 /** External share helpers. Payload is generic — no student UGC or media URLs. */
 
 export const SHARE_TITLE = "わせわせ";
-export const SHARE_TEXT = "わせわせ";
+export const TIMELINE_SHARE_TEXT =
+  "早稲田生限定SNS「わせわせ」の投稿です！わせわせに参加して投稿を見よう";
+export const FLEA_SHARE_TEXT =
+  "早稲田生限定SNS「わせわせ」のフリマ出品です！わせわせに参加して商品を見よう";
 
 export type SharePayload = {
   title: string;
@@ -24,8 +27,20 @@ export function fleaProductShareUrl(productId: number): string {
   return `${siteOrigin()}/app/flea/products/${productId}`;
 }
 
-export function genericSharePayload(url: string): SharePayload {
-  return { title: SHARE_TITLE, text: SHARE_TEXT, url };
+export function timelineSharePayload(postId: number): SharePayload {
+  return {
+    title: SHARE_TITLE,
+    text: TIMELINE_SHARE_TEXT,
+    url: timelinePostShareUrl(postId),
+  };
+}
+
+export function fleaSharePayload(productId: number): SharePayload {
+  return {
+    title: SHARE_TITLE,
+    text: FLEA_SHARE_TEXT,
+    url: fleaProductShareUrl(productId),
+  };
 }
 
 export function canUseWebShare(): boolean {

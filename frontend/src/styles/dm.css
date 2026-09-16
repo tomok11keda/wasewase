@@ -1419,6 +1419,28 @@
   padding-left: 16px;
 }
 
+.share-action-sheet__section {
+  margin: 0 0 12px;
+}
+
+.share-action-sheet__heading {
+  margin: 0 8px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a2a33;
+}
+
+.share-action-sheet__empty {
+  margin: 0 8px 4px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: #f3f6f8;
+  color: #667788;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .share-toast {
   position: fixed;
   left: 50%;

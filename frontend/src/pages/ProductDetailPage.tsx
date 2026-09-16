@@ -4,7 +4,7 @@ import { BookmarkButton } from "../components/BookmarkButton";
 import { ShareActionSheet } from "../components/ShareActionSheet";
 import { SfIcon } from "../components/SfIcon";
 import { isBrowsePreview, useSession } from "../lib/session";
-import { fleaProductShareUrl, genericSharePayload } from "../lib/share";
+import { fleaSharePayload } from "../lib/share";
 import {
   deleteProduct,
   fetchProductDetail,
@@ -513,7 +513,7 @@ export function ProductDetailPage() {
       </div>
       <ShareActionSheet
         open={shareOpen}
-        payload={genericSharePayload(fleaProductShareUrl(product.id))}
+        payload={fleaSharePayload(product.id)}
         onClose={() => setShareOpen(false)}
       />
     </div>
