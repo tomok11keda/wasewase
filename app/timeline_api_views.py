@@ -19,7 +19,7 @@ from .bookmark_services import BookmarkServiceError, toggle_bookmark
 from .forms import TimelineCommentForm, TimelinePostForm
 from .media_services import compose_save_error_message
 from .mention_services import notify_mentions
-from .models import Comment, Notification, TimelineLike, TimelinePost
+from .models import Comment, TimelineLike, TimelinePost
 from .rate_limit_services import (
     RATE_LIMIT_USER_MESSAGE,
     allow_timeline_comment,
@@ -35,7 +35,7 @@ from .timeline_api_services import (
     serialize_comment,
     serialize_timeline_post,
 )
-from .notification_services import notification_actor_label
+from .notification_services import create_notification, notification_actor_label
 from .ugc_services import get_visible_timeline_post_or_404
 
 
@@ -283,13 +283,15 @@ def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
     comment.save()
     link = timeline_post_link(post)
     if post.author_id and post.author_id != request.user.id:
-        Notification.objects.create(
+        create_notification(
             recipient=post.author,
             message=(
                 f"「{notification_actor_label(request.user)}さんが"
                 "あなたの投稿にコメントしました」"
             ),
             link=link,
+            actor=request.user,
+            push_kind="comment",
         )
     notify_mentions(
         body=comment.body,

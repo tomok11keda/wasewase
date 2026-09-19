@@ -7,8 +7,8 @@ from django.utils.safestring import SafeString, mark_safe
 
 from .constants import HANDLE_MENTION_PATTERN
 from .handle_services import resolve_user_by_username
-from .models import Notification, User
-from .notification_services import notification_actor_label
+from .models import User
+from .notification_services import create_notification, notification_actor_label
 from .ugc_services import get_blocked_user_ids, is_user_blocked
 
 
@@ -59,10 +59,12 @@ def notify_mentions(
             continue
         if is_user_blocked(user, actor):
             continue
-        Notification.objects.create(
+        create_notification(
             recipient=user,
             message=f"{actor_label}さんがあなたをメンションしました",
             link=link,
+            actor=actor,
+            push_kind="mention",
         )
 
 

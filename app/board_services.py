@@ -5,7 +5,8 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 
 from .constants import FACULTY_CHOICES
-from .models import Notification, TimelineLike, TimelinePost
+from .models import TimelineLike, TimelinePost
+from .notification_services import create_notification
 from .services import get_following_user_ids
 from .ugc_services import filter_visible_timeline_posts, get_blocked_user_ids
 
@@ -171,8 +172,10 @@ def notify_timeline_post_author(
         return
     if actor.is_authenticated and actor.id == post.author_id:
         return
-    Notification.objects.create(
+    create_notification(
         recipient=post.author,
         message=message,
         link=timeline_post_link(post),
+        actor=actor,
+        push_kind="like",
     )

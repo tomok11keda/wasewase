@@ -14,11 +14,13 @@ type WaseCapacitorPushBridge = {
   };
   registerPushToken?: (token: string) => Promise<boolean | void>;
   unregisterPushToken?: (token?: string | null) => Promise<boolean | void>;
+  consumePendingPushOpenLink?: () => string | null;
 };
 
 declare global {
   interface Window {
     WASE_PUSH_TOKEN?: string;
+    WASE_PENDING_PUSH_OPEN_LINK?: string | null;
     WaseCapacitor?: WaseCapacitorPushBridge;
     Capacitor?: unknown;
   }
@@ -182,4 +184,40 @@ export function syncNativePushWithUserId(userId: number | null): Promise<void> {
 /** テスト / 強制再同期用 */
 export function resetNativePushSyncState(): void {
   lastSyncedUserId = null;
+}
+
+/** Convert FCM data.link (/app/...) to a React Router path (basename=/app). */
+export function pushLinkToRouterPath(link: string | null | undefined): string | null {
+  if (!link || typeof link !== "string") return null;
+  let path = link.trim();
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      const url = new URL(path);
+      path = `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+      return null;
+    }
+  }
+  if (path.startsWith("/app/") || path === "/app") {
+    path = path === "/app" ? "/" : path.slice(4) || "/";
+  }
+  if (!path.startsWith("/")) {
+    path = `/${path}`;
+  }
+  if (path.startsWith("//") || /[\s<>]/.test(path)) {
+    return null;
+  }
+  return path;
+}
+
+export function consumePendingPushOpenLink(): string | null {
+  const bridge = getBridge();
+  const fromBridge = bridge?.consumePendingPushOpenLink?.() || null;
+  const fromWindow =
+    typeof window.WASE_PENDING_PUSH_OPEN_LINK === "string"
+      ? window.WASE_PENDING_PUSH_OPEN_LINK
+      : null;
+  window.WASE_PENDING_PUSH_OPEN_LINK = null;
+  return fromBridge || fromWindow;
 }

@@ -291,8 +291,7 @@ def notify_community_reply(
     thread: CommunityThread,
 ) -> None:
     """返信先の著者（なければスレッド主）へ通知。自己通知は作らない。"""
-    from .models import Notification
-    from .notification_services import notification_actor_label
+    from .notification_services import create_notification, notification_actor_label
 
     actor_name = notification_actor_label(reply.author)
     recipient = None
@@ -312,10 +311,12 @@ def notify_community_reply(
         return
     slug = thread.community.slug
     link = f"/app/communities/{slug}/threads/{thread.pk}#reply-{reply.pk}"
-    Notification.objects.create(
+    create_notification(
         recipient=recipient,
         message=message,
         link=link,
+        actor=reply.author,
+        push_kind="community_reply",
     )
 
 

@@ -18,8 +18,8 @@ from .dm_services import (
     list_dm_rooms_for_user,
 )
 from .flea_api_services import serialize_product_card
-from .models import Notification, Product, TimelinePost, UserDirectMessage, UserDirectMessageRoom
-from .notification_services import notification_actor_label
+from .models import Product, TimelinePost, UserDirectMessage, UserDirectMessageRoom
+from .notification_services import create_notification, notification_actor_label
 from .timeline_api_services import serialize_author
 from .ugc_services import (
     filter_visible_products,
@@ -314,9 +314,11 @@ def send_share_dm(
             preview_body=body,
         )
         if request is None:
-            Notification.objects.create(
+            create_notification(
                 recipient=partner,
                 message=share_notification_text(sender, kind),
                 link=dm_room_link(room),
+                actor=sender,
+                push_kind="share_flea" if kind == SHARE_TYPE_FLEA else "share_timeline",
             )
     return message

@@ -605,6 +605,9 @@ _log_media_storage_startup()
 # ---------------------------------------------------------------------------
 FIREBASE_CREDENTIALS_JSON = _env("FIREBASE_CREDENTIALS_JSON")
 FIREBASE_CREDENTIALS_PATH = _env("FIREBASE_CREDENTIALS_PATH")
-PUSH_NOTIFICATIONS_ENABLED = bool(
+# Explicit flag: credentials alone must not start production sending.
+# Set PUSH_NOTIFICATIONS_ENABLED=true together with credentials when ready.
+_PUSH_FLAG = _env("PUSH_NOTIFICATIONS_ENABLED").lower() in ("1", "true", "yes", "on")
+PUSH_NOTIFICATIONS_ENABLED = _PUSH_FLAG and bool(
     FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH
 )

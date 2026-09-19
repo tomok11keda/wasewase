@@ -18,7 +18,6 @@ from .models import (
     ChatRoom,
     Like,
     Message as ChatMessage,
-    Notification,
     Product,
     Review,
     TimelinePost,
@@ -38,7 +37,7 @@ from .services import (
     prioritize_same_faculty,
     user_display_name,
 )
-from .notification_services import notification_actor_label
+from .notification_services import create_notification, notification_actor_label
 from .product_trade_schema_services import ensure_product_trade_schema
 from .trade_chat_services import (
     PRODUCT_DELETE_BLOCK_MESSAGES,
@@ -351,6 +350,8 @@ def product_detail(request, pk):
                 product,
                 f"「{product.name}」にコメントがつきました。",
                 actor_id=actor_id,
+                actor=request.user if request.user.is_authenticated else None,
+                push_kind="flea_comment",
             )
             return redirect(reverse("product_detail", kwargs={"pk": pk}))
     else:
@@ -469,6 +470,8 @@ def start_product_chat(request, pk):
             product,
             f"「{product.name}」に値下げ交渉の問い合わせがありました。",
             actor_id=request.user.id,
+            actor=request.user,
+            push_kind="flea_inquiry",
         )
         messages.success(request, "値下げ交渉のチャットを開始しました。")
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
@@ -569,10 +572,12 @@ def send_chat_message(request, room_pk):
         recipient = room.product.seller
 
     if recipient:
-        Notification.objects.create(
+        create_notification(
             recipient=recipient,
             message=f"「{room.product.name}」のチャット: {body[:40]}",
             link=chat_room_link(room),
+            actor=request.user,
+            push_kind="flea_trade_chat",
         )
 
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
@@ -600,10 +605,12 @@ def confirm_product_trade(request, room_pk):
         return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
 
     if room.buyer_id:
-        Notification.objects.create(
+        create_notification(
             recipient_id=room.buyer_id,
             message=f"「{room.product.name}」の取引が確定しました。受け渡しを相談しましょう。",
             link=chat_room_link(room),
+            actor=request.user,
+            push_kind="flea_trade_confirmed",
         )
     messages.success(request, "取引を開始しました。受け渡し場所と時間を相談してください。")
     return redirect(reverse("chat_room", kwargs={"room_pk": room.pk}))
@@ -644,10 +651,12 @@ def complete_product_handover(request, room_pk):
 
     if product.buyer_id:
         try:
-            Notification.objects.create(
+            create_notification(
                 recipient_id=product.buyer_id,
                 message=f"「{product.name}」の受け渡しが完了しました。",
                 link=chat_room_link(room),
+                actor=request.user,
+                push_kind="flea_handover",
             )
         except Exception:
             logger.exception(
@@ -771,6 +780,8 @@ def toggle_like(request, pk):
             product,
             f"「{product.name}」にいいねがつきました。",
             actor_id=request.user.id,
+            actor=request.user,
+            push_kind="flea_like",
         )
 
     like_count = product.likes.count()
@@ -808,6 +819,8 @@ def purchase_product(request, pk):
         product,
         f"「{product.name}」が即決購入されました。受け渡しチャットを確認してください。",
         actor_id=request.user.id,
+        actor=request.user,
+        push_kind="flea_purchase",
     )
     messages.success(
         request,
@@ -892,10 +905,12 @@ def send_trade_message(request, pk):
     if partner:
         from .spa_canonical import product_detail_url
 
-        Notification.objects.create(
+        create_notification(
             recipient=partner,
             message=f"「{product.name}」の手渡しチャット: {body}",
             link=product_detail_url(pk),
+            actor=request.user,
+            push_kind="flea_trade_chat",
         )
 
     return redirect(reverse("product_trade", kwargs={"pk": pk}))
@@ -940,18 +955,22 @@ def complete_trade(request, pk):
         update_fields.append("status")
         messages.success(request, "双方の確認がそろいました。取引を完了しました。")
         if partner:
-            Notification.objects.create(
+            create_notification(
                 recipient=partner,
                 message=f"「{product.name}」の取引が完了しました。",
                 link=product_detail_url(pk),
+                actor=request.user,
+                push_kind="flea_trade_complete",
             )
     else:
         messages.success(request, "取引完了の確認を送信しました。相手の確認を待っています。")
         if partner:
-            Notification.objects.create(
+            create_notification(
                 recipient=partner,
                 message=f"{notification_actor_label(request.user)}さんが「{product.name}」の取引完了を確認しました。",
                 link=product_detail_url(pk),
+                actor=request.user,
+                push_kind="flea_trade_progress",
             )
 
     product.save(update_fields=update_fields)

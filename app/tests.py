@@ -3364,7 +3364,8 @@ class PushNotificationTests(TestCase):
         )
         mock_notify_push.assert_called_once()
         _, kwargs = mock_notify_push.call_args
-        self.assertIn("コメントがつきました", kwargs["body"])
+        self.assertNotIn("購入検討中です", kwargs["body"])
+        self.assertIn("コメントしました", kwargs["body"])
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
     @patch("app.push_services.notify_user_push")
@@ -3390,7 +3391,8 @@ class PushNotificationTests(TestCase):
         )
         mock_notify_push.assert_called_once()
         _, kwargs = mock_notify_push.call_args
-        self.assertIn("即決購入されました", kwargs["body"])
+        self.assertIn("購入しました", kwargs["body"])
+        self.assertNotIn("即決購入されました", kwargs["body"])
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=False)
     @patch("app.push_services.get_firebase_app")
@@ -3999,6 +4001,8 @@ class NotificationBadgeApiTests(TestCase):
         self.assertIn("wase:push-received", badge_js)
         self.assertIn("WaseNotifications", badge_js)
         self.assertIn("wase:push-received", capacitor_js)
+        self.assertIn("wase:push-open", capacitor_js)
+        self.assertIn("dispatchPushOpenEvent", capacitor_js)
         self.assertIn("dispatchPushReceivedEvent", capacitor_js)
         self.assertIn("FirebaseMessaging", capacitor_js)
         self.assertIn("waitForFcmToken", capacitor_js)

@@ -17,7 +17,7 @@ from .models import (
     ChatRoomMembership,
     Notification,
 )
-from .notification_services import notification_actor_label
+from .notification_services import create_notification, notification_actor_label
 from .services import search_users, user_display_name
 from .ugc_services import is_either_blocked, is_user_blocked
 
@@ -66,10 +66,12 @@ def _notify_group_invite(
         return
     room_name = _group_display_name(room)
     inviter_name = notification_actor_label(inviter)
-    Notification.objects.create(
+    create_notification(
         recipient=invitee,
         message=f"{inviter_name}さんから『{room_name}』への招待が届いています",
         link=group_room_link(room),
+        actor=inviter,
+        push_kind="group_invite",
     )
 
 

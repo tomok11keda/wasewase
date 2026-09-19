@@ -1093,6 +1093,32 @@
     }
   }
 
+  function extractPushData(notification) {
+    var source = notification || {};
+    var data = source.data || {};
+    if (typeof data !== "object" || data === null) {
+      data = {};
+    }
+    var link = data.link || source.link || "";
+    var notificationId =
+      data.notification_id || data.notificationId || source.notification_id || "";
+    return {
+      link: link ? String(link) : "",
+      notification_id: notificationId ? String(notificationId) : "",
+    };
+  }
+
+  function dispatchPushOpenEvent(notification) {
+    var payload = extractPushData(notification);
+    if (payload.link) {
+      window.WASE_PENDING_PUSH_OPEN_LINK = payload.link;
+    }
+    window.dispatchEvent(
+      new CustomEvent("wase:push-open", { detail: payload })
+    );
+    dispatchPushReceivedEvent(notification);
+  }
+
   async function registerTokenWithBackend(token) {
     if (!token) {
       return false;
@@ -1244,9 +1270,7 @@
         "notificationActionPerformed",
         function (event) {
           logNative("Push action performed");
-          dispatchPushReceivedEvent(
-            (event && event.notification) || event
-          );
+          dispatchPushOpenEvent((event && event.notification) || event);
         }
       );
     } catch (error) {
@@ -1974,6 +1998,11 @@
     repositionBannerAd: repositionInlineBanner,
     getPushToken: function () {
       return window.WASE_PUSH_TOKEN || null;
+    },
+    consumePendingPushOpenLink: function () {
+      var link = window.WASE_PENDING_PUSH_OPEN_LINK || null;
+      window.WASE_PENDING_PUSH_OPEN_LINK = null;
+      return link;
     },
     getPushStatus: function () {
       var status = readPushStatus();

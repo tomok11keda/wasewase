@@ -9,8 +9,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 
 from .handle_services import public_username
-from .models import Follow, FollowRequest, Notification, UserProfile
-from .notification_services import notification_actor_label
+from .models import Follow, FollowRequest, UserProfile
+from .notification_services import create_notification, notification_actor_label
 from .services import count_followers, is_following, user_display_name
 from .spa_canonical import app_absolute
 from .timetable_privacy_services import get_or_create_profile
@@ -136,18 +136,22 @@ def can_view_timetable_for(
 def _notify_followed(actor: AbstractBaseUser, target: AbstractBaseUser) -> None:
     from .spa_canonical import user_profile_url
 
-    Notification.objects.create(
+    create_notification(
         recipient=target,
         message=f"「{notification_actor_label(actor)}さんにフォローされました！」",
         link=user_profile_url(actor.pk),
+        actor=actor,
+        push_kind="follow",
     )
 
 
 def _notify_follow_request(actor: AbstractBaseUser, target: AbstractBaseUser) -> None:
-    Notification.objects.create(
+    create_notification(
         recipient=target,
         message=f"「{notification_actor_label(actor)}さんからフォローリクエストが届きました」",
         link=follow_requests_app_url(),
+        actor=actor,
+        push_kind="follow_request",
     )
 
 

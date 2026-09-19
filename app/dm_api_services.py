@@ -34,11 +34,10 @@ from .models import (
     ChatMessage,
     ChatRoom,
     ChatRoomMembership,
-    Notification,
     UserDirectMessage,
     UserDirectMessageRoom,
 )
-from .notification_services import notification_actor_label
+from .notification_services import create_notification, notification_actor_label
 from .services import (
     get_user_avatar_url,
     user_avatar_initial,
@@ -357,10 +356,12 @@ def send_dm_message(
             preview_body=body,
         )
         if request is None:
-            Notification.objects.create(
+            create_notification(
                 recipient=partner,
                 message=f"{notification_actor_label(sender)} さんから DM: {body[:40]}",
                 link=dm_room_link(room),
+                actor=sender,
+                push_kind="dm",
             )
     return message
 

@@ -8,7 +8,6 @@ from .models import (
     ChatRoom,
     Comment,
     Follow,
-    Notification,
     Product,
     Review,
     ThreadPost,
@@ -446,17 +445,26 @@ def calc_sales_total(user: AbstractBaseUser) -> int:
     return total or 0
 
 
-def notify_seller(product: Product, message: str, *, actor_id: int | None = None) -> None:
+def notify_seller(
+    product: Product,
+    message: str,
+    *,
+    actor_id: int | None = None,
+    actor=None,
+    push_kind: str | None = None,
+) -> None:
     if not product.seller_id:
         return
-    if actor_id is not None and actor_id == product.seller_id:
+    aid = actor_id if actor_id is not None else getattr(actor, "pk", None)
+    if aid is not None and aid == product.seller_id:
         return
     link = product_detail_path(product)
-    Notification.objects.create(
+    from .notification_services import create_notification
+
+    create_notification(
         recipient=product.seller,
         message=message,
         link=link,
+        actor=actor,
+        push_kind=push_kind or "flea_comment",
     )
-    from .push_services import notify_user_push
-
-    notify_user_push(product.seller, body=message, link=link)

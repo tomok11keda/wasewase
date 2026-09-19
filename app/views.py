@@ -129,6 +129,7 @@ from .media_services import (
     validate_timeline_image_file,
 )
 from .notification_services import (
+    create_notification,
     get_unread_notification_count,
     mark_all_notifications_read,
     notification_actor_label,
@@ -2513,13 +2514,15 @@ def board_timeline_comment(request, pk):
         comment.save()
         link = timeline_post_link(post)
         if post.author_id and post.author_id != request.user.id:
-            Notification.objects.create(
+            create_notification(
                 recipient=post.author,
                 message=(
                     f"「{notification_actor_label(request.user)}さんが"
                     "あなたの投稿にコメントしました」"
                 ),
                 link=link,
+                actor=request.user,
+                push_kind="comment",
             )
         notify_mentions(
             body=comment.body,

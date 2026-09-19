@@ -17,7 +17,7 @@ from .models import (
     UserDirectMessageRequest,
     UserDirectMessageRoom,
 )
-from .notification_services import notification_actor_label
+from .notification_services import create_notification, notification_actor_label
 from .services import is_following, user_display_name
 from .ugc_services import is_user_blocked
 
@@ -184,10 +184,12 @@ def _notify_message_request(
         message = f"{name}さんからメッセージリクエストに新しいメッセージがあります"
     else:
         message = f"{name}さんからメッセージリクエストが届きました"
-    Notification.objects.create(
+    create_notification(
         recipient=recipient,
         message=message,
         link=dm_room_link(room),
+        actor=sender,
+        push_kind="dm_request_followup" if is_follow_up else "dm_request",
     )
 
 

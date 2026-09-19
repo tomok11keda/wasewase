@@ -28,7 +28,6 @@ from .models import (
     Comment,
     Like,
     Message as ChatMessage,
-    Notification,
     Product,
     Review,
     TimelinePost,
@@ -42,6 +41,7 @@ from .services import (
     get_user_faculty,
     notify_seller,
 )
+from .notification_services import create_notification
 from .trade_chat_inbox_services import mark_product_chat_room_read
 from .trade_chat_services import (
     complete_handover_by_seller,
@@ -158,6 +158,8 @@ def api_v1_flea_product_like(request: HttpRequest, pk: int) -> JsonResponse:
             product,
             f"「{product.name}」にいいねがつきました。",
             actor_id=request.user.id,
+            actor=request.user,
+            push_kind="flea_like",
         )
     return JsonResponse(
         {"ok": True, "liked": liked, "like_count": product.likes.count()}
@@ -205,6 +207,8 @@ def api_v1_flea_product_comment(request: HttpRequest, pk: int) -> JsonResponse:
         product,
         f"「{product.name}」にコメントがつきました。",
         actor_id=actor_id,
+        actor=request.user if request.user.is_authenticated else None,
+        push_kind="flea_comment",
     )
     comment = Comment.objects.select_related("author", "author__profile").get(
         pk=comment.pk
@@ -227,6 +231,8 @@ def api_v1_flea_product_purchase(request: HttpRequest, pk: int) -> JsonResponse:
         product,
         f"「{product.name}」が即決購入されました。受け渡しチャットを確認してください。",
         actor_id=request.user.id,
+        actor=request.user,
+        push_kind="flea_purchase",
     )
     return JsonResponse({"ok": True, "room_id": room.pk})
 
@@ -246,6 +252,8 @@ def api_v1_flea_product_chat_start(request: HttpRequest, pk: int) -> JsonRespons
             product,
             f"「{product.name}」に値下げ交渉の問い合わせがありました。",
             actor_id=request.user.id,
+            actor=request.user,
+            push_kind="flea_inquiry",
         )
     return JsonResponse({"ok": True, "room_id": room.pk, "created": created})
 
@@ -377,10 +385,12 @@ def api_v1_flea_chat_send(request: HttpRequest, room_pk: int) -> JsonResponse:
         else room.product.seller
     )
     if recipient:
-        Notification.objects.create(
+        create_notification(
             recipient=recipient,
             message=f"「{room.product.name}」のチャット: {body[:40]}",
             link=chat_room_link(room),
+            actor=request.user,
+            push_kind="flea_trade_chat",
         )
     return JsonResponse(
         {
@@ -402,10 +412,12 @@ def api_v1_flea_chat_confirm(request: HttpRequest, room_pk: int) -> JsonResponse
     except ValueError as exc:
         return _json_error(str(exc), status=400)
     if room.buyer_id:
-        Notification.objects.create(
+        create_notification(
             recipient_id=room.buyer_id,
             message=f"「{room.product.name}」の取引が確定しました。受け渡しを相談しましょう。",
             link=chat_room_link(room),
+            actor=request.user,
+            push_kind="flea_trade_confirmed",
         )
     room = ChatRoom.objects.select_related(
         "product",
@@ -474,10 +486,12 @@ def api_v1_flea_chat_handover(request: HttpRequest, room_pk: int) -> JsonRespons
 
     if product.buyer_id:
         try:
-            Notification.objects.create(
+            create_notification(
                 recipient_id=product.buyer_id,
                 message=f"「{product.name}」の受け渡しが完了しました。",
                 link=chat_room_link(room),
+                actor=request.user,
+                push_kind="flea_handover",
             )
         except Exception:
             logger.exception(

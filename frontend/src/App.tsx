@@ -9,6 +9,7 @@ import { SessionProvider } from "./lib/session";
 import { PostHogIdentitySync } from "./lib/analytics/PostHogAppProvider";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
 import { NativePushSessionSync } from "./components/NativePushSessionSync";
+import { NativePushOpenRouter } from "./components/NativePushOpenRouter";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmInboxPage } from "./pages/DmInboxPage";
@@ -51,6 +52,7 @@ function SpaRuntimeHooks() {
     <>
       <PostHogIdentitySync />
       <NativePushSessionSync />
+      <NativePushOpenRouter />
       <UnauthorizedRedirect />
       <NativeSpaBridge />
     </>
