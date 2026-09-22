@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from app.account_deletion_services import delete_user_account
+from app.account_deletion_services import delete_user_account, user_is_superuser
 from app.chat_schema_services import ensure_chatroom_group_chat_schema
 
 
@@ -45,6 +45,11 @@ class Command(BaseCommand):
         self.stdout.write(
             f"対象ユーザー: id={user.pk} email={user.email} username={user.username}"
         )
+
+        if user_is_superuser(user):
+            raise CommandError(
+                "Refusing to delete a superuser. Demote the account first."
+            )
 
         self.stdout.write("ChatRoom 系スキーマ修復を実行します...")
         ensure_chatroom_group_chat_schema()

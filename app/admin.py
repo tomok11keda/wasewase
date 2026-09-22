@@ -1,5 +1,7 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.contrib.admin.actions import delete_selected as django_delete_selected
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -64,6 +66,16 @@ def restore_removed(modeladmin, request, queryset):
     )
 
 
+_SUPERUSER_ADMIN_DELETE_DENIED = (
+    "管理者アカウント（スーパーユーザー）は削除できません。"
+    "削除する場合は、先に管理者権限を解除してください。"
+)
+_SUPERUSER_BULK_DELETE_DENIED = (
+    "管理者アカウント（スーパーユーザー）が含まれているため、"
+    "一括削除を中止しました。先に管理者権限を解除してください。"
+)
+
+
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     list_display = (
@@ -76,6 +88,49 @@ class UserAdmin(DjangoUserAdmin):
     )
     search_fields = ("email", "username")
     ordering = ("-date_joined",)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and getattr(obj, "is_superuser", False):
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def delete_model(self, request, obj):
+        if getattr(obj, "is_superuser", False):
+            raise PermissionDenied(_SUPERUSER_ADMIN_DELETE_DENIED)
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        if queryset.filter(is_superuser=True).exists():
+            self.message_user(
+                request,
+                _SUPERUSER_BULK_DELETE_DENIED,
+                level=messages.ERROR,
+            )
+            return
+        super().delete_queryset(request, queryset)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        delete_action = actions.get("delete_selected")
+        if delete_action:
+            _func, name, description = delete_action
+            actions["delete_selected"] = (
+                type(self).delete_selected_without_superusers,
+                name,
+                description,
+            )
+        return actions
+
+    @admin.action(description="選択された ユーザー を削除")
+    def delete_selected_without_superusers(self, request, queryset):
+        if queryset.filter(is_superuser=True).exists():
+            self.message_user(
+                request,
+                _SUPERUSER_BULK_DELETE_DENIED,
+                level=messages.ERROR,
+            )
+            return None
+        return django_delete_selected(self, request, queryset)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (

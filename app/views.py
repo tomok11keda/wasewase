@@ -20,7 +20,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 
-from .account_deletion_services import delete_user_account
+from .account_deletion_services import (
+    SUPERUSER_DELETION_DENIED_MESSAGE,
+    SuperuserDeletionDenied,
+    delete_user_account,
+    user_is_superuser,
+)
 from .report_notification_services import notify_moderation_team_of_report
 from .community_services import (
     CommunityInteractionBlocked,
@@ -1149,6 +1154,14 @@ def delete_account(request):
     user_id = user.pk
     deletion_logger = logging.getLogger(__name__)
 
+    if user_is_superuser(user):
+        print(
+            f"DEBUG: delete_account refused superuser user_id={user_id}",
+            flush=True,
+        )
+        messages.error(request, SUPERUSER_DELETION_DENIED_MESSAGE)
+        return redirect(reverse("account_settings"))
+
     print(
         f"DEBUG: delete_account starting deletion user_id={user_id}",
         flush=True,
@@ -1156,6 +1169,9 @@ def delete_account(request):
 
     try:
         delete_user_account(user)
+    except SuperuserDeletionDenied:
+        messages.error(request, SUPERUSER_DELETION_DENIED_MESSAGE)
+        return redirect(reverse("account_settings"))
     except Exception as exc:
         print(
             f"DEBUG: delete_account exception user_id={user_id} "

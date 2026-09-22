@@ -42,6 +42,29 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+SUPERUSER_DELETION_DENIED_MESSAGE = (
+    "管理者アカウントは退会できません。削除する場合は、先に管理者権限を解除してください。"
+)
+
+
+class SuperuserDeletionDenied(Exception):
+    """Raised when a superuser would be physically deleted."""
+
+    def __init__(self, message: str = SUPERUSER_DELETION_DENIED_MESSAGE):
+        super().__init__(message)
+
+
+def user_is_superuser(user) -> bool:
+    """True if the instance or the stored row is a superuser. Fail closed."""
+    if user is None:
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    pk = getattr(user, "pk", None)
+    if not pk:
+        return False
+    return get_user_model().objects.filter(pk=pk, is_superuser=True).exists()
+
 # マイグレーション未適用の本番 DB で欠けやすいテーブル
 OPTIONAL_DELETION_MODELS = (
     UserDirectMessageReadState,
@@ -269,6 +292,12 @@ def _delete_user_firestore_bookmarks_best_effort(user_id: int) -> None:
 
 def delete_user_account(user) -> None:
     """退会処理: ユーザーと関連データをデータベースから物理削除する。"""
+    if user_is_superuser(user):
+        logger.warning(
+            "Refusing to delete superuser user_id=%s",
+            getattr(user, "pk", None),
+        )
+        raise SuperuserDeletionDenied()
     _ensure_deletion_schema()
     user_id = user.pk
     logger.info("Account deletion started for user_id=%s", user_id)
