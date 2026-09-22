@@ -59,6 +59,8 @@ class ApiV1MeTests(TestCase):
         data = response.json()
         self.assertFalse(data["authenticated"])
         self.assertIsNone(data["user"])
+        self.assertFalse(data["is_staff"])
+        self.assertFalse(data["is_superuser"])
 
     def test_me_authenticated(self):
         user = User.objects.create_user(
@@ -73,6 +75,8 @@ class ApiV1MeTests(TestCase):
         self.assertTrue(data["authenticated"])
         self.assertEqual(data["user"]["id"], user.pk)
         self.assertEqual(data["user"]["email"], "spa-phase@waseda.jp")
+        self.assertFalse(data["is_staff"])
+        self.assertFalse(data["is_superuser"])
 
     def test_auth_required_api_returns_json_401(self):
         with override_settings(BROWSE_MODE_GATE_ENABLED=False):

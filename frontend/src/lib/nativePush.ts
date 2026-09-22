@@ -221,3 +221,121 @@ export function consumePendingPushOpenLink(): string | null {
   window.WASE_PENDING_PUSH_OPEN_LINK = null;
   return fromBridge || fromWindow;
 }
+
+const ALLOWED_PUSH_DIAG_ERRORS = new Set([
+  "plugin_missing",
+  "permission_request_failed",
+  "permission_denied",
+  "fcm_token_missing",
+  "fcm_token_failed",
+  "init_failed",
+  "apns_token_not_supported",
+  "backend_network",
+]);
+
+export function sanitizePushDiagError(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const error = raw.trim();
+  if (!error) return "";
+  if (ALLOWED_PUSH_DIAG_ERRORS.has(error)) return error;
+  if (/^backend_\d{3}$/.test(error)) return error;
+  return "sanitized";
+}
+
+type CapacitorLike = {
+  isNativePlatform?: () => boolean;
+  getPlugin?: (name: string) => unknown;
+  Plugins?: Record<string, unknown>;
+};
+
+function getCapacitor(): CapacitorLike | null {
+  const cap = window.Capacitor;
+  if (!cap || typeof cap !== "object") return null;
+  return cap as CapacitorLike;
+}
+
+function isFirebaseMessagingPluginAvailable(): boolean {
+  const cap = getCapacitor();
+  if (!cap) return false;
+  try {
+    if (typeof cap.getPlugin === "function" && cap.getPlugin("FirebaseMessaging")) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  const plugins = cap.Plugins;
+  return Boolean(plugins && plugins.FirebaseMessaging);
+}
+
+export type SafePushDiagnostics = {
+  native_bridge: boolean;
+  native_platform: boolean;
+  firebase_messaging_plugin: boolean;
+  permission: string;
+  fcm_token_acquired: boolean;
+  backend_registered: boolean;
+  fcm_inferred_apns_flag: boolean;
+  error: string;
+};
+
+/**
+ * Staff diagnostics only. Never returns tokens or fcmPrefix.
+ * Do not call getPushToken() from diagnostic UI.
+ */
+export function readSafePushDiagnostics(): SafePushDiagnostics {
+  const cap = getCapacitor();
+  const bridge = getBridge();
+  const nativeBridge = Boolean(bridge && typeof bridge.getPushStatus === "function");
+  let permission = "";
+  let fcm = false;
+  let backend = false;
+  let inferredApns = false;
+  let error = "";
+  if (nativeBridge && bridge?.getPushStatus) {
+    const status = bridge.getPushStatus();
+    permission = typeof status.permission === "string" ? status.permission : "";
+    fcm = Boolean(status.fcm);
+    backend = Boolean(status.backend);
+    inferredApns = Boolean(status.apns);
+    error = sanitizePushDiagError(status.error);
+  }
+  return {
+    native_bridge: nativeBridge,
+    native_platform: Boolean(cap?.isNativePlatform?.()),
+    firebase_messaging_plugin: isFirebaseMessagingPluginAvailable(),
+    permission,
+    fcm_token_acquired: fcm,
+    backend_registered: backend,
+    fcm_inferred_apns_flag: inferredApns,
+    error,
+  };
+}
+
+export async function readNativeAppInfo(): Promise<{
+  version: string;
+  build: string;
+}> {
+  const cap = getCapacitor();
+  const plugin =
+    (typeof cap?.getPlugin === "function" ? cap.getPlugin("App") : null) ||
+    cap?.Plugins?.App ||
+    null;
+  if (!plugin || typeof plugin !== "object") {
+    return { version: "", build: "" };
+  }
+  const getInfo = (plugin as { getInfo?: () => Promise<{ version?: string; build?: string }> })
+    .getInfo;
+  if (typeof getInfo !== "function") {
+    return { version: "", build: "" };
+  }
+  try {
+    const info = await getInfo();
+    return {
+      version: typeof info?.version === "string" ? info.version : "",
+      build: typeof info?.build === "string" ? info.build : "",
+    };
+  } catch {
+    return { version: "", build: "" };
+  }
+}

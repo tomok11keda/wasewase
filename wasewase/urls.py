@@ -91,6 +91,11 @@ urlpatterns = [
     # React SPA (feature-flagged). Classic routes below remain the default UX.
     path("api/v1/me/", spa_views.api_v1_me, name="api_v1_me"),
     path(
+        "api/v1/internal/push-diag/",
+        spa_views.api_v1_internal_push_diag,
+        name="api_v1_internal_push_diag",
+    ),
+    path(
         "api/v1/onboarding/",
         onboarding_api_views.api_v1_onboarding,
         name="api_v1_onboarding",

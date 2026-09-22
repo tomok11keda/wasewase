@@ -90,6 +90,10 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         "authenticated": authenticated,
         "is_browse_mode": is_browse_mode(request),
         "react_spa_enabled": bool(getattr(settings, "WASE_REACT_SPA", False)),
+        "is_staff": bool(authenticated and getattr(user, "is_staff", False)),
+        "is_superuser": bool(
+            authenticated and getattr(user, "is_superuser", False)
+        ),
         "user": None,
         "pending_signup": bool(request.session.get(SIGNUP_PENDING_SESSION_KEY)),
         "pending_password_reset": bool(

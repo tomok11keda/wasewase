@@ -42,6 +42,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { FollowRequestsPage } from "./pages/FollowRequestsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { FollowListPage } from "./pages/FollowListPage";
+import { InternalPushDiagPage } from "./pages/InternalPushDiagPage";
 import { OnboardingGate } from "./features/onboarding/OnboardingGate";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
@@ -101,6 +102,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="internal/push-diag" element={<InternalPushDiagPage />} />
       <Route element={<AuthLayout />}>
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />

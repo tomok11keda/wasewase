@@ -43,6 +43,50 @@ def api_v1_me(request: HttpRequest) -> JsonResponse:
     return JsonResponse(serialize_me(request))
 
 
+_PUSH_DIAG_ALLOWED_KEYS = frozenset(
+    {
+        "ok",
+        "authenticated",
+        "user_id",
+        "is_staff",
+        "is_superuser",
+        "device_push_token_count",
+    }
+)
+
+
+def _user_can_view_internal_push_diag(user) -> bool:
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+    )
+
+
+@require_GET
+def api_v1_internal_push_diag(request: HttpRequest) -> JsonResponse:
+    """Staff/superuser-only push diagnostic bootstrap. Never returns tokens."""
+    if not _user_can_view_internal_push_diag(request.user):
+        return JsonResponse({"detail": "not_found"}, status=404)
+
+    from .models import DevicePushToken
+
+    payload = {
+        "ok": True,
+        "authenticated": True,
+        "user_id": request.user.pk,
+        "is_staff": bool(getattr(request.user, "is_staff", False)),
+        "is_superuser": bool(getattr(request.user, "is_superuser", False)),
+        "device_push_token_count": DevicePushToken.objects.filter(
+            user_id=request.user.pk
+        ).count(),
+    }
+    extra = set(payload) - _PUSH_DIAG_ALLOWED_KEYS
+    if extra:
+        raise RuntimeError(f"push diag payload leaked keys: {sorted(extra)}")
+    return JsonResponse(payload)
+
+
 @require_GET
 def spa_app(request: HttpRequest, rest: str = "") -> HttpResponse:
     """

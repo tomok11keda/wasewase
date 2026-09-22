@@ -2,6 +2,8 @@ export type MeResponse = {
   authenticated: boolean;
   is_browse_mode: boolean;
   react_spa_enabled: boolean;
+  is_staff?: boolean;
+  is_superuser?: boolean;
   user: null | {
     id: number;
     email: string;
@@ -25,6 +27,28 @@ export async function fetchMe(): Promise<MeResponse> {
   });
   if (!res.ok) {
     throw new Error(`me_failed_${res.status}`);
+  }
+  return res.json();
+}
+
+export type InternalPushDiagResponse = {
+  ok: true;
+  authenticated: boolean;
+  user_id: number;
+  is_staff: boolean;
+  is_superuser: boolean;
+  device_push_token_count: number;
+};
+
+/** Staff/superuser only. 404 → null. Never reads or returns device tokens. */
+export async function fetchInternalPushDiag(): Promise<InternalPushDiagResponse | null> {
+  const res = await fetch("/api/v1/internal/push-diag/", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`push_diag_failed_${res.status}`);
   }
   return res.json();
 }

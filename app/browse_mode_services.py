@@ -30,6 +30,9 @@ BROWSE_MODE_ALLOW_PREFIXES = (
     "/app/password-reset",
     "/api/v1/auth",
     "/api/v1/me",
+    # Staff-gated; anonymous/browse still reach the view so it can 404
+    # instead of leaking a 401 for an internal endpoint.
+    "/api/v1/internal",
 )
 
 # Browse Mode 中に呼べる API。これ以外の /api/* は学生データとして 401。
@@ -37,6 +40,7 @@ BROWSE_MODE_API_ALLOW_PREFIXES = (
     "/api/v1/auth",
     "/api/v1/me",
     "/api/v1/courses/meta",
+    "/api/v1/internal",
 )
 
 

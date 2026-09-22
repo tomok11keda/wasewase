@@ -150,6 +150,13 @@ export function SettingsPage() {
                 <small className="more-link-note">（従来ページ）</small>
               </a>
             </li>
+            {me?.is_staff || me?.is_superuser ? (
+              <li>
+                <Link className="more-link" to="/internal/push-diag">
+                  内部: プッシュ診断
+                </Link>
+              </li>
+            ) : null}
           </ul>
         </section>
       </div>
