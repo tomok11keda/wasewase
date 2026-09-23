@@ -14,6 +14,7 @@ type WaseCapacitorPushBridge = {
   };
   registerPushToken?: (token: string) => Promise<boolean | void>;
   unregisterPushToken?: (token?: string | null) => Promise<boolean | void>;
+  requestPushPermissionFromUser?: () => Promise<{ receive?: string } | void>;
   consumePendingPushOpenLink?: () => string | null;
 };
 
@@ -152,6 +153,20 @@ export async function unregisterNativePushForSession(): Promise<void> {
   await unregisterTokenViaFetch(token);
 }
 
+/** User-tapped CTA only. Native bootstrap never calls this. */
+export async function requestPushPermissionFromUser(): Promise<{
+  receive: string;
+}> {
+  const bridge = getBridge();
+  if (typeof bridge?.requestPushPermissionFromUser === "function") {
+    const result = await bridge.requestPushPermissionFromUser();
+    const receive =
+      result && typeof result.receive === "string" ? result.receive : "";
+    return { receive };
+  }
+  return { receive: "" };
+}
+
 /**
  * Session の user id 変化に追従。
  * - authenticated userId → register（SPA ログイン後の再登録）
@@ -254,7 +269,7 @@ function getCapacitor(): CapacitorLike | null {
   return cap as CapacitorLike;
 }
 
-function isFirebaseMessagingPluginAvailable(): boolean {
+export function isFirebaseMessagingPluginAvailable(): boolean {
   const cap = getCapacitor();
   if (!cap) return false;
   try {

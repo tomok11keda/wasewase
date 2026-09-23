@@ -1240,14 +1240,49 @@
     return null;
   }
 
-  async function initializePushNotifications() {
-    var FirebaseMessaging = getPlugin("FirebaseMessaging");
-    if (!FirebaseMessaging) {
-      setPushStatus({ error: "plugin_missing" });
-      logNative("FirebaseMessaging plugin not found");
-      return;
-    }
+  var pushPermissionRequestInFlight = false;
 
+  function emitPushPermissionReady(receive) {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("wase:push-permission-ready", {
+          detail: { receive: receive || "" },
+        })
+      );
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  async function readReceivePermission(FirebaseMessaging) {
+    if (!FirebaseMessaging || typeof FirebaseMessaging.checkPermissions !== "function") {
+      return "prompt";
+    }
+    try {
+      var checked = await FirebaseMessaging.checkPermissions();
+      return (checked && checked.receive) || "prompt";
+    } catch (error) {
+      logNative("Push checkPermissions failed", error);
+      return "prompt";
+    }
+  }
+
+  async function acquireFcmTokenAfterGrant(FirebaseMessaging) {
+    try {
+      var token = await waitForFcmToken(FirebaseMessaging);
+      if (token) {
+        adoptFcmToken(token);
+      } else {
+        setPushStatus({ fcm: false, error: "fcm_token_missing" });
+        logNative("FCM token not available yet");
+      }
+    } catch (error) {
+      setPushStatus({ fcm: false, error: "fcm_token_failed" });
+      logNative("FCM getToken failed", error && error.message ? error.message : error);
+    }
+  }
+
+  async function bindPushListeners(FirebaseMessaging) {
     try {
       await FirebaseMessaging.addListener("tokenReceived", function (event) {
         adoptFcmToken(event && event.token);
@@ -1276,35 +1311,92 @@
     } catch (error) {
       logNative("Push notificationActionPerformed listener failed", error);
     }
+  }
 
-    var permission = { receive: "prompt" };
-    try {
-      permission = await FirebaseMessaging.requestPermissions();
-    } catch (error) {
-      setPushStatus({ error: "permission_request_failed" });
-      logNative("Push permission request failed", error);
+  async function initializePushNotifications() {
+    var FirebaseMessaging = getPlugin("FirebaseMessaging");
+    if (!FirebaseMessaging) {
+      setPushStatus({ error: "plugin_missing" });
+      logNative("FirebaseMessaging plugin not found");
+      emitPushPermissionReady("");
       return;
     }
 
-    setPushStatus({ permission: permission && permission.receive });
-    logPushDiag("Push permission", permission && permission.receive);
+    await bindPushListeners(FirebaseMessaging);
 
-    if (!permission || permission.receive !== "granted") {
+    var receive = await readReceivePermission(FirebaseMessaging);
+    setPushStatus({ permission: receive });
+    logPushDiag("Push permission", receive);
+    emitPushPermissionReady(receive);
+
+    if (receive === "granted") {
+      await acquireFcmTokenAfterGrant(FirebaseMessaging);
+      return;
+    }
+
+    if (receive === "denied") {
       setPushStatus({ error: "permission_denied" });
       return;
     }
 
+    // prompt / notDetermined: wait for the in-app CTA. Never auto-prompt.
+    logNative("Push permission not determined; waiting for user CTA");
+  }
+
+  /** User-initiated only. Never call from bootstrap. */
+  async function requestPushPermissionFromUser() {
+    if (pushPermissionRequestInFlight) {
+      return { receive: readPushStatus().permission || "prompt" };
+    }
+
+    var FirebaseMessaging = getPlugin("FirebaseMessaging");
+    if (!FirebaseMessaging) {
+      setPushStatus({ error: "plugin_missing" });
+      return { receive: "" };
+    }
+
+    pushPermissionRequestInFlight = true;
     try {
-      var token = await waitForFcmToken(FirebaseMessaging);
-      if (token) {
-        adoptFcmToken(token);
-      } else {
-        setPushStatus({ fcm: false, error: "fcm_token_missing" });
-        logNative("FCM token not available yet");
+      var current = await readReceivePermission(FirebaseMessaging);
+      setPushStatus({ permission: current });
+      if (current === "granted") {
+        await acquireFcmTokenAfterGrant(FirebaseMessaging);
+        emitPushPermissionReady("granted");
+        return { receive: "granted" };
       }
-    } catch (error) {
-      setPushStatus({ fcm: false, error: "fcm_token_failed" });
-      logNative("FCM getToken failed", error && error.message ? error.message : error);
+      if (current === "denied") {
+        setPushStatus({ error: "permission_denied" });
+        emitPushPermissionReady("denied");
+        return { receive: "denied" };
+      }
+      if (typeof FirebaseMessaging.requestPermissions !== "function") {
+        setPushStatus({ error: "permission_request_failed" });
+        return { receive: current || "prompt" };
+      }
+
+      var permission = { receive: "prompt" };
+      try {
+        permission = await FirebaseMessaging.requestPermissions();
+      } catch (error) {
+        setPushStatus({ error: "permission_request_failed" });
+        logNative("Push permission request failed", error);
+        return { receive: "prompt" };
+      }
+
+      var receive = permission && permission.receive;
+      setPushStatus({ permission: receive });
+      logPushDiag("Push permission", receive);
+      emitPushPermissionReady(receive);
+
+      if (receive !== "granted") {
+        setPushStatus({ error: "permission_denied" });
+        return { receive: receive || "denied" };
+      }
+
+      await acquireFcmTokenAfterGrant(FirebaseMessaging);
+      return { receive: "granted" };
+    } finally {
+      pushPermissionRequestInFlight = false;
     }
   }
 
@@ -2017,6 +2109,7 @@
     },
     registerPushToken: registerTokenWithBackend,
     unregisterPushToken: unregisterTokenWithBackend,
+    requestPushPermissionFromUser: requestPushPermissionFromUser,
   };
 
   function startWhenReady() {
