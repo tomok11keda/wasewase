@@ -1290,6 +1290,7 @@ class ProductTimestampDisplayTests(TestCase):
             "人間科学部",
             "スポーツ科学部",
             "附属・系属校",
+            "卒業生",
             "その他",
         ):
             self.assertContains(response, faculty)
@@ -1534,6 +1535,49 @@ class ProfileAndFollowTests(TestCase):
         self.assertEqual(user["department"], "附属・系属校")
         self.assertEqual(user["grade"], "2年")
         self.assertEqual(user["department_grade"], "附属・系属校 2年")
+
+    def test_mypage_edit_accepts_alumni_faculty(self):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "卒業ユーザー",
+                "user_id": self.viewer.username,
+                "bio": "",
+                "department": "卒業生",
+                "grade": "その他",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        profile = UserProfile.objects.get(user=self.viewer)
+        self.assertEqual(profile.department, "卒業生")
+        self.assertEqual(profile.department_grade_display, "卒業生 その他")
+
+        profile_page = self.client.get(reverse("user_profile", args=[self.viewer.pk]))
+        self.assertContains(profile_page, "卒業生 その他")
+
+        api = self.client.get(f"/api/v1/profile/{self.viewer.pk}/")
+        self.assertEqual(api.status_code, 200)
+        user = api.json()["user"]
+        self.assertEqual(user["department"], "卒業生")
+        self.assertEqual(user["department_grade"], "卒業生 その他")
+
+    def test_mypage_edit_rejects_invalid_faculty(self):
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            reverse("mypage_edit"),
+            {
+                "name": "不正",
+                "user_id": self.viewer.username,
+                "bio": "",
+                "department": "graduate",
+                "grade": "2年",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.filter(user=self.viewer).first()
+        if profile is not None:
+            self.assertNotEqual(profile.department, "graduate")
 
     def test_mypage_edit_uploads_avatar(self):
         self.client.force_login(self.viewer)

@@ -15,6 +15,7 @@ export const FACULTY_IDS = [
   "人間科学部",
   "スポーツ科学部",
   "附属・系属校",
+  "卒業生",
   "その他",
 ] as const;
 
@@ -36,6 +37,7 @@ export const FACULTY_SHORT_LABELS: Record<string, string> = {
   人間科学部: "人科",
   スポーツ科学部: "スポ科",
   附属・系属校: "附属・系属校",
+  卒業生: "卒業生",
   その他: "その他",
 };
 

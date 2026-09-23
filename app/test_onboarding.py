@@ -156,17 +156,24 @@ class OnboardingApiTests(TestCase):
 
         values = [value for value, _label in FACULTY_CHOICES]
         self.assertIn("附属・系属校", values)
+        self.assertIn("卒業生", values)
         self.assertEqual(values[-1], "その他")
-        self.assertLess(values.index("附属・系属校"), values.index("その他"))
+        self.assertLess(values.index("附属・系属校"), values.index("卒業生"))
+        self.assertLess(values.index("卒業生"), values.index("その他"))
 
         res = self.client.get("/api/v1/onboarding/")
         self.assertEqual(res.status_code, 200)
         faculties = res.json()["faculties"]
         labels = [row["value"] for row in faculties]
         self.assertIn("附属・系属校", labels)
+        self.assertIn("卒業生", labels)
         self.assertEqual(
             next(row["label"] for row in faculties if row["value"] == "附属・系属校"),
             "附属・系属校",
+        )
+        self.assertEqual(
+            next(row["label"] for row in faculties if row["value"] == "卒業生"),
+            "卒業生",
         )
 
     def test_profile_saves_affiliated_school_faculty(self):
@@ -183,6 +190,49 @@ class OnboardingApiTests(TestCase):
         self.assertEqual(ok.status_code, 200)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.department, "附属・系属校")
+
+    def test_profile_saves_alumni_faculty_and_completes_onboarding(self):
+        ok = self.client.post(
+            "/api/v1/onboarding/profile/",
+            **_json(
+                {
+                    "name": "卒業生ユーザー",
+                    "username": "alumni_user",
+                    "department": "卒業生",
+                }
+            ),
+        )
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.json()["step"], "follow")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.department, "卒業生")
+
+        skipped = self.client.post("/api/v1/onboarding/follow-step/", **_json({}))
+        self.assertEqual(skipped.status_code, 200)
+        done = self.client.post("/api/v1/onboarding/complete/", **_json({}))
+        self.assertEqual(done.status_code, 200)
+        self.profile.refresh_from_db()
+        self.assertIsNotNone(self.profile.onboarding_completed_at)
+        me = self.client.get("/api/v1/me/")
+        self.assertFalse(me.json()["onboarding_required"])
+        self.assertEqual(me.json()["user"]["department"], "卒業生")
+
+    def test_profile_rejects_invalid_faculty(self):
+        for bogus in ("graduate", "alumni", "大学院生"):
+            bad = self.client.post(
+                "/api/v1/onboarding/profile/",
+                **_json(
+                    {
+                        "name": "不正学部",
+                        "username": "bad_faculty_user",
+                        "department": bogus,
+                    }
+                ),
+            )
+            self.assertEqual(bad.status_code, 400)
+            self.assertEqual(bad.json()["error"], "validation")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.department, "")
 
     def test_existing_other_department_is_not_rewritten(self):
         self.profile.department = "その他"
