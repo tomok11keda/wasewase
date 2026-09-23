@@ -22,6 +22,7 @@ export type ThreadSummary = {
   can_delete: boolean;
   is_mine: boolean;
   can_report: boolean;
+  anonymous_number?: number;
   anonymous_label: string;
   community: CommunityRef;
 };
@@ -30,6 +31,8 @@ export type ReplyToPreview = {
   id: number;
   reply_number: number | null;
   is_unavailable: boolean;
+  anonymous_number?: number;
+  anonymous_label?: string;
 } | null;
 
 export type ThreadReply = {
@@ -43,7 +46,8 @@ export type ThreadReply = {
   can_edit: boolean;
   is_mine: boolean;
   can_report: boolean;
-  anonymous_label: string;
+  anonymous_number?: number;
+  anonymous_label?: string;
 };
 
 export type ThreadDetail = {
@@ -55,7 +59,9 @@ export type ThreadDetail = {
   can_delete: boolean;
   is_mine: boolean;
   can_report: boolean;
+  anonymous_number?: number;
   anonymous_label: string;
+  anonymous_hint?: string;
   community: CommunityRef;
   visible_reply_count: number;
   replies: ThreadReply[];
@@ -67,7 +73,16 @@ export type ThreadsListResponse = {
   active_tag: string;
   q: string;
   sort?: "recommended" | "latest";
+  anonymous_hint?: string;
 };
+
+export const COMMUNITY_ANON_HINT =
+  "コミュニティではすべての投稿が匿名です。ユーザー番号はスレッドごとに変わります。";
+
+export function participantLabel(value?: string | null, fallback = "ユーザー1"): string {
+  const label = (value || "").trim();
+  return label || fallback;
+}
 
 export async function fetchCommunityThreads(query: {
   tag?: string;

@@ -16,6 +16,7 @@ from .models import (
     Comment,
     Community,
     CommunityThread,
+    CommunityThreadParticipant,
     CommunityThreadReply,
     ContentReport,
     Course,
@@ -218,6 +219,20 @@ class CommunityThreadReplyAdmin(admin.ModelAdmin):
     list_filter = ("is_removed", "created_at")
     search_fields = ("body", "author__username", "author__email", "thread__title")
     raw_id_fields = ("author", "thread", "reply_to")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(CommunityThreadParticipant)
+class CommunityThreadParticipantAdmin(admin.ModelAdmin):
+    list_display = ("id", "thread", "user", "anonymous_number", "created_at")
+    list_filter = ("created_at",)
+    search_fields = (
+        "thread__title",
+        "user__username",
+        "user__email",
+        "anonymous_number",
+    )
+    raw_id_fields = ("thread", "user")
     readonly_fields = ("created_at",)
 
 

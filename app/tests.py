@@ -4537,8 +4537,10 @@ class CommunitiesTests(TestCase):
         response = self.client.get(reverse("communities_index"))
         profile_url = reverse("user_profile", args=[self.user.pk])
         self.assertNotContains(response, f'href="{profile_url}"')
-        self.assertContains(response, "匿名")
+        self.assertContains(response, "ユーザー1")
         self.assertContains(response, "community-thread-item__author")
+        self.assertContains(response, "ユーザー番号はスレッドごとに変わります")
+        self.assertNotContains(response, ">匿名<")
 
     def test_thread_detail_is_anonymous(self):
         self.client.force_login(self.user)
@@ -4555,7 +4557,9 @@ class CommunitiesTests(TestCase):
         )
         profile_url = reverse("user_profile", args=[self.user.pk])
         self.assertNotContains(response, f'href="{profile_url}"')
-        self.assertContains(response, "匿名")
+        self.assertContains(response, "ユーザー1")
+        self.assertContains(response, "ユーザー番号はスレッドごとに変わります")
+        self.assertNotContains(response, ">匿名<")
         self.assertNotContains(response, 'class="compose-fab')
         self.assertNotContains(response, "data-compose-open")
 

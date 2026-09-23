@@ -8,7 +8,7 @@
     <p className="community-thread-item__preview">{{ thread.body|truncatechars:160 }}</p>
   </a>
   <p className="community-thread-item__meta">
-    <span className="community-thread-item__author">匿名</span>
+    <span className="community-thread-item__author">{{ thread.anonymous_label|default:"ユーザー1" }}</span>
     <span aria-hidden="true">·</span>
     <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|timesince }}前</time>
     {% if thread.replies_count %}

@@ -6,6 +6,8 @@ import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createCommunityThread,
   fetchCommunityThreads,
+  COMMUNITY_ANON_HINT,
+  participantLabel,
   type ThreadSummary,
 } from "../features/community/api";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
@@ -36,6 +38,7 @@ export function CommunitiesPage() {
   const ownFaculty = me?.user?.department || "";
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [anonymousHint, setAnonymousHint] = useState(COMMUNITY_ANON_HINT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -89,6 +92,7 @@ export function CommunitiesPage() {
           sort,
         });
         setThreads(data.threads);
+        if (data.anonymous_hint) setAnonymousHint(data.anonymous_hint);
         hasDataRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "load_failed");
@@ -201,6 +205,9 @@ export function CommunitiesPage() {
             )
           ) : null}
         </div>
+        {hub === "community" ? (
+          <p className="community-anon-hint">{anonymousHint}</p>
+        ) : null}
 
         <nav className="ranking-sort-tabs" aria-label="コミュニティと授業">
           <button
@@ -283,6 +290,7 @@ export function CommunitiesPage() {
         <>
           {composeOpen ? (
             <form className="community-compose" onSubmit={onCreate}>
+              <p className="community-anon-hint">{anonymousHint}</p>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -328,7 +336,7 @@ export function CommunitiesPage() {
                   >
                     <h3 className="thread-card__title">{thread.title}</h3>
                     <p className="thread-card__meta">
-                      {thread.anonymous_label || "匿名"} · 返信{" "}
+                      {participantLabel(thread.anonymous_label)} · 返信{" "}
                       {thread.replies_count}
                     </p>
                     <p className="thread-card__preview">{thread.body_preview}</p>

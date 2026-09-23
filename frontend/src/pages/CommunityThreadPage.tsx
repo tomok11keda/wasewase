@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
+  COMMUNITY_ANON_HINT,
   createReply,
   deleteReply,
   deleteThread,
   editReply,
   fetchThreadDetail,
+  participantLabel,
   type ThreadDetail,
   type ThreadReply,
 } from "../features/community/api";
@@ -20,10 +22,6 @@ function formatTime(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-function anonymousLabel(value?: string | null): string {
-  return value || "匿名";
 }
 
 export function CommunityThreadPage() {
@@ -228,6 +226,9 @@ export function CommunityThreadPage() {
       <Link className="community-back" to="/communities">
         ← コミュニティ
       </Link>
+      <p className="community-anon-hint">
+        {thread.anonymous_hint || COMMUNITY_ANON_HINT}
+      </p>
 
       <article className="thread-detail forum-op">
         <span className="thread-card__board">{thread.community.name}</span>
@@ -236,7 +237,7 @@ export function CommunityThreadPage() {
           <div className="forum-post__main">
             <div className="forum-post__meta">
               <span className="forum-post__author">
-                {anonymousLabel(thread.anonymous_label)}
+                {participantLabel(thread.anonymous_label)}
               </span>
               <span aria-hidden="true">·</span>
               <time dateTime={thread.created_at}>
@@ -294,7 +295,7 @@ export function CommunityThreadPage() {
                   <div className="forum-post__main">
                     <div className="forum-post__meta">
                       <span className="forum-post__author">
-                        {anonymousLabel(reply.anonymous_label)}
+                        {participantLabel(reply.anonymous_label, "")}
                       </span>
                       <span aria-hidden="true">·</span>
                       <time dateTime={reply.created_at}>
@@ -321,11 +322,10 @@ export function CommunityThreadPage() {
                       >
                         {reply.reply_to.is_unavailable
                           ? "↪ 削除された発言への返信"
-                          : `↪ 匿名${
-                              reply.reply_to.reply_number
-                                ? ` · #${reply.reply_to.reply_number}`
-                                : ""
-                            }`}
+                          : `↪ ${participantLabel(
+                              reply.reply_to.anonymous_label,
+                              "ユーザー"
+                            )}`}
                       </button>
                     ) : null}
                     {editingId === reply.id ? (
@@ -400,10 +400,7 @@ export function CommunityThreadPage() {
           {replyTarget ? (
             <div className="forum-composer__target">
               <span>
-                匿名
-                {replyTarget.reply_number
-                  ? `（#${replyTarget.reply_number}）`
-                  : ""}
+                {participantLabel(replyTarget.anonymous_label, "ユーザー")}
                 に返信
               </span>
               <button type="button" onClick={clearReplyTarget} aria-label="キャンセル">

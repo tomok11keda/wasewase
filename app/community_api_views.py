@@ -15,6 +15,7 @@ from .community_api_services import (
     serialize_thread_detail,
     serialize_thread_summary,
 )
+from .community_participant_services import participant_numbers
 from .community_services import (
     CommunityInteractionBlocked,
     can_delete_community_content,
@@ -183,6 +184,7 @@ def api_v1_community_thread_reply(
                 request.user,
                 reply_number=number_by_id.get(reply.pk),
                 number_by_id=number_by_id,
+                author_numbers=participant_numbers(thread),
             ),
             "visible_reply_count": count_visible_replies_for_thread(
                 thread, viewer=request.user
@@ -262,6 +264,7 @@ def api_v1_community_reply_edit(
                 request.user,
                 reply_number=number_by_id.get(reply.pk),
                 number_by_id=number_by_id,
+                author_numbers=participant_numbers(reply.thread),
             ),
         }
     )

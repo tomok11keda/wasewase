@@ -239,10 +239,6 @@
       color: var(--accent);
       text-decoration: none;
     }
-    .community-thread-item__author:hover,
-    .community-thread-item__author:focus-visible {
-      text-decoration: underline;
-    }
     .community-thread-item:last-child { border-bottom: none; }
     .community-empty {
       margin: 24px 16px;
@@ -265,6 +261,13 @@
       line-height: 1.5;
     }
     .community-login-hint a { color: var(--accent); font-weight: 700; }
+    .community-anon-hint {
+      margin: 8px 0 0;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+      font-weight: 500;
+    }
     /* モバイル: 右下固定の新規スレッド FAB（PC ヘッダーボタンは desktop-only） */
     .thread-create-fab {
       position: fixed;
@@ -357,6 +360,9 @@
             <div>
               <h1>コミュニティ</h1>
               <p>学部タグで絞り込み、スレッドで相談や情報交換ができます。</p>
+              {% if community_anon_hint %}
+              <p class="community-anon-hint">{{ community_anon_hint }}</p>
+              {% endif %}
             </div>
             {% if user.is_authenticated and thread_form %}
             <button type="button" class="btn-new-thread desktop-only" data-thread-open>＋ 新規スレッド</button>

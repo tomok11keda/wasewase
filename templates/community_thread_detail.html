@@ -75,6 +75,13 @@
       text-decoration: none;
       font-weight: 600;
     }
+    .community-anon-hint {
+      margin: 0 16px 12px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+      font-weight: 500;
+    }
     .thread-op {
       padding: 16px;
       background: var(--card);
@@ -397,12 +404,15 @@
           <span>{{ community.faculty }}</span>
           {% endif %}
         </p>
+        {% if community_anon_hint %}
+        <p class="community-anon-hint">{{ community_anon_hint }}</p>
+        {% endif %}
 
         <article class="thread-op" id="thread-op">
           <h1 class="thread-op__title">{{ thread.title }}</h1>
           <p class="thread-op__meta">
             <span class="thread-op__meta-main">
-              <span>匿名</span>
+              <span>{{ thread.anonymous_label|default:"ユーザー1" }}</span>
               <span aria-hidden="true">·</span>
               <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
             </span>
@@ -440,7 +450,7 @@
             {% else %}
             <p class="thread-reply__meta">
               <span class="thread-reply__meta-main">
-                <span class="thread-reply__author">匿名</span>
+                <span class="thread-reply__author">{{ reply.anonymous_label }}</span>
                 <span aria-hidden="true">·</span>
                 <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
               </span>

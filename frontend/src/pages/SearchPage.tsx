@@ -27,6 +27,7 @@ import {
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
+import { participantLabel } from "../features/community/api";
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
@@ -65,7 +66,7 @@ function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
           {thread.body_preview || thread.body}
         </p>
         <p className="search-thread-card__foot">
-          {thread.anonymous_label || "匿名"}
+          {participantLabel(thread.anonymous_label)}
           {` · 返信 ${thread.replies_count}`}
         </p>
       </Link>

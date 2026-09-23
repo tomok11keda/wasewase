@@ -437,6 +437,8 @@ def delete_user_account(user) -> None:
                 PasswordResetOTP.objects.filter(user=user),
             )
 
+            # CommunityThreadParticipant.user は SET_NULL。番号を詰め直さないため
+            # mapping row は消さない（退会ユーザーの番号は欠番のまま残る）。
             user.groups.clear()
             user.user_permissions.clear()
 

@@ -12,6 +12,7 @@ from .community_services import notify_community_reply, seed_communities
 from .models import (
     Community,
     CommunityThread,
+    CommunityThreadParticipant,
     CommunityThreadReply,
     ContentReport,
     Notification,
@@ -22,6 +23,8 @@ from .notification_api_services import serialize_notification
 
 IDENTITY_KEYS = (
     "author",
+    "author_id",
+    "user_id",
     "username",
     "display_name",
     "email",
@@ -30,6 +33,8 @@ IDENTITY_KEYS = (
     "avatar_url",
     "profile_url",
     "initial",
+    "anonymous_id",
+    "global_id",
 )
 
 
@@ -77,7 +82,8 @@ class CommunityAnonymityApiTests(TestCase):
         self.assertNotIn("anon_owner", blob)
         self.assertNotIn("anon-owner@waseda.jp", blob)
         self.assertNotIn("太郎", blob)
-        self.assertEqual(payload["anonymous_label"], "匿名")
+        self.assertEqual(payload["anonymous_label"], "ユーザー1")
+        self.assertEqual(payload["anonymous_number"], 1)
         self.assertFalse(payload["is_mine"])
         self.assertFalse(payload["can_delete"])
         self.assertTrue(payload["can_report"])
@@ -88,7 +94,9 @@ class CommunityAnonymityApiTests(TestCase):
         self.assertEqual(detail.status_code, 200)
         thread_payload = detail.json()["thread"]
         _assert_no_identity(self, thread_payload)
-        self.assertEqual(thread_payload["anonymous_label"], "匿名")
+        self.assertEqual(thread_payload["anonymous_label"], "ユーザー1")
+        self.assertEqual(thread_payload["anonymous_number"], 1)
+        self.assertIn("ユーザー番号はスレッドごとに変わります", thread_payload.get("anonymous_hint", ""))
         self.assertTrue(thread_payload["can_report"])
         self.assertFalse(thread_payload["is_mine"])
 
@@ -125,7 +133,8 @@ class CommunityAnonymityApiTests(TestCase):
         self.assertTrue(top_payload["can_edit"])
         self.assertTrue(top_payload["can_delete"])
         self.assertFalse(top_payload["can_report"])
-        self.assertEqual(top_payload["anonymous_label"], "匿名")
+        self.assertEqual(top_payload["anonymous_label"], "ユーザー2")
+        self.assertEqual(top_payload["anonymous_number"], 2)
 
         nested = self.client.post(
             f"/api/v1/communities/{thread.community.slug}/threads/{thread.pk}/replies/",
@@ -138,6 +147,8 @@ class CommunityAnonymityApiTests(TestCase):
         nested_payload = nested.json()["reply"]
         _assert_no_identity(self, nested_payload)
         self.assertNotIn("display_name", nested_payload.get("reply_to") or {})
+        self.assertEqual(nested_payload["anonymous_label"], "ユーザー2")
+        self.assertEqual(nested_payload["anonymous_number"], 2)
         self.assertFalse((nested_payload.get("reply_to") or {}).get("is_unavailable"))
 
         self.client.force_login(self.owner)
@@ -176,10 +187,13 @@ class CommunityAnonymityApiTests(TestCase):
             f"/api/v1/communities/{thread.community.slug}/threads/{thread.pk}/"
         ).json()["thread"]
         _assert_no_identity(self, detail)
-        self.assertEqual(detail["anonymous_label"], "匿名")
+        self.assertEqual(detail["anonymous_label"], "ユーザー1")
+        owner_reply = next(item for item in detail["replies"] if item["id"] == reply.pk)
+        viewer_reply = next(item for item in detail["replies"] if item["id"] == nested.pk)
+        self.assertEqual(owner_reply["anonymous_label"], "ユーザー1")
+        self.assertEqual(viewer_reply["anonymous_label"], "ユーザー2")
         for item in detail["replies"]:
             _assert_no_identity(self, item)
-            self.assertEqual(item["anonymous_label"], "匿名")
         thread.refresh_from_db()
         reply.refresh_from_db()
         self.assertEqual(thread.author_id, self.owner.pk)
@@ -197,6 +211,10 @@ class CommunityAnonymityApiTests(TestCase):
         self.assertIn("is_removed", thread_admin.list_display)
         self.assertIn("author", reply_admin.list_display)
         self.assertIn("id", reply_admin.list_display)
+        participant_admin = site._registry[CommunityThreadParticipant]
+        self.assertIn("anonymous_number", participant_admin.list_display)
+        self.assertIn("user", participant_admin.list_display)
+        self.assertIn("thread", participant_admin.list_display)
 
     def test_timeline_api_still_includes_author_identity(self):
         post = TimelinePost.objects.create(

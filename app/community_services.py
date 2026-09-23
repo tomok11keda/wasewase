@@ -194,6 +194,8 @@ def seed_communities():
 
 
 def create_community_thread(community, user, title, body):
+    from .community_participant_services import assign_creator_participant
+
     with transaction.atomic():
         thread = CommunityThread.objects.create(
             community=community,
@@ -201,6 +203,7 @@ def create_community_thread(community, user, title, body):
             title=title,
             body=body,
         )
+        assign_creator_participant(thread, user)
         community.latest_thread_title = thread.title[:120]
         community.latest_thread_preview = thread.body[:200]
         community.latest_activity_at = timezone.now()
@@ -232,6 +235,8 @@ def get_community_thread(community, thread_pk, viewer=None):
 
 
 def create_thread_reply(thread, user, body, *, reply_to=None):
+    from .community_participant_services import get_or_assign_participant
+
     if is_either_blocked(user, getattr(thread, "author", None)):
         raise CommunityInteractionBlocked()
     if reply_to is not None and is_either_blocked(
@@ -239,16 +244,18 @@ def create_thread_reply(thread, user, body, *, reply_to=None):
     ):
         raise CommunityInteractionBlocked()
     with transaction.atomic():
+        locked = CommunityThread.objects.select_for_update().get(pk=thread.pk)
+        get_or_assign_participant(thread=locked, user=user)
         reply = CommunityThreadReply.objects.create(
-            thread=thread,
+            thread=locked,
             author=user,
             body=body,
             reply_to=reply_to,
         )
         now = timezone.now()
-        thread.updated_at = now
-        thread.save(update_fields=["updated_at"])
-        community = thread.community
+        locked.updated_at = now
+        locked.save(update_fields=["updated_at"])
+        community = locked.community
         community.latest_thread_title = thread.title[:120]
         community.latest_thread_preview = body[:200]
         community.latest_activity_at = now

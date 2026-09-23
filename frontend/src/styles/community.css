@@ -49,6 +49,23 @@
   scrollbar-width: none;
 }
 
+.community-anon-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #536471;
+  font-weight: 500;
+}
+
+.community-thread-page .community-anon-hint,
+.community-compose .community-anon-hint {
+  margin: 0 16px 12px;
+}
+
+.community-compose .community-anon-hint {
+  margin: 0 0 10px;
+}
+
 .faculty-tabs::-webkit-scrollbar {
   display: none;
 }

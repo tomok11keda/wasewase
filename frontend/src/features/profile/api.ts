@@ -57,6 +57,7 @@ export type SearchThreadResult = {
   updated_at: string;
   replies_count: number;
   can_report?: boolean;
+  anonymous_number?: number;
   anonymous_label?: string;
   community: {
     id: number;

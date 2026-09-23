@@ -128,7 +128,8 @@ class CommunityApiTests(TestCase):
         self.assertIsNone(a_payload["reply_to"])
         self.assertNotIn("author", a_payload)
         self.assertTrue(a_payload["is_mine"])
-        self.assertEqual(a_payload["anonymous_label"], "匿名")
+        self.assertEqual(a_payload["anonymous_label"], "ユーザー1")
+        self.assertEqual(a_payload["anonymous_number"], 1)
 
         self.client.force_login(self.other)
         b = self.client.post(
@@ -144,6 +145,8 @@ class CommunityApiTests(TestCase):
         self.assertEqual(b.status_code, 201)
         b_payload = b.json()["reply"]
         self.assertEqual(b_payload["reply_number"], 2)
+        self.assertEqual(b_payload["anonymous_label"], "ユーザー2")
+        self.assertEqual(b_payload["anonymous_number"], 2)
         self.assertEqual(b_payload["reply_to"]["id"], a_payload["id"])
         self.assertEqual(b_payload["reply_to"]["reply_number"], 1)
         self.assertFalse(b_payload["reply_to"]["is_unavailable"])

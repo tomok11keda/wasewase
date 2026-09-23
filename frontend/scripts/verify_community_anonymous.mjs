@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const hint = "ユーザー番号はスレッドごとに変わります";
 
 const files = [
   "src/pages/CommunitiesPage.tsx",
@@ -30,8 +31,12 @@ for (const rel of files) {
   const abs = path.join(root, rel);
   const text = fs.readFileSync(abs, "utf8");
   if (rel.endsWith("CommunityThreadPage.tsx") || rel.endsWith("CommunitiesPage.tsx")) {
-    if (!text.includes("匿名") && !text.includes("anonymous_label")) {
-      console.error(`${rel}: missing anonymous label`);
+    if (!text.includes("anonymous_label") && !text.includes("participantLabel")) {
+      console.error(`${rel}: missing thread-local participant label`);
+      failed = true;
+    }
+    if (!text.includes(hint) && !text.includes("COMMUNITY_ANON_HINT")) {
+      console.error(`${rel}: missing thread-local number hint`);
       failed = true;
     }
     if (text.includes("AuthorAvatar") || text.includes("forum-post__avatar")) {
@@ -47,8 +52,8 @@ for (const rel of files) {
       console.error(`${rel}: DiscoverThreadCard still uses thread.author`);
       failed = true;
     }
-    if (!block.includes("匿名") && !block.includes("anonymous_label")) {
-      console.error(`${rel}: DiscoverThreadCard missing anonymous label`);
+    if (!block.includes("anonymous_label") && !block.includes("participantLabel")) {
+      console.error(`${rel}: DiscoverThreadCard missing participant label`);
       failed = true;
     }
     continue;
@@ -69,8 +74,8 @@ if (searchBlock.includes("thread.author") || searchBlock.includes("authorName"))
   console.error("SearchPage.tsx: SearchThreadCard still uses author identity");
   failed = true;
 }
-if (!searchBlock.includes("匿名") && !searchBlock.includes("anonymous_label")) {
-  console.error("SearchPage.tsx: SearchThreadCard missing anonymous label");
+if (!searchBlock.includes("anonymous_label") && !searchBlock.includes("participantLabel")) {
+  console.error("SearchPage.tsx: SearchThreadCard missing participant label");
   failed = true;
 }
 

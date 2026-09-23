@@ -783,6 +783,10 @@ def communities_index(request):
             "active_tag": active_tag,
             "query": query,
             "thread_form": thread_form,
+            "community_anon_hint": (
+                "コミュニティではすべての投稿が匿名です。"
+                "ユーザー番号はスレッドごとに変わります。"
+            ),
             "nav_active": "communities",
         },
     )
@@ -832,6 +836,20 @@ def community_thread_detail(request, slug, thread_pk):
             thread, include_removed=True, viewer=request.user
         )
     )
+    from .community_participant_services import (
+        CREATOR_NUMBER,
+        anonymous_label_for,
+        ensure_participants_for_thread,
+    )
+
+    author_numbers = ensure_participants_for_thread(thread)
+    thread.anonymous_label = anonymous_label_for(
+        author_numbers.get(thread.author_id, CREATOR_NUMBER)
+    )
+    for reply in replies:
+        reply.anonymous_label = anonymous_label_for(
+            author_numbers.get(reply.author_id)
+        )
     reply_form = CommunityThreadReplyForm() if request.user.is_authenticated else None
     return render(
         request,
@@ -846,6 +864,10 @@ def community_thread_detail(request, slug, thread_pk):
             "reply_form": reply_form,
             "can_delete_thread": can_delete_community_content(
                 request.user, thread.author_id
+            ),
+            "community_anon_hint": (
+                "コミュニティではすべての投稿が匿名です。"
+                "ユーザー番号はスレッドごとに変わります。"
             ),
             "nav_active": "communities",
         },

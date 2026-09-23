@@ -1942,6 +1942,43 @@ class CommunityThreadReply(models.Model):
         return self.body[:40]
 
 
+class CommunityThreadParticipant(models.Model):
+    """スレッド内だけの匿名番号。一般APIには user FK を出さない。"""
+
+    thread = models.ForeignKey(
+        CommunityThread,
+        on_delete=models.CASCADE,
+        related_name="participants",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="community_thread_participations",
+    )
+    anonymous_number = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["thread", "user"],
+                condition=models.Q(user__isnull=False),
+                name="uniq_community_thread_participant_user",
+            ),
+            models.UniqueConstraint(
+                fields=["thread", "anonymous_number"],
+                name="uniq_community_thread_participant_number",
+            ),
+        ]
+        verbose_name = "コミュニティスレッド参加者番号"
+        verbose_name_plural = "コミュニティスレッド参加者番号"
+
+    def __str__(self) -> str:
+        return f"thread={self.thread_id} user={self.user_id} #{self.anonymous_number}"
+
+
 class TimelineLike(models.Model):
     timeline_post = models.ForeignKey(
         TimelinePost, on_delete=models.CASCADE, related_name="likes"

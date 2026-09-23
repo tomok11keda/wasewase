@@ -7,6 +7,12 @@ from typing import Any
 from django.contrib.auth.models import AbstractBaseUser
 from django.http import HttpRequest
 
+from .community_participant_services import (
+    CREATOR_NUMBER,
+    anonymous_label_for,
+    ensure_participants_for_thread,
+    participant_numbers,
+)
 from .community_services import (
     can_delete_community_content,
     can_edit_community_reply,
@@ -20,7 +26,19 @@ from .constants import FACULTY_CHOICES
 from .models import Community, CommunityThread, CommunityThreadReply
 from .ugc_services import get_either_blocked_user_ids
 
-ANONYMOUS_LABEL = "匿名"
+COMMUNITY_ANON_HINT = (
+    "コミュニティではすべての投稿が匿名です。ユーザー番号はスレッドごとに変わります。"
+)
+
+
+def _anonymous_fields(number: int | None) -> dict[str, Any]:
+    label = anonymous_label_for(number)
+    payload: dict[str, Any] = {}
+    if number:
+        payload["anonymous_number"] = int(number)
+    if label:
+        payload["anonymous_label"] = label
+    return payload
 
 
 def _is_mine(viewer: AbstractBaseUser | None, author_id: int | None) -> bool:
@@ -77,7 +95,7 @@ def serialize_thread_summary(
         else False,
         "is_mine": _is_mine(viewer, thread.author_id),
         "can_report": _can_report(viewer, thread.author_id),
-        "anonymous_label": ANONYMOUS_LABEL,
+        **_anonymous_fields(CREATOR_NUMBER),
         "community": serialize_community(thread.community),
     }
 
@@ -87,6 +105,7 @@ def serialize_reply_to_preview(
     *,
     number_by_id: dict[int, int],
     blocked_author_ids: set[int] | None = None,
+    author_numbers: dict[int, int] | None = None,
 ) -> dict[str, Any] | None:
     if parent is None:
         return None
@@ -102,11 +121,14 @@ def serialize_reply_to_preview(
             "reply_number": number,
             "is_unavailable": True,
         }
-    return {
+    payload = {
         "id": parent.pk,
         "reply_number": number,
         "is_unavailable": False,
     }
+    if parent.author_id and author_numbers:
+        payload.update(_anonymous_fields(author_numbers.get(parent.author_id)))
+    return payload
 
 
 def serialize_reply(
@@ -116,6 +138,7 @@ def serialize_reply(
     reply_number: int | None = None,
     number_by_id: dict[int, int] | None = None,
     blocked_author_ids: set[int] | None = None,
+    author_numbers: dict[int, int] | None = None,
 ) -> dict[str, Any]:
     numbers = number_by_id or {}
     number = reply_number if reply_number is not None else numbers.get(reply.pk)
@@ -127,7 +150,8 @@ def serialize_reply(
         if blocked_author_ids is not None
         else get_either_blocked_user_ids(viewer)
     )
-    return {
+    author_map = author_numbers or {}
+    payload = {
         "id": reply.pk,
         "body": "" if reply.is_removed else reply.body,
         "created_at": reply.created_at.isoformat(),
@@ -137,6 +161,7 @@ def serialize_reply(
             parent,
             number_by_id=numbers,
             blocked_author_ids=hidden_authors,
+            author_numbers=author_map,
         ),
         "can_delete": (
             can_delete_community_content(viewer, reply.author_id)
@@ -150,8 +175,10 @@ def serialize_reply(
         "can_report": _can_report(
             viewer, reply.author_id, is_removed=bool(reply.is_removed)
         ),
-        "anonymous_label": ANONYMOUS_LABEL,
     }
+    if not reply.is_removed:
+        payload.update(_anonymous_fields(author_map.get(reply.author_id)))
+    return payload
 
 
 def serialize_thread_detail(
@@ -165,6 +192,7 @@ def serialize_thread_detail(
         )
     )
     number_by_id = reply_numbers_for_thread_all(thread)
+    author_numbers = ensure_participants_for_thread(thread)
     return {
         "id": thread.pk,
         "title": thread.title,
@@ -176,8 +204,13 @@ def serialize_thread_detail(
         else False,
         "is_mine": _is_mine(viewer, thread.author_id),
         "can_report": _can_report(viewer, thread.author_id),
-        "anonymous_label": ANONYMOUS_LABEL,
+        **_anonymous_fields(
+            author_numbers.get(thread.author_id, CREATOR_NUMBER)
+            if thread.author_id
+            else CREATOR_NUMBER
+        ),
         "community": serialize_community(thread.community),
+        "anonymous_hint": COMMUNITY_ANON_HINT,
         "visible_reply_count": count_visible_replies_for_thread(
             thread, blocked_ids=blocked_ids
         ),
@@ -188,6 +221,7 @@ def serialize_thread_detail(
                 reply_number=number_by_id[r.pk],
                 number_by_id=number_by_id,
                 blocked_author_ids=blocked_ids,
+                author_numbers=author_numbers,
             )
             for r in replies
         ],
@@ -221,4 +255,5 @@ def list_threads_payload(request: HttpRequest) -> dict[str, Any]:
         "active_tag": active_tag,
         "q": query,
         "sort": sort,
+        "anonymous_hint": COMMUNITY_ANON_HINT,
     }

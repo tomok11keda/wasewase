@@ -6,6 +6,7 @@ import type {
   SearchThreadResult,
 } from "../profile/api";
 import { CommunityReportMenu } from "../community/CommunityReportMenu";
+import { participantLabel } from "../community/api";
 
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime();
@@ -115,7 +116,7 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
           <div className="discover-compact-card__head">
             <div className="discover-compact-card__who">
               <span className="discover-compact-card__name">
-                {thread.anonymous_label || "匿名"}
+                {participantLabel(thread.anonymous_label)}
               </span>
             </div>
             <time
