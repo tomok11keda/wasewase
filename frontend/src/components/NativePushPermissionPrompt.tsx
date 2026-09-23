@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import {
   isFirebaseMessagingPluginAvailable,
@@ -69,7 +70,7 @@ export function NativePushPermissionPrompt() {
 
   if (!visible) return null;
 
-  return (
+  return createPortal(
     <div className="push-preperm" role="presentation">
       <button
         type="button"
@@ -106,6 +107,7 @@ export function NativePushPermissionPrompt() {
           あとで
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

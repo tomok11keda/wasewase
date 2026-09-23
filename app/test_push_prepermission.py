@@ -160,9 +160,27 @@ class PushPrePermissionDecisionTests(SimpleTestCase):
         self.assertIn("あとで", prompt)
         self.assertIn("requestPushPermissionFromUser", prompt)
         self.assertNotIn("必須", prompt)
+        self.assertIn("createPortal", prompt)
+        self.assertIn("document.body", prompt)
         router = _read("frontend/src/components/NativePushOpenRouter.tsx")
         self.assertIn("wase:push-open", router)
         self.assertIn("consumePendingPushOpenLink", router)
+
+
+class PushPrePermissionStackingTests(SimpleTestCase):
+    def test_overlay_sits_above_compose_fab(self):
+        overlay = _read("frontend/src/styles/push-preperm.css")
+        home = _read("frontend/src/styles/home.css")
+        shell = _read("frontend/src/styles/shell.css")
+        self.assertRegex(overlay, r"\.push-preperm\s*\{[^}]*z-index:\s*500")
+        self.assertRegex(home, r"\.compose-fab\s*\{[^}]*z-index:\s*250")
+        self.assertRegex(shell, r"\.bottom-nav\s*\{[^}]*z-index:\s*200")
+        self.assertGreater(500, 250)
+        self.assertGreater(500, 200)
+        # Permission bootstrap must still not auto-request.
+        native = _read("static/js/capacitor_native.js")
+        init = _function_body(native, "initializePushNotifications")
+        self.assertNotIn("requestPermissions", init)
 
 
 class PushLinkHelperSourceTests(SimpleTestCase):

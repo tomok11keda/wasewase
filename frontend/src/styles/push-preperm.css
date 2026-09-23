@@ -1,8 +1,9 @@
-/* iOS push pre-permission sheet — course-sheet visual language */
+/* iOS push pre-permission sheet — same overlay layer as compose-modal (500).
+ * Compose FAB is portaled to body at z-index 250; 90 lost to it. */
 .push-preperm {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 500;
   display: flex;
   align-items: flex-end;
   justify-content: center;
