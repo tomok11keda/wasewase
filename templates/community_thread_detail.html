@@ -7,6 +7,7 @@
   {% include "includes/pwa_head.html" %}
   <title>わせわせ — {{ thread.title }}</title>
   {% include "includes/timeline_shell_styles.html" %}
+  {% include "includes/ugc_safety_styles.html" %}
   <style>
     :root {
       --bg: #f7f9fc;
@@ -401,7 +402,7 @@
           <h1 class="thread-op__title">{{ thread.title }}</h1>
           <p class="thread-op__meta">
             <span class="thread-op__meta-main">
-              <a href="{% url 'user_profile' thread.author.pk %}">{{ thread.author|display_name }}</a>
+              <span>匿名</span>
               <span aria-hidden="true">·</span>
               <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|date:"Y/m/d H:i" }}</time>
             </span>
@@ -419,6 +420,10 @@
                 </button>
               </form>
             </span>
+            {% elif ugc_report_enabled and thread.author_id != user.id %}
+            <span class="thread-post-actions">
+              {% include "includes/ugc_report_button.html" with report_type="community_thread" report_id=thread.pk %}
+            </span>
             {% endif %}
           </p>
           <p class="thread-op__body">{{ thread.body }}</p>
@@ -435,7 +440,7 @@
             {% else %}
             <p class="thread-reply__meta">
               <span class="thread-reply__meta-main">
-                <a class="thread-reply__author" href="{% url 'user_profile' reply.author.pk %}">{{ reply.author|display_name }}</a>
+                <span class="thread-reply__author">匿名</span>
                 <span aria-hidden="true">·</span>
                 <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"Y/m/d H:i" }}</time>
               </span>
@@ -464,6 +469,10 @@
                       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                     </button>
                   </form>
+                </span>
+                {% elif ugc_report_enabled %}
+                <span class="thread-post-actions">
+                  {% include "includes/ugc_report_button.html" with report_type="community_reply" report_id=reply.pk %}
                 </span>
                 {% endif %}
               {% endif %}

@@ -291,20 +291,18 @@ def notify_community_reply(
     thread: CommunityThread,
 ) -> None:
     """返信先の著者（なければスレッド主）へ通知。自己通知は作らない。"""
-    from .notification_services import create_notification, notification_actor_label
+    from .notification_services import create_notification
 
-    actor_name = notification_actor_label(reply.author)
     recipient = None
     message = ""
     if reply.reply_to_id:
         parent = reply.reply_to
         if parent is not None and not parent.is_removed and parent.author_id:
             recipient = parent.author
-            message = f"{actor_name}さんがあなたの発言に返信しました"
+            message = "コミュニティの発言に返信がありました"
     if recipient is None and thread.author_id:
         recipient = thread.author
-        title = (thread.title or "スレッド")[:40]
-        message = f"{actor_name}さんが「{title}」に返信しました"
+        message = "コミュニティの投稿に返信がありました"
     if recipient is None or recipient.pk == reply.author_id:
         return
     if is_either_blocked(reply.author, recipient):

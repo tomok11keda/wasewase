@@ -205,16 +205,20 @@ class CommunityAdmin(admin.ModelAdmin):
 
 @admin.register(CommunityThread)
 class CommunityThreadAdmin(admin.ModelAdmin):
-    list_display = ("title", "community", "author", "created_at", "is_removed")
+    list_display = ("id", "title", "community", "author", "created_at", "is_removed")
     list_filter = ("community", "is_removed", "created_at")
-    search_fields = ("title", "body", "author__username")
+    search_fields = ("title", "body", "author__username", "author__email")
+    raw_id_fields = ("author", "community")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(CommunityThreadReply)
 class CommunityThreadReplyAdmin(admin.ModelAdmin):
-    list_display = ("thread", "author", "created_at", "is_removed")
+    list_display = ("id", "thread", "author", "created_at", "is_removed")
     list_filter = ("is_removed", "created_at")
-    search_fields = ("body", "author__username", "thread__title")
+    search_fields = ("body", "author__username", "author__email", "thread__title")
+    raw_id_fields = ("author", "thread", "reply_to")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(CourseThread)
@@ -482,6 +486,14 @@ class ContentReportAdmin(admin.ModelAdmin):
         if obj.target_type == ContentReport.TargetType.CHAT_MESSAGE:
             url = reverse("admin:app_chatmessage_change", args=[obj.target_id])
             return format_html('<a href="{}">ChatMessage #{}</a>', url, obj.target_id)
+        if obj.target_type == ContentReport.TargetType.COMMUNITY_THREAD:
+            url = reverse("admin:app_communitythread_change", args=[obj.target_id])
+            return format_html('<a href="{}">CommunityThread #{}</a>', url, obj.target_id)
+        if obj.target_type == ContentReport.TargetType.COMMUNITY_REPLY:
+            url = reverse("admin:app_communitythreadreply_change", args=[obj.target_id])
+            return format_html(
+                '<a href="{}">CommunityThreadReply #{}</a>', url, obj.target_id
+            )
         return f"{obj.target_type}:{obj.target_id}"
 
     @admin.action(description="通報対象を運営削除（ユーザー通報は対象外）")

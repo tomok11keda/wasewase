@@ -8,6 +8,7 @@ import {
   fetchCommunityThreads,
   type ThreadSummary,
 } from "../features/community/api";
+import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
 import {
   fetchCourseDiscover,
   type CourseDiscoverCard,
@@ -320,14 +321,14 @@ export function CommunitiesPage() {
           ) : (
             <ul className="thread-list">
               {threads.map((thread) => (
-                <li key={thread.id}>
+                <li key={thread.id} className="thread-card-row">
                   <Link
                     className="thread-card"
                     to={`/communities/${thread.community.slug}/threads/${thread.id}`}
                   >
                     <h3 className="thread-card__title">{thread.title}</h3>
                     <p className="thread-card__meta">
-                      {thread.author?.display_name || "ユーザー"} · 返信{" "}
+                      {thread.anonymous_label || "匿名"} · 返信{" "}
                       {thread.replies_count}
                     </p>
                     <p className="thread-card__preview">{thread.body_preview}</p>
@@ -335,6 +336,12 @@ export function CommunitiesPage() {
                       {thread.community.name}
                     </span>
                   </Link>
+                  <CommunityReportMenu
+                    targetType="community_thread"
+                    targetId={thread.id}
+                    canReport={Boolean(thread.can_report)}
+                    ariaLabel="この投稿を通報"
+                  />
                 </li>
               ))}
             </ul>

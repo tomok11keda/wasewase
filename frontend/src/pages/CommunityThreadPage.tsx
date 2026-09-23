@@ -10,6 +10,7 @@ import {
   type ThreadDetail,
   type ThreadReply,
 } from "../features/community/api";
+import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 
@@ -21,30 +22,8 @@ function formatTime(iso: string): string {
   }
 }
 
-function AuthorAvatar({
-  author,
-  className,
-}: {
-  author: NonNullable<ThreadReply["author"]>;
-  className: string;
-}) {
-  return (
-    <Link
-      className={className}
-      to={`/users/${author.id}/posts`}
-      aria-hidden="true"
-    >
-      {author.avatar_url ? (
-        <img
-          className="user-avatar--image"
-          src={author.avatar_url}
-          alt=""
-        />
-      ) : (
-        author.initial
-      )}
-    </Link>
-  );
+function anonymousLabel(value?: string | null): string {
+  return value || "匿名";
 }
 
 export function CommunityThreadPage() {
@@ -174,15 +153,16 @@ export function CommunityThreadPage() {
                 ...r,
                 is_removed: true,
                 body: "",
-                author: null,
                 can_delete: false,
                 can_edit: false,
+                can_report: false,
+                is_mine: false,
               }
             : r.reply_to?.id === reply.id
               ? {
                   ...r,
                   reply_to: r.reply_to
-                    ? { ...r.reply_to, is_unavailable: true, display_name: "" }
+                    ? { ...r.reply_to, is_unavailable: true }
                     : r.reply_to,
                 }
               : r
@@ -253,31 +233,23 @@ export function CommunityThreadPage() {
         <span className="thread-card__board">{thread.community.name}</span>
         <h2>{thread.title}</h2>
         <div className="forum-post forum-post--op">
-          {thread.author ? (
-            <AuthorAvatar author={thread.author} className="forum-post__avatar" />
-          ) : (
-            <span className="forum-post__avatar is-deleted" aria-hidden="true">
-              退
-            </span>
-          )}
           <div className="forum-post__main">
             <div className="forum-post__meta">
-              {thread.author ? (
-                <Link
-                  className="forum-post__author"
-                  to={`/users/${thread.author.id}/posts`}
-                >
-                  {thread.author.display_name}
-                </Link>
-              ) : (
-                <span>削除済みユーザー</span>
-              )}
+              <span className="forum-post__author">
+                {anonymousLabel(thread.anonymous_label)}
+              </span>
               <span aria-hidden="true">·</span>
               <time dateTime={thread.created_at}>
                 {formatTime(thread.created_at)}
               </time>
               <span aria-hidden="true">·</span>
               <span>発言 {thread.visible_reply_count}</span>
+              <CommunityReportMenu
+                targetType="community_thread"
+                targetId={thread.id}
+                canReport={Boolean(thread.can_report)}
+                ariaLabel="この投稿を通報"
+              />
             </div>
             <div className="forum-post__body">{thread.body}</div>
           </div>
@@ -308,132 +280,114 @@ export function CommunityThreadPage() {
                   reply.is_removed ? " is-removed" : ""
                 }`}
               >
-                <span className="forum-post__number" aria-label={`発言番号 ${reply.reply_number ?? ""}`}>
+                <span
+                  className="forum-post__number"
+                  aria-label={`発言番号 ${reply.reply_number ?? ""}`}
+                >
                   #{reply.reply_number ?? "—"}
                 </span>
                 {reply.is_removed ? (
-                  <>
-                    <span className="forum-post__avatar is-deleted" aria-hidden="true">
-                      —
-                    </span>
-                    <div className="forum-post__main">
-                      <p className="forum-post__removed">この発言は削除されました</p>
-                    </div>
-                  </>
+                  <div className="forum-post__main">
+                    <p className="forum-post__removed">この発言は削除されました</p>
+                  </div>
                 ) : (
-                  <>
-                    {reply.author ? (
-                      <AuthorAvatar
-                        author={reply.author}
-                        className="forum-post__avatar"
-                      />
-                    ) : (
-                      <span
-                        className="forum-post__avatar is-deleted"
-                        aria-hidden="true"
-                      >
-                        退
+                  <div className="forum-post__main">
+                    <div className="forum-post__meta">
+                      <span className="forum-post__author">
+                        {anonymousLabel(reply.anonymous_label)}
                       </span>
-                    )}
-                    <div className="forum-post__main">
-                      <div className="forum-post__meta">
-                        {reply.author ? (
-                          <Link
-                            className="forum-post__author"
-                            to={`/users/${reply.author.id}/posts`}
-                          >
-                            {reply.author.display_name}
-                          </Link>
-                        ) : (
-                          <span>ユーザー</span>
-                        )}
-                        <span aria-hidden="true">·</span>
-                        <time dateTime={reply.created_at}>
-                          {formatTime(reply.created_at)}
-                        </time>
-                      </div>
-                      {reply.reply_to ? (
-                        <button
-                          type="button"
-                          className={`forum-post__reply-to${
-                            reply.reply_to.is_unavailable ? " is-unavailable" : ""
-                          }`}
-                          onClick={() => {
-                            if (!reply.reply_to?.is_unavailable) {
-                              scrollToReply(reply.reply_to!.id);
-                            }
-                          }}
-                        >
-                          {reply.reply_to.is_unavailable
-                            ? "↪ 削除された発言への返信"
-                            : `↪ ${reply.reply_to.display_name}${
-                                reply.reply_to.reply_number
-                                  ? ` · #${reply.reply_to.reply_number}`
-                                  : ""
-                              }`}
-                        </button>
-                      ) : null}
-                      {editingId === reply.id ? (
-                        <div>
-                          <textarea
-                            value={editBody}
-                            onChange={(e) => setEditBody(e.target.value)}
-                            rows={4}
-                            maxLength={2000}
-                            className="forum-edit-textarea"
-                          />
-                          <div className="reply-card__actions">
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void onSaveEdit(reply)}
-                            >
-                              保存
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingId(null)}
-                            >
-                              キャンセル
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="forum-post__body">{reply.body}</div>
-                          <div className="reply-card__actions">
-                            <button
-                              type="button"
-                              onClick={() => startReplyTo(reply)}
-                            >
-                              返信
-                            </button>
-                            {reply.can_edit ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingId(reply.id);
-                                  setEditBody(reply.body);
-                                }}
-                              >
-                                編集
-                              </button>
-                            ) : null}
-                            {reply.can_delete ? (
-                              <button
-                                type="button"
-                                className="danger"
-                                disabled={busy}
-                                onClick={() => void onDeleteReply(reply)}
-                              >
-                                削除
-                              </button>
-                            ) : null}
-                          </div>
-                        </>
-                      )}
+                      <span aria-hidden="true">·</span>
+                      <time dateTime={reply.created_at}>
+                        {formatTime(reply.created_at)}
+                      </time>
+                      <CommunityReportMenu
+                        targetType="community_reply"
+                        targetId={reply.id}
+                        canReport={Boolean(reply.can_report)}
+                        ariaLabel="この発言を通報"
+                      />
                     </div>
-                  </>
+                    {reply.reply_to ? (
+                      <button
+                        type="button"
+                        className={`forum-post__reply-to${
+                          reply.reply_to.is_unavailable ? " is-unavailable" : ""
+                        }`}
+                        onClick={() => {
+                          if (!reply.reply_to?.is_unavailable) {
+                            scrollToReply(reply.reply_to!.id);
+                          }
+                        }}
+                      >
+                        {reply.reply_to.is_unavailable
+                          ? "↪ 削除された発言への返信"
+                          : `↪ 匿名${
+                              reply.reply_to.reply_number
+                                ? ` · #${reply.reply_to.reply_number}`
+                                : ""
+                            }`}
+                      </button>
+                    ) : null}
+                    {editingId === reply.id ? (
+                      <div>
+                        <textarea
+                          value={editBody}
+                          onChange={(e) => setEditBody(e.target.value)}
+                          rows={4}
+                          maxLength={2000}
+                          className="forum-edit-textarea"
+                        />
+                        <div className="reply-card__actions">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void onSaveEdit(reply)}
+                          >
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="forum-post__body">{reply.body}</div>
+                        <div className="reply-card__actions">
+                          <button
+                            type="button"
+                            onClick={() => startReplyTo(reply)}
+                          >
+                            返信
+                          </button>
+                          {reply.can_edit ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(reply.id);
+                                setEditBody(reply.body);
+                              }}
+                            >
+                              編集
+                            </button>
+                          ) : null}
+                          {reply.can_delete ? (
+                            <button
+                              type="button"
+                              className="danger"
+                              disabled={busy}
+                              onClick={() => void onDeleteReply(reply)}
+                            >
+                              削除
+                            </button>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </li>
             );
@@ -446,7 +400,7 @@ export function CommunityThreadPage() {
           {replyTarget ? (
             <div className="forum-composer__target">
               <span>
-                {replyTarget.author?.display_name || "ユーザー"}
+                匿名
                 {replyTarget.reply_number
                   ? `（#${replyTarget.reply_number}）`
                   : ""}

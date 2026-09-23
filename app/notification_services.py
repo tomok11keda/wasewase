@@ -55,7 +55,7 @@ def build_privacy_safe_push_body(
         PUSH_KIND_MENTION: f"「{name}さんがあなたをメンションしました」",
         PUSH_KIND_FOLLOW: f"「{name}さんがあなたをフォローしました」",
         PUSH_KIND_FOLLOW_REQUEST: f"「{name}さんからフォローリクエストが届きました」",
-        PUSH_KIND_COMMUNITY_REPLY: f"「{name}さんがあなたの投稿に返信しました」",
+        PUSH_KIND_COMMUNITY_REPLY: "コミュニティの投稿に返信がありました",
         PUSH_KIND_GROUP_INVITE: f"「{name}さんからグループ招待が届きました」",
         PUSH_KIND_FLEA_COMMENT: f"「{name}さんがあなたの商品にコメントしました」",
         PUSH_KIND_FLEA_LIKE: f"「{name}さんがあなたの商品にいいねしました」",

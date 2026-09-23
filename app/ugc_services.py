@@ -7,7 +7,17 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
-from .models import Comment, ContentReport, Follow, FollowRequest, Product, TimelinePost, UserBlock
+from .models import (
+    Comment,
+    CommunityThread,
+    CommunityThreadReply,
+    ContentReport,
+    Follow,
+    FollowRequest,
+    Product,
+    TimelinePost,
+    UserBlock,
+)
 
 User = get_user_model()
 
@@ -203,6 +213,14 @@ def get_report_target(target_type: str, target_id: int):
         return ChatMessage.objects.filter(
             pk=target_id, is_hidden=False, deleted_at__isnull=True
         ).first()
+    if target_type == ContentReport.TargetType.COMMUNITY_THREAD:
+        return CommunityThread.objects.filter(
+            pk=target_id, is_removed=False
+        ).first()
+    if target_type == ContentReport.TargetType.COMMUNITY_REPLY:
+        return CommunityThreadReply.objects.filter(
+            pk=target_id, is_removed=False
+        ).first()
     return None
 
 
@@ -223,6 +241,10 @@ def get_reported_user_id(target_type: str, target) -> int | None:
         return target.user_id
     if target_type == ContentReport.TargetType.CHAT_MESSAGE:
         return target.sender_id
+    if target_type == ContentReport.TargetType.COMMUNITY_THREAD:
+        return target.author_id
+    if target_type == ContentReport.TargetType.COMMUNITY_REPLY:
+        return target.author_id
     return None
 
 
@@ -278,4 +300,12 @@ def soft_remove_content(
             reason="通報対応",
         )
         return not already_hidden
+    elif target_type == ContentReport.TargetType.COMMUNITY_THREAD:
+        updated = CommunityThread.objects.filter(
+            pk=target_id, is_removed=False
+        ).update(is_removed=True)
+    elif target_type == ContentReport.TargetType.COMMUNITY_REPLY:
+        updated = CommunityThreadReply.objects.filter(
+            pk=target_id, is_removed=False
+        ).update(is_removed=True)
     return updated > 0

@@ -420,7 +420,7 @@ class PushEventWiringTests(TestCase):
         body = mock_push.call_args.kwargs["body"]
         self.assertNotIn(SECRET_COMMENT, body)
         self.assertNotIn("秘密スレ", body)
-        self.assertIn("返信しました", body)
+        self.assertIn("返信がありました", body)
         self.assertIn("/communities/", mock_push.call_args.kwargs["link"])
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)

@@ -165,7 +165,7 @@ class OtherNotificationTypeUxTests(TestCase):
         self.assertEqual(note.message, "アリス さんから DM: こんにちは")
         self.assertEqual(notification_spa_path(note.link), f"/dm/{room.pk}")
 
-    def test_community_reply_notification_uses_display_name(self):
+    def test_community_reply_notification_is_anonymous(self):
         seed_communities()
         community = Community.objects.filter(is_active=True).first()
         thread = CommunityThread.objects.create(
@@ -181,7 +181,8 @@ class OtherNotificationTypeUxTests(TestCase):
         )
         notify_community_reply(reply=reply, thread=thread)
         note = Notification.objects.get(recipient=self.bob)
-        self.assertIn("アリス", note.message)
+        self.assertEqual(note.message, "コミュニティの投稿に返信がありました")
+        self.assertNotIn("アリス", note.message)
         self.assertNotIn("ux_alice", note.message)
         self.assertEqual(
             notification_spa_path(note.link),

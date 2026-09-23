@@ -108,9 +108,15 @@
   padding: 0;
 }
 
+.thread-card-row,
+.search-thread-card-row,
+.discover-compact-card-row {
+  position: relative;
+}
+
 .thread-card {
   display: block;
-  padding: 14px 16px;
+  padding: 14px 44px 14px 16px;
   border-bottom: 1px solid var(--shell-border, #eff3f4);
   background: #fff;
   text-decoration: none;
@@ -285,7 +291,7 @@
 
 .forum-post {
   display: grid;
-  grid-template-columns: 36px 32px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 8px 10px;
   align-items: start;
   padding: 12px 16px;
@@ -299,7 +305,7 @@
 }
 
 .forum-post--op {
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: 4px 0 0;
   border-bottom: none;
 }
@@ -359,11 +365,6 @@
 .forum-post__author {
   color: #0f1419;
   font-weight: 700;
-  text-decoration: none;
-}
-
-.forum-post__author:hover {
-  text-decoration: underline;
 }
 
 .forum-post__reply-to {
@@ -456,21 +457,17 @@
   }
 
   .forum-post {
-    grid-template-columns: 28px 28px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
     gap: 6px 8px;
   }
 
-  /* OP has avatar + main only; keep 2 columns so the later
-     3-column .forum-post rule above does not squeeze body into ~28px. */
   .forum-post--op {
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
+}
 
-  .forum-post__avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
-  }
+.discover-compact-card-row .discover-compact-card {
+  padding-right: 40px;
 }
 
 .community-back {
@@ -480,6 +477,82 @@
   font-weight: 700;
   text-decoration: none;
   font-size: 14px;
+}
+
+.community-overflow {
+  position: relative;
+  margin-left: auto;
+  z-index: 2;
+}
+
+.thread-card-row > .community-overflow,
+.search-thread-card-row > .community-overflow,
+.discover-compact-card-row > .community-overflow {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.community-overflow__btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #536471;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.community-overflow__btn:hover,
+.community-overflow__btn:focus-visible {
+  background: rgba(15, 20, 25, 0.08);
+}
+
+.community-overflow__menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 168px;
+  padding: 6px 0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 20, 25, 0.18);
+  z-index: 20;
+}
+
+.community-overflow__heading {
+  margin: 0;
+  padding: 8px 12px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #536471;
+}
+
+.community-overflow__item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f1419;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.community-overflow__item:hover,
+.community-overflow__item:focus-visible {
+  background: #f7f9f9;
+}
+
+.community-overflow__item--muted {
+  color: #536471;
+  font-weight: 500;
 }
 
 .communities-hub-hint {

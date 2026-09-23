@@ -11,14 +11,6 @@ export type CommunityRef = {
 
 export type FacultyTab = { value: string; label: string };
 
-export type CommunityAuthor = {
-  id: number;
-  username: string;
-  display_name: string;
-  avatar_url: string;
-  initial: string;
-} | null;
-
 export type ThreadSummary = {
   id: number;
   title: string;
@@ -28,14 +20,15 @@ export type ThreadSummary = {
   updated_at: string;
   replies_count: number;
   can_delete: boolean;
-  author: CommunityAuthor;
+  is_mine: boolean;
+  can_report: boolean;
+  anonymous_label: string;
   community: CommunityRef;
 };
 
 export type ReplyToPreview = {
   id: number;
   reply_number: number | null;
-  display_name: string;
   is_unavailable: boolean;
 } | null;
 
@@ -48,7 +41,9 @@ export type ThreadReply = {
   reply_to: ReplyToPreview;
   can_delete: boolean;
   can_edit: boolean;
-  author: CommunityAuthor;
+  is_mine: boolean;
+  can_report: boolean;
+  anonymous_label: string;
 };
 
 export type ThreadDetail = {
@@ -58,7 +53,9 @@ export type ThreadDetail = {
   created_at: string;
   updated_at: string;
   can_delete: boolean;
-  author: CommunityAuthor;
+  is_mine: boolean;
+  can_report: boolean;
+  anonymous_label: string;
   community: CommunityRef;
   visible_reply_count: number;
   replies: ThreadReply[];

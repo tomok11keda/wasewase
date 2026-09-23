@@ -26,6 +26,7 @@ import {
 } from "../features/search/DiscoverTrendingMosaic";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics";
+import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
@@ -48,28 +49,33 @@ function tabLabel(tab: SearchTab): string {
 }
 
 function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
-  const authorName = thread.author?.display_name || "ユーザー";
-  const handle = thread.author?.username ? `@${thread.author.username}` : "";
   return (
-    <Link
-      className="search-thread-card"
-      to={`/communities/${thread.community.slug}/threads/${thread.id}`}
-    >
-      <p className="search-thread-card__meta">
-        <span className="search-thread-card__badge">コミュニティ</span>
-        {thread.community.name}
-        {thread.community.faculty ? ` · ${thread.community.faculty}` : ""}
-      </p>
-      <strong className="search-thread-card__title">{thread.title}</strong>
-      <p className="search-thread-card__preview">
-        {thread.body_preview || thread.body}
-      </p>
-      <p className="search-thread-card__foot">
-        {authorName}
-        {handle ? ` ${handle}` : ""}
-        {` · 返信 ${thread.replies_count}`}
-      </p>
-    </Link>
+    <article className="search-thread-card-row">
+      <Link
+        className="search-thread-card"
+        to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+      >
+        <p className="search-thread-card__meta">
+          <span className="search-thread-card__badge">コミュニティ</span>
+          {thread.community.name}
+          {thread.community.faculty ? ` · ${thread.community.faculty}` : ""}
+        </p>
+        <strong className="search-thread-card__title">{thread.title}</strong>
+        <p className="search-thread-card__preview">
+          {thread.body_preview || thread.body}
+        </p>
+        <p className="search-thread-card__foot">
+          {thread.anonymous_label || "匿名"}
+          {` · 返信 ${thread.replies_count}`}
+        </p>
+      </Link>
+      <CommunityReportMenu
+        targetType="community_thread"
+        targetId={thread.id}
+        canReport={Boolean(thread.can_report)}
+        ariaLabel="この投稿を通報"
+      />
+    </article>
   );
 }
 

@@ -311,7 +311,9 @@ export async function submitContentReport(
     | "product"
     | "course_offering"
     | "course_review"
-    | "chat_message",
+    | "chat_message"
+    | "community_thread"
+    | "community_reply",
   targetId: number,
   reason: ReportReason | string
 ): Promise<string> {

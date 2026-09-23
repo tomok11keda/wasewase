@@ -18,9 +18,32 @@ from .community_services import (
 )
 from .constants import FACULTY_CHOICES
 from .models import Community, CommunityThread, CommunityThreadReply
-from .services import user_display_name
-from .timeline_api_services import serialize_author
 from .ugc_services import get_either_blocked_user_ids
+
+ANONYMOUS_LABEL = "匿名"
+
+
+def _is_mine(viewer: AbstractBaseUser | None, author_id: int | None) -> bool:
+    if viewer is None or not getattr(viewer, "is_authenticated", False):
+        return False
+    if author_id is None:
+        return False
+    return viewer.pk == author_id
+
+
+def _can_report(
+    viewer: AbstractBaseUser | None,
+    author_id: int | None,
+    *,
+    is_removed: bool = False,
+) -> bool:
+    if is_removed:
+        return False
+    if viewer is None or not getattr(viewer, "is_authenticated", False):
+        return False
+    if author_id is None:
+        return False
+    return viewer.pk != author_id
 
 
 def serialize_community(community: Community) -> dict[str, Any]:
@@ -52,7 +75,9 @@ def serialize_thread_summary(
         )
         if viewer is not None
         else False,
-        "author": serialize_author(thread.author),
+        "is_mine": _is_mine(viewer, thread.author_id),
+        "can_report": _can_report(viewer, thread.author_id),
+        "anonymous_label": ANONYMOUS_LABEL,
         "community": serialize_community(thread.community),
     }
 
@@ -75,13 +100,11 @@ def serialize_reply_to_preview(
         return {
             "id": parent.pk,
             "reply_number": number,
-            "display_name": "",
             "is_unavailable": True,
         }
     return {
         "id": parent.pk,
         "reply_number": number,
-        "display_name": user_display_name(parent.author),
         "is_unavailable": False,
     }
 
@@ -123,7 +146,11 @@ def serialize_reply(
         "can_edit": can_edit_community_reply(viewer, reply)
         if viewer is not None
         else False,
-        "author": None if reply.is_removed else serialize_author(reply.author),
+        "is_mine": _is_mine(viewer, reply.author_id) and not reply.is_removed,
+        "can_report": _can_report(
+            viewer, reply.author_id, is_removed=bool(reply.is_removed)
+        ),
+        "anonymous_label": ANONYMOUS_LABEL,
     }
 
 
@@ -147,7 +174,9 @@ def serialize_thread_detail(
         "can_delete": can_delete_community_content(viewer, thread.author_id)
         if viewer is not None
         else False,
-        "author": serialize_author(thread.author),
+        "is_mine": _is_mine(viewer, thread.author_id),
+        "can_report": _can_report(viewer, thread.author_id),
+        "anonymous_label": ANONYMOUS_LABEL,
         "community": serialize_community(thread.community),
         "visible_reply_count": count_visible_replies_for_thread(
             thread, blocked_ids=blocked_ids

@@ -5,6 +5,7 @@ import type {
   SearchProductResult,
   SearchThreadResult,
 } from "../profile/api";
+import { CommunityReportMenu } from "../community/CommunityReportMenu";
 
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime();
@@ -98,7 +99,6 @@ export function DiscoverPostCard({ post }: { post: TimelinePost }) {
 
 /** Compact discovery card for community threads. */
 export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
-  const name = thread.author?.display_name || "ユーザー";
   const preview = (thread.body_preview || thread.body || "")
     .replace(/\s+/g, " ")
     .trim();
@@ -106,50 +106,49 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
     preview.length > 90 ? `${preview.slice(0, 87)}…` : preview;
 
   return (
-    <Link
-      className="discover-compact-card"
-      to={`/communities/${thread.community.slug}/threads/${thread.id}`}
-    >
-      <div className="discover-compact-card__main">
-        <div className="discover-compact-card__head">
-          {thread.author?.avatar_url ? (
-            <img
-              className="discover-compact-card__avatar"
-              src={thread.author.avatar_url}
-              alt=""
-            />
-          ) : (
-            <span className="discover-compact-card__avatar is-initial">
-              {thread.author?.initial || "?"}
-            </span>
-          )}
-          <div className="discover-compact-card__who">
-            <span className="discover-compact-card__name">{name}</span>
+    <article className="discover-compact-card-row">
+      <Link
+        className="discover-compact-card"
+        to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+      >
+        <div className="discover-compact-card__main">
+          <div className="discover-compact-card__head">
+            <div className="discover-compact-card__who">
+              <span className="discover-compact-card__name">
+                {thread.anonymous_label || "匿名"}
+              </span>
+            </div>
+            <time
+              className="discover-compact-card__time"
+              dateTime={thread.created_at}
+            >
+              {formatRelative(thread.created_at)}
+            </time>
           </div>
-          <time
-            className="discover-compact-card__time"
-            dateTime={thread.created_at}
-          >
-            {formatRelative(thread.created_at)}
-          </time>
+          <p className="discover-compact-card__badge-row">
+            <span className="discover-compact-card__badge is-community">
+              コミュニティ
+            </span>
+            <span className="discover-compact-card__board">
+              {thread.community.name}
+            </span>
+          </p>
+          <strong className="discover-compact-card__title">{thread.title}</strong>
+          {truncated ? (
+            <p className="discover-compact-card__text">{truncated}</p>
+          ) : null}
+          <p className="discover-compact-card__stats" aria-label="反応">
+            <span>💬 返信 {formatCount(thread.replies_count)}</span>
+          </p>
         </div>
-        <p className="discover-compact-card__badge-row">
-          <span className="discover-compact-card__badge is-community">
-            コミュニティ
-          </span>
-          <span className="discover-compact-card__board">
-            {thread.community.name}
-          </span>
-        </p>
-        <strong className="discover-compact-card__title">{thread.title}</strong>
-        {truncated ? (
-          <p className="discover-compact-card__text">{truncated}</p>
-        ) : null}
-        <p className="discover-compact-card__stats" aria-label="反応">
-          <span>💬 返信 {formatCount(thread.replies_count)}</span>
-        </p>
-      </div>
-    </Link>
+      </Link>
+      <CommunityReportMenu
+        targetType="community_thread"
+        targetId={thread.id}
+        canReport={Boolean(thread.can_report)}
+        ariaLabel="この投稿を通報"
+      />
+    </article>
   );
 }
 

@@ -56,13 +56,8 @@ export type SearchThreadResult = {
   created_at: string;
   updated_at: string;
   replies_count: number;
-  author: {
-    id: number;
-    username: string;
-    display_name: string;
-    avatar_url: string;
-    initial: string;
-  } | null;
+  can_report?: boolean;
+  anonymous_label?: string;
   community: {
     id: number;
     slug: string;

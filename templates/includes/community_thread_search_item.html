@@ -1,19 +1,22 @@
 {% load wase_extras %}
-<article class="community-thread-item community-thread-item--search" id="thread-{{ thread.pk }}">
+<article className="community-thread-item community-thread-item--search" id="thread-{{ thread.pk }}">
   <a
-    class="community-thread-item__link"
+    className="community-thread-item__link"
     href="{% url 'community_thread_detail' thread.community.slug thread.pk %}"
   >
-    <h3 class="community-thread-item__title">{{ thread.title }}</h3>
-    <p class="community-thread-item__preview">{{ thread.body|truncatechars:160 }}</p>
+    <h3 className="community-thread-item__title">{{ thread.title }}</h3>
+    <p className="community-thread-item__preview">{{ thread.body|truncatechars:160 }}</p>
   </a>
-  <p class="community-thread-item__meta">
-    <a class="community-thread-item__author" href="{% url 'user_profile' thread.author.pk %}">{{ thread.author|display_name }}</a>
+  <p className="community-thread-item__meta">
+    <span className="community-thread-item__author">匿名</span>
     <span aria-hidden="true">·</span>
     <time datetime="{{ thread.created_at|date:'c' }}">{{ thread.created_at|timesince }}前</time>
     {% if thread.replies_count %}
     <span aria-hidden="true">·</span>
     <span>返信 {{ thread.replies_count }}</span>
+    {% endif %}
+    {% if ugc_report_enabled and thread.author_id != user.id %}
+    {% include "includes/ugc_report_button.html" with report_type="community_thread" report_id=thread.pk %}
     {% endif %}
   </p>
 </article>

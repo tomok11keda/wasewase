@@ -1030,6 +1030,8 @@ class ContentReport(models.Model):
         COURSE_OFFERING = "course_offering", "開講授業"
         COURSE_REVIEW = "course_review", "授業レビュー"
         CHAT_MESSAGE = "chat_message", "チャットメッセージ"
+        COMMUNITY_THREAD = "community_thread", "コミュニティ投稿"
+        COMMUNITY_REPLY = "community_reply", "コミュニティ返信"
 
     class Reason(models.TextChoices):
         SPAM = "spam", "スパム・宣伝"

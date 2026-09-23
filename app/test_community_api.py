@@ -126,8 +126,9 @@ class CommunityApiTests(TestCase):
         a_payload = a.json()["reply"]
         self.assertEqual(a_payload["reply_number"], 1)
         self.assertIsNone(a_payload["reply_to"])
-        self.assertIn("avatar_url", a_payload["author"])
-        self.assertIn("initial", a_payload["author"])
+        self.assertNotIn("author", a_payload)
+        self.assertTrue(a_payload["is_mine"])
+        self.assertEqual(a_payload["anonymous_label"], "匿名")
 
         self.client.force_login(self.other)
         b = self.client.post(
@@ -360,7 +361,7 @@ class CommunityBilateralBlockTests(TestCase):
         d_payload = next(r for r in payload["replies"] if r["id"] == d_reply.pk)
         self.assertEqual(d_payload["reply_number"], 2)
         self.assertTrue(d_payload["reply_to"]["is_unavailable"])
-        self.assertEqual(d_payload["reply_to"]["display_name"], "")
+        self.assertNotIn("display_name", d_payload["reply_to"])
         self.assertNotIn("username", d_payload["reply_to"])
         self.assertNotIn("avatar_url", d_payload["reply_to"])
         self.assertNotIn("body", d_payload["reply_to"])

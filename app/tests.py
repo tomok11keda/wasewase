@@ -4306,6 +4306,7 @@ class AppShellNavTests(TestCase):
         self.assertNotIn(">通知<", bottom_nav_html)
 
 
+@override_settings(WASE_REACT_SPA=False, BROWSE_MODE_GATE_ENABLED=False)
 class CommunitiesTests(TestCase):
     def setUp(self):
         User = get_user_model()
@@ -4527,7 +4528,7 @@ class CommunitiesTests(TestCase):
         self.assertNotContains(response, "卒論・レポート相談板")
         self.assertNotContains(response, "にスレッドを作成します")
 
-    def test_communities_index_author_links_to_profile(self):
+    def test_communities_index_is_anonymous(self):
         self.client.force_login(self.user)
         self.client.post(
             reverse("create_community_thread"),
@@ -4535,10 +4536,11 @@ class CommunitiesTests(TestCase):
         )
         response = self.client.get(reverse("communities_index"))
         profile_url = reverse("user_profile", args=[self.user.pk])
-        self.assertContains(response, f'href="{profile_url}"')
+        self.assertNotContains(response, f'href="{profile_url}"')
+        self.assertContains(response, "匿名")
         self.assertContains(response, "community-thread-item__author")
 
-    def test_thread_detail_author_links_to_profile(self):
+    def test_thread_detail_is_anonymous(self):
         self.client.force_login(self.user)
         self.client.post(
             reverse("create_community_thread"),
@@ -4552,7 +4554,8 @@ class CommunitiesTests(TestCase):
             reverse("community_thread_detail", kwargs={"slug": "commerce", "thread_pk": 1})
         )
         profile_url = reverse("user_profile", args=[self.user.pk])
-        self.assertContains(response, f'href="{profile_url}"')
+        self.assertNotContains(response, f'href="{profile_url}"')
+        self.assertContains(response, "匿名")
         self.assertNotContains(response, 'class="compose-fab')
         self.assertNotContains(response, "data-compose-open")
 

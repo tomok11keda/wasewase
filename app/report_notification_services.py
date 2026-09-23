@@ -7,7 +7,7 @@ import logging
 from django.conf import settings
 from django.core.mail import send_mail
 
-from .models import Comment, ContentReport, CourseOffering, CourseReview, Product, TimelinePost
+from .models import Comment, CommunityThread, CommunityThreadReply, ContentReport, CourseOffering, CourseReview, Product, TimelinePost
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,20 @@ def _build_target_summary(
     ):
         lines.append(f"レビューコメント（抜粋）: {(target.comment or '')[:200]}")
         lines.append(f"開講ID: {target.offering_id}")
+    elif target_type == ContentReport.TargetType.COMMUNITY_THREAD and isinstance(
+        target, CommunityThread
+    ):
+        lines.append(f"スレッドタイトル: {target.title}")
+        lines.append(f"本文（抜粋）: {(target.body or '')[:200]}")
+        if target.author_id:
+            lines.append(f"投稿者ユーザーID: {target.author_id}")
+    elif target_type == ContentReport.TargetType.COMMUNITY_REPLY and isinstance(
+        target, CommunityThreadReply
+    ):
+        lines.append(f"返信本文（抜粋）: {(target.body or '')[:200]}")
+        lines.append(f"スレッドID: {target.thread_id}")
+        if target.author_id:
+            lines.append(f"投稿者ユーザーID: {target.author_id}")
 
     return "\n".join(lines)
 
