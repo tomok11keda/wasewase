@@ -32,7 +32,7 @@
   {% if growth.goal %}
   <article class="growth-goal">
     <p class="growth-card__label">{{ growth.goal.label }}</p>
-    <p class="growth-goal__ratio">{{ growth.goal.current }} / {{ growth.goal.target }}</p>
+    <p class="growth-goal__ratio">{{ growth.goal.current_display }} / {{ growth.goal.target_display }}</p>
     <p class="growth-goal__pct">{{ growth.goal.pct_display }}</p>
     <div class="growth-bar" role="progressbar"
          aria-valuemin="0" aria-valuemax="100"
@@ -40,7 +40,52 @@
          aria-label="{{ growth.goal.label }}">
       <span class="growth-bar__fill" style="width: {{ growth.goal.bar_pct|floatformat:1 }}%;"></span>
     </div>
-    <p class="growth-goal__remaining">{{ growth.goal.remaining }} users remaining</p>
+    <p class="growth-goal__remaining">{{ growth.goal.remaining_display }} users remaining</p>
+  </article>
+  {% endif %}
+
+  {% if growth.next_major %}
+  <article class="growth-goal growth-goal--next">
+    <p class="growth-card__label">{{ growth.next_major.label }}</p>
+    <p class="growth-goal__milestone">{{ growth.next_major.target_display }} University Verified Users</p>
+    <p class="growth-goal__ratio">{{ growth.next_major.current_display }} / {{ growth.next_major.target_display }}</p>
+    <p class="growth-goal__pct">{{ growth.next_major.pct_display }}</p>
+    <div class="growth-bar" role="progressbar"
+         aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="{{ growth.next_major.bar_pct|floatformat:1 }}"
+         aria-label="{{ growth.next_major.label }}">
+      <span class="growth-bar__fill" style="width: {{ growth.next_major.bar_pct|floatformat:1 }}%;"></span>
+    </div>
+  </article>
+  {% endif %}
+
+  {% if growth.roadmap %}
+  <article class="growth-roadmap">
+    <h3 class="growth-daily__title">University Verified Roadmap</h3>
+    <div class="growth-daily__scroll">
+      <table class="growth-daily__table">
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col">Goal</th>
+            <th scope="col">Required Growth</th>
+            <th scope="col">Remaining</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in growth.roadmap %}
+          <tr{% if row.is_current_month %} class="growth-roadmap__current"{% endif %}>
+            <td>{{ row.label }}</td>
+            <td>{{ row.goal_display }}</td>
+            <td>{{ row.required_growth_display }}</td>
+            <td>{{ row.remaining_display }}</td>
+            <td>{{ row.status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </article>
   {% endif %}
 
@@ -96,6 +141,7 @@
   }
   .growth-card,
   .growth-goal,
+  .growth-roadmap,
   .growth-daily {
     margin: 12px 0 0;
     padding: 14px 16px;
@@ -135,9 +181,18 @@
     font-weight: 700;
   }
   .growth-goal__pct,
-  .growth-goal__remaining {
+  .growth-goal__remaining,
+  .growth-goal__milestone {
     margin: 4px 0 0;
     font-size: 13px;
+  }
+  .growth-goal__milestone {
+    margin-top: 6px;
+    font-weight: 600;
+  }
+  .growth-roadmap__current {
+    background: #f4e6e8;
+    font-weight: 600;
   }
   .growth-bar {
     margin-top: 10px;

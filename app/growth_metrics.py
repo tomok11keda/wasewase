@@ -35,10 +35,24 @@ NON_UNIVERSITY_DEPARTMENT_VALUES: tuple[str, ...] = (
     "附属・系属校",
 )
 
-# (year, month) -> University Verified Users target. Add later months here.
+# (year, month) -> University Verified Users month-end target.
+# Single source of truth for the dashboard, roadmap, and a future simulator.
 UNIVERSITY_VERIFIED_MONTHLY_GOALS: dict[tuple[int, int], int] = {
     (2026, 9): 150,
+    (2026, 10): 500,
+    (2026, 11): 1500,
+    (2026, 12): 3000,
+    (2027, 1): 3500,
+    (2027, 2): 4000,
+    (2027, 3): 5000,
+    (2027, 4): 8000,
+    (2027, 5): 10000,
 }
+
+STATUS_REACHED = "Reached"
+STATUS_CURRENT = "Current"
+STATUS_UPCOMING = "Upcoming"
+STATUS_OPEN = "Open"
 
 DAILY_GROWTH_DAYS = 7
 
@@ -130,25 +144,140 @@ def _counts_by_local_date(qs: QuerySet, since: datetime, tz) -> dict:
     return out
 
 
-def _goal_payload(local_now: datetime, university_total: int) -> dict[str, Any] | None:
-    key = (local_now.year, local_now.month)
-    target = UNIVERSITY_VERIFIED_MONTHLY_GOALS.get(key)
-    if target is None:
-        return None
-    pct = _ratio_pct(university_total, target)
-    remaining = max(0, target - university_total)
-    bar_pct = 0.0 if target == 0 else min(100.0, (university_total / target) * 100)
+def month_key(when: datetime) -> tuple[int, int]:
+    local = timezone.localtime(when) if timezone.is_aware(when) else when
+    return (local.year, local.month)
+
+
+def goal_for_month(year: int, month: int) -> int | None:
+    """Look up a month-end University Verified target. None if unset."""
+    return UNIVERSITY_VERIFIED_MONTHLY_GOALS.get((year, month))
+
+
+def remaining_to_goal(goal: int, current: int) -> int:
+    return max(goal - current, 0)
+
+
+def monthly_goal_items() -> list[tuple[tuple[int, int], int]]:
+    return sorted(UNIVERSITY_VERIFIED_MONTHLY_GOALS.items())
+
+
+def milestone_status(
+    key: tuple[int, int],
+    *,
+    current_key: tuple[int, int],
+    current_count: int,
+    goal: int,
+) -> str:
+    """Reached / Current / Upcoming (Open = past month not yet reached)."""
+    if current_count >= goal:
+        return STATUS_REACHED
+    if key == current_key:
+        return STATUS_CURRENT
+    if key > current_key:
+        return STATUS_UPCOMING
+    return STATUS_OPEN
+
+
+def _progress_payload(
+    *,
+    year: int,
+    month: int,
+    target: int,
+    current: int,
+    label: str,
+) -> dict[str, Any]:
+    pct = _ratio_pct(current, target)
+    remaining = remaining_to_goal(target, current)
+    bar_pct = 0.0 if target == 0 else min(100.0, (current / target) * 100)
     return {
-        "year": key[0],
-        "month": key[1],
-        "label": f"{calendar.month_name[key[1]]} Goal",
+        "year": year,
+        "month": month,
+        "label": label,
         "target": target,
-        "current": university_total,
+        "target_display": f"{target:,}",
+        "current": current,
+        "current_display": f"{current:,}",
         "pct": pct,
         "pct_display": _format_pct(pct),
         "remaining": remaining,
+        "remaining_display": f"{remaining:,}",
         "bar_pct": bar_pct,
     }
+
+
+def current_month_goal_payload(
+    when: datetime, university_total: int
+) -> dict[str, Any] | None:
+    year, month = month_key(when)
+    target = goal_for_month(year, month)
+    if target is None:
+        return None
+    return _progress_payload(
+        year=year,
+        month=month,
+        target=target,
+        current=university_total,
+        label=f"{calendar.month_name[month]} Goal",
+    )
+
+
+def next_major_milestone_payload(
+    when: datetime, university_total: int
+) -> dict[str, Any] | None:
+    """Earliest configured goal after the current calendar month."""
+    current_key = month_key(when)
+    for key, target in monthly_goal_items():
+        if key > current_key:
+            return _progress_payload(
+                year=key[0],
+                month=key[1],
+                target=target,
+                current=university_total,
+                label="Next Major Milestone",
+            )
+    return None
+
+
+def build_goal_roadmap(
+    when: datetime, university_total: int
+) -> list[dict[str, Any]]:
+    """Month-end milestones derived only from UNIVERSITY_VERIFIED_MONTHLY_GOALS."""
+    current_key = month_key(when)
+    rows: list[dict[str, Any]] = []
+    previous_goal: int | None = None
+    for key, goal in monthly_goal_items():
+        required = None if previous_goal is None else goal - previous_goal
+        remaining = remaining_to_goal(goal, university_total)
+        status = milestone_status(
+            key,
+            current_key=current_key,
+            current_count=university_total,
+            goal=goal,
+        )
+        rows.append(
+            {
+                "year": key[0],
+                "month": key[1],
+                "label": f"{calendar.month_abbr[key[1]]} {key[0]}",
+                "goal": goal,
+                "goal_display": f"{goal:,}",
+                "required_growth": required,
+                "required_growth_display": (
+                    "—" if required is None else f"+{required:,}"
+                ),
+                "remaining": remaining,
+                "remaining_display": f"{remaining:,}",
+                "status": status,
+                "is_current_month": key == current_key,
+            }
+        )
+        previous_goal = goal
+    return rows
+
+
+def _goal_payload(local_now: datetime, university_total: int) -> dict[str, Any] | None:
+    return current_month_goal_payload(local_now, university_total)
 
 
 def build_growth_dashboard() -> dict[str, Any]:
@@ -196,6 +325,8 @@ def build_growth_dashboard() -> dict[str, Any]:
             "Verification-completed-at is not stored; date_joined is used."
         ),
         "excluded_departments": NON_UNIVERSITY_DEPARTMENT_VALUES,
-        "goal": _goal_payload(local_now, university["total"]),
+        "goal": current_month_goal_payload(local_now, university["total"]),
+        "next_major": next_major_milestone_payload(local_now, university["total"]),
+        "roadmap": build_goal_roadmap(local_now, university["total"]),
         "daily": daily,
     }

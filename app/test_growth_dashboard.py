@@ -14,8 +14,15 @@ from django.utils import timezone
 from .constants import FACULTY_CHOICES
 from .growth_metrics import (
     NON_UNIVERSITY_DEPARTMENT_VALUES,
+    STATUS_CURRENT,
+    STATUS_REACHED,
+    STATUS_UPCOMING,
     UNIVERSITY_VERIFIED_MONTHLY_GOALS,
+    build_goal_roadmap,
     build_growth_dashboard,
+    current_month_goal_payload,
+    goal_for_month,
+    remaining_to_goal,
     university_verified_users_qs,
     verified_users_qs,
 )
@@ -244,6 +251,129 @@ class GrowthMetricsTests(TestCase):
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class GrowthRoadmapTests(TestCase):
+    def test_all_nine_month_goals_are_defined(self):
+        expected = {
+            (2026, 9): 150,
+            (2026, 10): 500,
+            (2026, 11): 1500,
+            (2026, 12): 3000,
+            (2027, 1): 3500,
+            (2027, 2): 4000,
+            (2027, 3): 5000,
+            (2027, 4): 8000,
+            (2027, 5): 10000,
+        }
+        self.assertEqual(UNIVERSITY_VERIFIED_MONTHLY_GOALS, expected)
+        self.assertEqual(goal_for_month(2026, 9), 150)
+        self.assertEqual(goal_for_month(2026, 10), 500)
+        self.assertEqual(goal_for_month(2026, 12), 3000)
+        self.assertEqual(goal_for_month(2027, 1), 3500)
+        self.assertEqual(goal_for_month(2027, 5), 10000)
+        self.assertIsNone(goal_for_month(2026, 8))
+        self.assertIsNone(goal_for_month(2027, 6))
+
+    def test_required_growth_is_difference_from_previous_goal(self):
+        rows = build_goal_roadmap(_aware(2026, 9, 23), university_total=85)
+        by_label = {row["label"]: row for row in rows}
+        self.assertIsNone(by_label["Sep 2026"]["required_growth"])
+        self.assertEqual(by_label["Sep 2026"]["required_growth_display"], "—")
+        self.assertEqual(by_label["Oct 2026"]["required_growth"], 350)
+        self.assertEqual(by_label["Nov 2026"]["required_growth"], 1000)
+        self.assertEqual(by_label["Dec 2026"]["required_growth"], 1500)
+        self.assertEqual(by_label["Jan 2027"]["required_growth"], 500)
+        self.assertEqual(by_label["Feb 2027"]["required_growth"], 500)
+        self.assertEqual(by_label["Mar 2027"]["required_growth"], 1000)
+        self.assertEqual(by_label["Apr 2027"]["required_growth"], 3000)
+        self.assertEqual(by_label["May 2027"]["required_growth"], 2000)
+
+    def test_remaining_never_goes_negative(self):
+        self.assertEqual(remaining_to_goal(150, 85), 65)
+        self.assertEqual(remaining_to_goal(150, 150), 0)
+        self.assertEqual(remaining_to_goal(150, 200), 0)
+        rows = build_goal_roadmap(_aware(2026, 10, 1), university_total=600)
+        self.assertTrue(all(row["remaining"] >= 0 for row in rows))
+        self.assertEqual(rows[0]["remaining"], 0)  # Sep 150 already passed
+        self.assertEqual(rows[1]["remaining"], 0)  # Oct 500 already passed
+        self.assertEqual(rows[2]["remaining"], 900)  # Nov 1500
+
+    @patch("app.growth_metrics.timezone.now")
+    def test_current_month_goal_follows_local_calendar(self, mock_now):
+        mock_now.return_value = _aware(2026, 9, 23, 22, 0)
+        data = build_growth_dashboard()
+        self.assertEqual(data["goal"]["label"], "September Goal")
+        self.assertEqual(data["goal"]["target"], 150)
+
+        mock_now.return_value = _aware(2026, 10, 5, 9, 0)
+        data = build_growth_dashboard()
+        self.assertEqual(data["goal"]["label"], "October Goal")
+        self.assertEqual(data["goal"]["target"], 500)
+
+        mock_now.return_value = _aware(2026, 12, 1, 0, 0)
+        data = build_growth_dashboard()
+        self.assertEqual(data["goal"]["label"], "December Goal")
+        self.assertEqual(data["goal"]["target"], 3000)
+
+        mock_now.return_value = _aware(2027, 1, 15, 12, 0)
+        data = build_growth_dashboard()
+        self.assertEqual(data["goal"]["label"], "January Goal")
+        self.assertEqual(data["goal"]["target"], 3500)
+
+        mock_now.return_value = _aware(2027, 5, 31, 23, 0)
+        data = build_growth_dashboard()
+        self.assertEqual(data["goal"]["label"], "May Goal")
+        self.assertEqual(data["goal"]["target"], 10000)
+
+    @patch("app.growth_metrics.timezone.now")
+    def test_missing_month_goal_does_not_error(self, mock_now):
+        mock_now.return_value = _aware(2026, 8, 1, 12, 0)
+        data = build_growth_dashboard()
+        self.assertIsNone(data["goal"])
+        self.assertEqual(data["next_major"]["target"], 150)
+        self.assertEqual(len(data["roadmap"]), 9)
+
+        mock_now.return_value = _aware(2027, 6, 1, 12, 0)
+        data = build_growth_dashboard()
+        self.assertIsNone(data["goal"])
+        self.assertIsNone(data["next_major"])
+        self.assertEqual(data["verified_count"], 0)
+
+    def test_status_reached_current_upcoming(self):
+        rows = build_goal_roadmap(_aware(2026, 10, 12), university_total=160)
+        by_label = {row["label"]: row for row in rows}
+        self.assertEqual(by_label["Sep 2026"]["status"], STATUS_REACHED)
+        self.assertEqual(by_label["Oct 2026"]["status"], STATUS_CURRENT)
+        self.assertTrue(by_label["Oct 2026"]["is_current_month"])
+        self.assertEqual(by_label["Nov 2026"]["status"], STATUS_UPCOMING)
+        self.assertEqual(by_label["May 2027"]["status"], STATUS_UPCOMING)
+
+        reached_current = build_goal_roadmap(
+            _aware(2026, 9, 30), university_total=200
+        )
+        sep = next(r for r in reached_current if r["label"] == "Sep 2026")
+        oct_row = next(r for r in reached_current if r["label"] == "Oct 2026")
+        self.assertEqual(sep["status"], STATUS_REACHED)
+        self.assertTrue(sep["is_current_month"])
+        self.assertEqual(oct_row["status"], STATUS_UPCOMING)
+
+    @patch("app.growth_metrics.timezone.now")
+    def test_next_major_milestone_is_month_after_current(self, mock_now):
+        mock_now.return_value = _aware(2026, 9, 23, 12, 0)
+        _make_user(email="one@waseda.jp", department="商学部")
+        data = build_growth_dashboard()
+        self.assertEqual(data["next_major"]["label"], "Next Major Milestone")
+        self.assertEqual(data["next_major"]["target"], 500)
+        self.assertEqual(data["next_major"]["current"], 1)
+
+    def test_current_month_goal_payload_helper_is_reusable(self):
+        payload = current_month_goal_payload(_aware(2026, 11, 2), 80)
+        self.assertEqual(payload["target"], 1500)
+        self.assertEqual(payload["remaining"], 1420)
+        self.assertEqual(payload["label"], "November Goal")
+        self.assertIsNone(current_month_goal_payload(_aware(2027, 7, 1), 80))
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
 class GrowthDashboardAdminAccessTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_superuser(
@@ -304,6 +434,7 @@ class GrowthDashboardAdminAccessTests(TestCase):
         page = self.client.get(reverse("admin:growth_dashboard"))
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "University Verified Users")
+        self.assertContains(page, "University Verified Roadmap")
         self.assertNotContains(page, "growth-member@waseda.jp")
 
     def test_existing_user_changelist_still_works(self):
