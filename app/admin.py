@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
+from .admin_growth import install_growth_dashboard
+
 from .models import (
     User,
     ChatMessage,
@@ -836,3 +838,6 @@ class UserDirectMessageAdmin(admin.ModelAdmin):
     )
     list_filter = ("message_kind", "is_read", "created_at")
     search_fields = ("body", "sender__username")
+
+
+install_growth_dashboard(admin.site)

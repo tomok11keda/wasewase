@@ -1,0 +1,177 @@
+{% if growth %}
+<section class="growth-dashboard" aria-label="WaseWase Growth Dashboard">
+  <h2 class="growth-dashboard__title">WaseWase Growth Dashboard</h2>
+  <p class="growth-dashboard__note">{{ growth.period_note }}</p>
+
+  <div class="growth-kpis">
+    <article class="growth-card growth-card--primary">
+      <p class="growth-card__label">University Verified Users</p>
+      <p class="growth-card__value">{{ growth.university_count }}</p>
+      <p class="growth-card__periods">
+        Today {{ growth.university_today }}
+        · Last 7 days {{ growth.university_last_7_days }}
+        · This month {{ growth.university_this_month }}
+      </p>
+    </article>
+    <article class="growth-card">
+      <p class="growth-card__label">Verified Users</p>
+      <p class="growth-card__value">{{ growth.verified_count }}</p>
+      <p class="growth-card__periods">
+        Today {{ growth.verified_today }}
+        · Last 7 days {{ growth.verified_last_7_days }}
+        · This month {{ growth.verified_this_month }}
+      </p>
+    </article>
+    <article class="growth-card">
+      <p class="growth-card__label">University Share</p>
+      <p class="growth-card__value">{{ growth.university_share_display }}</p>
+      <p class="growth-card__periods">University Verified / Verified Users</p>
+    </article>
+  </div>
+
+  {% if growth.goal %}
+  <article class="growth-goal">
+    <p class="growth-card__label">{{ growth.goal.label }}</p>
+    <p class="growth-goal__ratio">{{ growth.goal.current }} / {{ growth.goal.target }}</p>
+    <p class="growth-goal__pct">{{ growth.goal.pct_display }}</p>
+    <div class="growth-bar" role="progressbar"
+         aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="{{ growth.goal.bar_pct|floatformat:1 }}"
+         aria-label="{{ growth.goal.label }}">
+      <span class="growth-bar__fill" style="width: {{ growth.goal.bar_pct|floatformat:1 }}%;"></span>
+    </div>
+    <p class="growth-goal__remaining">{{ growth.goal.remaining }} users remaining</p>
+  </article>
+  {% endif %}
+
+  {% if growth.daily %}
+  <article class="growth-daily">
+    <h3 class="growth-daily__title">Daily Growth</h3>
+    <div class="growth-daily__scroll">
+      <table class="growth-daily__table">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">University Verified Users added</th>
+            <th scope="col">Verified Users added</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in growth.daily %}
+          <tr>
+            <td>{{ row.label }}</td>
+            <td>+{{ row.university }}</td>
+            <td>+{{ row.verified }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+  {% endif %}
+</section>
+
+<style>
+  .growth-dashboard {
+    margin: 0 0 24px;
+    padding: 16px 18px 18px;
+    background: var(--body-bg, #fff);
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 8px;
+  }
+  .growth-dashboard__title {
+    margin: 0 0 6px;
+    font-size: 1.35rem;
+  }
+  .growth-dashboard__note {
+    margin: 0 0 16px;
+    color: var(--body-quiet-color, #666);
+    font-size: 12px;
+    max-width: 52rem;
+  }
+  .growth-kpis {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .growth-card,
+  .growth-goal,
+  .growth-daily {
+    margin: 12px 0 0;
+    padding: 14px 16px;
+    border: 1px solid var(--hairline-color, #ddd);
+    border-radius: 8px;
+    background: var(--darkened-bg, #f8f8f8);
+  }
+  .growth-card { margin: 0; }
+  .growth-card--primary {
+    background: #891E2B;
+    border-color: #891E2B;
+    color: #fff;
+  }
+  .growth-card__label {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    opacity: 0.85;
+  }
+  .growth-card__value {
+    margin: 4px 0 0;
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .growth-card--primary .growth-card__value { font-size: 2.8rem; }
+  .growth-card__periods {
+    margin: 8px 0 0;
+    font-size: 12px;
+    opacity: 0.85;
+  }
+  .growth-goal__ratio {
+    margin: 4px 0 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+  .growth-goal__pct,
+  .growth-goal__remaining {
+    margin: 4px 0 0;
+    font-size: 13px;
+  }
+  .growth-bar {
+    margin-top: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #e6e6e6;
+    overflow: hidden;
+  }
+  .growth-bar__fill {
+    display: block;
+    height: 100%;
+    background: #891E2B;
+    border-radius: 999px;
+  }
+  .growth-daily__title {
+    margin: 0 0 10px;
+    font-size: 1rem;
+  }
+  .growth-daily__scroll { overflow-x: auto; }
+  .growth-daily__table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .growth-daily__table th,
+  .growth-daily__table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--hairline-color, #ddd);
+    white-space: nowrap;
+  }
+  @media (max-width: 800px) {
+    .growth-kpis { grid-template-columns: 1fr; }
+    .growth-card--primary .growth-card__value,
+    .growth-card__value { font-size: 2.2rem; }
+  }
+</style>
+{% endif %}
