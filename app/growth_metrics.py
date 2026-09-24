@@ -19,6 +19,7 @@ completed-at is not stored, so period counts mean:
 from __future__ import annotations
 
 import calendar
+import math
 from datetime import date as date_cls
 from datetime import datetime, timedelta
 from typing import Any
@@ -55,6 +56,11 @@ STATUS_UPCOMING = "Upcoming"
 STATUS_OPEN = "Open"
 
 DAILY_GROWTH_DAYS = 7
+
+# What-if simulator defaults (Admin UI only; never persisted).
+SIMULATOR_DEFAULT_CAC = 100
+SIMULATOR_DEFAULT_DAILY_AD_SPEND = 3000
+SIMULATOR_DEFAULT_ORGANIC_PER_DAY = 0.0
 
 
 def verified_users_qs() -> QuerySet:
@@ -160,6 +166,145 @@ def remaining_to_goal(goal: int, current: int) -> int:
 
 def monthly_goal_items() -> list[tuple[tuple[int, int], int]]:
     return sorted(UNIVERSITY_VERIFIED_MONTHLY_GOALS.items())
+
+
+def month_end_date(year: int, month: int) -> date_cls:
+    return date_cls(year, month, calendar.monthrange(year, month)[1])
+
+
+def default_simulator_target(current_users: int) -> int | None:
+    """First roadmap goal strictly greater than current University Verified Users."""
+    for _key, goal in monthly_goal_items():
+        if goal > current_users:
+            return goal
+    return None
+
+
+def simulator_goal_options() -> list[dict[str, Any]]:
+    """JSON-safe goal list for the Admin simulator (no PII)."""
+    options = []
+    for (year, month), goal in monthly_goal_items():
+        options.append(
+            {
+                "year": year,
+                "month": month,
+                "target": goal,
+                "label": f"{calendar.month_name[month]} {year} — {goal:,}",
+                "month_end": month_end_date(year, month).isoformat(),
+            }
+        )
+    return options
+
+
+def build_simulator_payload(
+    *, university_count: int, today: date_cls
+) -> dict[str, Any]:
+    """Server snapshot for client-side what-if simulation. Nothing is persisted."""
+    return {
+        "current_users": university_count,
+        "today": today.isoformat(),
+        "timezone": str(timezone.get_current_timezone()),
+        "defaults": {
+            "cac": SIMULATOR_DEFAULT_CAC,
+            "daily_ad_spend": SIMULATOR_DEFAULT_DAILY_AD_SPEND,
+            "organic_per_day": SIMULATOR_DEFAULT_ORGANIC_PER_DAY,
+            "target": default_simulator_target(university_count),
+        },
+        "goals": simulator_goal_options(),
+    }
+
+
+def simulate_growth(
+    *,
+    current: float,
+    target: float,
+    cac: float,
+    daily_ad_spend: float,
+    organic_per_day: float,
+    today: date_cls,
+    goal_year: int | None = None,
+    goal_month: int | None = None,
+) -> dict[str, Any]:
+    """Pure what-if math (mirrored by Admin JS). Does not touch ads, DB, or KPIs.
+
+    remaining = max(target - current, 0)
+    paid_per_day = daily_ad_spend / cac
+    total_per_day = paid_per_day + organic_per_day
+    exact_days = remaining / total_per_day
+    display_days = ceil(exact_days)
+    estimated_ad_spend = daily_ad_spend * exact_days
+      (fractional last day — not a full extra ceil-day of spend)
+    """
+    if cac <= 0 or daily_ad_spend < 0 or organic_per_day < 0:
+        return {"ok": False, "error": "invalid_input"}
+
+    remaining = max(float(target) - float(current), 0.0)
+    paid_per_day = daily_ad_spend / cac
+    total_per_day = paid_per_day + organic_per_day
+
+    if remaining == 0:
+        return {
+            "ok": True,
+            "status": "already_reached",
+            "remaining": 0.0,
+            "paid_per_day": paid_per_day,
+            "organic_per_day": organic_per_day,
+            "total_per_day": total_per_day,
+            "exact_days": 0.0,
+            "display_days": 0,
+            "arrival": today.isoformat(),
+            "ad_spend": 0.0,
+            "deadline": None,
+            "deadline_result": None,
+        }
+
+    if total_per_day <= 0:
+        return {
+            "ok": True,
+            "status": "no_growth",
+            "remaining": remaining,
+            "paid_per_day": paid_per_day,
+            "organic_per_day": organic_per_day,
+            "total_per_day": 0.0,
+            "exact_days": None,
+            "display_days": None,
+            "arrival": None,
+            "ad_spend": 0.0,
+            "deadline": None,
+            "deadline_result": None,
+        }
+
+    exact_days = remaining / total_per_day
+    display_days = int(math.ceil(exact_days - 1e-12)) if exact_days > 0 else 0
+    arrival = today + timedelta(days=display_days)
+    # Spend only the exact duration, not ceil(days) * daily budget.
+    ad_spend = daily_ad_spend * exact_days
+
+    deadline = None
+    deadline_result = None
+    if goal_year is not None and goal_month is not None:
+        deadline = month_end_date(goal_year, goal_month)
+        if arrival < deadline:
+            deadline_result = "before"
+        elif arrival == deadline:
+            deadline_result = "on"
+        else:
+            deadline_result = "after"
+
+    return {
+        "ok": True,
+        "status": "ok",
+        "remaining": remaining,
+        "paid_per_day": paid_per_day,
+        "organic_per_day": organic_per_day,
+        "total_per_day": total_per_day,
+        "exact_days": exact_days,
+        "display_days": display_days,
+        "arrival": arrival.isoformat(),
+        "ad_spend": ad_spend,
+        "deadline": deadline.isoformat() if deadline else None,
+        "deadline_result": deadline_result,
+    }
 
 
 def milestone_status(
@@ -328,5 +473,9 @@ def build_growth_dashboard() -> dict[str, Any]:
         "goal": current_month_goal_payload(local_now, university["total"]),
         "next_major": next_major_milestone_payload(local_now, university["total"]),
         "roadmap": build_goal_roadmap(local_now, university["total"]),
+        "simulator": build_simulator_payload(
+            university_count=university["total"],
+            today=today_date,
+        ),
         "daily": daily,
     }

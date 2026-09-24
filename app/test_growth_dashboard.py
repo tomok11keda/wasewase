@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from datetime import datetime
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -20,9 +21,12 @@ from .growth_metrics import (
     UNIVERSITY_VERIFIED_MONTHLY_GOALS,
     build_goal_roadmap,
     build_growth_dashboard,
+    build_simulator_payload,
     current_month_goal_payload,
+    default_simulator_target,
     goal_for_month,
     remaining_to_goal,
+    simulate_growth,
     university_verified_users_qs,
     verified_users_qs,
 )
@@ -425,6 +429,7 @@ class GrowthDashboardAdminAccessTests(TestCase):
         self.assertContains(index, "WaseWase Growth Dashboard")
         self.assertContains(index, "University Verified Users")
         self.assertContains(index, "University Share")
+        self.assertContains(index, "Growth Simulator")
         self.assertNotContains(index, "growth-member@waseda.jp")
         self.assertContains(
             index,
@@ -435,6 +440,13 @@ class GrowthDashboardAdminAccessTests(TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "University Verified Users")
         self.assertContains(page, "University Verified Roadmap")
+        self.assertContains(page, "Growth Simulator")
+        self.assertContains(
+            page,
+            "What-if simulation only. Changing these values does not change ad budgets or production data.",
+        )
+        self.assertContains(page, 'id="growth-simulator-data"')
+        self.assertContains(page, "admin/js/growth_simulator.js")
         self.assertNotContains(page, "growth-member@waseda.jp")
 
     def test_existing_user_changelist_still_works(self):
@@ -442,3 +454,149 @@ class GrowthDashboardAdminAccessTests(TestCase):
         response = self.client.get(reverse("admin:app_user_changelist"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "growth-member@waseda.jp")
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class GrowthSimulatorTests(TestCase):
+    def test_default_target_is_first_goal_above_current(self):
+        self.assertEqual(default_simulator_target(85), 150)
+        self.assertEqual(default_simulator_target(149), 150)
+        self.assertEqual(default_simulator_target(150), 500)
+        self.assertEqual(default_simulator_target(200), 500)
+        self.assertEqual(default_simulator_target(700), 1500)
+        self.assertEqual(default_simulator_target(2999), 3000)
+        self.assertEqual(default_simulator_target(9999), 10000)
+        self.assertIsNone(default_simulator_target(10000))
+        self.assertIsNone(default_simulator_target(20000))
+
+    def test_simulator_payload_includes_current_users_goals_and_tokyo_date(self):
+        payload = build_simulator_payload(
+            university_count=85,
+            today=date(2026, 9, 24),
+        )
+        self.assertEqual(payload["current_users"], 85)
+        self.assertEqual(payload["today"], "2026-09-24")
+        self.assertIn("Tokyo", payload["timezone"])
+        self.assertEqual(payload["defaults"]["target"], 150)
+        self.assertEqual(payload["defaults"]["cac"], 100)
+        self.assertEqual(payload["defaults"]["daily_ad_spend"], 3000)
+        self.assertEqual(payload["defaults"]["organic_per_day"], 0.0)
+        targets = [row["target"] for row in payload["goals"]]
+        self.assertEqual(
+            targets, [150, 500, 1500, 3000, 3500, 4000, 5000, 8000, 10000]
+        )
+        self.assertEqual(payload["goals"][0]["month_end"], "2026-09-30")
+        self.assertEqual(payload["goals"][2]["label"], "November 2026 — 1,500")
+
+    @patch("app.growth_metrics.timezone.now")
+    def test_dashboard_passes_simulator_context(self, mock_now):
+        mock_now.return_value = _aware(2026, 9, 24, 10, 0)
+        _make_user(email="sim-a@waseda.jp", department="商学部")
+        _make_user(email="sim-b@waseda.jp", department="法学部")
+        data = build_growth_dashboard()
+        sim = data["simulator"]
+        self.assertEqual(sim["current_users"], 2)
+        self.assertEqual(sim["today"], "2026-09-24")
+        self.assertEqual(sim["defaults"]["target"], 150)
+        self.assertEqual(len(sim["goals"]), 9)
+
+    def test_all_goals_exceeded_does_not_error(self):
+        payload = build_simulator_payload(
+            university_count=12000, today=date(2027, 6, 1)
+        )
+        self.assertIsNone(payload["defaults"]["target"])
+        self.assertEqual(payload["current_users"], 12000)
+        data = build_growth_dashboard()
+        self.assertIn("simulator", data)
+
+    def test_simulate_example_cac_100_spend_3000(self):
+        result = simulate_growth(
+            current=85,
+            target=150,
+            cac=100,
+            daily_ad_spend=3000,
+            organic_per_day=0,
+            today=date(2026, 9, 24),
+            goal_year=2026,
+            goal_month=9,
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["remaining"], 65)
+        self.assertEqual(result["paid_per_day"], 30)
+        self.assertEqual(result["total_per_day"], 30)
+        self.assertAlmostEqual(result["exact_days"], 65 / 30)
+        self.assertEqual(result["display_days"], 3)
+        self.assertEqual(result["arrival"], "2026-09-27")
+        self.assertAlmostEqual(result["ad_spend"], 3000 * (65 / 30))
+        self.assertEqual(result["deadline_result"], "before")
+
+    def test_simulate_organic_only(self):
+        result = simulate_growth(
+            current=85,
+            target=150,
+            cac=100,
+            daily_ad_spend=0,
+            organic_per_day=5,
+            today=date(2026, 9, 24),
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["paid_per_day"], 0)
+        self.assertEqual(result["total_per_day"], 5)
+        self.assertEqual(result["display_days"], 13)
+        self.assertEqual(result["ad_spend"], 0)
+
+    def test_simulate_no_growth(self):
+        result = simulate_growth(
+            current=85,
+            target=150,
+            cac=100,
+            daily_ad_spend=0,
+            organic_per_day=0,
+            today=date(2026, 9, 24),
+        )
+        self.assertEqual(result["status"], "no_growth")
+        self.assertIsNone(result["display_days"])
+        self.assertEqual(result["ad_spend"], 0)
+
+    def test_simulate_already_reached(self):
+        result = simulate_growth(
+            current=200,
+            target=150,
+            cac=100,
+            daily_ad_spend=3000,
+            organic_per_day=0,
+            today=date(2026, 9, 24),
+        )
+        self.assertEqual(result["status"], "already_reached")
+        self.assertEqual(result["remaining"], 0)
+        self.assertEqual(result["display_days"], 0)
+        self.assertEqual(result["ad_spend"], 0)
+
+    def test_simulate_invalid_cac(self):
+        result = simulate_growth(
+            current=85,
+            target=150,
+            cac=0,
+            daily_ad_spend=3000,
+            organic_per_day=0,
+            today=date(2026, 9, 24),
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "invalid_input")
+        self.assertNotIn("Infinity", str(result))
+        self.assertNotIn("NaN", str(result).upper())
+
+    def test_month_end_on_deadline(self):
+        result = simulate_growth(
+            current=0,
+            target=30,
+            cac=100,
+            daily_ad_spend=100,
+            organic_per_day=0,
+            today=date(2026, 9, 1),
+            goal_year=2026,
+            goal_month=9,
+        )
+        self.assertEqual(result["display_days"], 30)
+        self.assertEqual(result["arrival"], "2026-10-01")
+        self.assertEqual(result["deadline_result"], "after")

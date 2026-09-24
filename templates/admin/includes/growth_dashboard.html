@@ -1,3 +1,4 @@
+{% load static %}
 {% if growth %}
 <section class="growth-dashboard" aria-label="WaseWase Growth Dashboard">
   <h2 class="growth-dashboard__title">WaseWase Growth Dashboard</h2>
@@ -89,6 +90,105 @@
   </article>
   {% endif %}
 
+  {% if growth.simulator %}
+  <article class="growth-simulator" id="growth-simulator">
+    <h3 class="growth-daily__title">Growth Simulator</h3>
+    <p class="growth-dashboard__note">
+      What-if simulation only. Changing these values does not change ad budgets or production data.
+    </p>
+    {{ growth.simulator|json_script:"growth-simulator-data" }}
+    <form id="growth-simulator-form" class="growth-sim-layout" action="#" method="get">
+      <fieldset class="growth-sim-inputs">
+        <legend class="growth-card__label">Simulation Inputs</legend>
+
+        <label for="growth-sim-target">Target Users</label>
+        <select id="growth-sim-target" name="target">
+          {% for option in growth.simulator.goals %}
+          <option value="{{ option.target }}">{{ option.label }}</option>
+          {% endfor %}
+          <option value="custom">Custom</option>
+        </select>
+        <div id="growth-sim-custom-wrap" hidden>
+          <label for="growth-sim-custom">Custom target</label>
+          <input id="growth-sim-custom" type="number" min="1" step="1" inputmode="numeric">
+        </div>
+
+        <label for="growth-sim-cac">CAC (JPY / user)</label>
+        <input id="growth-sim-cac" type="number" min="1" step="1" inputmode="numeric">
+        <input id="growth-sim-cac-slider" type="range" min="50" max="500" step="10" aria-label="CAC slider">
+
+        <label for="growth-sim-spend">Daily Ad Spend (JPY / day)</label>
+        <input id="growth-sim-spend" type="number" min="0" step="1" inputmode="numeric">
+        <input id="growth-sim-spend-slider" type="range" min="0" max="20000" step="100" aria-label="Daily ad spend slider">
+
+        <label for="growth-sim-organic">Organic Users / Day</label>
+        <input id="growth-sim-organic" type="number" min="0" step="0.1" inputmode="decimal">
+
+        <button type="button" id="growth-sim-reset" class="growth-sim-reset">Reset to Defaults</button>
+      </fieldset>
+
+      <div class="growth-sim-outputs" id="growth-sim-result">
+        <p class="growth-card__label">SIMULATION RESULT</p>
+        <p id="growth-sim-message" class="growth-sim-message" hidden></p>
+        <div id="growth-sim-ok">
+          <p class="growth-sim-kicker">Current University Verified</p>
+          <p class="growth-sim-metric" id="growth-sim-current">—</p>
+          <p class="growth-sim-kicker">Target</p>
+          <p class="growth-sim-metric" id="growth-sim-target-out">—</p>
+          <p class="growth-sim-kicker">Remaining Users</p>
+          <p class="growth-sim-metric" id="growth-sim-remaining">—</p>
+
+          <p class="growth-sim-kicker">Paid Acquisition</p>
+          <p id="growth-sim-paid">—</p>
+          <p class="growth-sim-kicker">Organic Acquisition</p>
+          <p id="growth-sim-organic-out">—</p>
+          <p class="growth-sim-kicker">Total Growth</p>
+          <p id="growth-sim-total">—</p>
+
+          <p class="growth-sim-kicker">Estimated Time to Goal</p>
+          <p class="growth-sim-metric" id="growth-sim-days">—</p>
+          <p class="growth-sim-kicker">Estimated Arrival</p>
+          <p class="growth-goal__ratio" id="growth-sim-arrival">—</p>
+          <p class="growth-sim-kicker">Estimated Additional Ad Spend</p>
+          <p class="growth-sim-metric" id="growth-sim-spend-out">—</p>
+        </div>
+
+        <div id="growth-sim-deadline" class="growth-sim-deadline" hidden>
+          <p class="growth-sim-kicker">Target</p>
+          <p id="growth-sim-deadline-target">—</p>
+          <p class="growth-sim-kicker">Projected Arrival</p>
+          <p id="growth-sim-deadline-arrival">—</p>
+          <p class="growth-sim-kicker">Month-end deadline</p>
+          <p id="growth-sim-deadline-end">—</p>
+          <p class="growth-sim-kicker">Result</p>
+          <p id="growth-sim-deadline-result">—</p>
+        </div>
+      </div>
+    </form>
+
+    <div class="growth-sim-eom">
+      <h4 class="growth-daily__title">End-of-month projection</h4>
+      <p class="growth-dashboard__note">
+        Projection assumes the entered CAC, daily ad spend, and organic growth remain constant.
+      </p>
+      <div class="growth-daily__scroll">
+        <table class="growth-daily__table">
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">Goal</th>
+              <th scope="col">Projected</th>
+              <th scope="col">Difference</th>
+            </tr>
+          </thead>
+          <tbody id="growth-sim-eom-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+  <script src="{% static 'admin/js/growth_simulator.js' %}"></script>
+  {% endif %}
+
   {% if growth.daily %}
   <article class="growth-daily">
     <h3 class="growth-daily__title">Daily Growth</h3>
@@ -142,6 +242,7 @@
   .growth-card,
   .growth-goal,
   .growth-roadmap,
+  .growth-simulator,
   .growth-daily {
     margin: 12px 0 0;
     padding: 14px 16px;
@@ -227,6 +328,53 @@
     .growth-kpis { grid-template-columns: 1fr; }
     .growth-card--primary .growth-card__value,
     .growth-card__value { font-size: 2.2rem; }
+    .growth-sim-layout { grid-template-columns: 1fr; }
+  }
+  .growth-sim-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .growth-sim-inputs,
+  .growth-sim-outputs {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--hairline-color, #ddd);
+    border-radius: 8px;
+    background: var(--body-bg, #fff);
+  }
+  .growth-sim-inputs label,
+  .growth-sim-kicker {
+    display: block;
+    margin: 10px 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .growth-sim-inputs input,
+  .growth-sim-inputs select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .growth-sim-reset {
+    margin-top: 14px;
+  }
+  .growth-sim-metric {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+  .growth-sim-message {
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  .growth-sim-deadline,
+  .growth-sim-eom {
+    margin-top: 14px;
+  }
+  .growth-sim-eom .growth-daily__title {
+    margin-top: 0;
   }
 </style>
 {% endif %}
