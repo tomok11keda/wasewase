@@ -4,7 +4,7 @@ import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
-import { WASEDA_OFFICIAL_LINKS } from "../lib/wasedaOfficialLinks";
+import { WASEDA_OFFICIAL_SERVICE } from "../lib/wasedaOfficialLinks";
 
 function ClassicLink({
   href,
@@ -29,18 +29,16 @@ function ClassicLink({
   );
 }
 
-/** Official Waseda portals — new tab / system browser, never the SPA or in-app WebView. */
+/** Official Waseda portal — new tab / system browser, never the SPA or in-app WebView. */
 function OfficialExternalLink({
   href,
   children,
   note,
-  title,
   onNavigate,
 }: {
   href: string;
   children: ReactNode;
   note: string;
-  title?: string;
   onNavigate?: () => void;
 }) {
   return (
@@ -49,13 +47,14 @@ function OfficialExternalLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      title={title}
       onClick={() => {
         onNavigate?.();
       }}
     >
-      {children}
-      <small className="more-link-note">{note}</small>
+      <span className="more-link-copy">
+        {children}
+        <small className="more-link-note">{note}</small>
+      </span>
     </a>
   );
 }
@@ -217,18 +216,15 @@ export function AccountMenuContent({
 
       <p className="more-section-title">大学サービス</p>
       <ul className="more-list">
-        {WASEDA_OFFICIAL_LINKS.map((item) => (
-          <li key={item.id}>
-            <OfficialExternalLink
-              href={item.href}
-              note={item.note}
-              title={"title" in item ? item.title : undefined}
-              onNavigate={onNavigate}
-            >
-              {item.label}
-            </OfficialExternalLink>
-          </li>
-        ))}
+        <li>
+          <OfficialExternalLink
+            href={WASEDA_OFFICIAL_SERVICE.href}
+            note={WASEDA_OFFICIAL_SERVICE.note}
+            onNavigate={onNavigate}
+          >
+            {WASEDA_OFFICIAL_SERVICE.label}
+          </OfficialExternalLink>
+        </li>
       </ul>
 
       <p className="more-section-title">便利機能</p>
