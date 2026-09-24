@@ -4,6 +4,7 @@ import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
+import { WASEDA_OFFICIAL_LINKS } from "../lib/wasedaOfficialLinks";
 
 function ClassicLink({
   href,
@@ -24,6 +25,37 @@ function ClassicLink({
     >
       {children}
       <small className="more-link-note">（従来ページ）</small>
+    </a>
+  );
+}
+
+/** Official Waseda portals — new tab / system browser, never the SPA or in-app WebView. */
+function OfficialExternalLink({
+  href,
+  children,
+  note,
+  title,
+  onNavigate,
+}: {
+  href: string;
+  children: ReactNode;
+  note: string;
+  title?: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <a
+      className="more-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title}
+      onClick={() => {
+        onNavigate?.();
+      }}
+    >
+      {children}
+      <small className="more-link-note">{note}</small>
     </a>
   );
 }
@@ -181,6 +213,22 @@ export function AccountMenuContent({
             </li>
           </>
         )}
+      </ul>
+
+      <p className="more-section-title">大学サービス</p>
+      <ul className="more-list">
+        {WASEDA_OFFICIAL_LINKS.map((item) => (
+          <li key={item.id}>
+            <OfficialExternalLink
+              href={item.href}
+              note={item.note}
+              title={"title" in item ? item.title : undefined}
+              onNavigate={onNavigate}
+            >
+              {item.label}
+            </OfficialExternalLink>
+          </li>
+        ))}
       </ul>
 
       <p className="more-section-title">便利機能</p>
