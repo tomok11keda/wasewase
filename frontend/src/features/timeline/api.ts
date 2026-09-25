@@ -25,6 +25,16 @@ export type QuotedPost = {
   course_name: string;
 } | null;
 
+export type SharedProduct = {
+  id: number;
+  name: string;
+  price: number;
+  image_url: string;
+  status: string;
+  is_sold: boolean;
+  is_pending: boolean;
+};
+
 export type TimelinePost = {
   id: number;
   body: string;
@@ -42,6 +52,7 @@ export type TimelinePost = {
   can_delete: boolean;
   author: TimelineAuthor;
   quoted_post: QuotedPost;
+  shared_product: SharedProduct | null;
   comments: TimelineComment[];
 };
 

@@ -13,6 +13,7 @@ import {
   toggleLike,
 } from "./api";
 import { ImageLightbox } from "./ImageLightbox";
+import { TimelineFleaShareCard } from "./TimelineFleaShareCard";
 import { LikerListModal } from "./LikerListModal";
 import { ShareActionSheet } from "../../components/ShareActionSheet";
 import { timelineSharePayload } from "../../lib/share";
@@ -389,6 +390,10 @@ export function TimelinePostCard({
                 </>
               )}
             </div>
+          ) : null}
+
+          {post.shared_product ? (
+            <TimelineFleaShareCard product={post.shared_product} />
           ) : null}
 
           {post.image_url ? (

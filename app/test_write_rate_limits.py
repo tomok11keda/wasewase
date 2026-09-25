@@ -47,7 +47,7 @@ from app.rate_limit_services import (
     allow_timeline_like,
     allow_timeline_post,
 )
-from app.services import build_product_share_timeline_body
+from app.services import FLEA_TIMELINE_SHARE_BODY, build_product_share_timeline_body
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -588,7 +588,7 @@ class WriteRateLimitTests(TestCase):
         )
 
     def _share_posts(self, user):
-        return TimelinePost.objects.filter(author=user, body__startswith="【出品シェア】")
+        return TimelinePost.objects.filter(author=user, body=FLEA_TIMELINE_SHARE_BODY)
 
     def test_api_flea_share_succeeds_under_limit(self):
         product = self._make_share_product(self.user_a)

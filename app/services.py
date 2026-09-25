@@ -121,7 +121,9 @@ def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
       - \"latest\": 投稿日時の新しい順
       - \"popular\": いいね数が多い順（同点は新しい順）
     """
-    qs = TimelinePost.objects.select_related("author", "author__profile")
+    qs = TimelinePost.objects.select_related(
+        "author", "author__profile", "shared_product"
+    )
     if not query:
         return qs.none()
     qs = qs.filter(
@@ -227,17 +229,12 @@ def build_flea_url(
     return f"{base}?{urlencode(params)}"
 
 
-def build_product_share_timeline_body(product: Product, detail_url: str) -> str:
-    prefix = "【出品シェア】"
-    suffix = f" が出品されました！価格: {product.price}円。詳細はこちら：{detail_url}"
-    name = product.name
-    body = f"{prefix}{name}{suffix}"
-    if len(body) <= 280:
-        return body
-    max_name_len = 280 - len(prefix) - len(suffix)
-    if max_name_len < 1:
-        return body[:280]
-    return f"{prefix}{name[:max_name_len]}{suffix}"
+FLEA_TIMELINE_SHARE_BODY = "フリマに出品しました！"
+
+
+def build_product_share_timeline_body(product: Product, detail_url: str = "") -> str:
+    """Body for flea→timeline shares. Product facts live on the structured card."""
+    return FLEA_TIMELINE_SHARE_BODY
 
 
 def get_user_faculty(user: AbstractBaseUser) -> str:

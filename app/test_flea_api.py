@@ -820,6 +820,9 @@ class TradeChatKindAclTests(TestCase):
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
 class FleaTimelineShareTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
         self.seller = User.objects.create_user(
             email="share-seller@waseda.jp",
             password="test-pass-12345",
@@ -867,8 +870,22 @@ class FleaTimelineShareTests(TestCase):
         self.assertIsNotNone(product.timeline_share_post_id)
         self.assertEqual(TimelinePost.objects.filter(author=self.seller).count(), 1)
         post = product.timeline_share_post
-        self.assertTrue(post.body.startswith("【出品シェア】"))
+        self.assertTrue(post.body.startswith("フリマに出品しました"))
+        self.assertNotIn("http", post.body)
+        self.assertNotIn("wasewase.onrender.com", post.body)
+        self.assertNotIn("/product/", post.body)
         self.assertEqual(post.author, self.seller)
+        detail = self.client.get(f"/api/v1/timeline/{post.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        shared = detail.json()["post"]["shared_product"]
+        self.assertEqual(shared["id"], product.pk)
+        self.assertEqual(shared["name"], product.name)
+        self.assertEqual(shared["price"], product.price)
+        self.assertEqual(shared["status"], Product.Status.AVAILABLE)
+        self.assertFalse(shared["is_sold"])
+        self.assertFalse(shared["is_pending"])
+        self.assertNotIn("seller", shared)
+        self.assertNotIn("email", shared)
 
     def test_exhibit_share_false_skips_timeline_post(self):
         self.client.force_login(self.seller)

@@ -8,11 +8,10 @@ from enum import Enum
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
 from django.http import HttpRequest
-from django.urls import reverse
 
 from .models import Product, TimelinePost
 from .rate_limit_services import allow_timeline_post
-from .services import build_product_share_timeline_body, get_user_faculty
+from .services import FLEA_TIMELINE_SHARE_BODY, get_user_faculty
 
 _TRUE_VALUES = {"1", "true", "on", "yes"}
 
@@ -81,14 +80,10 @@ def share_product_to_timeline(request: HttpRequest, product: Product) -> ShareRe
         if not allow_timeline_post(user):
             return ShareResult(ShareStatus.RATE_LIMITED)
 
-        detail_url = request.build_absolute_uri(
-            reverse("product_detail", kwargs={"pk": locked.pk})
-        )
-        body = build_product_share_timeline_body(locked, detail_url)
         course_name = (locked.course_name or "").strip()[:120] or None
         post = TimelinePost.objects.create(
             author=user,
-            body=body,
+            body=FLEA_TIMELINE_SHARE_BODY,
             course_name=course_name,
             professor_name=locked.professor_name or "",
             faculty=locked.faculty or get_user_faculty(user),

@@ -344,6 +344,7 @@ def _timeline_posts_queryset_base():
         "quoted_post",
         "quoted_post__author",
         "quoted_post__author__profile",
+        "shared_product",
     ).prefetch_related("comments__author", "comments__author__profile")
 
 

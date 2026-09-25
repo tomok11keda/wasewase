@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest
 
 from .ads_services import (
@@ -28,6 +29,7 @@ from .services import (
     user_avatar_initial,
     user_display_name,
 )
+from .trade_chat_inbox_services import product_thumbnail_url
 from .ugc_services import (
     filter_visible_comments,
     filter_visible_timeline_posts,
@@ -102,6 +104,25 @@ def serialize_quoted_post(
         "author": serialize_author(author),
         "image_url": image_url,
         "course_name": post.course_name or "",
+    }
+
+
+def serialize_shared_product(post: TimelinePost) -> dict[str, Any] | None:
+    """Structured flea card payload. Missing / hidden products → None, never raise."""
+    try:
+        product = post.shared_product
+    except ObjectDoesNotExist:
+        return None
+    if product is None or getattr(product, "is_removed", False):
+        return None
+    return {
+        "id": product.pk,
+        "name": product.name,
+        "price": int(product.price or 0),
+        "image_url": product_thumbnail_url(product) or "",
+        "status": product.status,
+        "is_sold": bool(product.is_sold),
+        "is_pending": bool(product.is_pending),
     }
 
 
@@ -182,6 +203,7 @@ def serialize_timeline_post(
             post.quoted_post if post.quoted_post_id else None,
             viewer,
         ),
+        "shared_product": serialize_shared_product(post),
         "comments": comments_payload,
     }
 
@@ -200,6 +222,7 @@ def get_visible_timeline_post_payload(
             "quoted_post",
             "quoted_post__author",
             "quoted_post__author__profile",
+            "shared_product",
         ).prefetch_related("comments__author", "comments__author__profile")
     )
     auth_viewer = (
