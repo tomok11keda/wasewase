@@ -14,18 +14,22 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .constants import FACULTY_CHOICES, FLEA_ORDER_CHOICES, HANDOVER_CAMPUS_CHOICES, TRADE_LOCATION_PRESETS
 from .forms import CommentForm, ProductExhibitForm, ReviewForm
+from .flea_share_services import (
+    ShareStatus,
+    can_share_product_to_timeline,
+    maybe_share_product_on_exhibit,
+    share_product_to_timeline as create_product_timeline_share,
+)
 from .models import (
     ChatRoom,
     Like,
     Message as ChatMessage,
     Product,
     Review,
-    TimelinePost,
     TradeMessage,
 )
 from .services import (
     build_flea_url,
-    build_product_share_timeline_body,
     can_access_chat_room,
     chat_room_link,
     get_following_user_ids,
@@ -55,7 +59,6 @@ from .rate_limit_services import (
     allow_chat_message,
     allow_flea_comment,
     allow_flea_like,
-    allow_timeline_post,
 )
 from .trade_chat_inbox_services import (
     mark_product_chat_room_read,
@@ -385,11 +388,7 @@ def product_detail(request, pk):
 
     show_trade_link = is_trade_participant(product, request.user)
     trade_chat_room = get_confirmed_room_for_product(product) if show_trade_link else None
-    can_share_to_timeline = (
-        request.user.is_authenticated
-        and product.seller_id == request.user.id
-        and product.is_available
-    )
+    can_share_to_timeline = can_share_product_to_timeline(product, request.user)
 
     user_chat_room = None
     seller_chat_rooms = []
@@ -681,32 +680,20 @@ def chat_room_messages(request, room_pk):
 @require_POST
 def share_product_to_timeline(request, pk):
     product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
-    if product.seller_id != request.user.id:
-        messages.error(request, "自分の出品のみスレッドにシェアできます。")
+    result = create_product_timeline_share(request, product)
+    if result.status == ShareStatus.FORBIDDEN:
+        messages.error(request, "自分の出品のみタイムラインにシェアできます。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-    if product.status != Product.Status.AVAILABLE:
+    if result.status == ShareStatus.NOT_AVAILABLE:
         messages.error(request, "出品中の商品のみシェアできます。")
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-    if not allow_timeline_post(request.user):
+    if result.status == ShareStatus.RATE_LIMITED:
         messages.error(request, RATE_LIMIT_USER_MESSAGE)
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
-
-    detail_url = request.build_absolute_uri(
-        reverse("product_detail", kwargs={"pk": product.pk})
-    )
-    body = build_product_share_timeline_body(product, detail_url)
-    course_name = (product.course_name or "").strip()[:120] or None
-
-    TimelinePost.objects.create(
-        author=request.user,
-        body=body,
-        course_name=course_name,
-        professor_name=product.professor_name or "",
-        faculty=product.faculty or get_user_faculty(request.user),
-    )
-    messages.success(request, "スレッドにシェアしました！")
+    if result.status == ShareStatus.ALREADY_SHARED:
+        messages.success(request, "タイムラインにシェア済みです。")
+        return redirect(reverse("product_detail", kwargs={"pk": pk}))
+    messages.success(request, "タイムラインにシェアしました！")
     return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
 
@@ -990,6 +977,7 @@ def exhibit(request):
                 logger.exception("EXHIBIT SAVE FAILED")
                 messages.error(request, "出品の保存に失敗しました。時間をおいて再度お試しください。")
                 return render(request, "exhibit.html", {"form": form, "nav_active": "flea"})
+            maybe_share_product_on_exhibit(request, product)
             return redirect(f"{reverse('flea_index')}?exhibit_success=1")
     else:
         form = ProductExhibitForm()

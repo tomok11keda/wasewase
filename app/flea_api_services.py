@@ -12,6 +12,7 @@ from django.http import HttpRequest
 from django.utils.timesince import timesince
 
 from .constants import FACULTY_CHOICES, FLEA_ORDER_CHOICES, HANDOVER_CAMPUS_CHOICES
+from .flea_share_services import can_share_product_to_timeline
 from .models import ChatRoom, Comment, Product, Review
 from .product_trade_schema_services import ensure_product_trade_schema
 from .services import (
@@ -125,12 +126,7 @@ def serialize_product_detail(
 
     show_trade_link = is_trade_participant(product, viewer) if viewer else False
     trade_chat_room = get_confirmed_room_for_product(product) if show_trade_link else None
-    can_share_to_timeline = (
-        viewer is not None
-        and getattr(viewer, "is_authenticated", False)
-        and product.seller_id == viewer.id
-        and product.is_available
-    )
+    can_share_to_timeline = can_share_product_to_timeline(product, viewer)
 
     user_chat_room = None
     seller_chat_rooms: list[dict[str, Any]] = []

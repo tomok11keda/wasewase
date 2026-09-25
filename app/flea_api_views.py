@@ -9,7 +9,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.utils import IntegrityError, OperationalError, ProgrammingError
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .flea_api_services import (
@@ -21,6 +20,11 @@ from .flea_api_services import (
     serialize_product_detail,
     serialize_review,
 )
+from .flea_share_services import (
+    ShareStatus,
+    maybe_share_product_on_exhibit,
+    share_product_to_timeline,
+)
 from .forms import CommentForm, ProductExhibitForm, ReviewForm
 from .marketplace_views import _room_messages_json, _serialize_room_message
 from .models import (
@@ -30,15 +34,12 @@ from .models import (
     Message as ChatMessage,
     Product,
     Review,
-    TimelinePost,
 )
 from .product_trade_schema_services import ensure_product_trade_schema
 from .services import (
-    build_product_share_timeline_body,
     chat_room_link,
     get_accessible_product_chat_room,
     get_reviewee,
-    get_user_faculty,
     notify_seller,
 )
 from .notification_services import create_notification
@@ -55,7 +56,6 @@ from .rate_limit_services import (
     allow_chat_message,
     allow_flea_comment,
     allow_flea_like,
-    allow_timeline_post,
 )
 from .ugc_services import filter_visible_products, get_visible_product_or_404
 
@@ -120,6 +120,7 @@ def api_v1_flea_product_create(request: HttpRequest) -> HttpResponse:
     except Exception:
         logger.exception("EXHIBIT SAVE FAILED (api)")
         return _json_error("save_failed", status=500)
+    maybe_share_product_on_exhibit(request, product)
     product = Product.objects.select_related("seller", "seller__profile").get(
         pk=product.pk
     )
@@ -275,29 +276,23 @@ def api_v1_flea_product_delete(request: HttpRequest, pk: int) -> JsonResponse:
 @require_POST
 def api_v1_flea_product_share(request: HttpRequest, pk: int) -> JsonResponse:
     product = get_object_or_404(Product.objects.select_related("seller"), pk=pk)
-    if product.seller_id != request.user.id:
+    result = share_product_to_timeline(request, product)
+    if result.status == ShareStatus.FORBIDDEN:
         return _json_error("forbidden", status=403)
-    if product.status != Product.Status.AVAILABLE:
+    if result.status == ShareStatus.NOT_AVAILABLE:
         return _json_error("not_available", status=400)
-    if not allow_timeline_post(request.user):
+    if result.status == ShareStatus.RATE_LIMITED:
         return _json_error(
             "rate_limited",
             status=429,
             message=RATE_LIMIT_USER_MESSAGE,
         )
-    detail_url = request.build_absolute_uri(
-        reverse("product_detail", kwargs={"pk": product.pk})
+    return JsonResponse(
+        {
+            "ok": True,
+            "already_shared": result.status == ShareStatus.ALREADY_SHARED,
+        }
     )
-    body = build_product_share_timeline_body(product, detail_url)
-    course_name = (product.course_name or "").strip()[:120] or None
-    TimelinePost.objects.create(
-        author=request.user,
-        body=body,
-        course_name=course_name,
-        professor_name=product.professor_name or "",
-        faculty=product.faculty or get_user_faculty(request.user),
-    )
-    return JsonResponse({"ok": True})
 
 
 @login_required

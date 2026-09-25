@@ -707,9 +707,10 @@ class WriteRateLimitTests(TestCase):
         )
 
     def test_api_flea_share_then_classic_share_shares_bucket(self):
-        product = self._make_share_product(self.user_a)
+        first = self._make_share_product(self.user_a)
+        second = self._make_share_product(self.user_a)
         self.client.force_login(self.user_a)
-        api = self.client.post(reverse("api_v1_flea_product_share", args=[product.pk]))
+        api = self.client.post(reverse("api_v1_flea_product_share", args=[first.pk]))
         self.assertEqual(api.status_code, 200)
         self.assertEqual(cache.get(self._post_key(self.user_a)), 1)
         for _ in range(TIMELINE_POST_LIMIT - 1):
@@ -717,11 +718,11 @@ class WriteRateLimitTests(TestCase):
         self.assertFalse(allow_timeline_post(self.user_a))
 
         classic = self.client.post(
-            reverse("share_product_to_timeline", args=[product.pk]),
+            reverse("share_product_to_timeline", args=[second.pk]),
         )
         self._assert_classic_rate_limited(classic)
         self.assertEqual(
-            classic["Location"], reverse("product_detail", args=[product.pk])
+            classic["Location"], reverse("product_detail", args=[second.pk])
         )
         self.assertEqual(self._share_posts(self.user_a).count(), 1)
 
@@ -745,7 +746,7 @@ class WriteRateLimitTests(TestCase):
             res["Location"], reverse("product_detail", args=[product.pk])
         )
         msgs = [m.message for m in get_messages(res.wsgi_request)]
-        self.assertIn("自分の出品のみスレッドにシェアできます。", msgs)
+        self.assertIn("自分の出品のみタイムラインにシェアできます。", msgs)
         self.assertFalse(self._share_posts(self.user_b).exists())
         self.assertIsNone(cache.get(self._post_key(self.user_b)))
 

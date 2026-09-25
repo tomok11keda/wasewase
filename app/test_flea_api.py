@@ -6,6 +6,7 @@ import json
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
@@ -17,6 +18,7 @@ from .models import (
     Message,
     Notification,
     Product,
+    TimelinePost,
     TradeMessage,
     User,
 )
@@ -813,3 +815,214 @@ class TradeChatKindAclTests(TestCase):
         self.assertEqual(handover.status_code, 302)
         self.product.refresh_from_db()
         self.assertTrue(self.product.is_sold)
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class FleaTimelineShareTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user(
+            email="share-seller@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.buyer = User.objects.create_user(
+            email="share-buyer@waseda.jp",
+            password="test-pass-12345",
+        )
+        self.client = Client()
+
+    def _image(self, name="item.gif"):
+        return SimpleUploadedFile(name, _MINIMAL_GIF, content_type="image/gif")
+
+    def _exhibit(self, **extra):
+        data = {
+            "name": "シェアするノート",
+            "price": "800",
+            "handover_campus": "toyama",
+            "description": "軽量",
+            "faculty": "法学部",
+            "image": self._image(),
+        }
+        data.update(extra)
+        return self.client.post("/api/v1/flea/products/", data=data)
+
+    def test_parse_share_flag_rejects_false_string(self):
+        from .flea_share_services import parse_share_to_timeline_flag
+
+        self.assertFalse(parse_share_to_timeline_flag(None))
+        self.assertFalse(parse_share_to_timeline_flag("false"))
+        self.assertFalse(parse_share_to_timeline_flag("0"))
+        self.assertFalse(parse_share_to_timeline_flag(""))
+        self.assertFalse(parse_share_to_timeline_flag("no"))
+        self.assertTrue(parse_share_to_timeline_flag("true"))
+        self.assertTrue(parse_share_to_timeline_flag("1"))
+        self.assertTrue(parse_share_to_timeline_flag(True))
+        self.assertFalse(parse_share_to_timeline_flag(False))
+
+    def test_exhibit_share_true_creates_timeline_post(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        self.assertEqual(created.status_code, 201)
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        self.assertIsNotNone(product.timeline_share_post_id)
+        self.assertEqual(TimelinePost.objects.filter(author=self.seller).count(), 1)
+        post = product.timeline_share_post
+        self.assertTrue(post.body.startswith("【出品シェア】"))
+        self.assertEqual(post.author, self.seller)
+
+    def test_exhibit_share_false_skips_timeline_post(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="false")
+        self.assertEqual(created.status_code, 201)
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        self.assertIsNone(product.timeline_share_post_id)
+        self.assertFalse(TimelinePost.objects.filter(author=self.seller).exists())
+
+    def test_exhibit_omitted_share_flag_does_not_post(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit()
+        self.assertEqual(created.status_code, 201)
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        self.assertIsNone(product.timeline_share_post_id)
+        self.assertFalse(TimelinePost.objects.filter(author=self.seller).exists())
+
+    def test_detail_share_then_second_share_is_idempotent(self):
+        self.client.force_login(self.seller)
+        product = Product.objects.create(
+            seller=self.seller,
+            name="詳細シェア",
+            price=500,
+            category="未分類",
+            status=Product.Status.AVAILABLE,
+        )
+        first = self.client.post(f"/api/v1/flea/products/{product.pk}/share/")
+        self.assertEqual(first.status_code, 200)
+        self.assertFalse(first.json().get("already_shared", False))
+        product.refresh_from_db()
+        self.assertIsNotNone(product.timeline_share_post_id)
+        second = self.client.post(f"/api/v1/flea/products/{product.pk}/share/")
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json()["already_shared"])
+        self.assertEqual(TimelinePost.objects.filter(author=self.seller).count(), 1)
+
+    def test_exhibit_share_true_then_detail_share_does_not_duplicate(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        pk = created.json()["product"]["id"]
+        second = self.client.post(f"/api/v1/flea/products/{pk}/share/")
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json()["already_shared"])
+        self.assertEqual(TimelinePost.objects.filter(author=self.seller).count(), 1)
+
+    def test_other_user_cannot_share(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            name="他人の出品",
+            price=500,
+            category="未分類",
+            status=Product.Status.AVAILABLE,
+        )
+        self.client.force_login(self.buyer)
+        res = self.client.post(f"/api/v1/flea/products/{product.pk}/share/")
+        self.assertEqual(res.status_code, 403)
+        self.assertFalse(TimelinePost.objects.filter(author=self.buyer).exists())
+        product.refresh_from_db()
+        self.assertIsNone(product.timeline_share_post_id)
+
+    def test_unavailable_product_cannot_share(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            name="売り切れ",
+            price=500,
+            category="未分類",
+            status=Product.Status.SOLD,
+        )
+        self.client.force_login(self.seller)
+        res = self.client.post(f"/api/v1/flea/products/{product.pk}/share/")
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["error"], "not_available")
+        self.assertFalse(TimelinePost.objects.filter(author=self.seller).exists())
+
+    def test_shared_product_hides_share_button(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        pk = created.json()["product"]["id"]
+        detail = self.client.get(f"/api/v1/flea/products/{pk}/")
+        self.assertFalse(detail.json()["product"]["can_share_to_timeline"])
+
+    def test_unshared_own_available_product_can_share(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="false")
+        pk = created.json()["product"]["id"]
+        detail = self.client.get(f"/api/v1/flea/products/{pk}/")
+        self.assertTrue(detail.json()["product"]["can_share_to_timeline"])
+
+    def test_existing_null_relation_still_serializes(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            name="既存商品",
+            price=500,
+            category="未分類",
+            status=Product.Status.AVAILABLE,
+        )
+        self.assertIsNone(product.timeline_share_post_id)
+        detail = self.client.get(f"/api/v1/flea/products/{product.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertFalse(detail.json()["product"]["can_share_to_timeline"])
+
+    def test_timeline_post_delete_clears_relation_and_allows_reshare(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        post = product.timeline_share_post
+        post.delete()
+        product.refresh_from_db()
+        self.assertIsNone(product.timeline_share_post_id)
+        reshare = self.client.post(f"/api/v1/flea/products/{pk}/share/")
+        self.assertEqual(reshare.status_code, 200)
+        self.assertFalse(reshare.json().get("already_shared", False))
+        product.refresh_from_db()
+        self.assertIsNotNone(product.timeline_share_post_id)
+
+    def test_product_delete_does_not_delete_timeline_post(self):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        post_id = product.timeline_share_post_id
+        deleted = self.client.post(f"/api/v1/flea/products/{pk}/delete/")
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(Product.objects.filter(pk=pk).exists())
+        self.assertTrue(TimelinePost.objects.filter(pk=post_id).exists())
+
+    def test_one_to_one_rejects_two_products_same_post(self):
+        post = TimelinePost.objects.create(author=self.seller, body="shared")
+        Product.objects.create(
+            seller=self.seller,
+            name="one",
+            price=1,
+            category="未分類",
+            timeline_share_post=post,
+        )
+        other = Product(
+            seller=self.seller,
+            name="two",
+            price=2,
+            category="未分類",
+            timeline_share_post=post,
+        )
+        with self.assertRaises(IntegrityError):
+            other.save()
+
+    @patch("app.flea_share_services.allow_timeline_post", return_value=False)
+    def test_exhibit_share_rate_limited_still_creates_product(self, _allow):
+        self.client.force_login(self.seller)
+        created = self._exhibit(share_to_timeline="true")
+        self.assertEqual(created.status_code, 201)
+        pk = created.json()["product"]["id"]
+        product = Product.objects.get(pk=pk)
+        self.assertIsNone(product.timeline_share_post_id)
+        self.assertFalse(TimelinePost.objects.filter(author=self.seller).exists())

@@ -220,7 +220,8 @@ export function ProductDetailPage() {
     setBusy(true);
     try {
       await shareProductToTimeline(product.id);
-      setFlash({ type: "success", text: "スレッドにシェアしました！" });
+      setFlash({ type: "success", text: "タイムラインにシェアしました！" });
+      await load();
     } catch (err) {
       setFlash({
         type: "error",
@@ -396,7 +397,7 @@ export function ProductDetailPage() {
                   onClick={() => void onShare()}
                   disabled={busy}
                 >
-                  スレッドにシェア
+                  タイムラインにシェア
                 </button>
               ) : null}
 

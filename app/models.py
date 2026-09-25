@@ -866,6 +866,14 @@ class Product(models.Model):
         help_text="進行中の Stripe Checkout Session ID",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    timeline_share_post = models.OneToOneField(
+        "TimelinePost",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="shared_product",
+        verbose_name="タイムラインシェア投稿",
+    )
     is_removed = models.BooleanField("運営削除", default=False, db_index=True)
     removed_at = models.DateTimeField("削除日時", null=True, blank=True)
     removed_by = models.ForeignKey(

@@ -23,6 +23,7 @@ export function ExhibitPage() {
   const [professorName, setProfessorName] = useState("");
   const [faculty, setFaculty] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [shareToTimeline, setShareToTimeline] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +71,7 @@ export function ExhibitPage() {
       form.set("professor_name", professorName);
       form.set("faculty", faculty);
       form.set("image", image);
+      form.set("share_to_timeline", shareToTimeline ? "true" : "false");
       const product = await createProduct(form);
       analytics.fleaItemCreated({
         faculty: faculty || undefined,
@@ -186,6 +188,19 @@ export function ExhibitPage() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="form-check">
+            <input
+              id="exhibit-share-timeline"
+              type="checkbox"
+              checked={shareToTimeline}
+              onChange={(e) => setShareToTimeline(e.target.checked)}
+              disabled={busy}
+            />
+            <label htmlFor="exhibit-share-timeline">
+              <strong>タイムラインにもシェア</strong>
+              <small>出品情報をタイムラインにも表示します</small>
+            </label>
           </div>
           <button className="btn-submit" type="submit" disabled={busy || !image}>
             {busy ? "出品中…" : "出品する"}
