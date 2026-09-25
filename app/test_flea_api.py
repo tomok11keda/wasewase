@@ -387,6 +387,69 @@ class FleaApiTests(TestCase):
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(Product.objects.filter(pk=pk).exists())
 
+    def test_owner_available_product_can_delete_flag(self):
+        self.client.force_login(self.seller)
+        detail = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue(detail.json()["product"]["can_delete"])
+
+        self.client.force_login(self.buyer)
+        other = self.client.get(f"/api/v1/flea/products/{self.product.pk}/")
+        self.assertEqual(other.status_code, 200)
+        self.assertFalse(other.json()["product"]["can_delete"])
+
+    def test_owner_deletes_available_product(self):
+        self.client.force_login(self.seller)
+        deleted = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertTrue(deleted.json()["ok"])
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_non_owner_cannot_delete_product(self):
+        self.client.force_login(self.buyer)
+        deleted = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(deleted.status_code, 403)
+        self.assertEqual(deleted.json()["error"], "forbidden")
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_unauthenticated_cannot_delete_product(self):
+        deleted = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(deleted.status_code, 401)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_delete_missing_product_returns_json_404(self):
+        self.client.force_login(self.seller)
+        deleted = self.client.post("/api/v1/flea/products/999999/delete/")
+        self.assertEqual(deleted.status_code, 404)
+        self.assertEqual(deleted.json()["error"], "not_found")
+
+    def test_delete_twice_does_not_500(self):
+        self.client.force_login(self.seller)
+        first = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(first.status_code, 200)
+        second = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(second.status_code, 404)
+        self.assertEqual(second.json()["error"], "not_found")
+
+    def test_delete_without_timeline_share_succeeds(self):
+        self.assertIsNone(self.product.timeline_share_post_id)
+        self.client.force_login(self.seller)
+        deleted = self.client.post(
+            f"/api/v1/flea/products/{self.product.pk}/delete/"
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
     def test_cannot_delete_product_with_negotiation_chat(self):
         self.client.force_login(self.buyer)
         start = self.client.post(
@@ -1004,16 +1067,35 @@ class FleaTimelineShareTests(TestCase):
         product.refresh_from_db()
         self.assertIsNotNone(product.timeline_share_post_id)
 
-    def test_product_delete_does_not_delete_timeline_post(self):
+    def test_product_delete_also_deletes_linked_timeline_post(self):
         self.client.force_login(self.seller)
         created = self._exhibit(share_to_timeline="true")
         pk = created.json()["product"]["id"]
         product = Product.objects.get(pk=pk)
         post_id = product.timeline_share_post_id
+        self.assertIsNotNone(post_id)
+        extra = TimelinePost.objects.create(
+            author=self.seller, body="残すべき通常投稿"
+        )
+        other_product = Product.objects.create(
+            seller=self.seller,
+            name="別出品",
+            price=100,
+            category="未分類",
+        )
+        other_post = TimelinePost.objects.create(
+            author=self.seller, body="フリマに出品しました！"
+        )
+        other_product.timeline_share_post = other_post
+        other_product.save(update_fields=["timeline_share_post"])
+
         deleted = self.client.post(f"/api/v1/flea/products/{pk}/delete/")
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(Product.objects.filter(pk=pk).exists())
-        self.assertTrue(TimelinePost.objects.filter(pk=post_id).exists())
+        self.assertFalse(TimelinePost.objects.filter(pk=post_id).exists())
+        self.assertTrue(TimelinePost.objects.filter(pk=extra.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=other_product.pk).exists())
+        self.assertTrue(TimelinePost.objects.filter(pk=other_post.pk).exists())
 
     def test_one_to_one_rejects_two_products_same_post(self):
         post = TimelinePost.objects.create(author=self.seller, body="shared")

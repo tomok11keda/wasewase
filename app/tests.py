@@ -2086,6 +2086,24 @@ class DeleteContentTests(TestCase):
         self.assertEqual(response["Location"], reverse("flea_index"))
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
 
+    def test_owner_delete_also_removes_linked_timeline_share(self):
+        share = TimelinePost.objects.create(
+            author=self.owner,
+            body="フリマに出品しました！",
+        )
+        leftover = TimelinePost.objects.create(
+            author=self.owner,
+            body="残すべき通常投稿",
+        )
+        self.product.timeline_share_post = share
+        self.product.save(update_fields=["timeline_share_post"])
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("delete_product", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertFalse(TimelinePost.objects.filter(pk=share.pk).exists())
+        self.assertTrue(TimelinePost.objects.filter(pk=leftover.pk).exists())
+
     def test_owner_cannot_delete_product_with_trade_chat(self):
         ChatRoom.objects.create(
             product=self.product,

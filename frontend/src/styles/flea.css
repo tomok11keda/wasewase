@@ -700,6 +700,78 @@
   color: #c62828;
 }
 
+.product-detail-page .confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.product-detail-page .confirm-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 20, 25, 0.45);
+  cursor: pointer;
+}
+
+.product-detail-page .confirm-modal__panel {
+  position: relative;
+  width: min(100%, 360px);
+  padding: 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+.product-detail-page .confirm-modal__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #0f1419;
+}
+
+.product-detail-page .confirm-modal__message {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #0f1419;
+}
+
+.product-detail-page .confirm-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.product-detail-page .confirm-modal__btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #cfd9de;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.product-detail-page .confirm-modal__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.product-detail-page .confirm-modal__btn--danger {
+  border-color: #891e2b;
+  background: #891e2b;
+  color: #fff;
+}
+
 .product-detail-page .meta-row {
   margin: 0 0 8px;
   font-size: 13px;

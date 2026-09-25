@@ -249,6 +249,7 @@ export async function deleteProduct(pk: number): Promise<void> {
       pending: "取引中の商品は削除できません。",
       has_trade_history: "取引履歴がある商品は削除できません。",
       forbidden: "この商品を削除する権限がありません。",
+      not_found: "商品が見つかりません。",
     };
     throw new Error(messages[code] || code);
   }

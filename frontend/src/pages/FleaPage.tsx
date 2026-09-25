@@ -64,6 +64,7 @@ export function FleaPage() {
   const [error, setError] = useState<string | null>(null);
   const [qInput, setQInput] = useState(qParam);
   const exhibitSuccess = searchParams.get("exhibit_success") === "1";
+  const deletedSuccess = searchParams.get("deleted") === "1";
   const hasDataRef = useRef(false);
   const ownFaculty = me?.user?.department || userFaculty || "";
 
@@ -142,6 +143,10 @@ export function FleaPage() {
       {exhibitSuccess ? (
         <ul className="messages">
           <li className="success">商品を出品しました。</li>
+        </ul>
+      ) : deletedSuccess ? (
+        <ul className="messages">
+          <li className="success">商品を削除しました</li>
         </ul>
       ) : null}
 

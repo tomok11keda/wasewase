@@ -7,7 +7,7 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import transaction
 from django.utils import timezone
 
-from .models import ChatRoom, Message, Product
+from .models import ChatRoom, Message, Product, TimelinePost
 
 logger = logging.getLogger(__name__)
 
@@ -319,6 +319,20 @@ def can_physically_delete_product(
     if product.seller_id != user.id:
         return False
     return get_product_physical_delete_block_reason(product) is None
+
+
+def physically_delete_owned_listing(product: Product) -> None:
+    """出品者削除用の物理削除。紐づくフリマシェア TimelinePost だけ同時削除する。
+
+    呼び出し前に can_physically_delete_product で許可済みであること。
+    Product.timeline_share_post の FK id だけを使い、本文検索はしない。
+    運営の is_removed 経路とは別（そちらは投稿を残す）。
+    """
+    share_post_id = product.timeline_share_post_id
+    with transaction.atomic():
+        product.delete()
+        if share_post_id:
+            TimelinePost.objects.filter(pk=share_post_id).delete()
 
 
 PRODUCT_DELETE_BLOCK_MESSAGES = {

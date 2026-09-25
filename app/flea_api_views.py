@@ -48,6 +48,7 @@ from .trade_chat_services import (
     complete_handover_by_seller,
     confirm_negotiation_trade,
     get_product_physical_delete_block_reason,
+    physically_delete_owned_listing,
     start_instant_purchase,
     start_negotiation,
 )
@@ -262,13 +263,15 @@ def api_v1_flea_product_chat_start(request: HttpRequest, pk: int) -> JsonRespons
 @login_required
 @require_http_methods(["DELETE", "POST"])
 def api_v1_flea_product_delete(request: HttpRequest, pk: int) -> JsonResponse:
-    product = get_object_or_404(Product, pk=pk)
+    product = Product.objects.filter(pk=pk).first()
+    if product is None:
+        return _json_error("not_found", status=404)
     if product.seller_id != request.user.id:
         return _json_error("forbidden", status=403)
     block = get_product_physical_delete_block_reason(product)
     if block:
         return _json_error(block, status=400)
-    product.delete()
+    physically_delete_owned_listing(product)
     return JsonResponse({"ok": True})
 
 

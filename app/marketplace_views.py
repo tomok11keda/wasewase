@@ -51,6 +51,7 @@ from .trade_chat_services import (
     confirm_negotiation_trade,
     get_confirmed_room_for_product,
     get_product_physical_delete_block_reason,
+    physically_delete_owned_listing,
     start_instant_purchase,
     start_negotiation,
 )
@@ -1003,6 +1004,6 @@ def delete_product(request, pk):
         )
         return redirect(reverse("product_detail", kwargs={"pk": pk}))
 
-    product.delete()
+    physically_delete_owned_listing(product)
     messages.success(request, "商品を削除しました。")
     return redirect(reverse("flea_index"))

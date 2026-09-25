@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BookmarkButton } from "../components/BookmarkButton";
 import { ShareActionSheet } from "../components/ShareActionSheet";
@@ -39,6 +39,8 @@ export function ProductDetailPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deletingRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(productId)) {
@@ -199,18 +201,32 @@ export function ProductDetailPage() {
     }
   };
 
-  const onDelete = async () => {
-    if (!product) return;
-    if (!window.confirm("この商品を削除しますか？")) return;
+  const onDelete = () => {
+    if (!product || busy || deletingRef.current) return;
+    setFlash(null);
+    setConfirmDelete(true);
+  };
+
+  const closeDeleteConfirm = () => {
+    if (deletingRef.current) return;
+    setConfirmDelete(false);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!product || deletingRef.current) return;
+    deletingRef.current = true;
     setBusy(true);
     try {
       await deleteProduct(product.id);
-      navigate("/flea");
+      setConfirmDelete(false);
+      navigate("/flea?deleted=1", { replace: true });
     } catch (err) {
+      setConfirmDelete(false);
       setFlash({
         type: "error",
         text: err instanceof Error ? err.message : "削除に失敗しました",
       });
+      deletingRef.current = false;
       setBusy(false);
     }
   };
@@ -439,10 +455,10 @@ export function ProductDetailPage() {
                   <button
                     type="button"
                     className="btn btn-delete"
-                    onClick={() => void onDelete()}
+                    onClick={onDelete}
                     disabled={busy}
                   >
-                    出品を削除
+                    商品を削除
                   </button>
                 </div>
               ) : null}
@@ -518,6 +534,54 @@ export function ProductDetailPage() {
         shareTarget={{ type: "flea", id: product.id }}
         onClose={() => setShareOpen(false)}
       />
+      {confirmDelete ? (
+        <div className="confirm-modal" role="presentation">
+          <button
+            type="button"
+            className="confirm-modal__backdrop"
+            aria-label="キャンセル"
+            onClick={closeDeleteConfirm}
+          />
+          <div
+            className="confirm-modal__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-delete-confirm-title"
+            aria-describedby="product-delete-confirm-body"
+          >
+            <p
+              className="confirm-modal__title"
+              id="product-delete-confirm-title"
+            >
+              商品を削除しますか？
+            </p>
+            <p
+              className="confirm-modal__message"
+              id="product-delete-confirm-body"
+            >
+              削除した商品は元に戻せません。
+            </p>
+            <div className="confirm-modal__actions">
+              <button
+                type="button"
+                className="confirm-modal__btn"
+                onClick={closeDeleteConfirm}
+                disabled={busy}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="confirm-modal__btn confirm-modal__btn--danger"
+                onClick={() => void confirmDeleteProduct()}
+                disabled={busy}
+              >
+                商品を削除
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
