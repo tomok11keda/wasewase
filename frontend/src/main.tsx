@@ -5,6 +5,7 @@ import { PostHogAppProvider } from "./lib/analytics/PostHogAppProvider";
 import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/timeline.css";
+import "./styles/timeline-feed.css";
 import "./styles/post-detail.css";
 import "./styles/home.css";
 import "./styles/image-pick.css";

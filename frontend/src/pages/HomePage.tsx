@@ -19,8 +19,6 @@ import {
   useSoftTabRefetch,
 } from "../layouts/TabKeepAliveLayout";
 import { ImagePickField } from "../components/ImagePickField";
-import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
-import { LocalSearchBar } from "../components/LocalSearchBar";
 import { getImpressedPostIds } from "../features/timeline/impressions";
 import {
   parseTimelinePostHash,
@@ -40,7 +38,6 @@ export function HomePage() {
   ) as "recommended" | "latest";
   const faculty = searchParams.get("faculty") || "";
   const qParam = searchParams.get("q") || "";
-  const ownFaculty = me?.user?.department || "";
 
   const patchParams = useCallback(
     (patch: Record<string, string>) => {
@@ -85,6 +82,7 @@ export function HomePage() {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const homeComposeRef = useRef<HTMLDivElement | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasDataRef = useRef(false);
   const ensurePostReqRef = useRef(0);
@@ -96,10 +94,32 @@ export function HomePage() {
     !composeOpen &&
     (activeTab === "home" ||
       (activeTab === null && normalizedPath === "/"));
+  // Hide FAB while 「いまどうしてる？」 is on screen; default true to avoid a first-paint flash.
+  const [composeCueInView, setComposeCueInView] = useState(true);
+  const revealComposeFab = showComposeFab && (!authenticated || !composeCueInView);
 
   const hasComposeDraft = Boolean(
     composeBody.trim() || composeImage || quoteId
   );
+
+  useEffect(() => {
+    if (!authenticated) {
+      setComposeCueInView(false);
+      return;
+    }
+    const el = homeComposeRef.current;
+    if (!el) return;
+    setComposeCueInView(true);
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        setComposeCueInView(visible);
+      },
+      { threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [authenticated]);
 
   const openCompose = useCallback(() => {
     if (!authenticated) {
@@ -477,54 +497,45 @@ export function HomePage() {
 
   return (
     <div className="main-inner timeline-home" data-spa-page="タイムライン">
-      <FacultyFilterTabs
-        value={faculty}
-        ownFaculty={ownFaculty}
-        onChange={(next) => patchParams({ faculty: next })}
-      />
-
-      <LocalSearchBar
-        value={qParam}
-        placeholder="タイムライン投稿を検索"
-        ariaLabel="タイムライン内検索"
-        onSubmit={(q) => patchParams({ q })}
-        onClear={() => patchParams({ q: "" })}
-      />
-      {qParam ? (
-        <p className="local-search-hint">
-          「{qParam}」のタイムライン検索結果（コミュニティ・フリマは含みません）
-        </p>
-      ) : null}
-
-      <nav className="ranking-sort-tabs" aria-label="タイムライン並び順">
+      <nav className="home-sort-tabs" aria-label="タイムライン並び順">
         <button
           type="button"
-          className={`ranking-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+          className={`home-sort-tab${sort === "recommended" ? " is-active" : ""}`}
           onClick={() => patchParams({ sort: "" })}
         >
           おすすめ
         </button>
         <button
           type="button"
-          className={`ranking-sort-tab${sort === "latest" ? " is-active" : ""}`}
+          className={`home-sort-tab${sort === "latest" ? " is-active" : ""}`}
           onClick={() => patchParams({ sort: "latest" })}
         >
           最新
         </button>
       </nav>
 
-      {faculty ? (
-        <p className="faculty-hint">🏷 {faculty}のユーザーの投稿を表示中</p>
-      ) : null}
-
       {authenticated ? (
-        <div className="spa-compose">
+        <div ref={homeComposeRef} className="home-compose">
           <button
             type="button"
-            className="spa-compose__open"
+            className="home-compose__open"
             onClick={openCompose}
           >
-            いまどうしてる？
+            {me?.user?.avatar_url ? (
+              <img
+                className="home-compose__avatar"
+                src={me.user.avatar_url}
+                alt=""
+              />
+            ) : (
+              <span
+                className="home-compose__avatar home-compose__avatar--initial"
+                aria-hidden="true"
+              >
+                {me?.user?.initial || "?"}
+              </span>
+            )}
+            <span className="home-compose__prompt">いまどうしてる？</span>
           </button>
         </div>
       ) : (
@@ -557,7 +568,7 @@ export function HomePage() {
             : "まだ投稿がありません。"}
         </p>
       ) : (
-        <div className="timeline-list" id="timeline-list">
+        <div className="timeline-list home-feed" id="timeline-list">
           {postUnavailable ? (
             <p className="empty-message">この投稿は表示できません</p>
           ) : null}
@@ -597,8 +608,12 @@ export function HomePage() {
         ? createPortal(
             <button
               type="button"
-              className="compose-fab shell-hide-on-desktop"
+              className={`compose-fab home-compose-fab shell-hide-on-desktop${
+                revealComposeFab ? " is-visible" : ""
+              }`}
               aria-label="投稿する"
+              aria-hidden={!revealComposeFab}
+              tabIndex={revealComposeFab ? 0 : -1}
               onClick={openCompose}
             >
               ＋
