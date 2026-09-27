@@ -1,8 +1,5 @@
-from urllib.parse import quote
-
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Count, Exists, OuterRef, Q
-from django.urls import reverse
 
 from .constants import FACULTY_CHOICES
 from .models import TimelineLike, TimelinePost
@@ -134,10 +131,9 @@ def get_profile_timeline_posts(
 
 
 def timeline_post_link(post: TimelinePost) -> str:
-    base = reverse("home")
-    if post.course_name:
-        return f"{base}?tag={quote(post.course_name)}#post-{post.pk}"
-    return f"{base}#post-{post.pk}"
+    from .spa_canonical import app_absolute
+
+    return app_absolute(f"/posts/{post.pk}")
 
 
 def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> TimelinePost | None:

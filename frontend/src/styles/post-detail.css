@@ -1,0 +1,77 @@
+/* Timeline post detail — keep separate from dirty timeline.css */
+.post-detail-page {
+  min-height: 40vh;
+  background: #fff;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.post-detail-header {
+  position: sticky;
+  top: var(--wase-header-h, 0px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--shell-border, #eff3f4);
+}
+
+.post-detail-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text, #0f1419);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.post-detail-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.post-detail-body {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.post-detail-page .tweet-card {
+  cursor: default;
+}
+
+.post-detail-page .tweet-comment-form {
+  margin-bottom: 8px;
+}
+
+.post-detail-page .tweet-comments__empty {
+  margin: 8px 0 0;
+  color: var(--muted, #536471);
+  font-size: 14px;
+}
+
+.tweet-card--openable {
+  cursor: pointer;
+}
+
+a.tweet-time--detail-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.tweet-time--detail-link:hover,
+a.tweet-time--detail-link:focus-visible {
+  text-decoration: underline;
+}

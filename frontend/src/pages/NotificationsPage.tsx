@@ -26,6 +26,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     return (
       <Link
         to={spaHrefTo(item.spa_path)}
+        state={{ fromWaseWase: true }}
         onClick={() => analytics.notificationOpened()}
       >
         {body}
@@ -38,6 +39,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     return (
       <Link
         to={spaHrefTo(raw)}
+        state={{ fromWaseWase: true }}
         onClick={() => analytics.notificationOpened()}
       >
         {body}

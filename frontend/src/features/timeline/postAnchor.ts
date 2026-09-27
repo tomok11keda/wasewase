@@ -1,6 +1,27 @@
 const POST_HASH_RE = /^#?post-(\d+)$/;
 const POST_PATH_RE = /^\/(?:app\/)?posts\/(\d+)\/?$/;
 
+/** Nested controls that must not open the post detail route. */
+export const TIMELINE_POST_DETAIL_IGNORE_SELECTOR = [
+  "a",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  '[role="button"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  ".timeline-flea-share",
+  ".share-card",
+  ".tweet-media",
+  ".quoted-post-card",
+].join(",");
+
+export type TimelinePostDetailNavState = {
+  fromWaseWase?: boolean;
+  focusComposer?: boolean;
+};
+
 export function parseTimelinePostHash(
   hash: string | undefined | null
 ): number | null {
@@ -20,6 +41,14 @@ export function parseTimelinePostPath(
   if (!match) return null;
   const id = Number(match[1]);
   return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function isTimelinePostDetailIgnoreTarget(
+  target: EventTarget | null
+): boolean {
+  return target instanceof Element
+    ? Boolean(target.closest(TIMELINE_POST_DETAIL_IGNORE_SELECTOR))
+    : false;
 }
 
 export function scrollToTimelinePost(postId: number): boolean {

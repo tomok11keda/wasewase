@@ -24,7 +24,6 @@ import { LocalSearchBar } from "../components/LocalSearchBar";
 import { getImpressedPostIds } from "../features/timeline/impressions";
 import {
   parseTimelinePostHash,
-  parseTimelinePostPath,
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
@@ -250,14 +249,11 @@ export function HomePage() {
 
   const onVisibleHome =
     activeTab === "home" ||
-    parseTimelinePostPath(normalizedPath) != null ||
     (activeTab === null && normalizedPath === "/");
 
   const stateHash = (location.state as { hash?: string } | null)?.hash;
   const targetPostId = onVisibleHome
-    ? parseTimelinePostPath(location.pathname) ??
-      parseTimelinePostHash(location.hash) ??
-      parseTimelinePostHash(stateHash)
+    ? parseTimelinePostHash(location.hash) ?? parseTimelinePostHash(stateHash)
     : null;
 
   const visiblePosts = useMemo(() => {

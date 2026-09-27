@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
 import { SfIcon } from "../../components/SfIcon";
 import type { TimelinePost } from "./api";
@@ -22,8 +22,11 @@ import {
   IMPRESSION_DWELL_MS,
   queueImpression,
 } from "./impressions";
+import { isTimelinePostDetailIgnoreTarget } from "./postAnchor";
 import { saveScrollPosition } from "../profile/api";
 import { analytics } from "../../lib/analytics/events";
+
+type TimelinePostCardVariant = "feed" | "detail";
 
 type Props = {
   post: TimelinePost;
@@ -32,6 +35,8 @@ type Props = {
   onRemove: (postId: number) => void;
   onQuote: (post: TimelinePost) => void;
   onRequireLogin: () => void;
+  variant?: TimelinePostCardVariant;
+  focusComposer?: boolean;
 };
 
 function formatRelative(iso: string): string {
@@ -70,8 +75,10 @@ export function TimelinePostCard({
   onRemove,
   onQuote,
   onRequireLogin,
+  variant = "feed",
+  focusComposer = false,
 }: Props) {
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const navigate = useNavigate();
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
@@ -81,9 +88,33 @@ export function TimelinePostCard({
   const [reportChoosing, setReportChoosing] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const articleRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLInputElement | null>(null);
   const postRef = useRef(post);
   postRef.current = post;
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
+  const showComments = variant === "detail";
+
+  const openDetail = (opts?: { focusComposer?: boolean }) => {
+    if (variant === "detail") {
+      if (opts?.focusComposer) composerRef.current?.focus();
+      return;
+    }
+    saveScrollPosition("/");
+    navigate(`/posts/${post.id}`, {
+      state: {
+        fromWaseWase: true,
+        ...(opts?.focusComposer ? { focusComposer: true } : {}),
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (!focusComposer || variant !== "detail") return;
+    const timer = window.setTimeout(() => {
+      composerRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [focusComposer, variant]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -191,8 +222,13 @@ export function TimelinePostCard({
     <article
       ref={articleRef}
       id={`post-${post.id}`}
-      className="tweet-card"
+      className={`tweet-card${variant === "feed" ? " tweet-card--openable" : ""}`}
       data-spa-post={post.id}
+      onClick={(event) => {
+        if (variant === "detail") return;
+        if (isTimelinePostDetailIgnoreTarget(event.target)) return;
+        openDetail();
+      }}
     >
       <div className="tweet-layout">
         {post.author ? (
@@ -244,9 +280,23 @@ export function TimelinePostCard({
               <span className="tweet-meta-dot" aria-hidden="true">
                 ·
               </span>
-              <time className="tweet-time" dateTime={post.created_at}>
-                {formatRelative(post.created_at)}
-              </time>
+              {variant === "detail" ? (
+                <time className="tweet-time" dateTime={post.created_at}>
+                  {formatRelative(post.created_at)}
+                </time>
+              ) : (
+                <Link
+                  className="tweet-time tweet-time--detail-link"
+                  to={`/posts/${post.id}`}
+                  state={{ fromWaseWase: true }}
+                  onClick={() => saveScrollPosition("/")}
+                  aria-label="投稿の詳細を見る"
+                >
+                  <time dateTime={post.created_at}>
+                    {formatRelative(post.created_at)}
+                  </time>
+                </Link>
+              )}
             </div>
             <div className="tweet-header-menu">
               {authenticated && post.can_delete ? (
@@ -374,7 +424,10 @@ export function TimelinePostCard({
           />
 
           {post.quoted_post ? (
-            <div className="quoted-post-card">
+            <div
+              className="quoted-post-card"
+              onClick={(event) => event.stopPropagation()}
+            >
               {post.quoted_post.is_removed ? (
                 <p className="tweet-body">この投稿は削除されました</p>
               ) : (
@@ -420,8 +473,8 @@ export function TimelinePostCard({
               type="button"
               className="tweet-action tweet-action--comment"
               aria-label={`コメント ${post.comment_count}`}
-              aria-expanded={commentsOpen}
-              onClick={() => setCommentsOpen((v) => !v)}
+              aria-expanded={showComments}
+              onClick={() => openDetail({ focusComposer: true })}
             >
               <SfIcon name="bubble_left" />
               <span className="tweet-action-count">
@@ -506,80 +559,8 @@ export function TimelinePostCard({
             </span>
           </div>
 
-          {commentsOpen ? (
+          {showComments ? (
             <div className="tweet-comments">
-              <ul className="tweet-comment-list">
-                {post.comments.map((c) => (
-                  <li key={c.id} className="tweet-comment">
-                    {c.author ? (
-                      <Link
-                        className="tweet-comment__avatar"
-                        to={`/users/${c.author.id}/posts`}
-                        aria-hidden="true"
-                        onClick={() => saveScrollPosition("/")}
-                      >
-                        {c.author.avatar_url ? (
-                          <img
-                            className="user-avatar--image tweet-avatar__img"
-                            src={c.author.avatar_url}
-                            alt=""
-                          />
-                        ) : (
-                          c.author.initial
-                        )}
-                      </Link>
-                    ) : (
-                      <span
-                        className="tweet-comment__avatar tweet-avatar--deleted"
-                        aria-hidden="true"
-                      >
-                        退
-                      </span>
-                    )}
-                    <div className="tweet-comment__content">
-                      <div className="tweet-comment__meta">
-                        {c.author ? (
-                          <Link
-                            className="tweet-comment__author"
-                            to={`/users/${c.author.id}/posts`}
-                            onClick={() => saveScrollPosition("/")}
-                          >
-                            {c.author.display_name}
-                          </Link>
-                        ) : (
-                          <span>削除済み</span>
-                        )}
-                        <span aria-hidden="true">·</span>
-                        <time dateTime={c.created_at}>
-                          {formatRelative(c.created_at)}
-                        </time>
-                        {c.can_delete ? (
-                          <button
-                            type="button"
-                            className="tweet-menu-btn tweet-menu-btn--danger"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(async () => {
-                                const comment_count = await deleteComment(c.id);
-                                onChange({
-                                  ...post,
-                                  comments: post.comments.filter(
-                                    (x) => x.id !== c.id
-                                  ),
-                                  comment_count,
-                                });
-                              })
-                            }
-                          >
-                            削除
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="tweet-comment__body">{c.body}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
               {authenticated ? (
                 <form
                   className="tweet-comment-form"
@@ -603,6 +584,7 @@ export function TimelinePostCard({
                   }}
                 >
                   <input
+                    ref={composerRef}
                     type="text"
                     value={commentBody}
                     onChange={(e) => setCommentBody(e.target.value)}
@@ -617,6 +599,82 @@ export function TimelinePostCard({
                 <p className="spa-placeholder__note">
                   コメントにはログインが必要です。
                 </p>
+              )}
+              {post.comments.length === 0 ? (
+                <p className="tweet-comments__empty">まだコメントはありません</p>
+              ) : (
+                <ul className="tweet-comment-list">
+                  {post.comments.map((c) => (
+                    <li key={c.id} className="tweet-comment">
+                      {c.author ? (
+                        <Link
+                          className="tweet-comment__avatar"
+                          to={`/users/${c.author.id}/posts`}
+                          aria-hidden="true"
+                          onClick={() => saveScrollPosition("/")}
+                        >
+                          {c.author.avatar_url ? (
+                            <img
+                              className="user-avatar--image tweet-avatar__img"
+                              src={c.author.avatar_url}
+                              alt=""
+                            />
+                          ) : (
+                            c.author.initial
+                          )}
+                        </Link>
+                      ) : (
+                        <span
+                          className="tweet-comment__avatar tweet-avatar--deleted"
+                          aria-hidden="true"
+                        >
+                          退
+                        </span>
+                      )}
+                      <div className="tweet-comment__content">
+                        <div className="tweet-comment__meta">
+                          {c.author ? (
+                            <Link
+                              className="tweet-comment__author"
+                              to={`/users/${c.author.id}/posts`}
+                              onClick={() => saveScrollPosition("/")}
+                            >
+                              {c.author.display_name}
+                            </Link>
+                          ) : (
+                            <span>削除済み</span>
+                          )}
+                          <span aria-hidden="true">·</span>
+                          <time dateTime={c.created_at}>
+                            {formatRelative(c.created_at)}
+                          </time>
+                          {c.can_delete ? (
+                            <button
+                              type="button"
+                              className="tweet-menu-btn tweet-menu-btn--danger"
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const comment_count = await deleteComment(c.id);
+                                  onChange({
+                                    ...post,
+                                    comments: post.comments.filter(
+                                      (x) => x.id !== c.id
+                                    ),
+                                    comment_count,
+                                  });
+                                })
+                              }
+                            >
+                              削除
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="tweet-comment__body">{c.body}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           ) : null}

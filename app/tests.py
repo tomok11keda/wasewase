@@ -1009,7 +1009,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
+            f"/app/posts/{self.post.pk}",
         )
 
 
@@ -1047,7 +1047,7 @@ class BoardTimelineNotificationTests(TestCase):
         )
         self.assertEqual(
             notification.link,
-            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
+            f"/app/posts/{self.post.pk}",
         )
 
     def test_self_comment_does_not_create_notification(self):

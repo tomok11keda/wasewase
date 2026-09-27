@@ -122,6 +122,37 @@ class TimelineApiTests(TestCase):
         self.assertIn("user_has_bookmarked", post)
         self.assertFalse(post["user_has_liked"])
 
+    def test_detail_comments_created_order_and_delete_updates_count(self):
+        self.client.force_login(self.user)
+        first = self.client.post(
+            f"/api/v1/timeline/{self.post.pk}/comments/",
+            data=json.dumps({"body": "first"}),
+            content_type="application/json",
+        )
+        second = self.client.post(
+            f"/api/v1/timeline/{self.post.pk}/comments/",
+            data=json.dumps({"body": "second"}),
+            content_type="application/json",
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        detail = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertEqual(
+            [c["body"] for c in detail.json()["post"]["comments"]],
+            ["first", "second"],
+        )
+        self.assertEqual(detail.json()["post"]["comment_count"], 2)
+        deleted = self.client.delete(
+            f"/api/v1/timeline/comments/{first.json()['comment']['id']}/"
+        )
+        self.assertEqual(deleted.status_code, 200)
+        after = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertEqual(
+            [c["body"] for c in after.json()["post"]["comments"]],
+            ["second"],
+        )
+        self.assertEqual(after.json()["post"]["comment_count"], 1)
+
     def test_get_single_post_includes_like_state(self):
         self.client.force_login(self.user)
         self.client.post(f"/api/v1/timeline/{self.post.pk}/like/")
@@ -479,6 +510,16 @@ class TimelineSharedProductApiTests(TestCase):
             if p["id"] == product.timeline_share_post_id
         )
         self.assertEqual(profile_post["shared_product"]["id"], product.pk)
+
+    def test_detail_includes_shared_product(self):
+        product = self._share()
+        detail = self.client.get(
+            f"/api/v1/timeline/{product.timeline_share_post_id}/"
+        )
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(
+            detail.json()["post"]["shared_product"]["id"], product.pk
+        )
 
     def test_bookmark_queryset_selects_shared_product(self):
         from .bookmark_services import _timeline_posts_queryset_base

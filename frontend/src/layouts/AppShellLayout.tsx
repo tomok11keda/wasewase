@@ -15,6 +15,7 @@ import {
 
 function titleForPath(pathname: string): string {
   const normalized = pathname.replace(/\/$/, "") || "/";
+  if (/^\/posts\/\d+$/.test(normalized)) return "投稿";
   if (normalized.startsWith("/users/")) return "プロフィール";
   if (normalized.startsWith("/search")) return "検索";
   if (normalized.startsWith("/notifications")) return "通知";
@@ -33,7 +34,9 @@ export function AppShellLayout() {
   const location = useLocation();
   const title = titleForPath(location.pathname);
   // Bottom Nav で現在地が分かるトップレベルではシェル中央タイトルを出さない
-  const hideShellTitle = matchMainTab(location.pathname) != null;
+  const hideShellTitle =
+    matchMainTab(location.pathname) != null ||
+    /^\/posts\/\d+$/.test(location.pathname.replace(/\/$/, "") || "/");
   const hideBottomNav = shouldHideBottomNav(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const openMenu = useCallback(() => setMenuOpen(true), []);

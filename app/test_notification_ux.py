@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-from urllib.parse import quote
 
 from django.test import Client, TestCase, override_settings
-from django.urls import reverse
 
 from .board_services import timeline_post_link
 from .community_services import notify_community_reply, seed_communities
@@ -83,12 +81,12 @@ class LikeNotificationUxTests(TestCase):
         self.assertNotIn("like_actor", note.message)
         self.assertEqual(
             note.link,
-            f"{reverse('home')}?tag={quote('民法')}#post-{self.post.pk}",
+            f"/app/posts/{self.post.pk}",
         )
         self.assertEqual(note.link, timeline_post_link(self.post))
         self.assertEqual(
             notification_spa_path(note.link),
-            f"/?tag={quote('民法')}#post-{self.post.pk}",
+            f"/posts/{self.post.pk}",
         )
         detail = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
         self.assertEqual(detail.status_code, 200)
@@ -206,5 +204,27 @@ class OtherNotificationTypeUxTests(TestCase):
             note.message,
             "「アリスさんがあなたの投稿にコメントしました」",
         )
-        self.assertIn(f"#post-{post.pk}", note.link)
-        self.assertIn(f"#post-{post.pk}", notification_spa_path(note.link))
+        self.assertEqual(note.link, f"/app/posts/{post.pk}")
+        self.assertEqual(
+            notification_spa_path(note.link),
+            f"/posts/{post.pk}",
+        )
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class TimelinePostCanonicalLinkTests(TestCase):
+    def test_timeline_post_link_is_canonical_detail_path(self):
+        author = User.objects.create_user(
+            email="post-link@waseda.jp",
+            password="test-pass-12345",
+        )
+        post = TimelinePost.objects.create(
+            author=author,
+            body="canonical",
+            course_name="民法",
+        )
+        self.assertEqual(timeline_post_link(post), f"/app/posts/{post.pk}")
+        self.assertEqual(
+            notification_spa_path(timeline_post_link(post)),
+            f"/posts/{post.pk}",
+        )

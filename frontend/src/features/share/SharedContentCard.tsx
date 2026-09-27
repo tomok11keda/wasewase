@@ -21,7 +21,7 @@ function TimelineShareCard({
     ? `@${content.author.username}`
     : "";
   return (
-    <Link className="share-card share-card--timeline" to={`/posts/${targetId}`}>
+    <Link className="share-card share-card--timeline" to={`/posts/${targetId}`} state={{ fromWaseWase: true }}>
       <p className="share-card__brand">わせわせ</p>
       <div className="share-card__author">
         <span className="share-card__avatar" aria-hidden="true">
