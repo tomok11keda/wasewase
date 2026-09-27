@@ -341,8 +341,9 @@ export function HomePage() {
   useEffect(() => {
     if (loading) return;
     if (targetPostId) return;
+    if (activeTab !== "home") return;
     restoreScrollPosition("/");
-  }, [loading, posts.length, targetPostId]);
+  }, [loading, posts.length, targetPostId, activeTab]);
 
   useEffect(() => {
     if (browsePreview || !hasMore || loading || loadingMore) return;

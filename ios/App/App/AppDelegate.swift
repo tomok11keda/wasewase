@@ -57,6 +57,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             webView.scrollView.bounces = false
             webView.scrollView.alwaysBounceVertical = false
             webView.scrollView.alwaysBounceHorizontal = false
+            // Capacitor 7 has no ios.allowsBackForwardNavigationGestures config key.
+            // Enable WKWebView's screen-edge back/forward over BrowserRouter history.
+            webView.allowsBackForwardNavigationGestures = true
         }
     }
 
