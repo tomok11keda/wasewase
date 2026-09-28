@@ -50,7 +50,7 @@ if (!missingText || !missingText.includes("この投稿は表示できません"
 }
 console.log("direct missing post -> safe 404");
 
-await page.locator("button.post-detail-back").click();
+await page.locator("button.shell-header-back").click();
 await page.waitForURL(/\/app\/?$/, { timeout: 10000 });
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 console.log("direct/deep-link back -> /app/");
@@ -88,7 +88,7 @@ if (focusedAfterBody.includes("コメント")) {
 }
 console.log(`body tap -> detail /posts/${postId}`);
 
-await page.locator("button.post-detail-back").click();
+await page.locator("button.shell-header-back").click();
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 console.log("detail back -> timeline");
 
@@ -107,7 +107,7 @@ if (!activeTag.startsWith("INPUT:")) {
 }
 console.log("comment icon -> detail + composer focus");
 
-await page.locator("button.post-detail-back").click();
+await page.locator("button.shell-header-back").click();
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 
 const likeBefore = page.url();
@@ -126,7 +126,7 @@ if ((await author.count()) > 0) {
     fail(`avatar/name tap opened post detail: ${page.url()}`);
   }
   console.log(`profile tap -> ${page.url()}`);
-  await page.locator("a.profile-back").click();
+  await page.locator("button.shell-header-back").click();
   await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 }
 
@@ -138,7 +138,7 @@ if ((await flea.count()) > 0) {
     fail(`flea card opened post detail: ${page.url()}`);
   }
   console.log(`flea card -> ${page.url()}`);
-  await page.locator("a.back-link").first().click();
+  await page.locator("button.shell-header-back").click();
   await page.waitForTimeout(300);
 } else {
   console.log("skip flea card: none in feed");

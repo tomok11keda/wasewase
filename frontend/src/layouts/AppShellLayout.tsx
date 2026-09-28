@@ -1,30 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AccountDrawer } from "../components/AccountDrawer";
+import { AppDetailHeader } from "../components/AppDetailHeader";
 import { BottomNav } from "../components/BottomNav";
 import { BrowseModeBanner } from "../components/BrowseModeBanner";
 import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
+import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import { useSession } from "../lib/session";
-import {
-  matchMainTab,
-  shouldHideBottomNav,
-  TAB_ROUTES,
-} from "../lib/tabs";
+import { matchMainTab, shouldHideBottomNav, TAB_ROUTES } from "../lib/tabs";
 
-function titleForPath(pathname: string): string {
+function titleForMainPath(pathname: string): string {
   const normalized = pathname.replace(/\/$/, "") || "/";
-  if (/^\/posts\/\d+$/.test(normalized)) return "投稿";
-  if (normalized.startsWith("/users/")) return "プロフィール";
-  if (normalized.startsWith("/search")) return "検索";
-  if (normalized.startsWith("/notifications")) return "通知";
-  if (normalized.startsWith("/dm")) return "メッセージ";
-  if (normalized === "/more") return "メニュー";
-  if (normalized.startsWith("/settings")) return "設定";
   const hit = TAB_ROUTES.find((tab) => {
     if (tab.path === "/") return normalized === "/" || normalized === "";
-    return normalized === tab.path || normalized.startsWith(`${tab.path}/`);
+    return normalized === tab.path;
   });
   return hit?.title || "わせわせ";
 }
@@ -32,15 +23,18 @@ function titleForPath(pathname: string): string {
 export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
-  const title = titleForPath(location.pathname);
-  // Bottom Nav で現在地が分かるトップレベルではシェル中央タイトルを出さない
-  const hideShellTitle =
-    matchMainTab(location.pathname) != null ||
-    /^\/posts\/\d+$/.test(location.pathname.replace(/\/$/, "") || "/");
+  const chromeMode = matchChromeMode(location.pathname);
+  const title = titleForMainPath(location.pathname);
+  const hideShellTitle = matchMainTab(location.pathname) != null;
   const hideBottomNav = shouldHideBottomNav(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const openMenu = useCallback(() => setMenuOpen(true), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    applyChromeModeClass(chromeMode, document.documentElement);
+    applyChromeModeClass(chromeMode, document.body);
+  }, [chromeMode]);
 
   useEffect(() => {
     document.body.classList.toggle("shell-hide-bottom-nav", hideBottomNav);
@@ -56,17 +50,20 @@ export function AppShellLayout() {
 
   return (
     <>
-      <div className="app-shell">
+      <div className="app-shell" data-chrome-mode={chromeMode}>
         <aside className="sidebar-left" aria-label="サイドナビ">
           <SidebarNav />
         </aside>
 
         <div className="main-column">
-          <MobileShellHeader
-            title={title}
-            hideTitle={hideShellTitle}
-            onOpenMenu={openMenu}
-          />
+          {chromeMode === "main" ? (
+            <MobileShellHeader
+              title={title}
+              hideTitle={hideShellTitle}
+              onOpenMenu={openMenu}
+            />
+          ) : null}
+          {chromeMode === "detail" ? <AppDetailHeader /> : null}
           <BrowseModeBanner />
           {loading ? (
             <div className="main-inner">

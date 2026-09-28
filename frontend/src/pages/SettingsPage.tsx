@@ -79,11 +79,6 @@ export function SettingsPage() {
   return (
     <div className="settings-page" data-spa-page="設定">
       <div className="main-inner">
-        <Link className="profile-back" to="/">
-          ← タイムラインへ戻る
-        </Link>
-        <h1 className="page-title">アカウント設定</h1>
-
         {error ? <p className="settings-flash settings-flash--error">{error}</p> : null}
         {savedMsg ? (
           <p className="settings-flash settings-flash--ok">{savedMsg}</p>

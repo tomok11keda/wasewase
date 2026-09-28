@@ -6,7 +6,6 @@ export function MorePage() {
   return (
     <div className="more-page" data-spa-page="メニュー">
       <main className="main-inner">
-        <h1 className="page-title">メニュー</h1>
         <p className="more-page-lead">
           左上のプロフィールアイコンからも同じメニューを開けます。
         </p>

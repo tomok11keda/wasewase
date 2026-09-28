@@ -106,8 +106,6 @@ export function NotificationsPage() {
   return (
     <div className="notifications-page" data-spa-page="通知">
       <main className="main-inner">
-        <h1 className="page-title">通知</h1>
-
         <Link
           className="follow-request-entry"
           to="/settings/follow-requests"

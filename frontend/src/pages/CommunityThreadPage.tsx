@@ -194,10 +194,7 @@ export function CommunityThreadPage() {
 
   if (browsePreview) {
     return (
-      <div>
-        <Link className="community-back" to="/communities">
-          ← コミュニティ
-        </Link>
+      <div data-spa-page="コミュニティ" className="community-thread-page">
         <BrowsePreviewNotice
           nextPath={`/app/communities/${slug}/threads/${threadPk}`}
         >
@@ -208,14 +205,15 @@ export function CommunityThreadPage() {
   }
 
   if (loading) {
-    return <p className="empty-message">読み込み中…</p>;
+    return (
+      <div data-spa-page="コミュニティ" className="community-thread-page">
+        <p className="empty-message">読み込み中…</p>
+      </div>
+    );
   }
   if (error || !thread) {
     return (
-      <div>
-        <Link className="community-back" to="/communities">
-          ← コミュニティ
-        </Link>
+      <div data-spa-page="コミュニティ" className="community-thread-page">
         <p className="empty-message">スレッドを表示できません（{error}）</p>
       </div>
     );
@@ -223,9 +221,6 @@ export function CommunityThreadPage() {
 
   return (
     <div data-spa-page="コミュニティ" className="community-thread-page">
-      <Link className="community-back" to="/communities">
-        ← コミュニティ
-      </Link>
       <p className="community-anon-hint">
         {thread.anonymous_hint || COMMUNITY_ANON_HINT}
       </p>

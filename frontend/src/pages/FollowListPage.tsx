@@ -24,7 +24,6 @@ export function FollowListPage({ kind }: Props) {
   const [forbidden, setForbidden] = useState(false);
 
   const title = kind === "followers" ? "フォロワー" : "フォロー中";
-  const profilePath = `/users/${pk}/posts`;
   const loginNext = `/app/users/${pk}/${kind}`;
 
   useEffect(() => {
@@ -71,11 +70,6 @@ export function FollowListPage({ kind }: Props) {
   return (
     <div className="profile-page" data-spa-page={title}>
       <div className="main-inner">
-        <Link className="profile-back" to={Number.isFinite(pk) ? profilePath : "/"}>
-          ← プロフィールへ戻る
-        </Link>
-        <h1 className="page-title">{title}</h1>
-
         {sessionLoading || loading ? <p>読み込み中…</p> : null}
 
         {!loading && forbidden ? (

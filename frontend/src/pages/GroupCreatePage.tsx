@@ -91,7 +91,6 @@ export function GroupCreatePage() {
     <div className="dm-page" data-spa-page="メッセージ">
       <main className="main-inner" aria-label="グループ作成">
         <div className="dm-group-header">
-          <h1>グループを作成して招待</h1>
           <p>
             誰でも招待できます。招待された相手は参加するまでメンバーにはなりません。
           </p>

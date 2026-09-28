@@ -118,7 +118,6 @@ export function DmInboxPage() {
     <div className="dm-page" data-spa-page="メッセージ">
       <main className="main-inner" data-dm-inbox>
         <header className="dm-inbox-header">
-          <h1>メッセージ</h1>
           <p>DM・授業掲示板・取引チャットをまとめて確認できます。</p>
           <nav className="dm-inbox-tabs" aria-label="メッセージの種類">
             {TABS.map((t) => (

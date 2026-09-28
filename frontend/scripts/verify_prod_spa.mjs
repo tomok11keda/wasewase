@@ -178,7 +178,7 @@ if ((await product.count()) > 0) {
     await page.waitForSelector(".product-detail-page", { timeout: 20000 });
   });
   await expectNoReload("flea:detail→list", async () => {
-    await page.locator("a.back-link", { hasText: "フリマへ戻る" }).click();
+    await page.locator("button.shell-header-back").click();
     await page.waitForSelector(".flea-page", { timeout: 20000 });
   });
 } else {
@@ -197,7 +197,7 @@ if ((await thread.count()) > 0) {
     });
   });
   await expectNoReload("community:thread→list", async () => {
-    await page.locator("a.back-link, a.community-back").first().click();
+    await page.locator("button.shell-header-back").click();
     await page.waitForSelector('[data-spa-page="コミュニティ"]', {
       timeout: 20000,
     });

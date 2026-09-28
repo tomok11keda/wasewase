@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import {
   createProduct,
@@ -89,9 +89,6 @@ export function ExhibitPage() {
   return (
     <div className="exhibit-page" data-spa-page="フリマ">
       <div className="main-inner">
-        <Link className="back-link" to="/flea">
-          ← フリマへ戻る
-        </Link>
         <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>商品を出品</h2>
         <p className="form-lead">
           受け渡しキャンパスと商品画像は必須です。

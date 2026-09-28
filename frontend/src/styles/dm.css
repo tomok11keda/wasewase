@@ -38,10 +38,12 @@
 @media (max-width: 1023px) {
   .dm-room-page {
     height: calc(
-      var(--chat-visible-h, 100dvh) - var(--wase-header-h, 0px)
+      var(--chat-visible-h, 100dvh) -
+        var(--wase-chrome-offset, var(--wase-header-h, 0px))
     );
     max-height: calc(
-      var(--chat-visible-h, 100dvh) - var(--wase-header-h, 0px)
+      var(--chat-visible-h, 100dvh) -
+        var(--wase-chrome-offset, var(--wase-header-h, 0px))
     );
     overflow: hidden;
     display: flex;
@@ -134,10 +136,16 @@
 }
 
 .dm-inbox-header p {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 13px;
   color: var(--dm-muted);
   line-height: 1.5;
+}
+
+html.chrome-detail .dm-inbox-header,
+html.chrome-detail .dm-group-header {
+  position: relative;
+  top: auto;
 }
 
 .dm-inbox-tabs {

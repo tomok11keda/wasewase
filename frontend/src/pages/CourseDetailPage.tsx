@@ -283,7 +283,6 @@ export function CourseDetailPage() {
       <div className="course-detail-page" data-spa-page="時間割">
         <div className="main-inner">
           <p>授業が見つかりませんでした。</p>
-          <Link to="/timetable">時間割へ戻る</Link>
         </div>
       </div>
     );
@@ -297,14 +296,6 @@ export function CourseDetailPage() {
   return (
     <div className="course-detail-page" data-spa-page="時間割">
       <div className="main-inner course-detail">
-        <button
-          type="button"
-          className="course-detail__back"
-          onClick={() => navigate(-1)}
-        >
-          ← 戻る
-        </button>
-
         <h1 className="course-detail__title">{offering.title}</h1>
         <p className="course-detail__instructor">{offering.instructor}</p>
         <p className="course-detail__schedule">

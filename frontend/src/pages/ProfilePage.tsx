@@ -211,9 +211,6 @@ export function ProfilePage() {
     return (
       <div className="profile-page" data-spa-page="プロフィール">
         <div className="main-inner">
-          <Link className="profile-back" to="/">
-            ← ホームへ戻る
-          </Link>
           <BrowsePreviewNotice nextPath={`/app/users/${pk}`}>
             プロフィールはログイン後に表示されます。
           </BrowsePreviewNotice>
@@ -236,9 +233,6 @@ export function ProfilePage() {
     return (
       <div className="profile-page" data-spa-page="プロフィール">
         <div className="main-inner">
-          <Link className="profile-back" to="/">
-            ← ホームへ戻る
-          </Link>
           <p>プロフィールを表示できません（{error || "not_found"}）</p>
         </div>
       </div>
@@ -258,10 +252,6 @@ export function ProfilePage() {
   return (
     <div className="profile-page" data-spa-page="プロフィール">
       <div className="main-inner">
-        <Link className="profile-back" to="/" onClick={() => {}}>
-          ← 戻る
-        </Link>
-
         <section className="profile-card">
           <div className="profile-header">
             {u.avatar_url ? (

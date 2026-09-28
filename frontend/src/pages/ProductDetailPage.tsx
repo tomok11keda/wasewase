@@ -270,9 +270,6 @@ export function ProductDetailPage() {
     return (
       <div className="product-detail-page" data-spa-page="フリマ">
         <div className="main-inner">
-          <Link className="back-link" to="/flea">
-            ← フリマへ戻る
-          </Link>
           <BrowsePreviewNotice nextPath={`/app/flea/products/${productId}`}>
             出品の詳細はログイン後に表示されます。
           </BrowsePreviewNotice>
@@ -295,9 +292,6 @@ export function ProductDetailPage() {
     return (
       <div className="product-detail-page" data-spa-page="フリマ">
         <div className="main-inner">
-          <Link className="back-link" to="/flea">
-            ← フリマへ戻る
-          </Link>
           <p>商品を表示できません（{error || "not_found"}）</p>
         </div>
       </div>
@@ -307,10 +301,6 @@ export function ProductDetailPage() {
   return (
     <div className="product-detail-page" data-spa-page="フリマ">
       <div className="main-inner">
-        <Link className="back-link" to="/flea">
-          ← フリマへ戻る
-        </Link>
-
         {flash ? <div className={`flash ${flash.type}`}>{flash.text}</div> : null}
 
         <article

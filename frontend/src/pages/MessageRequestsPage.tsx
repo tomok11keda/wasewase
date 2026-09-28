@@ -57,13 +57,7 @@ export function MessageRequestsPage() {
   return (
     <div className="dm-page" data-spa-page="メッセージ">
       <main className="main-inner" aria-label="メッセージリクエスト">
-        <p className="dm-room-top">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-        </p>
         <header className="dm-inbox-header">
-          <h1>メッセージリクエスト</h1>
           <p>
             フォローしていないユーザーからのメッセージです。チャットを開始するか拒否できます。
           </p>

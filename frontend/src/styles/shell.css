@@ -327,6 +327,10 @@
   padding-left: 8px;
 }
 
+html.chrome-conversation {
+  --wase-chrome-offset: var(--wase-sat, 0px);
+}
+
 .shell-header-row {
   display: flex;
   align-items: center;
@@ -348,6 +352,32 @@
   justify-content: flex-end;
   gap: 4px;
   min-width: 92px;
+}
+
+.site-header--detail .shell-header-end {
+  min-width: 44px;
+}
+
+.shell-header-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .shell-header-title {

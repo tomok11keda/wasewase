@@ -83,11 +83,6 @@ export function FollowRequestsPage() {
   return (
     <div className="settings-page" data-spa-page="フォローリクエスト">
       <div className="main-inner">
-        <Link className="profile-back" to="/notifications">
-          ← 通知へ戻る
-        </Link>
-        <h1 className="page-title">フォローリクエスト</h1>
-
         {flash ? <p className="settings-flash settings-flash--ok">{flash}</p> : null}
         {error ? <p className="settings-flash settings-flash--error">{error}</p> : null}
 

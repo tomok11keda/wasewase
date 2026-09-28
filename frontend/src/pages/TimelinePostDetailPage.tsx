@@ -69,18 +69,6 @@ export function TimelinePostDetailPage() {
 
   return (
     <div className="post-detail-page" data-spa-page="投稿">
-      <header className="post-detail-header">
-        <button
-          type="button"
-          className="post-detail-back"
-          aria-label="戻る"
-          onClick={goBack}
-        >
-          ←
-        </button>
-        <h1 className="post-detail-title">投稿</h1>
-      </header>
-
       {browsePreview ? (
         <BrowsePreviewNotice nextPath={`/app/posts/${postId}`}>
           投稿の詳細はログイン後に表示されます。

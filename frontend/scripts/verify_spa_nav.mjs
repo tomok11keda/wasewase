@@ -70,7 +70,7 @@ if ((await productLink.count()) > 0) {
   await page.waitForURL(/\/app\/flea\/products\/\d+/, { timeout: 10000 });
   await page.waitForSelector(".product-detail-page", { timeout: 10000 });
   console.log(`navigated flea detail -> ${page.url()}`);
-  await page.locator("a.back-link", { hasText: "フリマへ戻る" }).click();
+  await page.locator("button.shell-header-back").click();
   await page.waitForSelector(".flea-page", { timeout: 10000 });
   console.log(`navigated flea list back -> ${page.url()}`);
 } else {
@@ -91,7 +91,7 @@ if ((await authorLink.count()) > 0) {
   await page.locator("a.profile-tab", { hasText: "投稿" }).click();
   await page.waitForURL(/\/app\/users\/\d+\/posts/, { timeout: 10000 });
   console.log(`profile posts tab -> ${page.url()}`);
-  await page.locator("a.profile-back").click();
+  await page.locator("button.shell-header-back").click();
   await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
   console.log(`back home -> ${page.url()}`);
 } else {

@@ -42,13 +42,20 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
  * ネイティブ WKWebView 向けの追加安定化は下部の .is-native-capacitor ブロック。
  */
 :root {
+  /* sat = top inset only. header-h = sat + visible header row. Do not add sat again on content. */
   --wase-sat: 0px;
   --wase-sat-fallback: 0px;
   --wase-header-pad-y: 10px;
   --wase-header-content-min-h: 44px;
+  --wase-header-content-h: var(--wase-header-content-min-h);
   --wase-header-h: calc(
-    var(--wase-sat) + var(--wase-header-content-min-h) + (2 * var(--wase-header-pad-y))
+    var(--wase-sat) + var(--wase-header-content-h) + (2 * var(--wase-header-pad-y))
   );
+  --wase-chrome-offset: var(--wase-header-h);
+}
+
+html.chrome-conversation {
+  --wase-chrome-offset: var(--wase-sat);
 }
 
 @supports (top: constant(safe-area-inset-top)) {
@@ -161,10 +168,10 @@ html.is-native-capacitor .wase-admob-anchor.is-admob-anchor-active {
     z-index: -1;
   }
 
-  .main-column:has(> .site-header),
+  .main-column,
   body:has(> .site-header),
   body:has(> .legal-header) {
-    padding-top: var(--wase-header-h);
+    padding-top: var(--wase-chrome-offset, var(--wase-header-h));
   }
 
   .site-header-offset {
