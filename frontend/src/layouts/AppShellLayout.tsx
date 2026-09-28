@@ -8,6 +8,7 @@ import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
 import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
+import { useDetailPushTransition } from "../lib/detailTransition";
 import { useSession } from "../lib/session";
 import { matchMainTab, shouldHideBottomNav, TAB_ROUTES } from "../lib/tabs";
 
@@ -24,6 +25,7 @@ export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
   const chromeMode = matchChromeMode(location.pathname);
+  useDetailPushTransition();
   const title = titleForMainPath(location.pathname);
   const hideShellTitle = matchMainTab(location.pathname) != null;
   const hideBottomNav = shouldHideBottomNav(location.pathname);
