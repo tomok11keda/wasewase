@@ -12,7 +12,7 @@ import {
 } from "../features/profile/api";
 
 export const DETAIL_PUSH_CLASS = "wase-detail-push";
-export const DETAIL_PUSH_MS = 240;
+export const DETAIL_PUSH_MS = 280;
 
 /** Main-tab sessionStorage key, or null when the path is not a keep-alive tab. */
 export function mainTabScrollKey(pathname: string): string | null {

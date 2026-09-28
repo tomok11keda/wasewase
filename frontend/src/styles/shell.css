@@ -590,7 +590,7 @@ html.wase-detail-push {
 }
 
 html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden) {
-  animation: wase-detail-push-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: wase-detail-push-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
