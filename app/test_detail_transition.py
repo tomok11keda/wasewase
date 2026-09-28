@@ -22,7 +22,7 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn('matchChromeMode(input.pathname) === "detail"', src)
         self.assertIn("useNavigationType", src)
         self.assertIn("DETAIL_PUSH_CLASS = \"wase-detail-push\"", src)
-        self.assertIn("DETAIL_PUSH_MS = 340", src)
+        self.assertIn("DETAIL_PUSH_MS = 500", src)
         helper = src.split("export function shouldPlayDetailPush")[1].split(
             "export function shouldResetDetailWindowScroll"
         )[0]
@@ -78,7 +78,7 @@ class DetailPushCssTests(SimpleTestCase):
         self.assertIn("translate3d(40px, 0, 0)", css)
         self.assertIn("translate3d(0, 0, 0)", css)
         self.assertIn("opacity: 0.98", css)
-        self.assertIn("340ms", css)
+        self.assertIn("500ms", css)
         self.assertIn("cubic-bezier(0.22, 1, 0.36, 1)", css)
         block = css.split("@keyframes wase-detail-push-in")[1].split("@media")[0]
         self.assertNotIn("margin-left", block)
@@ -89,7 +89,7 @@ class DetailPushCssTests(SimpleTestCase):
         css = _read("frontend/src/styles/shell.css")
         phase = css.split("@keyframes wase-detail-push-in")[1]
         self.assertIn("html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden)", phase)
-        self.assertIn("animation: wase-detail-push-in 340ms", phase)
+        self.assertIn("animation: wase-detail-push-in 500ms", phase)
         self.assertNotIn("html.wase-detail-push .site-header--detail", phase)
         self.assertNotIn("html.wase-detail-push .tab-keep-alive-pane", phase)
         self.assertNotIn("html.wase-detail-push .bottom-nav", css)
