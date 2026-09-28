@@ -43,19 +43,23 @@ def notify_mentions(
     actor: AbstractBaseUser,
     link: str,
     exclude_user_ids: set[int] | None = None,
-) -> None:
+) -> set[int]:
+    """Create mention notifications. Returns recipient user ids that were notified."""
     usernames = extract_mention_usernames(body)
     if not usernames or not actor.is_authenticated:
-        return
+        return set()
 
     exclude = set(exclude_user_ids or [])
     exclude.add(actor.pk)
     blocked_ids = get_blocked_user_ids(actor)
     actor_label = notification_actor_label(actor)
+    notified: set[int] = set()
 
     for username in usernames:
         user = resolve_user_by_username(username)
         if not user or user.pk in exclude or user.pk in blocked_ids:
+            continue
+        if user.pk in notified:
             continue
         if is_user_blocked(user, actor):
             continue
@@ -66,6 +70,8 @@ def notify_mentions(
             actor=actor,
             push_kind="mention",
         )
+        notified.add(user.pk)
+    return notified
 
 
 def linkify_mentions(text: str) -> SafeString | str:

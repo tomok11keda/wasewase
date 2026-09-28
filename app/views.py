@@ -83,6 +83,7 @@ from .board_services import (
     build_timeline_posts_queryset,
     get_profile_timeline_posts,
     get_quotable_post,
+    notify_timeline_comment,
     notify_timeline_post_author,
     timeline_post_link,
 )
@@ -2550,23 +2551,10 @@ def board_timeline_comment(request, pk):
         comment.timeline_post = post
         comment.author = request.user
         comment.save()
-        link = timeline_post_link(post)
-        if post.author_id and post.author_id != request.user.id:
-            create_notification(
-                recipient=post.author,
-                message=(
-                    f"「{notification_actor_label(request.user)}さんが"
-                    "あなたの投稿にコメントしました」"
-                ),
-                link=link,
-                actor=request.user,
-                push_kind="comment",
-            )
-        notify_mentions(
-            body=comment.body,
+        notify_timeline_comment(
+            post=post,
             actor=request.user,
-            link=link,
-            exclude_user_ids={post.author_id} if post.author_id else None,
+            comment_body=comment.body,
         )
         messages.success(request, "コメントを投稿しました。")
     else:

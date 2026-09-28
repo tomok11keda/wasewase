@@ -178,3 +178,109 @@ def notify_timeline_post_author(
         actor=actor,
         push_kind="like",
     )
+
+
+def previous_timeline_comment_participant_ids(
+    *,
+    post: TimelinePost,
+    exclude_user_ids: set[int] | None = None,
+) -> set[int]:
+    """Distinct authors of currently visible (non-removed) comments on the post.
+
+    Physically deleted comments and moderated ``is_removed=True`` comments do not
+    count as participation. ``author_id`` null rows are ignored.
+    """
+    from .models import Comment
+
+    exclude = set(exclude_user_ids or [])
+    qs = Comment.objects.filter(
+        timeline_post_id=post.pk,
+        is_removed=False,
+        author_id__isnull=False,
+    )
+    if exclude:
+        qs = qs.exclude(author_id__in=exclude)
+    return set(qs.values_list("author_id", flat=True).distinct())
+
+
+def notify_timeline_comment(
+    *,
+    post: TimelinePost,
+    actor: AbstractBaseUser,
+    comment_body: str,
+) -> None:
+    """Notify post author, mentions, then previous comment participants.
+
+    Priority for the same recipient on one comment action:
+    1) post-author comment notification
+    2) mention notification
+    3) participant notification
+
+    Participant copy uses the same push_kind category (``comment``) but an
+    explicit ``push_body`` so lock-screen text is not the author-only template.
+    """
+    from django.contrib.auth import get_user_model
+
+    from .mention_services import notify_mentions
+    from .notification_services import notification_actor_label
+    from .ugc_services import get_either_blocked_user_ids
+
+    if not getattr(actor, "is_authenticated", False):
+        return
+
+    link = timeline_post_link(post)
+    actor_label = notification_actor_label(actor)
+    notified: set[int] = set()
+
+    if post.author_id and post.author_id != actor.pk:
+        create_notification(
+            recipient=post.author,
+            message=(
+                f"「{actor_label}さんがあなたの投稿にコメントしました」"
+            ),
+            link=link,
+            actor=actor,
+            push_kind="comment",
+        )
+        notified.add(post.author_id)
+
+    mentioned_ids = notify_mentions(
+        body=comment_body,
+        actor=actor,
+        link=link,
+        exclude_user_ids=set(notified),
+    )
+    notified.update(mentioned_ids)
+
+    participant_ids = previous_timeline_comment_participant_ids(
+        post=post,
+        exclude_user_ids={actor.pk} | notified,
+    )
+    if not participant_ids:
+        return
+
+    # Avoid notifying users in a bilateral block with the commenter.
+    participant_ids -= get_either_blocked_user_ids(actor)
+    if not participant_ids:
+        return
+
+    active_ids = set(
+        get_user_model()
+        .objects.filter(pk__in=participant_ids, is_active=True)
+        .values_list("pk", flat=True)
+    )
+    if not active_ids:
+        return
+
+    participant_message = (
+        f"「{actor_label}さんがコメントした投稿に新しいコメントがあります」"
+    )
+    for recipient_id in active_ids:
+        create_notification(
+            recipient_id=recipient_id,
+            message=participant_message,
+            link=link,
+            actor=actor,
+            push_kind="comment",
+            push_body=participant_message,
+        )

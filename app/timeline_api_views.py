@@ -12,6 +12,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from .board_services import (
     get_quotable_post,
+    notify_timeline_comment,
     notify_timeline_post_author,
     timeline_post_link,
 )
@@ -35,7 +36,7 @@ from .timeline_api_services import (
     serialize_comment,
     serialize_timeline_post,
 )
-from .notification_services import create_notification, notification_actor_label
+from .notification_services import notification_actor_label
 from .ugc_services import get_visible_timeline_post_or_404
 
 
@@ -282,23 +283,10 @@ def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
     comment.timeline_post = post
     comment.author = request.user
     comment.save()
-    link = timeline_post_link(post)
-    if post.author_id and post.author_id != request.user.id:
-        create_notification(
-            recipient=post.author,
-            message=(
-                f"「{notification_actor_label(request.user)}さんが"
-                "あなたの投稿にコメントしました」"
-            ),
-            link=link,
-            actor=request.user,
-            push_kind="comment",
-        )
-    notify_mentions(
-        body=comment.body,
+    notify_timeline_comment(
+        post=post,
         actor=request.user,
-        link=link,
-        exclude_user_ids={post.author_id} if post.author_id else None,
+        comment_body=comment.body,
     )
     comment_count = post.comments.filter(is_removed=False).count()
     return JsonResponse(
