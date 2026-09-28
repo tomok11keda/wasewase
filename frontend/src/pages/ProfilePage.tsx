@@ -10,6 +10,7 @@ import { isBrowsePreview, useSession } from "../lib/session";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import type { ProductCard } from "../features/flea/api";
+import { productDetailState } from "../features/flea/productNav";
 import {
   fetchProfile,
   fetchProfileBookmarks,
@@ -535,6 +536,7 @@ export function ProfilePage() {
                   key={p.id}
                   className="product-card"
                   to={`/flea/products/${p.id}`}
+                  state={productDetailState(p)}
                 >
                   <div className="product-card-media">
                     {p.image_url ? (

@@ -11,11 +11,16 @@ import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
+import { productDetailState } from "../features/flea/productNav";
 
 function ProductGridCard({ product }: { product: ProductCard }) {
   const sellerName = product.seller?.display_name || "出品者";
   return (
-    <Link className="product-card" to={`/flea/products/${product.id}`}>
+    <Link
+      className="product-card"
+      to={`/flea/products/${product.id}`}
+      state={productDetailState(product)}
+    >
       <div className="product-card-media">
         {product.image_url ? (
           <img src={product.image_url} alt={product.name} loading="lazy" />

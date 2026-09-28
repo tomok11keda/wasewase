@@ -7,7 +7,10 @@ import {
   type TimelinePost,
 } from "../features/timeline/api";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
-import type { TimelinePostDetailNavState } from "../features/timeline/postAnchor";
+import {
+  readInitialTimelinePost,
+  type TimelinePostDetailNavState,
+} from "../features/timeline/postAnchor";
 import { isBrowsePreview, useSession } from "../lib/session";
 
 export function TimelinePostDetailPage() {
@@ -20,9 +23,14 @@ export function TimelinePostDetailPage() {
   const navState = (location.state || null) as TimelinePostDetailNavState | null;
   const focusComposerOnce = useRef(Boolean(navState?.focusComposer)).current;
 
-  const [post, setPost] = useState<TimelinePost | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [post, setPost] = useState<TimelinePost | null>(() =>
+    readInitialTimelinePost(location.state, postId)
+  );
+  const [loading, setLoading] = useState(() => !post);
+  const [hydrated, setHydrated] = useState(() => !post);
   const [error, setError] = useState<string | null>(null);
+  const mutatedRef = useRef(false);
+  const fetchGen = useRef(0);
 
   const goBack = useCallback(() => {
     if (navState?.fromWaseWase) {
@@ -32,27 +40,69 @@ export function TimelinePostDetailPage() {
     navigate("/", { replace: true });
   }, [navState?.fromWaseWase, navigate]);
 
+  const applyLocalPost = useCallback((next: TimelinePost) => {
+    mutatedRef.current = true;
+    setPost(next);
+  }, []);
+
+  useEffect(() => {
+    const next = readInitialTimelinePost(location.state, postId);
+    mutatedRef.current = false;
+    fetchGen.current += 1;
+    setPost(next);
+    setLoading(!next);
+    setHydrated(!next);
+    setError(null);
+  }, [postId, location.key]);
+
   const load = useCallback(async () => {
     if (!Number.isFinite(postId) || postId <= 0) {
       setPost(null);
       setError("この投稿は表示できません");
       setLoading(false);
+      setHydrated(true);
       return;
     }
-    setLoading(true);
-    setError(null);
+    const gen = ++fetchGen.current;
+    const hadPreview = Boolean(readInitialTimelinePost(location.state, postId));
+    if (!hadPreview) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const next = await fetchTimelinePost(postId);
-      setPost(next);
+      if (gen !== fetchGen.current) return;
+      if (mutatedRef.current) {
+        setPost((prev) =>
+          prev
+            ? {
+                ...prev,
+                comments: next.comments,
+                comment_count: next.comment_count,
+                view_count: next.view_count,
+              }
+            : next
+        );
+      } else {
+        setPost(next);
+      }
+      setError(null);
+      setHydrated(true);
     } catch (err) {
+      if (gen !== fetchGen.current) return;
+      const message =
+        err instanceof Error ? err.message : "この投稿は表示できません";
+      if (hadPreview && message !== "この投稿は表示できません") {
+        setHydrated(true);
+        return;
+      }
       setPost(null);
-      setError(
-        err instanceof Error ? err.message : "この投稿は表示できません"
-      );
+      setError(message);
+      setHydrated(true);
     } finally {
-      setLoading(false);
+      if (gen === fetchGen.current) setLoading(false);
     }
-  }, [postId]);
+  }, [postId, location.state]);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -60,6 +110,7 @@ export function TimelinePostDetailPage() {
       setPost(null);
       setError(null);
       setLoading(false);
+      setHydrated(true);
       return;
     }
     void load();
@@ -73,18 +124,15 @@ export function TimelinePostDetailPage() {
         <BrowsePreviewNotice nextPath={`/app/posts/${postId}`}>
           投稿の詳細はログイン後に表示されます。
         </BrowsePreviewNotice>
-      ) : loading || sessionLoading ? (
-        <p className="empty-message">読み込み中…</p>
-      ) : error || !post ? (
-        <p className="empty-message">{error || "この投稿は表示できません"}</p>
-      ) : (
+      ) : post ? (
         <div className="post-detail-body">
           <TimelinePostCard
             post={post}
             authenticated={authenticated}
             variant="detail"
             focusComposer={focusComposerOnce}
-            onChange={setPost}
+            commentsPending={!hydrated}
+            onChange={applyLocalPost}
             onRemove={() => {
               goBack();
             }}
@@ -96,6 +144,10 @@ export function TimelinePostDetailPage() {
             }}
           />
         </div>
+      ) : loading || sessionLoading ? (
+        <p className="empty-message">読み込み中…</p>
+      ) : (
+        <p className="empty-message">{error || "この投稿は表示できません"}</p>
       )}
     </div>
   );

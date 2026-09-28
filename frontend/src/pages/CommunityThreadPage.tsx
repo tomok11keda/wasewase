@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
   COMMUNITY_ANON_HINT,
@@ -15,6 +15,7 @@ import {
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { readInitialThread } from "../features/community/threadNav";
 
 function formatTime(iso: string): string {
   try {
@@ -30,10 +31,14 @@ export function CommunityThreadPage() {
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
+  const location = useLocation();
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [thread, setThread] = useState<ThreadDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [thread, setThread] = useState<ThreadDetail | null>(() =>
+    readInitialThread(location.state, pk)
+  );
+  const [loading, setLoading] = useState(() => !thread);
+  const [hydrated, setHydrated] = useState(() => !thread);
   const [error, setError] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,19 +46,65 @@ export function CommunityThreadPage() {
   const [editBody, setEditBody] = useState("");
   const [replyTarget, setReplyTarget] = useState<ThreadReply | null>(null);
 
+  const mutatedRef = useRef(false);
+  const fetchGen = useRef(0);
+
+  useEffect(() => {
+    const next = readInitialThread(location.state, pk);
+    mutatedRef.current = false;
+    fetchGen.current += 1;
+    setThread(next);
+    setLoading(!next);
+    setHydrated(!next);
+    setError(null);
+  }, [slug, pk, location.key]);
+
   const load = useCallback(async () => {
     if (!slug || !pk) return;
-    setLoading(true);
-    setError(null);
+    const gen = ++fetchGen.current;
+    const hadPreview = Boolean(readInitialThread(location.state, pk));
+    if (!hadPreview) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await fetchThreadDetail(slug, pk);
-      setThread(data);
+      if (gen !== fetchGen.current) return;
+      if (mutatedRef.current) {
+        setThread((prev) =>
+          prev
+            ? {
+                ...data,
+                replies:
+                  prev.replies.length > data.replies.length
+                    ? prev.replies
+                    : data.replies,
+                visible_reply_count: Math.max(
+                  prev.visible_reply_count,
+                  data.visible_reply_count
+                ),
+              }
+            : data
+        );
+      } else {
+        setThread(data);
+      }
+      setError(null);
+      setHydrated(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
+      if (gen !== fetchGen.current) return;
+      if (hadPreview && err instanceof TypeError) {
+        setHydrated(true);
+        return;
+      }
+      const message = err instanceof Error ? err.message : "detail_failed";
+      setThread(null);
+      setError(message);
+      setHydrated(true);
     } finally {
-      setLoading(false);
+      if (gen === fetchGen.current) setLoading(false);
     }
-  }, [slug, pk]);
+  }, [slug, pk, location.state]);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -61,6 +112,7 @@ export function CommunityThreadPage() {
       setThread(null);
       setError(null);
       setLoading(false);
+      setHydrated(true);
       return;
     }
     void load();
@@ -108,6 +160,7 @@ export function CommunityThreadPage() {
         body,
         replyTarget?.id ?? null
       );
+      mutatedRef.current = true;
       setThread({
         ...thread,
         replies: [...thread.replies, reply],
@@ -143,6 +196,7 @@ export function CommunityThreadPage() {
     setBusy(true);
     try {
       await deleteReply(slug, pk, reply.id);
+      mutatedRef.current = true;
       setThread({
         ...thread,
         replies: thread.replies.map((r) =>
@@ -180,6 +234,7 @@ export function CommunityThreadPage() {
     setBusy(true);
     try {
       const updated = await editReply(slug, pk, reply.id, editBody.trim());
+      mutatedRef.current = true;
       setThread({
         ...thread,
         replies: thread.replies.map((r) => (r.id === reply.id ? updated : r)),
@@ -265,6 +320,9 @@ export function CommunityThreadPage() {
       </article>
 
       <section className="forum-replies" aria-label="スレッドの発言">
+        {!hydrated && thread.replies.length === 0 ? (
+          <p className="empty-message">発言を読み込み中…</p>
+        ) : null}
         <ul className="reply-list">
           {thread.replies.map((reply) => {
             const isNested = Boolean(reply.reply_to);

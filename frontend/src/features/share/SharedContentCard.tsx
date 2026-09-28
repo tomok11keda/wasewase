@@ -1,4 +1,8 @@
 import { Link } from "react-router-dom";
+import {
+  productCardFromFleaShare,
+  productDetailState,
+} from "../flea/productNav";
 import type {
   FleaShareContent,
   ShareCardPayload,
@@ -59,6 +63,7 @@ function FleaShareCard({
     <Link
       className="share-card share-card--flea"
       to={`/flea/products/${targetId}`}
+      state={productDetailState(productCardFromFleaShare({ ...content, id: targetId }))}
     >
       <p className="share-card__brand">わせわせ フリマ</p>
       {content.image_url ? (

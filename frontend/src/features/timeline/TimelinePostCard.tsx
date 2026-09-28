@@ -22,7 +22,10 @@ import {
   IMPRESSION_DWELL_MS,
   queueImpression,
 } from "./impressions";
-import { isTimelinePostDetailIgnoreTarget } from "./postAnchor";
+import {
+  isTimelinePostDetailIgnoreTarget,
+  timelinePostDetailState,
+} from "./postAnchor";
 import { saveScrollPosition } from "../profile/api";
 import { analytics } from "../../lib/analytics/events";
 
@@ -37,6 +40,7 @@ type Props = {
   onRequireLogin: () => void;
   variant?: TimelinePostCardVariant;
   focusComposer?: boolean;
+  commentsPending?: boolean;
 };
 
 function formatRelative(iso: string): string {
@@ -77,6 +81,7 @@ export function TimelinePostCard({
   onRequireLogin,
   variant = "feed",
   focusComposer = false,
+  commentsPending = false,
 }: Props) {
   const navigate = useNavigate();
   const [commentBody, setCommentBody] = useState("");
@@ -101,10 +106,7 @@ export function TimelinePostCard({
     }
     saveScrollPosition("/");
     navigate(`/posts/${post.id}`, {
-      state: {
-        fromWaseWase: true,
-        ...(opts?.focusComposer ? { focusComposer: true } : {}),
-      },
+      state: timelinePostDetailState(post, opts),
     });
   };
 
@@ -288,7 +290,7 @@ export function TimelinePostCard({
                 <Link
                   className="tweet-time tweet-time--detail-link"
                   to={`/posts/${post.id}`}
-                  state={{ fromWaseWase: true }}
+                  state={timelinePostDetailState(post)}
                   onClick={() => saveScrollPosition("/")}
                   aria-label="投稿の詳細を見る"
                 >
@@ -600,7 +602,9 @@ export function TimelinePostCard({
                   コメントにはログインが必要です。
                 </p>
               )}
-              {post.comments.length === 0 ? (
+              {commentsPending ? (
+                <p className="tweet-comments__empty">コメントを読み込み中…</p>
+              ) : post.comments.length === 0 ? (
                 <p className="tweet-comments__empty">まだコメントはありません</p>
               ) : (
                 <ul className="tweet-comment-list">

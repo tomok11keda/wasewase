@@ -8,6 +8,7 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { productDetailState } from "../features/flea/productNav";
 import {
   completeHandover,
   confirmTrade,
@@ -279,7 +280,11 @@ export function TradeChatPage() {
   return (
     <div className="trade-chat-page dm-room-page" data-spa-page="フリマ">
       <div className="main-inner dm-room-main">
-        <Link className="back-link" to={`/flea/products/${room.product.id}`}>
+        <Link
+          className="back-link"
+          to={`/flea/products/${room.product.id}`}
+          state={productDetailState(room.product)}
+        >
           ← 商品詳細へ戻る
         </Link>
         <p>

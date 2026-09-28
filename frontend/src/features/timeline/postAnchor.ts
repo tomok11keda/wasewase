@@ -1,3 +1,5 @@
+import type { TimelinePost } from "./api";
+
 const POST_HASH_RE = /^#?post-(\d+)$/;
 const POST_PATH_RE = /^\/(?:app\/)?posts\/(\d+)\/?$/;
 
@@ -20,7 +22,35 @@ export const TIMELINE_POST_DETAIL_IGNORE_SELECTOR = [
 export type TimelinePostDetailNavState = {
   fromWaseWase?: boolean;
   focusComposer?: boolean;
+  /** List-row snapshot for first paint only — never the source of truth. */
+  initialPost?: TimelinePost;
 };
+
+/** Drop comments so location.state stays compact (list API already omits them). */
+export function compactTimelinePost(post: TimelinePost): TimelinePost {
+  return { ...post, comments: [] };
+}
+
+export function timelinePostDetailState(
+  post: TimelinePost,
+  extra?: { focusComposer?: boolean }
+): TimelinePostDetailNavState {
+  return {
+    fromWaseWase: true,
+    initialPost: compactTimelinePost(post),
+    ...(extra?.focusComposer ? { focusComposer: true } : {}),
+  };
+}
+
+export function readInitialTimelinePost(
+  state: unknown,
+  postId: number
+): TimelinePost | null {
+  if (!state || typeof state !== "object") return null;
+  const raw = (state as TimelinePostDetailNavState).initialPost;
+  if (!raw || raw.id !== postId) return null;
+  return compactTimelinePost(raw);
+}
 
 export function parseTimelinePostHash(
   hash: string | undefined | null

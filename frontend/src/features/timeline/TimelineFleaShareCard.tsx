@@ -1,5 +1,9 @@
 import { Link } from "react-router-dom";
 import type { SharedProduct } from "./api";
+import {
+  productCardFromShared,
+  productDetailState,
+} from "../flea/productNav";
 
 function yen(price: number): string {
   return `¥${Number(price || 0).toLocaleString("ja-JP")}`;
@@ -19,6 +23,7 @@ export function TimelineFleaShareCard({
     <Link
       className="share-card share-card--flea timeline-flea-share"
       to={`/flea/products/${product.id}`}
+      state={productDetailState(productCardFromShared(product))}
       aria-label={`フリマ商品 ${product.name}`}
     >
       <p className="share-card__brand">フリマ</p>

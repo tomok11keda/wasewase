@@ -7,6 +7,14 @@ import type {
 } from "../profile/api";
 import { CommunityReportMenu } from "../community/CommunityReportMenu";
 import { participantLabel } from "../community/api";
+import {
+  communityThreadDetailState,
+  threadSummaryFromSearch,
+} from "../community/threadNav";
+import {
+  productCardFromSearch,
+  productDetailState,
+} from "../flea/productNav";
 
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime();
@@ -111,6 +119,7 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
       <Link
         className="discover-compact-card"
         to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+        state={communityThreadDetailState(threadSummaryFromSearch(thread))}
       >
         <div className="discover-compact-card__main">
           <div className="discover-compact-card__head">
@@ -173,6 +182,7 @@ export function DiscoverProductCard({
       <Link
         className="discover-product-stack"
         to={`/flea/products/${product.id}`}
+        state={productDetailState(productCardFromSearch(product))}
       >
         <div className="discover-product-stack__media">
           {product.image_url ? (
@@ -196,6 +206,7 @@ export function DiscoverProductCard({
     <Link
       className="discover-compact-card discover-compact-card--product"
       to={`/flea/products/${product.id}`}
+      state={productDetailState(productCardFromSearch(product))}
     >
       <div className="discover-compact-card__thumb is-product">
         {product.image_url ? (

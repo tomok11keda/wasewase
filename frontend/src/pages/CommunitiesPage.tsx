@@ -11,6 +11,7 @@ import {
   type ThreadSummary,
 } from "../features/community/api";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
+import { communityThreadDetailState } from "../features/community/threadNav";
 import {
   fetchCourseDiscover,
   type CourseDiscoverCard,
@@ -309,6 +310,7 @@ export function CommunitiesPage() {
                   <Link
                     className="thread-card"
                     to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+                    state={communityThreadDetailState(thread)}
                   >
                     <h3 className="thread-card__title">{thread.title}</h3>
                     <p className="thread-card__meta">

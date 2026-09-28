@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { BookmarkButton } from "../components/BookmarkButton";
 import { ShareActionSheet } from "../components/ShareActionSheet";
 import { SfIcon } from "../components/SfIcon";
@@ -20,16 +20,21 @@ import {
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { readInitialProduct } from "../features/flea/productNav";
 import { analytics } from "../lib/analytics/events";
 
 export function ProductDetailPage() {
   const { pk } = useParams();
   const productId = Number(pk);
   const navigate = useNavigate();
+  const location = useLocation();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
-  const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [product, setProduct] = useState<ProductDetail | null>(() =>
+    readInitialProduct(location.state, productId)
+  );
+  const [loading, setLoading] = useState(() => !product);
+  const [hydrated, setHydrated] = useState(() => !product);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: string; text: string } | null>(
     null
@@ -41,24 +46,68 @@ export function ProductDetailPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deletingRef = useRef(false);
+  const mutatedRef = useRef(false);
+  const fetchGen = useRef(0);
+
+  useEffect(() => {
+    const next = readInitialProduct(location.state, productId);
+    mutatedRef.current = false;
+    fetchGen.current += 1;
+    setProduct(next);
+    setLoading(!next);
+    setHydrated(!next);
+    setError(null);
+  }, [productId, location.key]);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(productId)) {
       setError("invalid_id");
       setLoading(false);
+      setHydrated(true);
       return;
     }
-    setLoading(true);
-    setError(null);
+    const gen = ++fetchGen.current;
+    const hadPreview = Boolean(readInitialProduct(location.state, productId));
+    if (!hadPreview) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await fetchProductDetail(productId);
-      setProduct(data);
+      if (gen !== fetchGen.current) return;
+      if (mutatedRef.current) {
+        setProduct((prev) =>
+          prev
+            ? {
+                ...data,
+                user_liked: prev.user_liked,
+                like_count: prev.like_count,
+                user_has_bookmarked: prev.user_has_bookmarked,
+                comments:
+                  prev.comments.length > data.comments.length
+                    ? prev.comments
+                    : data.comments,
+              }
+            : data
+        );
+      } else {
+        setProduct(data);
+      }
+      setError(null);
+      setHydrated(true);
     } catch (err) {
+      if (gen !== fetchGen.current) return;
+      if (hadPreview && err instanceof TypeError) {
+        setHydrated(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : "load_failed");
+      setProduct(null);
+      setHydrated(true);
     } finally {
-      setLoading(false);
+      if (gen === fetchGen.current) setLoading(false);
     }
-  }, [productId]);
+  }, [productId, location.state]);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -66,6 +115,7 @@ export function ProductDetailPage() {
       setProduct(null);
       setError(null);
       setLoading(false);
+      setHydrated(true);
       return;
     }
     void load();
@@ -94,6 +144,7 @@ export function ProductDetailPage() {
     }
     try {
       const result = await toggleProductLike(product.id);
+      mutatedRef.current = true;
       setProduct({
         ...product,
         user_liked: result.liked,
@@ -115,6 +166,7 @@ export function ProductDetailPage() {
     }
     try {
       const bookmarked = await toggleProductBookmark(product.id);
+      mutatedRef.current = true;
       setProduct({
         ...product,
         user_has_bookmarked: bookmarked,
@@ -186,6 +238,7 @@ export function ProductDetailPage() {
     setBusy(true);
     try {
       const comment = await postProductComment(product.id, commentBody.trim());
+      mutatedRef.current = true;
       setProduct({
         ...product,
         comments: [...product.comments, comment],
@@ -350,8 +403,17 @@ export function ProductDetailPage() {
               className={`product-description${
                 product.description ? "" : " product-description-empty"
               }`}
+              style={
+                !hydrated && !product.description
+                  ? { minHeight: "4.5em" }
+                  : undefined
+              }
             >
-              {product.description || "説明文はありません。"}
+              {product.description
+                ? product.description
+                : hydrated
+                  ? "説明文はありません。"
+                  : ""}
             </p>
 
             {product.can_purchase ? (
@@ -495,15 +557,22 @@ export function ProductDetailPage() {
         ) : null}
 
         <section className="comments-section">
-          <h2>コメント（{product.comments.length}）</h2>
-          {product.comments.map((c) => (
-            <div className="comment-item" key={c.id}>
-              <p className="comment-meta">
-                {c.author?.display_name || "匿名"} · {c.created_at_label}
-              </p>
-              <p className="comment-body">{c.body}</p>
-            </div>
-          ))}
+          <h2>
+            コメント
+            {hydrated ? `（${product.comments.length}）` : ""}
+          </h2>
+          {!hydrated && product.comments.length === 0 ? (
+            <p className="empty-message">コメントを読み込み中…</p>
+          ) : (
+            product.comments.map((c) => (
+              <div className="comment-item" key={c.id}>
+                <p className="comment-meta">
+                  {c.author?.display_name || "匿名"} · {c.created_at_label}
+                </p>
+                <p className="comment-body">{c.body}</p>
+              </div>
+            ))
+          )}
           <form className="comment-form" onSubmit={onComment}>
             <textarea
               value={commentBody}

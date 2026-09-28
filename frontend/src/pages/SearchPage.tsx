@@ -28,6 +28,14 @@ import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
 import { participantLabel } from "../features/community/api";
+import {
+  communityThreadDetailState,
+  threadSummaryFromSearch,
+} from "../features/community/threadNav";
+import {
+  productCardFromSearch,
+  productDetailState,
+} from "../features/flea/productNav";
 
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
@@ -55,6 +63,7 @@ function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
       <Link
         className="search-thread-card"
         to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+        state={communityThreadDetailState(threadSummaryFromSearch(thread))}
       >
         <p className="search-thread-card__meta">
           <span className="search-thread-card__badge">コミュニティ</span>
@@ -92,6 +101,7 @@ function SearchProductCard({
     <Link
       className={`search-product-card${compact ? " search-product-card--rail" : ""}`}
       to={`/flea/products/${product.id}`}
+      state={productDetailState(productCardFromSearch(product))}
     >
       <div className="search-product-card__media">
         {product.image_url ? (
