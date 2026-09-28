@@ -16,8 +16,6 @@ import {
   type CourseDiscoverCard,
 } from "../features/courses/api";
 import { CourseDiscoveryPanel } from "../features/courses/CourseDiscoveryPanel";
-import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
-import { LocalSearchBar } from "../components/LocalSearchBar";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 
@@ -35,8 +33,6 @@ export function CommunitiesPage() {
   const sort = (
     searchParams.get("sort") === "latest" ? "latest" : "recommended"
   ) as "recommended" | "latest";
-  const ownFaculty = me?.user?.department || "";
-
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [anonymousHint, setAnonymousHint] = useState(COMMUNITY_ANON_HINT);
   const [loading, setLoading] = useState(true);
@@ -181,7 +177,7 @@ export function CommunitiesPage() {
   };
 
   return (
-    <div data-spa-page="コミュニティ">
+    <div className="communities-page" data-spa-page="コミュニティ">
       <div className="communities-header">
         <div className="communities-header-top">
           <h2>コミュニティ</h2>
@@ -198,7 +194,6 @@ export function CommunitiesPage() {
               <Link
                 className="btn-new-thread"
                 to={spaLoginPath("/app/communities")}
-                style={{ display: "inline-flex", alignItems: "center" }}
               >
                 ログインして投稿
               </Link>
@@ -206,20 +201,22 @@ export function CommunitiesPage() {
           ) : null}
         </div>
         {hub === "community" ? (
-          <p className="community-anon-hint">{anonymousHint}</p>
+          <p className="community-anon-hint community-anon-hint--compact">
+            Communityでは匿名で投稿できます
+          </p>
         ) : null}
 
-        <nav className="ranking-sort-tabs" aria-label="コミュニティと授業">
+        <nav className="community-hub-tabs" aria-label="コミュニティと授業">
           <button
             type="button"
-            className={`ranking-sort-tab${hub === "community" ? " is-active" : ""}`}
+            className={`community-hub-tab${hub === "community" ? " is-active" : ""}`}
             onClick={() => setHub("community")}
           >
             コミュニティ
           </button>
           <button
             type="button"
-            className={`ranking-sort-tab${hub === "courses" ? " is-active" : ""}`}
+            className={`community-hub-tab${hub === "courses" ? " is-active" : ""}`}
             onClick={() => setHub("courses")}
           >
             授業
@@ -227,43 +224,22 @@ export function CommunitiesPage() {
         </nav>
 
         {hub === "community" ? (
-          <>
-            <FacultyFilterTabs
-              value={tag}
-              ownFaculty={ownFaculty}
-              onChange={(next) => patchParams({ tag: next })}
-            />
-
-            <nav className="ranking-sort-tabs" aria-label="コミュニティ並び順">
-              <button
-                type="button"
-                className={`ranking-sort-tab${sort === "recommended" ? " is-active" : ""}`}
-                onClick={() => patchParams({ sort: "" })}
-              >
-                おすすめ
-              </button>
-              <button
-                type="button"
-                className={`ranking-sort-tab${sort === "latest" ? " is-active" : ""}`}
-                onClick={() => patchParams({ sort: "latest" })}
-              >
-                最新
-              </button>
-            </nav>
-
-            <LocalSearchBar
-              value={qParam}
-              placeholder="コミュニティのスレッドを検索"
-              ariaLabel="コミュニティ内検索"
-              onSubmit={(q) => patchParams({ q })}
-              onClear={() => patchParams({ q: "" })}
-            />
-            {qParam ? (
-              <p className="local-search-hint">
-                「{qParam}」のコミュニティ検索結果（タイムライン・フリマは含みません）
-              </p>
-            ) : null}
-          </>
+          <nav className="community-sort-tabs" aria-label="コミュニティ並び順">
+            <button
+              type="button"
+              className={`community-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+              onClick={() => patchParams({ sort: "" })}
+            >
+              おすすめ
+            </button>
+            <button
+              type="button"
+              className={`community-sort-tab${sort === "latest" ? " is-active" : ""}`}
+              onClick={() => patchParams({ sort: "latest" })}
+            >
+              最新
+            </button>
+          </nav>
         ) : (
           <p className="communities-hub-hint">
             履修中・活発・人気の授業を見つけられます
@@ -336,8 +312,15 @@ export function CommunitiesPage() {
                   >
                     <h3 className="thread-card__title">{thread.title}</h3>
                     <p className="thread-card__meta">
-                      {participantLabel(thread.anonymous_label)} · 返信{" "}
-                      {thread.replies_count}
+                      <span>{participantLabel(thread.anonymous_label)}</span>
+                      <span aria-hidden="true"> · </span>
+                      <span
+                        className={`thread-card__replies${
+                          thread.replies_count === 0 ? " is-zero" : ""
+                        }`}
+                      >
+                        返信 {thread.replies_count}
+                      </span>
                     </p>
                     <p className="thread-card__preview">{thread.body_preview}</p>
                     <span className="thread-card__board">

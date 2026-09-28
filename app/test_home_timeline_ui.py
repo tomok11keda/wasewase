@@ -38,10 +38,7 @@ class HomeTimelineChromeTests(SimpleTestCase):
         self.assertIn("q: qParam || undefined", home)
 
     def test_other_hubs_keep_faculty_filter(self):
-        communities = _read("frontend/src/pages/CommunitiesPage.tsx")
         flea = _read("frontend/src/pages/FleaPage.tsx")
-        self.assertIn("FacultyFilterTabs", communities)
-        self.assertIn("ranking-sort-tabs", communities)
         self.assertIn("FacultyFilterTabs", flea)
 
     def test_compose_fab_uses_brand_color_and_keeps_stacking(self):

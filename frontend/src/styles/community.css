@@ -1,12 +1,13 @@
-/* Ported look from communities_index / thread detail — no redesign */
+/* Community index chrome — keep thread detail / forum styles below unchanged */
+.communities-page {
+  background: #fff;
+}
+
 .communities-header {
-  position: sticky;
-  top: var(--wase-header-h, 0px);
-  z-index: 10;
-  padding: 16px 16px 12px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--shell-border, #eff3f4);
+  position: relative;
+  z-index: 1;
+  padding: 8px 12px 0;
+  background: #fff;
 }
 
 .communities-header-top {
@@ -14,7 +15,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  min-height: 36px;
+  margin-bottom: 4px;
 }
 
 .communities-header-top h2 {
@@ -24,17 +26,70 @@
 }
 
 .btn-new-thread {
-  height: 36px;
-  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
   border: none;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--accent, #891e2b);
   color: #fff;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
+  text-decoration: none;
+}
+
+.community-hub-tabs,
+.community-sort-tabs {
+  display: flex;
+  margin: 0;
+  border-bottom: 1px solid var(--shell-border, #eff3f4);
+  background: #fff;
+}
+
+.community-hub-tab,
+.community-sort-tab {
+  flex: 1;
+  height: 42px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--muted, #536471);
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.community-hub-tab.is-active,
+.community-sort-tab.is-active {
+  color: var(--text, #0f1419);
+}
+
+.community-hub-tab.is-active::after,
+.community-sort-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent, #891e2b);
+}
+
+.community-hub-tab:hover,
+.community-hub-tab:focus-visible,
+.community-sort-tab:hover,
+.community-sort-tab:focus-visible {
+  background: #fafafa;
+  outline: none;
 }
 
 .communities-header .ranking-sort-tabs {
@@ -55,6 +110,14 @@
   line-height: 1.55;
   color: #536471;
   font-weight: 500;
+}
+
+.community-anon-hint--compact {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted, #536471);
 }
 
 .community-thread-page .community-anon-hint,
@@ -123,12 +186,75 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  background: #fff;
 }
 
 .thread-card-row,
 .search-thread-card-row,
 .discover-compact-card-row {
   position: relative;
+}
+
+.communities-page .thread-card {
+  display: block;
+  padding: 10px 40px 10px 12px;
+  border-bottom: 1px solid var(--shell-border, #eff3f4);
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: none;
+}
+
+.communities-page .thread-card:active {
+  background: #f7f9f9;
+}
+
+.communities-page .thread-card__title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.communities-page .thread-card__meta {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted, #536471);
+}
+
+.communities-page .thread-card__replies {
+  font-weight: 600;
+  color: var(--text, #0f1419);
+}
+
+.communities-page .thread-card__replies.is-zero {
+  font-weight: 400;
+  color: #8b98a5;
+}
+
+.communities-page .thread-card__preview {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.communities-page .thread-card__board {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #536471);
+  background: #f4f6f7;
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .thread-card {
@@ -574,6 +700,7 @@
 
 .communities-hub-hint {
   margin: 0;
+  padding: 8px 0 10px;
   font-size: 13px;
   color: var(--muted, #536471);
 }
