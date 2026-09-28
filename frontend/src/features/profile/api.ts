@@ -483,12 +483,16 @@ export function saveScrollPosition(pathKey: string): void {
   }
 }
 
-export function restoreScrollPosition(pathKey: string): void {
+export function restoreScrollPosition(pathKey: string, sync = false): void {
   try {
     const raw = sessionStorage.getItem(`${SCROLL_KEY}:${pathKey}`);
     if (raw == null) return;
     const y = Number(raw);
     if (!Number.isFinite(y)) return;
+    if (sync) {
+      window.scrollTo(0, y);
+      return;
+    }
     window.requestAnimationFrame(() => {
       window.scrollTo(0, y);
     });
