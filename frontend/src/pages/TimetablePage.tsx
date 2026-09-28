@@ -13,11 +13,13 @@ import {
   emptyEntry,
   fetchOwnSlots,
   fetchUserSlots,
+  listFilledOnDemandSlots,
   metaText,
+  nextFreeOnDemandSlotKey,
+  parseSlotKey,
   saveSlot,
   setTimetableVisibility,
   TIMETABLE_DAYS,
-  TIMETABLE_OD_SLOTS,
   TIMETABLE_PERIODS,
   type SlotEntry,
   type SlotsMap,
@@ -72,7 +74,15 @@ function SlotButton({
       data-timetable-slot
       data-slot-key={slotKey}
       data-slot-kind={kind}
-      aria-label={`${dayLabel}曜 ${periodLabel}`}
+      aria-label={
+        filled
+          ? dayLabel
+            ? `${dayLabel}曜 ${periodLabel} ${entry.name}`
+            : `${periodLabel} ${entry.name}`
+          : dayLabel
+            ? `${dayLabel}曜 ${periodLabel}を追加`
+            : `${periodLabel}を追加`
+      }
       onClick={() => {
         onOpen();
       }}
@@ -120,6 +130,16 @@ export function TimetablePage({
   const showSectionTabs = !embedded && !viewingOther;
   const canAddCourses =
     Boolean(me?.authenticated) && !viewingOther && !readOnly;
+  const odItems = listFilledOnDemandSlots(slots);
+  const hasAnyCourse = Object.values(slots).some((entry) =>
+    Boolean((entry?.name || "").trim())
+  );
+  const showEmptyCta =
+    canAddCourses &&
+    !hasAnyCourse &&
+    (!showSectionTabs || section === "timetable");
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [hasMore, setHasMore] = useState(false);
 
   const getEntry = useCallback(
     (slotKey: string): SlotEntry => {
@@ -215,6 +235,26 @@ export function TimetablePage({
   });
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const updatePeek = () => {
+      setHasMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+    };
+    updatePeek();
+    const raf = window.requestAnimationFrame(updatePeek);
+    const observer = new ResizeObserver(updatePeek);
+    observer.observe(el);
+    el.addEventListener("scroll", updatePeek, { passive: true });
+    window.addEventListener("resize", updatePeek);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+      el.removeEventListener("scroll", updatePeek);
+      window.removeEventListener("resize", updatePeek);
+    };
+  }, [ready, slots, section, showEmptyCta]);
+
+  useEffect(() => {
     return () => {
       document.body.classList.remove("timetable-modal-open");
     };
@@ -282,6 +322,31 @@ export function TimetablePage({
       periodLabel,
       continuous: false,
     });
+  };
+
+  const openCourseAdd = () => {
+    setCourseSheet({
+      continuous: true,
+    });
+  };
+
+  const openOnDemandComposer = () => {
+    if (readOnly) return;
+    const slotKey = nextFreeOnDemandSlotKey(slots);
+    if (!slotKey) {
+      window.alert("オンデマンドに登録できる空きがありません。");
+      return;
+    }
+    const parsed = parseSlotKey(slotKey);
+    if (!parsed) return;
+    openSlot(
+      slotKey,
+      "od",
+      "",
+      "オンデマンド",
+      parsed.dayIndex,
+      parsed.number
+    );
   };
 
   const closeModal = () => setModal(null);
@@ -508,52 +573,123 @@ export function TimetablePage({
           />
         ) : (
           <>
-            {canAddCourses && (!showSectionTabs || section === "timetable") ? (
+            {showEmptyCta ? (
+              <div className="timetable-empty-cta" data-timetable-empty-cta>
+                <div className="timetable-empty-cta__copy">
+                  <p className="timetable-empty-cta__title">
+                    秋学期の時間割をつくろう
+                  </p>
+                  <p className="timetable-empty-cta__body">
+                    授業を追加すると、あなたの1週間がここに表示されます
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="timetable-add-btn"
+                  onClick={openCourseAdd}
+                >
+                  ＋ 授業を追加
+                </button>
+              </div>
+            ) : canAddCourses &&
+              (!showSectionTabs || section === "timetable") ? (
               <div className="timetable-add-row">
                 <button
                   type="button"
                   className="timetable-add-btn"
-                  onClick={() =>
-                    setCourseSheet({
-                      continuous: true,
-                    })
-                  }
+                  onClick={openCourseAdd}
                 >
                   ＋ 授業を追加
                 </button>
               </div>
             ) : null}
-            <section className="timetable-board" aria-label="週間時間割">
-              <div className="timetable-scroll">
-                <div className="timetable-grid" data-timetable-grid>
-                  <div className="timetable-corner" aria-hidden="true" />
-                  {TIMETABLE_DAYS.map((day) => (
-                    <div className="timetable-day" role="columnheader" key={day}>
-                      {day}
+            <section
+              className={`timetable-board${hasMore ? " has-more" : ""}`}
+              aria-label="週間時間割"
+            >
+              <div className="timetable-scroll" ref={scrollRef}>
+                <div className="timetable-layout">
+                  <div className="timetable-grid" data-timetable-grid>
+                    <div className="timetable-corner" aria-hidden="true" />
+                    {TIMETABLE_DAYS.map((day) => (
+                      <div
+                        className="timetable-day"
+                        role="columnheader"
+                        key={day}
+                      >
+                        {day}
+                      </div>
+                    ))}
+
+                    {TIMETABLE_PERIODS.map((period) => (
+                      <PeriodRow
+                        key={`p${period.number}`}
+                        period={period}
+                        getEntry={getEntry}
+                        readOnly={readOnly}
+                        onOpen={openSlot}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="timetable-od-panel" aria-label="オンデマンド">
+                    <div
+                      className="timetable-day timetable-day--od"
+                      role="columnheader"
+                    >
+                      オンデマンド
                     </div>
-                  ))}
-
-                  {TIMETABLE_PERIODS.map((period) => (
-                    <PeriodRow
-                      key={`p${period.number}`}
-                      period={period}
-                      kind="period"
-                      getEntry={getEntry}
-                      readOnly={readOnly}
-                      onOpen={openSlot}
-                    />
-                  ))}
-
-                  {TIMETABLE_OD_SLOTS.map((od) => (
-                    <PeriodRow
-                      key={`od${od.number}`}
-                      period={od}
-                      kind="od"
-                      getEntry={getEntry}
-                      readOnly={readOnly}
-                      onOpen={openSlot}
-                    />
-                  ))}
+                    <div className="timetable-od-list">
+                      {odItems.map((item) => (
+                        <div
+                          className="timetable-cell is-od"
+                          data-slot-wrap={item.slotKey}
+                          key={item.slotKey}
+                        >
+                          <SlotButton
+                            slotKey={item.slotKey}
+                            kind="od"
+                            dayLabel=""
+                            periodLabel="オンデマンド"
+                            entry={item.entry}
+                            readOnly={readOnly}
+                            onOpen={() =>
+                              openSlot(
+                                item.slotKey,
+                                "od",
+                                "",
+                                "オンデマンド",
+                                item.dayIndex,
+                                item.number
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      {!readOnly && nextFreeOnDemandSlotKey(slots) ? (
+                        <div className="timetable-cell is-od">
+                          <button
+                            type="button"
+                            className={`timetable-slot is-empty timetable-od-add${
+                              odItems.length === 0 ? " is-labeled" : ""
+                            }`}
+                            data-timetable-slot
+                            data-slot-kind="od"
+                            aria-label="オンデマンドを追加"
+                            onClick={openOnDemandComposer}
+                          >
+                            <p className="timetable-slot__placeholder">
+                              {odItems.length === 0
+                                ? "＋ オンデマンドを追加"
+                                : "＋"}
+                            </p>
+                          </button>
+                        </div>
+                      ) : odItems.length === 0 ? (
+                        <p className="timetable-od-empty">なし</p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -714,13 +850,11 @@ export function TimetablePage({
 
 function PeriodRow({
   period,
-  kind,
   getEntry,
   readOnly,
   onOpen,
 }: {
   period: { number: number; label: string; time: string };
-  kind: "period" | "od";
   getEntry: (slotKey: string) => SlotEntry;
   readOnly: boolean;
   onOpen: (
@@ -732,27 +866,19 @@ function PeriodRow({
     periodNumber: number
   ) => void;
 }) {
-  const prefix = kind === "od" ? "od" : "p";
   return (
     <>
-      <div
-        className={`timetable-period${kind === "od" ? " is-od" : ""}`}
-        role="rowheader"
-      >
+      <div className="timetable-period" role="rowheader">
         <span className="timetable-period__label">{period.label}</span>
         <span className="timetable-period__time">{period.time}</span>
       </div>
       {TIMETABLE_DAYS.map((dayLabel, dayIndex) => {
-        const slotKey = `${prefix}${period.number}-d${dayIndex}`;
+        const slotKey = `p${period.number}-d${dayIndex}`;
         return (
-          <div
-            className={`timetable-cell${kind === "od" ? " is-od" : ""}`}
-            data-slot-wrap={slotKey}
-            key={slotKey}
-          >
+          <div className="timetable-cell" data-slot-wrap={slotKey} key={slotKey}>
             <SlotButton
               slotKey={slotKey}
-              kind={kind}
+              kind="period"
               dayLabel={dayLabel}
               periodLabel={period.label}
               entry={getEntry(slotKey)}
@@ -760,7 +886,7 @@ function PeriodRow({
               onOpen={() =>
                 onOpen(
                   slotKey,
-                  kind,
+                  "period",
                   dayLabel,
                   period.label,
                   dayIndex,

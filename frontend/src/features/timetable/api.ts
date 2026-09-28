@@ -40,6 +40,76 @@ export const TIMETABLE_OD_SLOTS = [
   { number: 2, label: "OD2", time: "オンデマンド" },
 ] as const;
 
+const SLOT_KEY_RE = /^(p|od)(\d+)-d(\d+)$/;
+
+export type ParsedSlotKey = {
+  kind: "period" | "od";
+  number: number;
+  dayIndex: number;
+  slotKey: string;
+};
+
+export function parseSlotKey(slotKey: string): ParsedSlotKey | null {
+  const match = SLOT_KEY_RE.exec((slotKey || "").trim());
+  if (!match) return null;
+  const kind = match[1] === "od" ? "od" : "period";
+  const number = Number(match[2]);
+  const dayIndex = Number(match[3]);
+  if (dayIndex < 0 || dayIndex >= TIMETABLE_DAYS.length) return null;
+  if (kind === "period" && (number < 1 || number > TIMETABLE_PERIODS.length)) {
+    return null;
+  }
+  if (kind === "od" && (number < 1 || number > TIMETABLE_OD_SLOTS.length)) {
+    return null;
+  }
+  return { kind, number, dayIndex, slotKey: match[0] };
+}
+
+export function listOnDemandSlotKeys(): string[] {
+  const keys: string[] = [];
+  for (let dayIndex = 0; dayIndex < TIMETABLE_DAYS.length; dayIndex += 1) {
+    for (const od of TIMETABLE_OD_SLOTS) {
+      keys.push(`od${od.number}-d${dayIndex}`);
+    }
+  }
+  return keys;
+}
+
+export function listFilledOnDemandSlots(slots: SlotsMap): Array<{
+  slotKey: string;
+  entry: SlotEntry;
+  number: number;
+  dayIndex: number;
+}> {
+  const items: Array<{
+    slotKey: string;
+    entry: SlotEntry;
+    number: number;
+    dayIndex: number;
+  }> = [];
+  for (const slotKey of Object.keys(slots)) {
+    const parsed = parseSlotKey(slotKey);
+    if (!parsed || parsed.kind !== "od") continue;
+    const entry = slots[slotKey];
+    if (!entry || !(entry.name || "").trim()) continue;
+    items.push({
+      slotKey,
+      entry,
+      number: parsed.number,
+      dayIndex: parsed.dayIndex,
+    });
+  }
+  items.sort((a, b) => a.dayIndex - b.dayIndex || a.number - b.number);
+  return items;
+}
+
+export function nextFreeOnDemandSlotKey(slots: SlotsMap): string | null {
+  for (const key of listOnDemandSlotKeys()) {
+    if (!((slots[key]?.name || "").trim())) return key;
+  }
+  return null;
+}
+
 export function emptyEntry(): SlotEntry {
   return { name: "", room: "", credits: "", memo: "", offering_id: null };
 }
