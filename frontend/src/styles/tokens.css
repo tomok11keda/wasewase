@@ -22,6 +22,14 @@
         (2 * var(--wase-header-pad-y, 10px))
     )
   );
+
+  /* Shared motion — Home pilot; later surfaces should reuse these. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-tab: 180ms;
+  --motion-sheet: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
 }
 
 *,
@@ -91,4 +99,13 @@ button {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-base: 1ms;
+    --motion-tab: 1ms;
+    --motion-sheet: 1ms;
+  }
 }

@@ -25,6 +25,7 @@ import {
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
+import { MOTION_TAB_MS } from "../lib/motion";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -36,6 +37,8 @@ export function HomePage() {
   const sort = (
     searchParams.get("sort") === "latest" ? "latest" : "recommended"
   ) as "recommended" | "latest";
+  const [feedEnter, setFeedEnter] = useState(false);
+  const skipFirstSortMotionRef = useRef(true);
   const faculty = searchParams.get("faculty") || "";
   const qParam = searchParams.get("q") || "";
 
@@ -64,6 +67,16 @@ export function HomePage() {
   useEffect(() => {
     analytics.timelineViewed();
   }, []);
+
+  useEffect(() => {
+    if (skipFirstSortMotionRef.current) {
+      skipFirstSortMotionRef.current = false;
+      return;
+    }
+    setFeedEnter(true);
+    const timer = window.setTimeout(() => setFeedEnter(false), MOTION_TAB_MS);
+    return () => window.clearTimeout(timer);
+  }, [sort]);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [pinnedPost, setPinnedPost] = useState<TimelinePost | null>(null);
@@ -497,7 +510,11 @@ export function HomePage() {
 
   return (
     <div className="main-inner timeline-home" data-spa-page="タイムライン">
-      <nav className="home-sort-tabs" aria-label="タイムライン並び順">
+      <nav
+        className="home-sort-tabs"
+        aria-label="タイムライン並び順"
+        data-sort={sort}
+      >
         <button
           type="button"
           className={`home-sort-tab${sort === "recommended" ? " is-active" : ""}`}
@@ -512,6 +529,7 @@ export function HomePage() {
         >
           最新
         </button>
+        <span className="home-sort-indicator" aria-hidden="true" />
       </nav>
 
       {authenticated ? (
@@ -568,7 +586,10 @@ export function HomePage() {
             : "まだ投稿がありません。"}
         </p>
       ) : (
-        <div className="timeline-list home-feed" id="timeline-list">
+        <div
+          className={`timeline-list home-feed${feedEnter ? " is-enter" : ""}`}
+          id="timeline-list"
+        >
           {postUnavailable ? (
             <p className="empty-message">この投稿は表示できません</p>
           ) : null}

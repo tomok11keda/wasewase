@@ -30,6 +30,7 @@ import {
 } from "./postAnchor";
 import { saveScrollPosition } from "../profile/api";
 import { analytics } from "../../lib/analytics/events";
+import { MOTION_FAST_MS } from "../../lib/motion";
 
 type TimelinePostCardVariant = "feed" | "detail";
 
@@ -89,11 +90,13 @@ export function TimelinePostCard({
   const [commentBody, setCommentBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
+  const [likePopping, setLikePopping] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportChoosing, setReportChoosing] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const likePopTimerRef = useRef(0);
   const articleRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLInputElement | null>(null);
   const postRef = useRef(post);
@@ -133,6 +136,10 @@ export function TimelinePostCard({
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
   }, [menuOpen]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(likePopTimerRef.current);
+  }, []);
 
   // Impression observer (separate from HomePage infinite-scroll sentinel IO)
   useEffect(() => {
@@ -515,7 +522,7 @@ export function TimelinePostCard({
                 type="button"
                 className={`tweet-action tweet-action--like${
                   post.user_has_liked ? " is-liked" : ""
-                }`}
+                }${likePopping ? " is-popping" : ""}`}
                 aria-label="いいね"
                 aria-pressed={post.user_has_liked}
                 disabled={busy}
@@ -523,7 +530,14 @@ export function TimelinePostCard({
                   guard(() => {
                     void run(async () => {
                       const { liked, like_count } = await toggleLike(post.id);
-                      if (liked) analytics.likeCreated();
+                      if (liked) {
+                        analytics.likeCreated();
+                        setLikePopping(true);
+                        window.clearTimeout(likePopTimerRef.current);
+                        likePopTimerRef.current = window.setTimeout(() => {
+                          setLikePopping(false);
+                        }, MOTION_FAST_MS + 40);
+                      }
                       onChange({
                         ...post,
                         user_has_liked: liked,

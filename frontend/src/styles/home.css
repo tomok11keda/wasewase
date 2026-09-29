@@ -40,6 +40,7 @@
 
 .home-sort-tabs {
   display: flex;
+  position: relative;
   margin: 0;
   border-bottom: 1px solid var(--shell-border, #eff3f4);
   background: #fff;
@@ -57,20 +58,35 @@
   color: var(--muted, #536471);
   cursor: pointer;
   position: relative;
+  z-index: 1;
   -webkit-tap-highlight-color: transparent;
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 
 .home-sort-tab.is-active {
   color: var(--text, #0f1419);
 }
 
-.home-sort-tab.is-active::after {
-  content: "";
+.home-sort-indicator {
   position: absolute;
-  left: 24%;
-  right: 24%;
+  left: 0;
   bottom: 0;
+  width: 50%;
   height: 2px;
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--motion-tab) var(--ease-standard);
+}
+
+.home-sort-tabs[data-sort="latest"] .home-sort-indicator {
+  transform: translateX(100%);
+}
+
+.home-sort-indicator::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin: 0 24%;
   border-radius: 999px;
   background: var(--accent, #891e2b);
 }
@@ -147,11 +163,16 @@
   font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .home-compose__open:hover,
 .home-compose__open:focus-visible {
   outline: none;
+}
+
+.home-compose__open:active {
+  opacity: 0.72;
 }
 
 .home-compose__avatar {
@@ -243,6 +264,7 @@
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
+  animation: wase-home-backdrop-in var(--motion-sheet) var(--ease-standard) both;
 }
 
 .spa-compose-modal .compose-modal__panel {
@@ -255,6 +277,36 @@
   border-radius: 16px 16px 0 0;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+  animation: wase-home-sheet-in var(--motion-sheet) var(--ease-emphasized) both;
+}
+
+@keyframes wase-home-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wase-home-sheet-in {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes wase-home-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .spa-compose-modal .compose-modal__header {
@@ -307,6 +359,7 @@
   .spa-compose-modal .compose-modal__panel {
     border-radius: 16px;
     padding-bottom: 16px;
+    animation-name: wase-home-modal-in;
   }
 }
 
@@ -464,15 +517,19 @@
   outline: none;
 }
 
+.compose-fab:active {
+  transform: scale(0.96);
+}
+
 .home-compose-fab {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transform: scale(0.86);
   transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    visibility 0s linear 180ms;
+    opacity var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-standard),
+    visibility 0s linear var(--motion-base);
 }
 
 .home-compose-fab.is-visible {
@@ -481,15 +538,23 @@
   pointer-events: auto;
   transform: scale(1);
   transition:
-    opacity 180ms ease,
-    transform 180ms ease,
+    opacity var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-standard),
     visibility 0s linear 0s;
+}
+
+.home-compose-fab.is-visible:active {
+  transform: scale(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .home-compose-fab,
-  .home-compose-fab.is-visible {
+  .home-compose-fab.is-visible,
+  .home-sort-indicator,
+  .spa-compose-modal .compose-modal__backdrop,
+  .spa-compose-modal .compose-modal__panel {
     transition: none;
+    animation: none;
   }
 }
 
