@@ -527,10 +527,13 @@ export function TimetablePage({
   };
 
   const canEditVisibility = Boolean(me?.authenticated) && !viewingOther;
+  const showWeekGrid = !(showSectionTabs && section === "calendar");
 
   return (
     <div
-      className={`timetable-page${readOnly ? " is-read-only" : ""}`}
+      className={`timetable-page${readOnly ? " is-read-only" : ""}${
+        embedded ? " is-embedded" : ""
+      }${showWeekGrid ? " has-week-grid" : ""}`}
       data-spa-page={embedded ? undefined : "時間割"}
     >
       <main className="main-inner main-inner--timetable">

@@ -105,9 +105,9 @@ class TimetableSectionTabVisibilityTests(SimpleTestCase):
         page = _read("frontend/src/pages/TimetablePage.tsx")
         self.assertIn("showSectionTabs && section === \"calendar\"", page)
         self.assertIn("TimetableCalendarView", page)
-        calendar_branch = page.split("showSectionTabs && section === \"calendar\"")[1].split(
-            "showEmptyCta"
-        )[0]
+        calendar_branch = page.split(
+            ") : showSectionTabs && section === \"calendar\" ? ("
+        )[1].split("showEmptyCta")[0]
         self.assertIn("<TimetableCalendarView", calendar_branch)
 
     def test_stale_other_fetch_cannot_overwrite_own_state(self):
@@ -117,4 +117,80 @@ class TimetableSectionTabVisibilityTests(SimpleTestCase):
         self.assertIn("if (isStale()) return", page)
         self.assertIn("loadGenRef.current += 1", page)
         self.assertIn("if (!isStale()) setLoading(false)", page)
+
+
+class TimetableMobileRowHeightTests(SimpleTestCase):
+    def test_period_rows_fill_remaining_viewport_without_changing_columns(self):
+        css = _read("frontend/src/styles/timetable.css")
+        api = _read("frontend/src/features/timetable/api.ts")
+        self.assertIn("--tt-day-min: 54px", css)
+        self.assertIn("--tt-period-w: 46px", css)
+        self.assertIn("--tt-od-min: 108px", css)
+        self.assertIn("--tt-period-rows: 5", css)
+        self.assertIn("{ number: 5, label: \"5限\"", api)
+        self.assertNotIn("{ number: 6, label: \"6限\"", api)
+        columns = css.split(".timetable-page .timetable-grid")[1].split(
+            ".timetable-page .timetable-od-panel"
+        )[0]
+        self.assertIn("grid-template-columns: var(--tt-period-w) repeat(", columns)
+        self.assertIn("var(--tt-day-min)", columns)
+        self.assertIn(
+            "grid-template-rows: var(--tt-head-h) repeat(",
+            columns,
+        )
+        self.assertIn("minmax(var(--tt-row-min), 1fr)", columns)
+        self.assertNotIn("aspect-ratio", columns)
+        self.assertNotIn("88px", css.split(".timetable-page .timetable-layout")[1].split(
+            ".timetable-page .timetable-grid"
+        )[0])
+
+    def test_mobile_week_grid_uses_definite_available_height(self):
+        css = _read("frontend/src/styles/timetable.css")
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        self.assertIn("--tt-available-h:", css)
+        self.assertIn("100dvh", css)
+        self.assertIn("var(--nav-h, 56px)", css)
+        self.assertIn("env(safe-area-inset-bottom, 0px)", css)
+        self.assertIn("@media (max-width: 1023px)", css)
+        mobile = css.split("@media (max-width: 1023px)")[1].split("@media (min-width: 600px)")[0]
+        self.assertIn(".has-week-grid .main-inner--timetable", mobile)
+        self.assertIn("height: var(--tt-available-h)", mobile)
+        self.assertIn("max-height: var(--tt-available-h)", mobile)
+        self.assertIn(":not(.is-embedded)", mobile)
+        self.assertIn("has-week-grid", page)
+        self.assertIn("is-embedded", page)
+        desktop = css.split("@media (min-width: 1024px)")[1].split("/* Modal")[0]
+        self.assertIn("height: auto", desktop)
+        self.assertIn("max-height: none", desktop)
+        self.assertNotIn("100px", mobile)
+
+    def test_empty_cells_stay_centered_and_od_column_still_independent(self):
+        css = _read("frontend/src/styles/timetable.css")
+        self.assertIn(".timetable-page .timetable-slot.is-empty", css)
+        empty = css.split(".timetable-page .timetable-slot.is-empty")[1].split("}")[0]
+        self.assertIn("align-items: center", empty)
+        self.assertIn("justify-content: center", empty)
+        self.assertIn(".timetable-od-panel", css)
+        self.assertIn("--tt-od-min: 108px", css)
+        self.assertIn("has-more::after", css)
+        self.assertIn("width: max-content", css.split(".timetable-page .timetable-layout")[1].split(
+            ".timetable-page .timetable-grid"
+        )[0])
+
+    def test_calendar_and_own_other_contracts_unchanged(self):
+        css = _read("frontend/src/styles/timetable.css")
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        surface = _read("frontend/src/features/timetable/surface.ts")
+        transition = _read("frontend/src/lib/detailTransition.ts")
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        self.assertIn(".tt-calendar", css)
+        self.assertIn("showSectionTabs = !viewingOther", page)
+        self.assertIn("<TimetablePage ignoreRouteUserPk />", keep)
+        self.assertIn("if (input.ignoreRouteUserPk) return undefined", surface)
+        self.assertIn("export function syncMainTabWindowScroll", transition)
+        calendar_src = page.split(
+            ") : showSectionTabs && section === \"calendar\" ? ("
+        )[1]
+        self.assertIn("<TimetableCalendarView", calendar_src)
+
 
