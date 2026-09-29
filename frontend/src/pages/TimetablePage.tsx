@@ -25,6 +25,10 @@ import {
   type SlotsMap,
 } from "../features/timetable/api";
 import {
+  isOwnTimetableSurface,
+  resolveTimetableTargetUserPk,
+} from "../features/timetable/surface";
+import {
   CourseAddSheet,
   type CourseAddContext,
 } from "../features/courses/CourseAddSheet";
@@ -104,15 +108,25 @@ function SlotButton({
 export function TimetablePage({
   overrideUserPk,
   embedded = false,
+  ignoreRouteUserPk = false,
 }: {
   overrideUserPk?: number;
   embedded?: boolean;
+  ignoreRouteUserPk?: boolean;
 } = {}) {
   const { userPk: routeUserPk } = useParams();
   const navigate = useNavigate();
-  const userPk = overrideUserPk != null ? String(overrideUserPk) : routeUserPk;
-  const viewingOther = Boolean(userPk);
   const { me, loading: sessionLoading } = useSession();
+  const userPk = resolveTimetableTargetUserPk({
+    overrideUserPk,
+    routeUserPk,
+    ignoreRouteUserPk,
+  });
+  const myUserId = me?.user?.id ?? null;
+  const viewingOther = !isOwnTimetableSurface({
+    targetUserPk: userPk,
+    myUserId,
+  });
   const browsePreview = isBrowsePreview(me);
   const [slots, setSlots] = useState<SlotsMap>({});
   const [isPublic, setIsPublic] = useState(false);
@@ -121,13 +135,14 @@ export function TimetablePage({
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);
+  const loadGenRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<SlotEntry>(emptyEntry());
   const [section, setSection] = useState<TimetableSectionId>("timetable");
   const [courseSheet, setCourseSheet] = useState<CourseAddContext | null>(null);
-  const showSectionTabs = !embedded && !viewingOther;
+  const showSectionTabs = !viewingOther;
   const canAddCourses =
     Boolean(me?.authenticated) && !viewingOther && !readOnly;
   const odItems = listFilledOnDemandSlots(slots);
@@ -158,6 +173,8 @@ export function TimetablePage({
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      const gen = ++loadGenRef.current;
+      const isStale = () => gen !== loadGenRef.current;
       if (mode === "initial" && !readyRef.current) {
         setLoading(true);
       }
@@ -165,6 +182,7 @@ export function TimetablePage({
       try {
         if (viewingOther && userPk) {
           if (!me?.authenticated) {
+            if (isStale()) return;
             setSlots({});
             setIsPublic(false);
             setReadOnly(true);
@@ -174,12 +192,14 @@ export function TimetablePage({
             return;
           }
           const data = await fetchUserSlots(Number(userPk));
+          if (isStale()) return;
           if (data.is_own && !embedded) {
             navigate("/timetable", { replace: true });
             return;
           }
           if (data.is_own && embedded) {
             const own = await fetchOwnSlots();
+            if (isStale()) return;
             setSlots(own.slots || {});
             setIsPublic(Boolean(own.is_timetable_public));
             setReadOnly(false);
@@ -196,6 +216,7 @@ export function TimetablePage({
           setReady(true);
         } else if (me?.authenticated) {
           const data = await fetchOwnSlots();
+          if (isStale()) return;
           setSlots(data.slots || {});
           setIsPublic(Boolean(data.is_timetable_public));
           setReadOnly(false);
@@ -203,6 +224,7 @@ export function TimetablePage({
           readyRef.current = true;
           setReady(true);
         } else {
+          if (isStale()) return;
           setSlots({});
           setIsPublic(false);
           setReadOnly(false);
@@ -211,9 +233,10 @@ export function TimetablePage({
           setReady(true);
         }
       } catch (err) {
+        if (isStale()) return;
         setError(err instanceof Error ? err.message : "load_failed");
       } finally {
-        setLoading(false);
+        if (!isStale()) setLoading(false);
       }
     },
     [viewingOther, userPk, me?.authenticated, navigate, embedded]
@@ -222,7 +245,25 @@ export function TimetablePage({
   useEffect(() => {
     if (sessionLoading) return;
     void load(readyRef.current ? "soft" : "initial");
+    return () => {
+      loadGenRef.current += 1;
+    };
   }, [sessionLoading, load]);
+
+  useEffect(() => {
+    if (embedded || ignoreRouteUserPk || overrideUserPk != null) return;
+    if (!routeUserPk || myUserId == null) return;
+    if (routeUserPk === String(myUserId)) {
+      navigate("/timetable", { replace: true });
+    }
+  }, [
+    embedded,
+    ignoreRouteUserPk,
+    overrideUserPk,
+    routeUserPk,
+    myUserId,
+    navigate,
+  ]);
 
   useEffect(() => {
     analytics.timetableViewed();

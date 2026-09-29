@@ -59,3 +59,62 @@ class TimetableOnDemandColumnTests(SimpleTestCase):
         self.assertIn(".timetable-od-panel", css)
         self.assertIn("--tt-od-min", css)
         self.assertNotIn("repeat(2, minmax(48px, 0.92fr))", css)
+
+
+class TimetableSectionTabVisibilityTests(SimpleTestCase):
+    def test_section_tabs_are_own_surface_not_embedded_gated(self):
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        surface = _read("frontend/src/features/timetable/surface.ts")
+        self.assertIn("{ id: \"calendar\", label: \"カレンダー\" }", page)
+        self.assertIn("tt-section-tabs", page)
+        self.assertIn("showSectionTabs = !viewingOther", page)
+        self.assertNotIn("showSectionTabs = !embedded && !viewingOther", page)
+        self.assertIn("resolveTimetableTargetUserPk", page)
+        self.assertIn("isOwnTimetableSurface", page)
+        self.assertIn("me?.user?.id", page)
+        self.assertIn("ignoreRouteUserPk", page)
+        self.assertIn("if (input.ignoreRouteUserPk) return undefined", surface)
+        self.assertIn("if (!input.targetUserPk) return true", surface)
+        self.assertIn("String(input.myUserId) === input.targetUserPk", surface)
+        tabs_gate = page.split("const showSectionTabs")[1].split("const canAddCourses")[0]
+        for needle in ("events", "loading", "courses", "semester", "fetchCalendar"):
+            self.assertNotIn(needle, tabs_gate)
+
+    def test_keep_alive_own_timetable_ignores_route_user_pk(self):
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        app = _read("frontend/src/App.tsx")
+        self.assertIn("<TimetablePage ignoreRouteUserPk />", keep)
+        self.assertIn(
+            'path="timetable/user/:userPk" element={<TimetablePage />}',
+            app,
+        )
+        self.assertNotIn("ignoreRouteUserPk", app)
+
+    def test_profile_embed_uses_override_and_own_other_identity(self):
+        profile = _read("frontend/src/pages/ProfilePage.tsx")
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        self.assertIn(
+            "<TimetablePage key={userPk} overrideUserPk={userPk} embedded />",
+            profile,
+        )
+        self.assertNotIn("ignoreRouteUserPk", profile)
+        self.assertIn("overrideUserPk", page)
+        self.assertIn("embedded", page)
+
+    def test_other_surfaces_do_not_mount_calendar_view(self):
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        self.assertIn("showSectionTabs && section === \"calendar\"", page)
+        self.assertIn("TimetableCalendarView", page)
+        calendar_branch = page.split("showSectionTabs && section === \"calendar\"")[1].split(
+            "showEmptyCta"
+        )[0]
+        self.assertIn("<TimetableCalendarView", calendar_branch)
+
+    def test_stale_other_fetch_cannot_overwrite_own_state(self):
+        page = _read("frontend/src/pages/TimetablePage.tsx")
+        self.assertIn("loadGenRef", page)
+        self.assertIn("const isStale = () => gen !== loadGenRef.current", page)
+        self.assertIn("if (isStale()) return", page)
+        self.assertIn("loadGenRef.current += 1", page)
+        self.assertIn("if (!isStale()) setLoading(false)", page)
+

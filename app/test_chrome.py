@@ -135,8 +135,16 @@ class OffsetAndSafeAreaTests(SimpleTestCase):
 
     def test_timetable_uses_shared_header_token(self):
         css = _read("frontend/src/styles/timetable.css")
-        self.assertIn("var(--wase-chrome-offset, var(--wase-header-h))", css)
+        tokens = _read("frontend/src/styles/tokens.css")
+        self.assertIn("var(--wase-chrome-offset, var(--wase-header-h", css)
+        self.assertIn("var(--wase-header-content-h, 44px)", css)
+        self.assertIn("var(--wase-header-pad-y, 10px)", css)
         self.assertNotIn("var(--wase-header-h, 64px)", css)
+        self.assertNotIn("64px", css.split(".timetable-page")[1].split(".timetable-page .page-title-row")[0])
+        self.assertIn("--wase-header-h,", tokens)
+        self.assertIn("--wase-header-content-h", tokens)
+        self.assertIn("--wase-header-pad-y, 10px", tokens)
+        self.assertNotIn("64px", tokens)
 
     def test_chat_frame_uses_chrome_offset(self):
         css = _read("frontend/src/styles/dm.css")

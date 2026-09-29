@@ -10,6 +10,7 @@ import { matchMainTab, normalizeSpaPath } from "./tabs";
 import {
   restoreScrollPosition,
   saveScrollPosition,
+  readScrollPosition,
 } from "../features/profile/api";
 
 export const DETAIL_PUSH_CLASS = "wase-detail-push";
@@ -46,6 +47,26 @@ function setHtmlPopClass(on: boolean): void {
 export function mainTabScrollKey(pathname: string): string | null {
   const normalized = normalizeSpaPath(pathname);
   return matchMainTab(normalized) == null ? null : normalized;
+}
+
+/**
+ * Isolate window.scrollY across BottomNav main tabs.
+ * First visit of a tab restores 0. Does not run on detail PUSH (caller gates).
+ * Detail POP still restores the list via restoreScrollPosition after this.
+ */
+export function syncMainTabWindowScroll(
+  previousPath: string,
+  nextPath: string
+): void {
+  if (previousPath === nextPath) return;
+  const fromKey = mainTabScrollKey(previousPath);
+  const toKey = mainTabScrollKey(nextPath);
+  if (fromKey && fromKey !== toKey) {
+    saveScrollPosition(fromKey);
+  }
+  if (toKey) {
+    window.scrollTo(0, readScrollPosition(toKey));
+  }
 }
 
 /**
@@ -195,6 +216,7 @@ export function useDetailPushTransition(): void {
     releaseDetailBackLock();
 
     if (!play) {
+      syncMainTabWindowScroll(previousPath, location.pathname);
       if (navigationType === "POP") {
         const key = mainTabScrollKey(location.pathname);
         if (key) restoreScrollPosition(key, true);

@@ -85,6 +85,20 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertNotIn("DETAIL_PUSH_CLASS)", pop_block)
         self.assertNotIn("DETAIL_POP_CLASS)", pop_block)
 
+    def test_main_tab_switch_isolates_window_scroll(self):
+        src = _transition_src()
+        self.assertIn("export function syncMainTabWindowScroll", src)
+        self.assertIn("readScrollPosition(toKey)", src)
+        self.assertIn("if (fromKey && fromKey !== toKey)", src)
+        hook = _hook_body()
+        self.assertIn("syncMainTabWindowScroll(previousPath, location.pathname)", hook)
+        no_play = hook.split("if (!play)")[1].split("const fromKey")[0]
+        self.assertIn("syncMainTabWindowScroll", no_play)
+        self.assertNotIn("window.scrollTo(0, 0)", no_play)
+        after_play = hook.split("if (fromKey) saveScrollPosition(fromKey)")[1]
+        self.assertIn("window.scrollTo(0, 0)", after_play)
+        self.assertNotIn("setTimeout", src.split("export function syncMainTabWindowScroll")[1].split("export function shouldPlayDetailPush")[0])
+
     def test_app_shell_wires_transition_hook(self):
         src = _read("frontend/src/layouts/AppShellLayout.tsx")
         self.assertIn("useDetailPushTransition", src)

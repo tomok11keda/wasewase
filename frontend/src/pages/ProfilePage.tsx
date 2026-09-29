@@ -570,7 +570,7 @@ export function ProfilePage() {
 function ProfileTimetableEmbed({ userPk }: { userPk: number }) {
   return (
     <div className="profile-timetable-embed">
-      <TimetablePage overrideUserPk={userPk} embedded />
+      <TimetablePage key={userPk} overrideUserPk={userPk} embedded />
     </div>
   );
 }

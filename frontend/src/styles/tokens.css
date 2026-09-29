@@ -15,7 +15,13 @@
   --shell-border: #eff3f4;
   --wase-header-content-min-h: 44px;
   --wase-header-content-h: var(--wase-header-content-min-h);
-  --wase-chrome-offset: var(--wase-header-h);
+  --wase-chrome-offset: var(
+    --wase-header-h,
+    calc(
+      var(--wase-sat, 0px) + var(--wase-header-content-h) +
+        (2 * var(--wase-header-pad-y, 10px))
+    )
+  );
 }
 
 *,

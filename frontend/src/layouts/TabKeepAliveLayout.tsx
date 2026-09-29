@@ -268,7 +268,7 @@ export function TabKeepAliveLayout() {
             leaving={leaving === "timetable"}
             underlay={underlayTab === "timetable"}
           >
-            <TimetablePage />
+            <TimetablePage ignoreRouteUserPk />
           </TabPane>
         ) : null}
       </div>
