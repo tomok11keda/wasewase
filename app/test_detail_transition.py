@@ -1,4 +1,4 @@
-"""Native Feel Phase 3 / 3.1: forward-only detail push + window-scroll reset."""
+"""Detail push enter + header-back exit. Native edge-swipe POP is not animated."""
 
 from __future__ import annotations
 
@@ -13,9 +13,40 @@ def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
+def _transition_src() -> str:
+    return _read("frontend/src/lib/detailTransition.ts")
+
+
+def _shell_css() -> str:
+    return _read("frontend/src/styles/shell.css")
+
+
+def _push_helper() -> str:
+    return _transition_src().split("export function shouldPlayDetailPush")[1].split(
+        "export function shouldResetDetailWindowScroll"
+    )[0]
+
+
+def _hook_body() -> str:
+    return _transition_src().split("export function useDetailPushTransition")[1]
+
+
+def _header_back_fn() -> str:
+    return _transition_src().split("export function requestDetailHeaderBack")[1].split(
+        "export function useDetailPushTransition"
+    )[0]
+
+
+def _execute_back_fn() -> str:
+    return _transition_src().split("export function executeDetailBack")[1].split(
+        "function queryVisibleDetailOutlet"
+    )[0]
+
+
 class DetailPushLogicTests(SimpleTestCase):
     def test_helper_requires_push_and_detail_chrome(self):
-        src = _read("frontend/src/lib/detailTransition.ts")
+        src = _transition_src()
+        helper = _push_helper()
         self.assertIn("export function shouldPlayDetailPush", src)
         self.assertIn('if (input.isSessionStart) return false', src)
         self.assertIn('if (input.navigationType !== "PUSH") return false', src)
@@ -23,13 +54,10 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("useNavigationType", src)
         self.assertIn("DETAIL_PUSH_CLASS = \"wase-detail-push\"", src)
         self.assertIn("DETAIL_PUSH_MS = 500", src)
-        helper = src.split("export function shouldPlayDetailPush")[1].split(
-            "export function shouldResetDetailWindowScroll"
-        )[0]
         self.assertNotIn("navigationType === \"POP\"", helper)
 
     def test_pop_replace_and_boot_are_excluded(self):
-        src = _read("frontend/src/lib/detailTransition.ts")
+        src = _transition_src()
         self.assertIn("isSessionStart", src)
         self.assertIn('navigationType !== "PUSH"', src)
         self.assertIn("isSessionStart: sessionStartRef.current", src)
@@ -37,7 +65,7 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("return shouldPlayDetailPush(input)", src)
 
     def test_forward_resets_window_scroll_after_saving_list_position(self):
-        src = _read("frontend/src/lib/detailTransition.ts")
+        src = _transition_src()
         self.assertIn("window.scrollTo(0, 0)", src)
         self.assertIn("saveScrollPosition(fromKey)", src)
         self.assertIn("mainTabScrollKey", src)
@@ -47,7 +75,7 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("window.scrollTo(0, 0)", after_play)
 
     def test_pop_restores_list_scroll_and_does_not_reset_to_top(self):
-        src = _read("frontend/src/lib/detailTransition.ts")
+        src = _transition_src()
         self.assertIn('if (navigationType === "POP")', src)
         self.assertIn("restoreScrollPosition(key, true)", src)
         pop_block = src.split('if (navigationType === "POP")')[1].split(
@@ -55,6 +83,7 @@ class DetailPushLogicTests(SimpleTestCase):
         )[0]
         self.assertNotIn("window.scrollTo(0, 0)", pop_block)
         self.assertNotIn("DETAIL_PUSH_CLASS)", pop_block)
+        self.assertNotIn("DETAIL_POP_CLASS)", pop_block)
 
     def test_app_shell_wires_transition_hook(self):
         src = _read("frontend/src/layouts/AppShellLayout.tsx")
@@ -62,43 +91,146 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("AppDetailHeader", src)
         self.assertIn("shouldHideBottomNav", src)
 
-    def test_back_button_stays_history_pop(self):
+    def test_back_button_uses_shared_exit_then_existing_semantics(self):
         src = _read("frontend/src/components/AppDetailHeader.tsx")
-        self.assertIn("navigate(-1)", src)
-        self.assertIn("resolveDetailBack", src)
+        self.assertIn("requestDetailHeaderBack", src)
+        self.assertIn("shell-header-back", src)
         self.assertNotIn("shouldPlayDetailPush", src)
         self.assertNotIn("wase-detail-push", src)
         self.assertNotIn("scrollTo(0, 0)", src)
+        execute = _execute_back_fn()
+        self.assertIn("resolveDetailBack", execute)
+        self.assertIn("navigate(-1)", execute)
+        self.assertIn("dest.replace ? { replace: true }", execute)
 
 
 class DetailPushCssTests(SimpleTestCase):
     def test_forward_keyframes_are_short_and_transform_only(self):
-        css = _read("frontend/src/styles/shell.css")
+        css = _shell_css()
         self.assertIn("@keyframes wase-detail-push-in", css)
         self.assertIn("translate3d(120px, 0, 0)", css)
         self.assertIn("translate3d(0, 0, 0)", css)
         self.assertIn("opacity: 0.98", css)
         self.assertIn("500ms", css)
-        self.assertIn("cubic-bezier(0.22, 1, 0.36, 1)", css)
+        self.assertIn("cubic-bezier(0.33, 0, 0.20, 1)", css)
         block = css.split("@keyframes wase-detail-push-in")[1].split("@media")[0]
         self.assertNotIn("margin-left", block)
         self.assertNotIn("left:", block)
         self.assertNotIn("translate3d(16px", css.split("@keyframes wase-detail-push-in")[1])
+        self.assertNotIn(
+            "cubic-bezier(0.22, 1, 0.36, 1)",
+            css.split("@keyframes wase-detail-push-in")[1].split(".spa-placeholder")[0],
+        )
 
     def test_animation_targets_outlet_not_fixed_header_or_tabs(self):
-        css = _read("frontend/src/styles/shell.css")
+        css = _shell_css()
         phase = css.split("@keyframes wase-detail-push-in")[1]
         self.assertIn("html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden)", phase)
+        self.assertIn("html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden)", phase)
         self.assertIn("animation: wase-detail-push-in 500ms", phase)
+        self.assertIn("animation: wase-detail-push-out 500ms", phase)
         self.assertNotIn("html.wase-detail-push .site-header--detail", phase)
+        self.assertNotIn("html.wase-detail-pop .site-header--detail", phase)
         self.assertNotIn("html.wase-detail-push .tab-keep-alive-pane", phase)
+        self.assertNotIn("html.wase-detail-pop .tab-keep-alive-pane", phase)
         self.assertNotIn("html.wase-detail-push .bottom-nav", css)
+        self.assertNotIn("html.wase-detail-pop .bottom-nav", css)
 
-    def test_reduced_motion_disables_detail_push(self):
-        css = _read("frontend/src/styles/shell.css")
+    def test_reduced_motion_disables_detail_push_and_pop(self):
+        css = _shell_css()
         reduce_block = css.split("@keyframes wase-detail-push-in")[1]
         self.assertIn("prefers-reduced-motion: reduce", reduce_block)
         self.assertIn("animation: none", reduce_block)
+        self.assertIn(
+            "html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden)",
+            reduce_block.split("prefers-reduced-motion: reduce")[1],
+        )
+
+
+class DetailHeaderBackExitTests(SimpleTestCase):
+    def test_header_back_starts_exit_animation_not_pop_navigation_type(self):
+        back = _header_back_fn()
+        hook = _hook_body()
+        self.assertIn("classList.add(DETAIL_POP_CLASS)", back)
+        self.assertIn("DETAIL_EXIT_ANIMATION", back)
+        self.assertNotIn("navigationType", back)
+        self.assertNotIn("classList.add(DETAIL_POP_CLASS)", hook)
+        self.assertIn("classList.remove(DETAIL_POP_CLASS)", hook)
+        self.assertEqual(
+            _read("frontend/src/layouts/AppShellLayout.tsx").count(
+                "requestDetailHeaderBack"
+            ),
+            0,
+        )
+        self.assertIn(
+            "requestDetailHeaderBack",
+            _read("frontend/src/components/AppDetailHeader.tsx"),
+        )
+
+    def test_exit_waits_for_animationend_then_runs_existing_back_once(self):
+        src = _transition_src()
+        back = _header_back_fn()
+        self.assertIn("animationend", src)
+        self.assertIn("waitForNamedAnimation", back)
+        self.assertIn("executeDetailBack", back)
+        self.assertIn("DETAIL_PUSH_MS + 40", src)
+        self.assertEqual(back.count("executeDetailBack"), 2)
+        self.assertNotIn("navigate(-1)", back)
+
+    def test_double_tap_ignored_while_exit_in_flight(self):
+        back = _header_back_fn()
+        src = _transition_src()
+        self.assertIn("if (detailBackInFlight) return", back)
+        self.assertIn("detailBackInFlight = true", back)
+        self.assertIn("if (navigated) return", back)
+        self.assertIn("releaseDetailBackLock", src)
+
+    def test_native_or_browser_pop_does_not_play_react_exit(self):
+        helper = _push_helper()
+        hook = _hook_body()
+        native = _read("ios/App/App/AppDelegate.swift")
+        self.assertNotIn("DETAIL_POP_CLASS", helper)
+        self.assertNotIn("requestDetailHeaderBack", hook)
+        self.assertIn("classList.remove(DETAIL_POP_CLASS)", hook)
+        self.assertNotIn("classList.add(DETAIL_POP_CLASS)", hook)
+        self.assertIn("webView.allowsBackForwardNavigationGestures = true", native)
+
+    def test_replace_boot_and_conversation_stay_unanimate(self):
+        src = _transition_src()
+        helper = _push_helper()
+        self.assertIn('navigationType !== "PUSH"', helper)
+        self.assertIn("isSessionStart", helper)
+        self.assertIn('matchChromeMode(input.pathname) === "detail"', helper)
+        back = _header_back_fn()
+        self.assertIn('matchChromeMode(pathname) !== "detail"', back)
+        self.assertNotIn("conversation", helper)
+
+    def test_reduced_motion_back_navigates_immediately(self):
+        back = _header_back_fn()
+        self.assertIn("if (prefersReducedMotion())", back)
+        go_block = back.split("if (prefersReducedMotion())")[1].split(
+            "const root = document.documentElement"
+        )[0]
+        self.assertIn("go()", go_block)
+        self.assertNotIn("waitForNamedAnimation", go_block)
+        self.assertNotIn("DETAIL_POP_CLASS", go_block)
+
+    def test_exit_distance_duration_and_easing_match_forward(self):
+        css = _shell_css()
+        out = css.split("@keyframes wase-detail-push-out")[1].split(
+            "html.wase-detail-push,"
+        )[0]
+        self.assertIn("translate3d(120px, 0, 0)", out)
+        self.assertIn("translate3d(0, 0, 0)", out)
+        self.assertIn("opacity: 0.98", out)
+        rule = [
+            line
+            for line in css.splitlines()
+            if "wase-detail-push-out" in line and "animation:" in line
+        ]
+        self.assertTrue(rule)
+        self.assertIn("500ms", rule[0])
+        self.assertIn("cubic-bezier(0.33, 0, 0.20, 1)", rule[0])
 
 
 class DetailPushRegressionTests(SimpleTestCase):
@@ -150,3 +282,5 @@ class DetailPushRegressionTests(SimpleTestCase):
         timeline = _read("frontend/src/styles/timeline.css")
         self.assertNotIn("wase-detail-push-in", timeline)
         self.assertNotIn("wase-detail-push", timeline)
+        self.assertNotIn("wase-detail-pop", timeline)
+        self.assertNotIn("wase-detail-push-out", timeline)

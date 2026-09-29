@@ -1,6 +1,7 @@
 import { useCallback, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { matchDetailChrome, resolveDetailBack } from "../lib/chrome";
+import { matchDetailChrome } from "../lib/chrome";
+import { requestDetailHeaderBack } from "../lib/detailTransition";
 
 type Props = {
   right?: ReactNode;
@@ -13,12 +14,7 @@ export function AppDetailHeader({ right }: Props) {
   const title = chrome?.title || "わせわせ";
 
   const onBack = useCallback(() => {
-    const dest = resolveDetailBack(location.pathname, location.state);
-    if (dest.mode === "history") {
-      navigate(-1);
-      return;
-    }
-    navigate(dest.to, dest.replace ? { replace: true } : undefined);
+    requestDetailHeaderBack(navigate, location.pathname, location.state);
   }, [location.pathname, location.state, navigate]);
 
   return (

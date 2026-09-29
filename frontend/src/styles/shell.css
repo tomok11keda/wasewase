@@ -573,7 +573,7 @@ html.chrome-conversation {
   }
 }
 
-/* Native Feel Phase 3: short forward-only detail enter. POP is not animated. */
+/* Detail outlet only. Header stays fixed. Native edge-swipe POP is not animated. */
 @keyframes wase-detail-push-in {
   from {
     transform: translate3d(120px, 0, 0);
@@ -585,16 +585,33 @@ html.chrome-conversation {
   }
 }
 
-html.wase-detail-push {
+@keyframes wase-detail-push-out {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(120px, 0, 0);
+    opacity: 0.98;
+  }
+}
+
+html.wase-detail-push,
+html.wase-detail-pop {
   overflow-x: clip;
 }
 
 html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden) {
-  animation: wase-detail-push-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: wase-detail-push-in 500ms cubic-bezier(0.33, 0, 0.20, 1) both;
+}
+
+html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
+  animation: wase-detail-push-out 500ms cubic-bezier(0.33, 0, 0.20, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden) {
+  html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden),
+  html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
     animation: none;
   }
 }
