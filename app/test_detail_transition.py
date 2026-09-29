@@ -75,7 +75,7 @@ class DetailPushCssTests(SimpleTestCase):
     def test_forward_keyframes_are_short_and_transform_only(self):
         css = _read("frontend/src/styles/shell.css")
         self.assertIn("@keyframes wase-detail-push-in", css)
-        self.assertIn("translate3d(40px, 0, 0)", css)
+        self.assertIn("translate3d(120px, 0, 0)", css)
         self.assertIn("translate3d(0, 0, 0)", css)
         self.assertIn("opacity: 0.98", css)
         self.assertIn("500ms", css)

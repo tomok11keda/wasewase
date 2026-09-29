@@ -576,7 +576,7 @@ html.chrome-conversation {
 /* Native Feel Phase 3: short forward-only detail enter. POP is not animated. */
 @keyframes wase-detail-push-in {
   from {
-    transform: translate3d(40px, 0, 0);
+    transform: translate3d(120px, 0, 0);
     opacity: 0.98;
   }
   to {
