@@ -18,6 +18,29 @@ export const DETAIL_PUSH_MS = 500;
 export const DETAIL_EXIT_ANIMATION = "wase-detail-push-out";
 
 let detailBackInFlight = false;
+const popVisualListeners = new Set<() => void>();
+
+function notifyDetailPopVisual(): void {
+  popVisualListeners.forEach((listener) => listener());
+}
+
+export function subscribeDetailPopVisual(onChange: () => void): () => void {
+  popVisualListeners.add(onChange);
+  return () => {
+    popVisualListeners.delete(onChange);
+  };
+}
+
+export function getDetailPopVisualSnapshot(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains(DETAIL_POP_CLASS);
+}
+
+function setHtmlPopClass(on: boolean): void {
+  const root = document.documentElement;
+  root.classList.toggle(DETAIL_POP_CLASS, on);
+  notifyDetailPopVisual();
+}
 
 /** Main-tab sessionStorage key, or null when the path is not a keep-alive tab. */
 export function mainTabScrollKey(pathname: string): string | null {
@@ -89,6 +112,7 @@ function waitForNamedAnimation(
       resolve();
     };
     const onEnd = (event: AnimationEvent) => {
+      if (event.target !== el) return;
       if (event.animationName !== animationName) return;
       settle();
     };
@@ -138,9 +162,9 @@ export function requestDetailHeaderBack(
 
   const root = document.documentElement;
   root.classList.remove(DETAIL_PUSH_CLASS);
-  root.classList.remove(DETAIL_POP_CLASS);
+  setHtmlPopClass(false);
   void root.offsetWidth;
-  root.classList.add(DETAIL_POP_CLASS);
+  setHtmlPopClass(true);
 
   void waitForNamedAnimation(
     queryVisibleDetailOutlet(),
@@ -167,7 +191,7 @@ export function useDetailPushTransition(): void {
     sessionStartRef.current = false;
     const root = document.documentElement;
     root.classList.remove(DETAIL_PUSH_CLASS);
-    root.classList.remove(DETAIL_POP_CLASS);
+    setHtmlPopClass(false);
     releaseDetailBackLock();
 
     if (!play) {

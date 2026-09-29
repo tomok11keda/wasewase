@@ -497,8 +497,26 @@ html.chrome-conversation {
   transform: translateZ(0);
 }
 
+.tab-keep-alive-root {
+  position: relative;
+}
+
 .tab-keep-alive-stack.is-collapsed {
   display: none;
+}
+
+/* Header-back exit only: keep-alive list sits behind the sliding outlet. */
+.tab-keep-alive-stack.is-back-underlay {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  max-height: 100%;
 }
 
 .tab-keep-alive-pane {
@@ -591,7 +609,7 @@ html.chrome-conversation {
     opacity: 1;
   }
   to {
-    transform: translate3d(120px, 0, 0);
+    transform: translate3d(100vw, 0, 0);
     opacity: 0.98;
   }
 }
@@ -606,7 +624,18 @@ html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden) {
 }
 
 html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
+  position: relative;
+  z-index: 1;
+  background: var(--bg, #f7f9fc);
   animation: wase-detail-push-out 500ms cubic-bezier(0.33, 0, 0.20, 1) both;
+}
+
+.tab-keep-alive-stack.is-back-underlay .tab-keep-alive-pane.is-back-underlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transition: none;
+  transform: translate3d(0, var(--wase-back-underlay-shift, 0px), 0);
 }
 
 @media (prefers-reduced-motion: reduce) {

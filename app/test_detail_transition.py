@@ -107,16 +107,22 @@ class DetailPushLogicTests(SimpleTestCase):
 class DetailPushCssTests(SimpleTestCase):
     def test_forward_keyframes_are_short_and_transform_only(self):
         css = _shell_css()
+        enter = css.split("@keyframes wase-detail-push-in")[1].split(
+            "@keyframes wase-detail-push-out"
+        )[0]
         self.assertIn("@keyframes wase-detail-push-in", css)
-        self.assertIn("translate3d(120px, 0, 0)", css)
-        self.assertIn("translate3d(0, 0, 0)", css)
-        self.assertIn("opacity: 0.98", css)
-        self.assertIn("500ms", css)
-        self.assertIn("cubic-bezier(0.33, 0, 0.20, 1)", css)
-        block = css.split("@keyframes wase-detail-push-in")[1].split("@media")[0]
-        self.assertNotIn("margin-left", block)
-        self.assertNotIn("left:", block)
-        self.assertNotIn("translate3d(16px", css.split("@keyframes wase-detail-push-in")[1])
+        self.assertIn("translate3d(120px, 0, 0)", enter)
+        self.assertIn("translate3d(0, 0, 0)", enter)
+        self.assertIn("opacity: 0.98", enter)
+        self.assertNotIn("100vw", enter)
+        self.assertNotIn("translate3d(16px", enter)
+        self.assertIn("500ms", css.split("html.wase-detail-push .tab-keep-alive-outlet")[1].split("}")[0])
+        self.assertIn(
+            "cubic-bezier(0.33, 0, 0.20, 1)",
+            css.split("html.wase-detail-push .tab-keep-alive-outlet")[1].split("}")[0],
+        )
+        self.assertNotIn("margin-left", enter)
+        self.assertNotIn("left:", enter)
         self.assertNotIn(
             "cubic-bezier(0.22, 1, 0.36, 1)",
             css.split("@keyframes wase-detail-push-in")[1].split(".spa-placeholder")[0],
@@ -151,11 +157,11 @@ class DetailHeaderBackExitTests(SimpleTestCase):
     def test_header_back_starts_exit_animation_not_pop_navigation_type(self):
         back = _header_back_fn()
         hook = _hook_body()
-        self.assertIn("classList.add(DETAIL_POP_CLASS)", back)
+        self.assertIn("setHtmlPopClass(true)", back)
         self.assertIn("DETAIL_EXIT_ANIMATION", back)
         self.assertNotIn("navigationType", back)
-        self.assertNotIn("classList.add(DETAIL_POP_CLASS)", hook)
-        self.assertIn("classList.remove(DETAIL_POP_CLASS)", hook)
+        self.assertNotIn("setHtmlPopClass(true)", hook)
+        self.assertIn("setHtmlPopClass(false)", hook)
         self.assertEqual(
             _read("frontend/src/layouts/AppShellLayout.tsx").count(
                 "requestDetailHeaderBack"
@@ -191,8 +197,8 @@ class DetailHeaderBackExitTests(SimpleTestCase):
         native = _read("ios/App/App/AppDelegate.swift")
         self.assertNotIn("DETAIL_POP_CLASS", helper)
         self.assertNotIn("requestDetailHeaderBack", hook)
-        self.assertIn("classList.remove(DETAIL_POP_CLASS)", hook)
-        self.assertNotIn("classList.add(DETAIL_POP_CLASS)", hook)
+        self.assertIn("setHtmlPopClass(false)", hook)
+        self.assertNotIn("setHtmlPopClass(true)", hook)
         self.assertIn("webView.allowsBackForwardNavigationGestures = true", native)
 
     def test_replace_boot_and_conversation_stay_unanimate(self):
@@ -215,13 +221,14 @@ class DetailHeaderBackExitTests(SimpleTestCase):
         self.assertNotIn("waitForNamedAnimation", go_block)
         self.assertNotIn("DETAIL_POP_CLASS", go_block)
 
-    def test_exit_distance_duration_and_easing_match_forward(self):
+    def test_exit_distance_clears_viewport_without_changing_forward(self):
         css = _shell_css()
         out = css.split("@keyframes wase-detail-push-out")[1].split(
             "html.wase-detail-push,"
         )[0]
-        self.assertIn("translate3d(120px, 0, 0)", out)
+        self.assertIn("translate3d(100vw, 0, 0)", out)
         self.assertIn("translate3d(0, 0, 0)", out)
+        self.assertNotIn("translate3d(120px", out)
         self.assertIn("opacity: 0.98", out)
         rule = [
             line
@@ -231,6 +238,34 @@ class DetailHeaderBackExitTests(SimpleTestCase):
         self.assertTrue(rule)
         self.assertIn("500ms", rule[0])
         self.assertIn("cubic-bezier(0.33, 0, 0.20, 1)", rule[0])
+        enter = css.split("@keyframes wase-detail-push-in")[1].split(
+            "@keyframes wase-detail-push-out"
+        )[0]
+        self.assertIn("translate3d(120px, 0, 0)", enter)
+        self.assertNotIn("100vw", enter)
+
+    def test_animationend_requires_outlet_target_and_exit_name(self):
+        src = _transition_src()
+        wait = src.split("function waitForNamedAnimation")[1].split(
+            "function releaseDetailBackLock"
+        )[0]
+        self.assertIn("event.target !== el", wait)
+        self.assertIn("event.animationName !== animationName", wait)
+        self.assertIn("DETAIL_EXIT_ANIMATION", _header_back_fn())
+        self.assertIn("DETAIL_PUSH_MS + 40", wait)
+
+    def test_keep_alive_underlay_only_during_header_back_exit(self):
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        css = _shell_css()
+        self.assertIn("is-back-underlay", keep)
+        self.assertIn("subscribeDetailPopVisual", keep)
+        self.assertIn("useActiveMainTab", keep)
+        self.assertIn("is-collapsed", keep)
+        self.assertIn(".tab-keep-alive-stack.is-collapsed", css)
+        self.assertIn("display: none", css.split(".tab-keep-alive-stack.is-collapsed")[1].split("}")[0])
+        self.assertIn(".tab-keep-alive-stack.is-back-underlay", css)
+        self.assertIn("pointer-events: none", css.split(".tab-keep-alive-stack.is-back-underlay")[1].split("}")[0])
+        self.assertIn("readScrollPosition", keep)
 
 
 class DetailPushRegressionTests(SimpleTestCase):
@@ -258,6 +293,7 @@ class DetailPushRegressionTests(SimpleTestCase):
         self.assertIn('saveScrollPosition("/")', card)
         self.assertIn('restoreScrollPosition("/")', home)
         self.assertIn("export function saveScrollPosition", api)
+        self.assertIn("export function readScrollPosition", api)
         self.assertIn("restoreScrollPosition(pathKey: string, sync = false)", api)
 
     def test_timeline_community_flea_remain_detail_chrome(self):

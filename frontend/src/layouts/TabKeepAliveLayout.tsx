@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
@@ -14,9 +15,15 @@ import { FleaPage } from "../pages/FleaPage";
 import { HomePage } from "../pages/HomePage";
 import { SearchPage } from "../pages/SearchPage";
 import { TimetablePage } from "../pages/TimetablePage";
-import { matchMainTab, type MainTabId } from "../lib/tabs";
+import { matchMainTab, TAB_ROUTES, type MainTabId } from "../lib/tabs";
 import { useSpaNavDiag } from "../lib/spaNavDiag";
 import { flashDiagMark } from "../lib/flashDiag";
+import { readScrollPosition } from "../features/profile/api";
+import {
+  getDetailPopVisualSnapshot,
+  mainTabScrollKey,
+  subscribeDetailPopVisual,
+} from "../lib/detailTransition";
 
 /** Tab crossfade duration — keep in sync with shell.css */
 export const TAB_CROSSFADE_MS = 220;
@@ -52,11 +59,13 @@ function TabPane({
   tabId,
   active,
   leaving,
+  underlay,
   children,
 }: {
   tabId: MainTabId;
   active: boolean;
   leaving: boolean;
+  underlay?: boolean;
   children: ReactNode;
 }) {
   const inertProps = !active
@@ -67,6 +76,7 @@ function TabPane({
     "tab-keep-alive-pane",
     active ? "is-active" : "",
     leaving ? "is-leaving" : "",
+    underlay ? "is-back-underlay" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -93,7 +103,21 @@ export function TabKeepAliveLayout() {
   const active = matchMainTab(pathname);
   const stackRef = useRef<HTMLDivElement | null>(null);
   const prevActiveRef = useRef<MainTabId | null>(active);
+  const lastMainTabRef = useRef<MainTabId | null>(active);
+  if (active) lastMainTabRef.current = active;
   const instant = diag.disableTransition;
+  const headerPopping = useSyncExternalStore(
+    subscribeDetailPopVisual,
+    getDetailPopVisualSnapshot,
+    () => false
+  );
+  const underlayTab =
+    headerPopping && !active ? lastMainTabRef.current : null;
+  const underlayPath = underlayTab
+    ? TAB_ROUTES.find((tab) => tab.id === underlayTab)?.path || "/"
+    : null;
+  const underlayKey = underlayPath ? mainTabScrollKey(underlayPath) : null;
+  const underlayShift = underlayKey ? readScrollPosition(underlayKey) : 0;
 
   const [mounted, setMounted] = useState<Partial<Record<MainTabId, boolean>>>(
     () => (active ? { [active]: true } : {})
@@ -167,24 +191,34 @@ export function TabKeepAliveLayout() {
   }, [active, mounted, instant]);
 
   const showOutlet = active === null;
+  const stackClass = [
+    showOutlet
+      ? underlayTab
+        ? "tab-keep-alive-stack is-back-underlay"
+        : "tab-keep-alive-stack is-collapsed"
+      : "tab-keep-alive-stack",
+    instant ? "is-instant" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const stackStyle = {
+    ...(stackMinHeight
+      ? ({ minHeight: stackMinHeight } as CSSProperties)
+      : {}),
+    ...(underlayShift
+      ? ({
+          ["--wase-back-underlay-shift" as string]: `-${underlayShift}px`,
+        } as CSSProperties)
+      : {}),
+  };
 
   return (
     <TabVisibilityContext.Provider value={active}>
+      <div className="tab-keep-alive-root">
       <div
         ref={stackRef}
-        className={[
-          showOutlet
-            ? "tab-keep-alive-stack is-collapsed"
-            : "tab-keep-alive-stack",
-          instant ? "is-instant" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        style={
-          stackMinHeight
-            ? ({ minHeight: stackMinHeight } as CSSProperties)
-            : undefined
-        }
+        className={stackClass}
+        style={Object.keys(stackStyle).length ? stackStyle : undefined}
         data-active-tab={active || ""}
       >
         {mounted.home ? (
@@ -192,6 +226,7 @@ export function TabKeepAliveLayout() {
             tabId="home"
             active={active === "home"}
             leaving={leaving === "home"}
+            underlay={underlayTab === "home"}
           >
             <HomePage />
           </TabPane>
@@ -201,6 +236,7 @@ export function TabKeepAliveLayout() {
             tabId="communities"
             active={active === "communities"}
             leaving={leaving === "communities"}
+            underlay={underlayTab === "communities"}
           >
             <CommunitiesPage />
           </TabPane>
@@ -210,6 +246,7 @@ export function TabKeepAliveLayout() {
             tabId="search"
             active={active === "search"}
             leaving={leaving === "search"}
+            underlay={underlayTab === "search"}
           >
             <SearchPage />
           </TabPane>
@@ -219,6 +256,7 @@ export function TabKeepAliveLayout() {
             tabId="flea"
             active={active === "flea"}
             leaving={leaving === "flea"}
+            underlay={underlayTab === "flea"}
           >
             <FleaPage />
           </TabPane>
@@ -228,6 +266,7 @@ export function TabKeepAliveLayout() {
             tabId="timetable"
             active={active === "timetable"}
             leaving={leaving === "timetable"}
+            underlay={underlayTab === "timetable"}
           >
             <TimetablePage />
           </TabPane>
@@ -244,6 +283,7 @@ export function TabKeepAliveLayout() {
         aria-hidden={!showOutlet}
       >
         <Outlet />
+      </div>
       </div>
     </TabVisibilityContext.Provider>
   );

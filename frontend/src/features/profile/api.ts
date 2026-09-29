@@ -483,6 +483,17 @@ export function saveScrollPosition(pathKey: string): void {
   }
 }
 
+export function readScrollPosition(pathKey: string): number {
+  try {
+    const raw = sessionStorage.getItem(`${SCROLL_KEY}:${pathKey}`);
+    if (raw == null) return 0;
+    const y = Number(raw);
+    return Number.isFinite(y) ? y : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function restoreScrollPosition(pathKey: string, sync = false): void {
   try {
     const raw = sessionStorage.getItem(`${SCROLL_KEY}:${pathKey}`);
