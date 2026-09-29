@@ -57,6 +57,57 @@ class TimelinePreviewNavTests(SimpleTestCase):
             self.assertIn(token, src)
         card = _read("frontend/src/features/timeline/TimelinePostCard.tsx")
         self.assertIn("isTimelinePostDetailIgnoreTarget", card)
+        self.assertIn("isQuotedPostInnerIgnoreTarget", card)
+
+
+class QuotedRepostNavTests(SimpleTestCase):
+    def test_quoted_original_card_navigates_to_original_id(self):
+        card = _read("frontend/src/features/timeline/TimelinePostCard.tsx")
+        quoted = card.split("{post.quoted_post ? (")[1].split("{post.shared_product")[0]
+        self.assertIn("`/posts/${quoted.id}`", quoted)
+        self.assertNotIn("`/posts/${post.id}`", quoted)
+        self.assertIn("quotedPostDetailState()", quoted)
+        self.assertIn("saveScrollPosition(\"/\")", quoted)
+        self.assertIn("event.stopPropagation()", quoted)
+        self.assertIn("isQuotedPostInnerIgnoreTarget(event.target)", quoted)
+        self.assertIn("quoted.is_removed", quoted)
+        self.assertIn("quoted-post-card--unavailable", quoted)
+
+    def test_quoted_state_is_internal_push_without_fake_preview(self):
+        anchor = _read("frontend/src/features/timeline/postAnchor.ts")
+        helper = anchor.split("export function quotedPostDetailState")[1].split(
+            "export function readInitialTimelinePost"
+        )[0]
+        self.assertIn("fromWaseWase: true", helper)
+        self.assertNotIn("initialPost", helper)
+        self.assertNotIn("compactTimelinePost", helper)
+        full = anchor.split("export function timelinePostDetailState")[1].split(
+            "export function quotedPostDetailState"
+        )[0]
+        self.assertIn("initialPost: compactTimelinePost(post)", full)
+
+    def test_quoted_inner_ignore_excludes_the_card_itself(self):
+        src = _read("frontend/src/features/timeline/postAnchor.ts")
+        parent = src.split("TIMELINE_POST_DETAIL_IGNORE_SELECTOR")[1].split(
+            "QUOTED_POST_INNER_IGNORE_SELECTOR"
+        )[0]
+        inner = src.split("QUOTED_POST_INNER_IGNORE_SELECTOR")[1].split(
+            "export type TimelinePostDetailNavState"
+        )[0]
+        self.assertIn(".quoted-post-card", parent)
+        self.assertNotIn(".quoted-post-card", inner)
+        self.assertIn(".tweet-media", inner)
+        self.assertIn("isQuotedPostInnerIgnoreTarget", src)
+
+    def test_detail_page_and_transition_architecture_unchanged(self):
+        detail = _read("frontend/src/pages/TimelinePostDetailPage.tsx")
+        transition = _read("frontend/src/lib/detailTransition.ts")
+        self.assertIn("readInitialTimelinePost", detail)
+        self.assertIn("fetchTimelinePost", detail)
+        self.assertIn("navState?.fromWaseWase", detail)
+        self.assertIn("DETAIL_PUSH_MS = 400", transition)
+        self.assertIn('navigationType !== "PUSH"', transition)
+        self.assertIn("restoreScrollPosition(key, true)", transition)
 
 
 class CommunityPreviewNavTests(SimpleTestCase):

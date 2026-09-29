@@ -19,6 +19,21 @@ export const TIMELINE_POST_DETAIL_IGNORE_SELECTOR = [
   ".quoted-post-card",
 ].join(",");
 
+/** Nested controls inside a quoted original card. The card itself is excluded. */
+export const QUOTED_POST_INNER_IGNORE_SELECTOR = [
+  "a",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  '[role="button"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  ".timeline-flea-share",
+  ".share-card",
+  ".tweet-media",
+].join(",");
+
 export type TimelinePostDetailNavState = {
   fromWaseWase?: boolean;
   focusComposer?: boolean;
@@ -40,6 +55,14 @@ export function timelinePostDetailState(
     initialPost: compactTimelinePost(post),
     ...(extra?.focusComposer ? { focusComposer: true } : {}),
   };
+}
+
+/**
+ * Quoted/repost originals are a truncated feed shell, not a full TimelinePost.
+ * Do not invent initialPost — Post Detail fetches the source of truth.
+ */
+export function quotedPostDetailState(): TimelinePostDetailNavState {
+  return { fromWaseWase: true };
 }
 
 export function readInitialTimelinePost(
@@ -78,6 +101,14 @@ export function isTimelinePostDetailIgnoreTarget(
 ): boolean {
   return target instanceof Element
     ? Boolean(target.closest(TIMELINE_POST_DETAIL_IGNORE_SELECTOR))
+    : false;
+}
+
+export function isQuotedPostInnerIgnoreTarget(
+  target: EventTarget | null
+): boolean {
+  return target instanceof Element
+    ? Boolean(target.closest(QUOTED_POST_INNER_IGNORE_SELECTOR))
     : false;
 }
 

@@ -23,7 +23,9 @@ import {
   queueImpression,
 } from "./impressions";
 import {
+  isQuotedPostInnerIgnoreTarget,
   isTimelinePostDetailIgnoreTarget,
+  quotedPostDetailState,
   timelinePostDetailState,
 } from "./postAnchor";
 import { saveScrollPosition } from "../profile/api";
@@ -427,8 +429,21 @@ export function TimelinePostCard({
 
           {post.quoted_post ? (
             <div
-              className="quoted-post-card"
-              onClick={(event) => event.stopPropagation()}
+              className={
+                post.quoted_post.is_removed
+                  ? "quoted-post-card quoted-post-card--unavailable"
+                  : "quoted-post-card"
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                const quoted = post.quoted_post;
+                if (!quoted || quoted.is_removed) return;
+                if (isQuotedPostInnerIgnoreTarget(event.target)) return;
+                saveScrollPosition("/");
+                navigate(`/posts/${quoted.id}`, {
+                  state: quotedPostDetailState(),
+                });
+              }}
             >
               {post.quoted_post.is_removed ? (
                 <p className="tweet-body">この投稿は削除されました</p>
