@@ -14,7 +14,7 @@ import {
 
 export const DETAIL_PUSH_CLASS = "wase-detail-push";
 export const DETAIL_POP_CLASS = "wase-detail-pop";
-export const DETAIL_PUSH_MS = 500;
+export const DETAIL_PUSH_MS = 400;
 export const DETAIL_EXIT_ANIMATION = "wase-detail-push-out";
 
 let detailBackInFlight = false;

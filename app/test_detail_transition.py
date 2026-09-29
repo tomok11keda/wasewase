@@ -53,7 +53,7 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn('matchChromeMode(input.pathname) === "detail"', src)
         self.assertIn("useNavigationType", src)
         self.assertIn("DETAIL_PUSH_CLASS = \"wase-detail-push\"", src)
-        self.assertIn("DETAIL_PUSH_MS = 500", src)
+        self.assertIn("DETAIL_PUSH_MS = 400", src)
         self.assertNotIn("navigationType === \"POP\"", helper)
 
     def test_pop_replace_and_boot_are_excluded(self):
@@ -116,7 +116,7 @@ class DetailPushCssTests(SimpleTestCase):
         self.assertIn("opacity: 0.98", enter)
         self.assertNotIn("100vw", enter)
         self.assertNotIn("translate3d(16px", enter)
-        self.assertIn("500ms", css.split("html.wase-detail-push .tab-keep-alive-outlet")[1].split("}")[0])
+        self.assertIn("400ms", css.split("html.wase-detail-push .tab-keep-alive-outlet")[1].split("}")[0])
         self.assertIn(
             "cubic-bezier(0.33, 0, 0.20, 1)",
             css.split("html.wase-detail-push .tab-keep-alive-outlet")[1].split("}")[0],
@@ -133,8 +133,8 @@ class DetailPushCssTests(SimpleTestCase):
         phase = css.split("@keyframes wase-detail-push-in")[1]
         self.assertIn("html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden)", phase)
         self.assertIn("html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden)", phase)
-        self.assertIn("animation: wase-detail-push-in 500ms", phase)
-        self.assertIn("animation: wase-detail-push-out 500ms", phase)
+        self.assertIn("animation: wase-detail-push-in 400ms", phase)
+        self.assertIn("animation: wase-detail-push-out 400ms", phase)
         self.assertNotIn("html.wase-detail-push .site-header--detail", phase)
         self.assertNotIn("html.wase-detail-pop .site-header--detail", phase)
         self.assertNotIn("html.wase-detail-push .tab-keep-alive-pane", phase)
@@ -236,7 +236,7 @@ class DetailHeaderBackExitTests(SimpleTestCase):
             if "wase-detail-push-out" in line and "animation:" in line
         ]
         self.assertTrue(rule)
-        self.assertIn("500ms", rule[0])
+        self.assertIn("400ms", rule[0])
         self.assertIn("cubic-bezier(0.33, 0, 0.20, 1)", rule[0])
         enter = css.split("@keyframes wase-detail-push-in")[1].split(
             "@keyframes wase-detail-push-out"

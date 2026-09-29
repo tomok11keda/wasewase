@@ -620,14 +620,14 @@ html.wase-detail-pop {
 }
 
 html.wase-detail-push .tab-keep-alive-outlet:not(.is-hidden) {
-  animation: wase-detail-push-in 500ms cubic-bezier(0.33, 0, 0.20, 1) both;
+  animation: wase-detail-push-in 400ms cubic-bezier(0.33, 0, 0.20, 1) both;
 }
 
 html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
   position: relative;
   z-index: 1;
   background: var(--bg, #f7f9fc);
-  animation: wase-detail-push-out 500ms cubic-bezier(0.33, 0, 0.20, 1) both;
+  animation: wase-detail-push-out 400ms cubic-bezier(0.33, 0, 0.20, 1) both;
 }
 
 .tab-keep-alive-stack.is-back-underlay .tab-keep-alive-pane.is-back-underlay {
