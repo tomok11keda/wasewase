@@ -132,6 +132,7 @@ export function TimelinePostDetailPage() {
             variant="detail"
             focusComposer={focusComposerOnce}
             commentsPending={!hydrated}
+            composerUser={me?.user ?? null}
             onChange={applyLocalPost}
             onRemove={() => {
               goBack();

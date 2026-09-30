@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Count, Exists, OuterRef, Q
 
+from .comment_thread_services import timeline_comments_prefetch
 from .constants import FACULTY_CHOICES
 from .models import TimelineLike, TimelinePost
 from .notification_services import create_notification
@@ -52,7 +53,7 @@ def build_timeline_posts_queryset(request):
             "quoted_post__author__profile",
             "shared_product",
         )
-        .prefetch_related("comments__author", "comments__author__profile")
+        .prefetch_related(timeline_comments_prefetch())
     )
     if active_faculty:
         # 投稿に付けた学部ではなく、投稿者プロフィールの所属学部で絞り込む。
@@ -109,7 +110,7 @@ def get_profile_timeline_posts(
             "quoted_post__author__profile",
             "shared_product",
         )
-        .prefetch_related("comments__author", "comments__author__profile")
+        .prefetch_related(timeline_comments_prefetch())
         .filter(author=profile_user, is_removed=False)
         .order_by("-created_at")
     )
@@ -196,6 +197,7 @@ def previous_timeline_comment_participant_ids(
     qs = Comment.objects.filter(
         timeline_post_id=post.pk,
         is_removed=False,
+        is_author_deleted=False,
         author_id__isnull=False,
     )
     if exclude:
@@ -208,20 +210,25 @@ def notify_timeline_comment(
     post: TimelinePost,
     actor: AbstractBaseUser,
     comment_body: str,
+    parent_comment=None,
 ) -> None:
-    """Notify post author, mentions, then previous comment participants.
+    """Notify reply target, post author, mentions, then prior participants.
 
     Priority for the same recipient on one comment action:
-    1) post-author comment notification
-    2) mention notification
-    3) participant notification
+    1) parent-comment reply notification
+    2) post-author comment notification
+    3) mention notification
+    4) participant notification
 
-    Participant copy uses the same push_kind category (``comment``) but an
-    explicit ``push_body`` so lock-screen text is not the author-only template.
+    A user never receives two notifications for the same action. Self
+    notifications are skipped. Participant copy uses the same push_kind
+    category (``comment``) but an explicit ``push_body`` so lock-screen
+    text is not the author-only template.
     """
     from django.contrib.auth import get_user_model
 
     from .mention_services import notify_mentions
+    from .models import Comment
     from .notification_services import notification_actor_label
     from .ugc_services import get_either_blocked_user_ids
 
@@ -231,8 +238,36 @@ def notify_timeline_comment(
     link = timeline_post_link(post)
     actor_label = notification_actor_label(actor)
     notified: set[int] = set()
+    blocked_ids = get_either_blocked_user_ids(actor)
 
-    if post.author_id and post.author_id != actor.pk:
+    parent = parent_comment if isinstance(parent_comment, Comment) else None
+    parent_author_id = getattr(parent, "author_id", None) if parent else None
+    if (
+        parent is not None
+        and parent_author_id
+        and parent_author_id != actor.pk
+        and not parent.is_removed
+        and not parent.is_author_deleted
+        and parent_author_id not in blocked_ids
+    ):
+        reply_message = (
+            f"「{actor_label}さんがあなたのコメントに返信しました」"
+        )
+        create_notification(
+            recipient_id=parent_author_id,
+            message=reply_message,
+            link=link,
+            actor=actor,
+            push_kind="comment",
+            push_body=reply_message,
+        )
+        notified.add(parent_author_id)
+
+    if (
+        post.author_id
+        and post.author_id != actor.pk
+        and post.author_id not in notified
+    ):
         create_notification(
             recipient=post.author,
             message=(
@@ -260,7 +295,7 @@ def notify_timeline_comment(
         return
 
     # Avoid notifying users in a bilateral block with the commenter.
-    participant_ids -= get_either_blocked_user_ids(actor)
+    participant_ids -= blocked_ids
     if not participant_ids:
         return
 

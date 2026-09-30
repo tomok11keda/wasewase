@@ -941,9 +941,28 @@ class Comment(models.Model):
         null=True,
         blank=True,
     )
+    parent_comment = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="replies",
+        null=True,
+        blank=True,
+        verbose_name="親コメント",
+    )
+    is_author_deleted = models.BooleanField(
+        "投稿者削除",
+        default=False,
+        db_index=True,
+    )
 
     class Meta:
         ordering = ["created_at"]
+        indexes = [
+            models.Index(
+                fields=["timeline_post", "parent_comment", "created_at"],
+                name="app_comment_thread_idx",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.product_id:

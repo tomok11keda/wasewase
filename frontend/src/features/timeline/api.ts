@@ -8,12 +8,23 @@ export type TimelineAuthor = {
   initial: string;
 } | null;
 
+export type TimelineCommentReplyTo = {
+  id: number;
+  username: string;
+  display_name: string;
+  is_unavailable: boolean;
+};
+
 export type TimelineComment = {
   id: number;
   body: string;
   created_at: string;
   can_delete: boolean;
   author: TimelineAuthor;
+  parent_comment_id: number | null;
+  reply_to: TimelineCommentReplyTo | null;
+  is_deleted: boolean;
+  reply_count: number;
 };
 
 export type QuotedPost = {
@@ -242,8 +253,13 @@ export async function toggleBookmark(postId: number): Promise<boolean> {
 
 export async function addComment(
   postId: number,
-  body: string
+  body: string,
+  parentCommentId?: number | null
 ): Promise<{ comment: TimelineComment; comment_count: number }> {
+  const payload: { body: string; parent_comment_id?: number } = { body };
+  if (parentCommentId) {
+    payload.parent_comment_id = parentCommentId;
+  }
   const res = await fetch(`/api/v1/timeline/${postId}/comments/`, {
     method: "POST",
     credentials: "same-origin",
@@ -252,7 +268,7 @@ export async function addComment(
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!res.ok || !data.ok) {
@@ -276,7 +292,9 @@ export async function deletePost(postId: number): Promise<void> {
   if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
 }
 
-export async function deleteComment(commentId: number): Promise<number> {
+export async function deleteComment(
+  commentId: number
+): Promise<{ comment_count: number; comment: TimelineComment | null }> {
   const res = await fetch(`/api/v1/timeline/comments/${commentId}/`, {
     method: "DELETE",
     credentials: "same-origin",
@@ -284,7 +302,10 @@ export async function deleteComment(commentId: number): Promise<number> {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || "delete_comment_failed");
-  return Number(data.comment_count || 0);
+  return {
+    comment_count: Number(data.comment_count || 0),
+    comment: data.comment ?? null,
+  };
 }
 
 export async function fetchQuotable(

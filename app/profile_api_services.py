@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from .board_services import get_profile_timeline_posts
 from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_posts
+from .comment_thread_services import timeline_comments_prefetch
 from .dm_services import find_dm_room
 from .flea_api_services import serialize_product_card
 from .follow_services import (
@@ -291,7 +292,7 @@ def _discover_timeline_candidates(
         "quoted_post__author",
         "quoted_post__author__profile",
         "shared_product",
-    ).prefetch_related("comments__author", "comments__author__profile")
+    ).prefetch_related(timeline_comments_prefetch())
     qs = filter_visible_timeline_posts(qs, viewer)
     if faculty:
         qs = qs.filter(
@@ -300,7 +301,7 @@ def _discover_timeline_candidates(
     qs = annotate_timeline_quote_count(qs).annotate(
         feed_comment_count=Count(
             "comments",
-            filter=Q(comments__is_removed=False),
+            filter=Q(comments__is_removed=False, comments__is_author_deleted=False),
             distinct=True,
         )
     )
@@ -637,7 +638,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                 "quoted_post__author",
                 "shared_product",
             )
-            .prefetch_related("comments__author", "comments__author__profile")
+            .prefetch_related(timeline_comments_prefetch())
         )
         if viewer is not None and getattr(viewer, "is_authenticated", False):
             timeline_qs = timeline_qs.annotate(

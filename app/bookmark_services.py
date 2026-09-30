@@ -8,6 +8,7 @@ from typing import Any, Iterable
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Exists, OuterRef
 
+from .comment_thread_services import timeline_comments_prefetch
 from .models import TimelineLike, TimelinePost
 from .push_services import get_firebase_app
 from .ugc_services import filter_visible_timeline_posts
@@ -345,7 +346,7 @@ def _timeline_posts_queryset_base():
         "quoted_post__author",
         "quoted_post__author__profile",
         "shared_product",
-    ).prefetch_related("comments__author", "comments__author__profile")
+    ).prefetch_related(timeline_comments_prefetch())
 
 
 def get_bookmarked_timeline_posts(

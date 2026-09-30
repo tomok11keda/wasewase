@@ -17,6 +17,14 @@ from .board_services import (
     timeline_post_link,
 )
 from .bookmark_services import BookmarkServiceError, toggle_bookmark
+from .comment_thread_services import (
+    CommentThreadError,
+    delete_or_tombstone_timeline_comment,
+    parse_parent_comment_id,
+    resolve_parent_comment,
+    timeline_comments_prefetch,
+    visible_timeline_comment_count,
+)
 from .forms import TimelineCommentForm, TimelinePostForm
 from .media_services import compose_save_error_message
 from .mention_services import notify_mentions
@@ -127,7 +135,7 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
             "quoted_post__author__profile",
             "shared_product",
         )
-        .prefetch_related("comments__author", "comments__author__profile")
+        .prefetch_related(timeline_comments_prefetch())
         .get(pk=post.pk)
     )
     post.user_has_liked = False
@@ -282,13 +290,27 @@ def api_v1_timeline_comment(request: HttpRequest, pk: int) -> JsonResponse:
     comment = form.save(commit=False)
     comment.timeline_post = post
     comment.author = request.user
+    parent_raw = None
+    if request.content_type and "application/json" in (request.content_type or ""):
+        parent_raw = data.get("parent_comment_id") if isinstance(data, dict) else None
+    else:
+        parent_raw = request.POST.get("parent_comment_id")
+    try:
+        parent = resolve_parent_comment(
+            post=post,
+            parent_comment_id=parse_parent_comment_id(parent_raw),
+        )
+    except CommentThreadError as exc:
+        return _json_error(exc.code, status=400)
+    comment.parent_comment = parent
     comment.save()
     notify_timeline_comment(
         post=post,
         actor=request.user,
         comment_body=comment.body,
+        parent_comment=parent,
     )
-    comment_count = post.comments.filter(is_removed=False).count()
+    comment_count = visible_timeline_comment_count(post.pk)
     return JsonResponse(
         {
             "ok": True,
@@ -337,11 +359,12 @@ def api_v1_timeline_comment_delete(request: HttpRequest, pk: int) -> JsonRespons
     if comment.author_id != request.user.id:
         return _json_error("forbidden", status=403)
     post_id = comment.timeline_post_id
-    comment.delete()
-    comment_count = Comment.objects.filter(
-        timeline_post_id=post_id, is_removed=False
-    ).count()
-    return JsonResponse({"ok": True, "comment_count": comment_count})
+    kept = delete_or_tombstone_timeline_comment(comment)
+    comment_count = visible_timeline_comment_count(post_id)
+    payload = {"ok": True, "comment_count": comment_count}
+    if kept is not None:
+        payload["comment"] = serialize_comment(kept, request.user)
+    return JsonResponse(payload)
 
 
 @login_required

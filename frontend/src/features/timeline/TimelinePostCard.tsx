@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
 import { SfIcon } from "../../components/SfIcon";
-import type { TimelinePost } from "./api";
+import type { TimelineAuthor, TimelineComment, TimelinePost } from "./api";
 import {
   addComment,
   deleteComment,
@@ -44,6 +44,7 @@ type Props = {
   variant?: TimelinePostCardVariant;
   focusComposer?: boolean;
   commentsPending?: boolean;
+  composerUser?: { avatar_url: string; initial: string } | null;
 };
 
 function formatRelative(iso: string): string {
@@ -75,6 +76,86 @@ function formatCount(n: number): string {
   return `${Math.floor(n / 1000)}千`;
 }
 
+function ThreadAvatar({
+  author,
+  className,
+}: {
+  author: TimelineAuthor;
+  className: string;
+}) {
+  if (author) {
+    return (
+      <Link
+        className={className}
+        to={`/users/${author.id}/posts`}
+        aria-hidden="true"
+        onClick={() => saveScrollPosition("/")}
+      >
+        {author.avatar_url ? (
+          <img
+            className="user-avatar--image tweet-avatar__img"
+            src={author.avatar_url}
+            alt=""
+          />
+        ) : (
+          author.initial
+        )}
+      </Link>
+    );
+  }
+  return (
+    <span className={`${className} tweet-avatar--deleted`} aria-hidden="true">
+      退
+    </span>
+  );
+}
+
+type ReplyTarget = {
+  id: number;
+  username: string;
+  display_name: string;
+};
+
+function isDescendantOf(
+  comment: TimelineComment,
+  ancestorId: number,
+  comments: TimelineComment[]
+): boolean {
+  const byId = new Map(comments.map((row) => [row.id, row]));
+  let current: TimelineComment | undefined = comment;
+  const seen = new Set<number>();
+  while (current?.parent_comment_id) {
+    if (seen.has(current.id)) return false;
+    seen.add(current.id);
+    if (current.parent_comment_id === ancestorId) return true;
+    current = byId.get(current.parent_comment_id);
+  }
+  return false;
+}
+
+function insertThreadedComment(
+  comments: TimelineComment[],
+  comment: TimelineComment
+): TimelineComment[] {
+  if (!comment.parent_comment_id) {
+    return [...comments, comment];
+  }
+  const parentIdx = comments.findIndex((row) => row.id === comment.parent_comment_id);
+  if (parentIdx < 0) {
+    return [...comments, comment];
+  }
+  let insertAt = parentIdx + 1;
+  while (
+    insertAt < comments.length &&
+    isDescendantOf(comments[insertAt], comment.parent_comment_id, comments)
+  ) {
+    insertAt += 1;
+  }
+  const next = comments.slice();
+  next.splice(insertAt, 0, comment);
+  return next;
+}
+
 export function TimelinePostCard({
   post,
   authenticated,
@@ -85,9 +166,11 @@ export function TimelinePostCard({
   variant = "feed",
   focusComposer = false,
   commentsPending = false,
+  composerUser = null,
 }: Props) {
   const navigate = useNavigate();
   const [commentBody, setCommentBody] = useState("");
+  const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
   const [likePopping, setLikePopping] = useState(false);
@@ -103,10 +186,25 @@ export function TimelinePostCard({
   postRef.current = post;
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
   const showComments = variant === "detail";
+  const hasThreadLine = showComments && post.comments.length > 0;
+
+  const focusReplyComposer = (target?: ReplyTarget | null) => {
+    if (target !== undefined) {
+      setReplyTarget(target);
+    }
+    const el = composerRef.current;
+    if (!el) return;
+    el.focus();
+    el.scrollIntoView({ block: "nearest" });
+  };
+
+  const clearReplyTarget = () => {
+    setReplyTarget(null);
+  };
 
   const openDetail = (opts?: { focusComposer?: boolean }) => {
     if (variant === "detail") {
-      if (opts?.focusComposer) composerRef.current?.focus();
+      if (opts?.focusComposer) focusReplyComposer(null);
       return;
     }
     saveScrollPosition("/");
@@ -118,7 +216,7 @@ export function TimelinePostCard({
   useEffect(() => {
     if (!focusComposer || variant !== "detail") return;
     const timer = window.setTimeout(() => {
-      composerRef.current?.focus();
+      focusReplyComposer();
     }, 50);
     return () => window.clearTimeout(timer);
   }, [focusComposer, variant]);
@@ -233,7 +331,9 @@ export function TimelinePostCard({
     <article
       ref={articleRef}
       id={`post-${post.id}`}
-      className={`tweet-card${variant === "feed" ? " tweet-card--openable" : ""}`}
+      className={`tweet-card${variant === "feed" ? " tweet-card--openable" : ""}${
+        variant === "detail" ? " tweet-card--detail" : ""
+      }`}
       data-spa-post={post.id}
       onClick={(event) => {
         if (variant === "detail") return;
@@ -241,28 +341,16 @@ export function TimelinePostCard({
         openDetail();
       }}
     >
-      <div className="tweet-layout">
-        {post.author ? (
-          <Link
-            className="tweet-avatar"
-            to={`/users/${post.author.id}/posts`}
-            aria-hidden="true"
-            onClick={() => saveScrollPosition("/")}
-          >
-            {post.author.avatar_url ? (
-              <img
-                className="user-avatar--image tweet-avatar__img"
-                src={post.author.avatar_url}
-                alt=""
-              />
-            ) : (
-              post.author.initial
-            )}
-          </Link>
+      <div className={`tweet-layout${variant === "detail" ? " tweet-thread-root" : ""}`}>
+        {variant === "detail" ? (
+          <div className="tweet-avatar-col">
+            <ThreadAvatar author={post.author} className="tweet-avatar" />
+            {hasThreadLine ? (
+              <span className="tweet-thread-line" aria-hidden="true" />
+            ) : null}
+          </div>
         ) : (
-          <span className="tweet-avatar tweet-avatar--deleted" aria-hidden="true">
-            退
-          </span>
+          <ThreadAvatar author={post.author} className="tweet-avatar" />
         )}
 
         <div className="tweet-main">
@@ -288,26 +376,24 @@ export function TimelinePostCard({
               ) : (
                 <span className="tweet-author tweet-author--deleted">削除済みユーザー</span>
               )}
-              <span className="tweet-meta-dot" aria-hidden="true">
-                ·
-              </span>
-              {variant === "detail" ? (
-                <time className="tweet-time" dateTime={post.created_at}>
-                  {formatRelative(post.created_at)}
-                </time>
-              ) : (
-                <Link
-                  className="tweet-time tweet-time--detail-link"
-                  to={`/posts/${post.id}`}
-                  state={timelinePostDetailState(post)}
-                  onClick={() => saveScrollPosition("/")}
-                  aria-label="投稿の詳細を見る"
-                >
-                  <time dateTime={post.created_at}>
-                    {formatRelative(post.created_at)}
-                  </time>
-                </Link>
-              )}
+              {variant !== "detail" ? (
+                <>
+                  <span className="tweet-meta-dot" aria-hidden="true">
+                    ·
+                  </span>
+                  <Link
+                    className="tweet-time tweet-time--detail-link"
+                    to={`/posts/${post.id}`}
+                    state={timelinePostDetailState(post)}
+                    onClick={() => saveScrollPosition("/")}
+                    aria-label="投稿の詳細を見る"
+                  >
+                    <time dateTime={post.created_at}>
+                      {formatRelative(post.created_at)}
+                    </time>
+                  </Link>
+                </>
+              ) : null}
             </div>
             <div className="tweet-header-menu">
               {authenticated && post.can_delete ? (
@@ -328,18 +414,20 @@ export function TimelinePostCard({
                   削除
                 </button>
               ) : null}
-              <BookmarkButton
-                bookmarked={post.user_has_bookmarked}
-                disabled={busy}
-                onClick={() =>
-                  guard(() => {
-                    void run(async () => {
-                      const bookmarked = await toggleBookmark(post.id);
-                      onChange({ ...post, user_has_bookmarked: bookmarked });
-                    });
-                  })
-                }
-              />
+              {variant !== "detail" ? (
+                <BookmarkButton
+                  bookmarked={post.user_has_bookmarked}
+                  disabled={busy}
+                  onClick={() =>
+                    guard(() => {
+                      void run(async () => {
+                        const bookmarked = await toggleBookmark(post.id);
+                        onChange({ ...post, user_has_bookmarked: bookmarked });
+                      });
+                    })
+                  }
+                />
+              ) : null}
               {!(authenticated && post.can_delete) ? (
                 <div className="tweet-overflow" ref={menuRef}>
                   <button
@@ -492,6 +580,14 @@ export function TimelinePostCard({
             </button>
           ) : null}
 
+          {variant === "detail" ? (
+            <div className="tweet-metadata">
+              <time className="tweet-metadata__time" dateTime={post.created_at}>
+                {formatRelative(post.created_at)}
+              </time>
+            </div>
+          ) : null}
+
           <div className="tweet-actionbar" role="group" aria-label="投稿アクション">
             <button
               type="button"
@@ -567,6 +663,30 @@ export function TimelinePostCard({
                 </button>
               ) : null}
             </div>
+            <span
+              className="tweet-action tweet-action--view tweet-action--static"
+              aria-label={`閲覧数 ${post.view_count || 0}`}
+            >
+              <SfIcon name="chart_bar" />
+              <span className="tweet-action-count">
+                {formatCount(post.view_count || 0)}
+              </span>
+            </span>
+            {variant === "detail" ? (
+              <BookmarkButton
+                className="tweet-action tweet-action--bookmark"
+                bookmarked={post.user_has_bookmarked}
+                disabled={busy}
+                onClick={() =>
+                  guard(() => {
+                    void run(async () => {
+                      const bookmarked = await toggleBookmark(post.id);
+                      onChange({ ...post, user_has_bookmarked: bookmarked });
+                    });
+                  })
+                }
+              />
+            ) : null}
             <button
               type="button"
               className="tweet-action tweet-action--share"
@@ -579,123 +699,142 @@ export function TimelinePostCard({
             >
               <SfIcon name="square_and_arrow_up" />
             </button>
-            <span
-              className="tweet-action tweet-action--view tweet-action--static"
-              aria-label={`閲覧数 ${post.view_count || 0}`}
-            >
-              <SfIcon name="chart_bar" />
-              <span className="tweet-action-count">
-                {formatCount(post.view_count || 0)}
-              </span>
-            </span>
           </div>
+        </div>
+      </div>
 
           {showComments ? (
             <div className="tweet-comments">
-              {authenticated ? (
-                <form
-                  className="tweet-comment-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const body = commentBody.trim();
-                    if (!body) return;
-                    void run(async () => {
-                      const { comment, comment_count } = await addComment(
-                        post.id,
-                        body
-                      );
-                      analytics.commentCreated();
-                      onChange({
-                        ...post,
-                        comments: [...post.comments, comment],
-                        comment_count,
-                      });
-                      setCommentBody("");
-                    });
-                  }}
-                >
-                  <input
-                    ref={composerRef}
-                    type="text"
-                    value={commentBody}
-                    onChange={(e) => setCommentBody(e.target.value)}
-                    placeholder="コメントを入力..."
-                    maxLength={500}
-                  />
-                  <button type="submit" disabled={busy || !commentBody.trim()}>
-                    送信
-                  </button>
-                </form>
-              ) : (
-                <p className="spa-placeholder__note">
-                  コメントにはログインが必要です。
-                </p>
-              )}
               {commentsPending ? (
-                <p className="tweet-comments__empty">コメントを読み込み中…</p>
+                <p className="tweet-comments__empty">返信を読み込み中…</p>
               ) : post.comments.length === 0 ? (
-                <p className="tweet-comments__empty">まだコメントはありません</p>
+                <p className="tweet-comments__empty">まだ返信はありません</p>
               ) : (
                 <ul className="tweet-comment-list">
-                  {post.comments.map((c) => (
-                    <li key={c.id} className="tweet-comment">
-                      {c.author ? (
-                        <Link
-                          className="tweet-comment__avatar"
-                          to={`/users/${c.author.id}/posts`}
-                          aria-hidden="true"
-                          onClick={() => saveScrollPosition("/")}
-                        >
-                          {c.author.avatar_url ? (
-                            <img
-                              className="user-avatar--image tweet-avatar__img"
-                              src={c.author.avatar_url}
-                              alt=""
-                            />
-                          ) : (
-                            c.author.initial
-                          )}
-                        </Link>
-                      ) : (
-                        <span
-                          className="tweet-comment__avatar tweet-avatar--deleted"
-                          aria-hidden="true"
-                        >
-                          退
-                        </span>
-                      )}
+                  {post.comments.map((c, index) => {
+                    const next = post.comments[index + 1];
+                    const connects =
+                      Boolean(next) && next.parent_comment_id === c.id;
+                    const isReply = Boolean(c.parent_comment_id);
+                    const replyLabel = c.reply_to
+                      ? c.reply_to.is_unavailable || !c.reply_to.username
+                        ? "削除されたコメントへの返信"
+                        : `@${c.reply_to.username} への返信`
+                      : null;
+                    return (
+                    <li
+                      key={c.id}
+                      className={`tweet-comment${isReply ? " is-reply" : ""}${
+                        c.is_deleted ? " is-deleted" : ""
+                      }`}
+                    >
+                      <div className="tweet-avatar-col">
+                        <ThreadAvatar
+                          author={c.author}
+                          className="tweet-avatar tweet-comment__avatar"
+                        />
+                        {connects ? (
+                          <span className="tweet-thread-line" aria-hidden="true" />
+                        ) : null}
+                      </div>
                       <div className="tweet-comment__content">
-                        <div className="tweet-comment__meta">
+                        <div className="tweet-comment__identity">
                           {c.author ? (
-                            <Link
-                              className="tweet-comment__author"
-                              to={`/users/${c.author.id}/posts`}
-                              onClick={() => saveScrollPosition("/")}
-                            >
-                              {c.author.display_name}
-                            </Link>
+                            <>
+                              <Link
+                                className="tweet-comment__name"
+                                to={`/users/${c.author.id}/posts`}
+                                onClick={() => saveScrollPosition("/")}
+                              >
+                                {c.author.display_name}
+                              </Link>
+                              <Link
+                                className="tweet-comment__handle"
+                                to={`/users/${c.author.id}/posts`}
+                                onClick={() => saveScrollPosition("/")}
+                              >
+                                @{c.author.username}
+                              </Link>
+                            </>
                           ) : (
-                            <span>削除済み</span>
+                            <span className="tweet-comment__name tweet-comment__name--deleted">
+                              削除済みユーザー
+                            </span>
                           )}
-                          <span aria-hidden="true">·</span>
-                          <time dateTime={c.created_at}>
+                          <span className="tweet-meta-dot" aria-hidden="true">
+                            ·
+                          </span>
+                          <time
+                            className="tweet-comment__time"
+                            dateTime={c.created_at}
+                          >
                             {formatRelative(c.created_at)}
                           </time>
+                        </div>
+                        {replyLabel ? (
+                          <p className="tweet-comment__reply-to">{replyLabel}</p>
+                        ) : null}
+                        <div className="tweet-comment__body">{c.body}</div>
+                        <div
+                          className="tweet-comment__actions"
+                          role="group"
+                          aria-label="返信アクション"
+                        >
+                          {!c.is_deleted ? (
+                            <button
+                              type="button"
+                              className="tweet-action tweet-action--comment"
+                              aria-label="返信"
+                              onClick={() =>
+                                guard(() => {
+                                  focusReplyComposer(
+                                    c.author
+                                      ? {
+                                          id: c.id,
+                                          username: c.author.username,
+                                          display_name: c.author.display_name,
+                                        }
+                                      : {
+                                          id: c.id,
+                                          username: "",
+                                          display_name: "削除済みユーザー",
+                                        }
+                                  );
+                                })
+                              }
+                            >
+                              <SfIcon name="bubble_left" size={16} />
+                              {c.reply_count ? (
+                                <span className="tweet-action-count">
+                                  {formatCount(c.reply_count)}
+                                </span>
+                              ) : null}
+                            </button>
+                          ) : null}
                           {c.can_delete ? (
                             <button
                               type="button"
-                              className="tweet-menu-btn tweet-menu-btn--danger"
+                              className="tweet-action tweet-action--delete"
                               disabled={busy}
+                              aria-label="削除"
                               onClick={() =>
                                 void run(async () => {
-                                  const comment_count = await deleteComment(c.id);
+                                  const { comment_count, comment } =
+                                    await deleteComment(c.id);
                                   onChange({
                                     ...post,
-                                    comments: post.comments.filter(
-                                      (x) => x.id !== c.id
-                                    ),
+                                    comments: comment
+                                      ? post.comments.map((row) =>
+                                          row.id === comment.id ? comment : row
+                                        )
+                                      : post.comments.filter(
+                                          (row) => row.id !== c.id
+                                        ),
                                     comment_count,
                                   });
+                                  if (replyTarget?.id === c.id) {
+                                    clearReplyTarget();
+                                  }
                                 })
                               }
                             >
@@ -703,16 +842,96 @@ export function TimelinePostCard({
                             </button>
                           ) : null}
                         </div>
-                        <div className="tweet-comment__body">{c.body}</div>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
+              )}
+              {authenticated ? (
+                <form
+                  className="tweet-comment-form tweet-comment-form--dock"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const body = commentBody.trim();
+                    if (!body) return;
+                    void run(async () => {
+                      const { comment, comment_count } = await addComment(
+                        post.id,
+                        body,
+                        replyTarget?.id ?? null
+                      );
+                      analytics.commentCreated();
+                      onChange({
+                        ...post,
+                        comments: insertThreadedComment(post.comments, comment),
+                        comment_count,
+                      });
+                      setCommentBody("");
+                      clearReplyTarget();
+                    });
+                  }}
+                >
+                  {replyTarget ? (
+                    <div className="tweet-comment-form__target">
+                      <span>
+                        {replyTarget.username
+                          ? `@${replyTarget.username} に返信`
+                          : `${replyTarget.display_name} に返信`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearReplyTarget}
+                        aria-label="返信先を解除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="tweet-comment-form__row">
+                  {composerUser ? (
+                    <span className="tweet-comment-form__avatar" aria-hidden="true">
+                      {composerUser.avatar_url ? (
+                        <img
+                          className="user-avatar--image tweet-avatar__img"
+                          src={composerUser.avatar_url}
+                          alt=""
+                        />
+                      ) : (
+                        composerUser.initial
+                      )}
+                    </span>
+                  ) : null}
+                  <input
+                    ref={composerRef}
+                    type="text"
+                    value={commentBody}
+                    onChange={(e) => setCommentBody(e.target.value)}
+                    placeholder={
+                      replyTarget?.username
+                        ? `@${replyTarget.username} に返信`
+                        : "返信を入力..."
+                    }
+                    maxLength={500}
+                    aria-label="返信を入力"
+                  />
+                  <button
+                    type="submit"
+                    className="tweet-comment-form__send"
+                    disabled={busy || !commentBody.trim()}
+                    aria-label="送信"
+                  >
+                    <SfIcon name="paperplane" size={16} />
+                  </button>
+                  </div>
+                </form>
+              ) : (
+                <p className="tweet-comments__empty tweet-comments__login">
+                  返信にはログインが必要です。
+                </p>
               )}
             </div>
           ) : null}
-        </div>
-      </div>
     </article>
     <LikerListModal
       postId={post.id}

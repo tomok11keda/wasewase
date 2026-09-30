@@ -1,27 +1,382 @@
 /* Timeline post detail — keep separate from dirty timeline.css */
 .post-detail-page {
-  min-height: 40vh;
+  min-height: calc(100dvh - var(--wase-chrome-offset));
   background: #fff;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
 .post-detail-body {
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .post-detail-page .tweet-card {
   cursor: default;
 }
 
-.post-detail-page .tweet-comment-form {
-  margin-bottom: 8px;
+.post-detail-page .tweet-card--detail {
+  padding: 12px 16px 0;
+  border-bottom: none;
+  background: #fff;
+  box-shadow: none;
+}
+
+.post-detail-page .tweet-card--detail:active {
+  background: #fff;
+}
+
+.post-detail-page .tweet-thread-root {
+  align-items: stretch;
+  gap: 12px;
+}
+
+.post-detail-page .tweet-avatar-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--tweet-avatar-size, 40px);
+  flex-shrink: 0;
+}
+
+.post-detail-page .tweet-thread-line {
+  flex: 1 1 auto;
+  width: 2px;
+  min-height: 12px;
+  margin-top: 4px;
+  background: #cbb7bb;
+  border-radius: 1px;
+}
+
+.post-detail-page .tweet-identity {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.post-detail-page .tweet-author {
+  font-size: 16px;
+  font-weight: 800;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.post-detail-page .tweet-handle,
+.post-detail-page .tweet-time {
+  color: var(--tweet-muted, #536471);
+  font-weight: 400;
+  flex-shrink: 1;
+}
+
+.post-detail-page .tweet-body {
+  margin: 4px 0 10px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.post-detail-page .tweet-metadata {
+  margin: 0 0 8px;
+  padding: 4px 0 0;
+}
+
+.post-detail-page .tweet-metadata__time {
+  font-size: 14px;
+  color: var(--tweet-muted, #536471);
+}
+
+.post-detail-page .tweet-actionbar {
+  max-width: none;
+  padding: 4px 0 8px;
+  margin: 0;
+}
+
+.post-detail-page .tweet-actionbar .tweet-menu-btn.tweet-action {
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 4px;
+  width: auto;
+}
+
+.post-detail-page .tweet-comments {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.post-detail-page .tweet-comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.post-detail-page .tweet-comment {
+  display: grid;
+  grid-template-columns: var(--tweet-avatar-size, 40px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px 0 8px;
+  border-bottom: 1px solid #eff3f4;
+  background: #fff;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.post-detail-page .tweet-comment.is-reply {
+  padding-left: 12px;
+}
+
+.post-detail-page .tweet-comment.is-deleted .tweet-comment__body {
+  color: var(--tweet-muted, #536471);
+}
+
+.post-detail-page .tweet-comment__reply-to {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--tweet-muted, #536471);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-detail-page .tweet-comment:last-child {
+  border-bottom: none;
+}
+
+.post-detail-page .tweet-comment__avatar {
+  width: var(--tweet-avatar-size, 40px);
+  height: var(--tweet-avatar-size, 40px);
+  font-size: 16px;
+}
+
+.post-detail-page .tweet-comment__content {
+  min-width: 0;
+}
+
+.post-detail-page .tweet-comment__identity {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.post-detail-page .tweet-comment__name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--tweet-text, #0f1419);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 42%;
+}
+
+.post-detail-page .tweet-comment__name:hover,
+.post-detail-page .tweet-comment__handle:hover {
+  text-decoration: underline;
+}
+
+.post-detail-page .tweet-comment__handle,
+.post-detail-page .tweet-comment__time {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--tweet-muted, #536471);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.post-detail-page .tweet-comment__handle {
+  min-width: 0;
+}
+
+.post-detail-page .tweet-comment__time {
+  flex-shrink: 0;
+}
+
+.post-detail-page .tweet-comment__body {
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.post-detail-page .tweet-comment__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  max-width: 280px;
+  margin: 4px 0 0 -8px;
+}
+
+.post-detail-page .tweet-comment__actions .tweet-action {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  justify-content: flex-start;
+}
+
+.post-detail-page .tweet-comment__actions .tweet-action--delete {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tweet-muted, #536471);
 }
 
 .post-detail-page .tweet-comments__empty {
-  margin: 8px 0 0;
+  margin: 12px 0 8px;
   color: var(--muted, #536471);
   font-size: 14px;
+}
+
+.post-detail-page .tweet-comment-form--dock,
+.post-detail-page .tweet-comments__login {
+  position: sticky;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  z-index: 150;
+}
+
+@media (max-width: 1023px) {
+  .post-detail-page .tweet-comments {
+    padding-bottom: 56px;
+  }
+
+  .post-detail-page .tweet-comment-form--dock,
+  .post-detail-page .tweet-comments__login {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+.post-detail-page .tweet-comment-form--dock {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-left: -16px;
+  margin-right: -16px;
+  margin-bottom: 0;
+  padding: 8px 16px;
+  background: #fff;
+  border-top: 1px solid #eff3f4;
+}
+
+.post-detail-page .tweet-comment-form__target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--tweet-muted, #536471);
+  font-size: 13px;
+}
+
+.post-detail-page .tweet-comment-form__target span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-detail-page .tweet-comment-form__target button {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tweet-muted, #536471);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.post-detail-page .tweet-comment-form__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.post-detail-page .tweet-comment-form__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f7edf0, #e8c4ca);
+  color: #891e2b;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.post-detail-page .tweet-comment-form__avatar .user-avatar--image,
+.post-detail-page .tweet-comment-form__avatar .tweet-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-detail-page .tweet-comment-form--dock input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #f7f9f9;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.post-detail-page .tweet-comment-form--dock input:focus {
+  outline: 2px solid rgba(137, 30, 43, 0.28);
+  outline-offset: 1px;
+  background: #fff;
+}
+
+.post-detail-page .tweet-comment-form__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent, #891e2b);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.post-detail-page .tweet-comment-form__send:disabled {
+  color: #c5b0b4;
+  cursor: default;
+}
+
+.post-detail-page .tweet-comments__login {
+  margin: auto 0 0;
+  padding: 12px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #eff3f4;
 }
 
 .tweet-card--openable {
@@ -36,4 +391,15 @@ a.tweet-time--detail-link {
 a.tweet-time--detail-link:hover,
 a.tweet-time--detail-link:focus-visible {
   text-decoration: underline;
+}
+
+@media (min-width: 1024px) {
+  .post-detail-page {
+    min-height: calc(100dvh - var(--wase-chrome-offset, 0px));
+  }
+
+  .post-detail-page .tweet-comment-form--dock,
+  .post-detail-page .tweet-comments__login {
+    bottom: 0;
+  }
 }

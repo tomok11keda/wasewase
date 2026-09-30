@@ -93,6 +93,7 @@ from .bookmark_services import (
     prepare_timeline_posts,
     toggle_bookmark,
 )
+from .comment_thread_services import timeline_comments_prefetch
 from .forms import (
     EmailAuthenticationForm,
     AccountProfileForm,
@@ -511,7 +512,7 @@ def search(request):
                     "quoted_post",
                     "quoted_post__author",
                 )
-                .prefetch_related("comments__author", "comments__author__profile")
+                .prefetch_related(timeline_comments_prefetch())
             )
             if request.user.is_authenticated:
                 timeline_qs = timeline_qs.annotate(
@@ -2555,6 +2556,7 @@ def board_timeline_comment(request, pk):
             post=post,
             actor=request.user,
             comment_body=comment.body,
+            parent_comment=None,
         )
         messages.success(request, "コメントを投稿しました。")
     else:
@@ -2596,7 +2598,12 @@ def delete_comment(request, pk):
             return _board_redirect(request, tag=tag, post_id=post_id)
         return redirect(reverse("home"))
 
-    comment.delete()
+    if timeline_post:
+        from .comment_thread_services import delete_or_tombstone_timeline_comment
+
+        delete_or_tombstone_timeline_comment(comment)
+    else:
+        comment.delete()
     messages.success(request, "コメントを削除しました。")
     if product_id:
         return redirect(reverse("product_detail", kwargs={"pk": product_id}))

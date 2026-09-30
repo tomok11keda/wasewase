@@ -22,6 +22,11 @@ from .board_services import (
 )
 from .bookmark_services import prepare_timeline_posts
 from .follow_services import FOLLOW_LIST_LIMIT
+from .comment_thread_services import (
+    TOMBSTONE_BODY,
+    order_comments_for_thread,
+    timeline_comments_prefetch,
+)
 from .models import Comment, TimelineLike, TimelinePost
 from .handle_services import public_username
 from .services import (
@@ -31,7 +36,6 @@ from .services import (
 )
 from .trade_chat_inbox_services import product_thumbnail_url
 from .ugc_services import (
-    filter_visible_comments,
     filter_visible_timeline_posts,
     get_either_blocked_user_ids,
 )
@@ -129,18 +133,56 @@ def serialize_shared_product(post: TimelinePost) -> dict[str, Any] | None:
 def serialize_comment(
     comment: Comment,
     viewer: AbstractBaseUser | None,
+    *,
+    reply_count: int = 0,
+    visible_ids: set[int] | None = None,
 ) -> dict[str, Any]:
     can_delete = bool(
         viewer
         and getattr(viewer, "is_authenticated", False)
         and comment.author_id == viewer.pk
+        and not comment.is_author_deleted
     )
+    is_deleted = bool(comment.is_author_deleted)
+    parent = getattr(comment, "parent_comment", None)
+    reply_to = None
+    if comment.parent_comment_id:
+        parent_unavailable = (
+            parent is None
+            or parent.is_removed
+            or parent.is_author_deleted
+            or (
+                visible_ids is not None
+                and parent.pk not in visible_ids
+            )
+        )
+        parent_author = parent.author if parent is not None else None
+        reply_to = {
+            "id": comment.parent_comment_id,
+            "username": (
+                ""
+                if parent_unavailable
+                else (public_username(parent_author) if parent_author else "")
+            ),
+            "display_name": (
+                ""
+                if parent_unavailable
+                else (
+                    user_display_name(parent_author) if parent_author else ""
+                )
+            ),
+            "is_unavailable": parent_unavailable,
+        }
     return {
         "id": comment.pk,
-        "body": comment.body,
+        "body": TOMBSTONE_BODY if is_deleted else comment.body,
         "created_at": comment.created_at.isoformat(),
         "can_delete": can_delete,
-        "author": serialize_author(comment.author),
+        "author": serialize_author(comment.author) if not is_deleted else None,
+        "parent_comment_id": comment.parent_comment_id,
+        "reply_to": reply_to,
+        "is_deleted": is_deleted,
+        "reply_count": int(reply_count or 0),
     }
 
 
@@ -168,16 +210,37 @@ def serialize_timeline_post(
     )
 
     comments_payload: list[dict[str, Any]] = []
-    comments_qs = filter_visible_comments(
-        post.comments.all(),
-        viewer if viewer_id is not None else None,
-    ).select_related("author", "author__profile")
+    blocked_ids = get_either_blocked_user_ids(
+        viewer if viewer_id is not None else None
+    )
+    visible_comments = [
+        comment
+        for comment in post.comments.all()
+        if not comment.is_removed
+        and (not blocked_ids or comment.author_id not in blocked_ids)
+    ]
+    ordered_comments = order_comments_for_thread(list(visible_comments))
+    comment_count = sum(
+        1 for comment in ordered_comments if not comment.is_author_deleted
+    )
     if include_comments:
-        comments_list = list(comments_qs)
-        comment_count = len(comments_list)
-        comments_payload = [serialize_comment(c, viewer) for c in comments_list]
-    else:
-        comment_count = comments_qs.count()
+        visible_ids = {comment.pk for comment in ordered_comments}
+        reply_counts: dict[int, int] = {}
+        for comment in ordered_comments:
+            if comment.is_author_deleted:
+                continue
+            parent_id = comment.parent_comment_id
+            if parent_id:
+                reply_counts[parent_id] = reply_counts.get(parent_id, 0) + 1
+        comments_payload = [
+            serialize_comment(
+                comment,
+                viewer,
+                reply_count=reply_counts.get(comment.pk, 0),
+                visible_ids=visible_ids,
+            )
+            for comment in ordered_comments
+        ]
 
     quote_count = getattr(post, "quote_count", None)
     if quote_count is None:
@@ -223,7 +286,7 @@ def get_visible_timeline_post_payload(
             "quoted_post__author",
             "quoted_post__author__profile",
             "shared_product",
-        ).prefetch_related("comments__author", "comments__author__profile")
+        ).prefetch_related(timeline_comments_prefetch())
     )
     auth_viewer = (
         viewer

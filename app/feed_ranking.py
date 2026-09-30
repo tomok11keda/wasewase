@@ -184,7 +184,7 @@ def _annotate_timeline_for_ranking(queryset: QuerySet) -> QuerySet:
     return queryset.annotate(
         feed_comment_count=Count(
             "comments",
-            filter=Q(comments__is_removed=False),
+            filter=Q(comments__is_removed=False, comments__is_author_deleted=False),
             distinct=True,
         )
     )

@@ -36,12 +36,15 @@ class TimelineCommentParticipantNotificationTests(TestCase):
             course_name="民法",
         )
 
-    def _api_comment(self, user, body: str, post=None):
+    def _api_comment(self, user, body: str, post=None, *, parent_id=None):
         post = post or self.post
         self.client.force_login(user)
+        payload = {"body": body}
+        if parent_id is not None:
+            payload["parent_comment_id"] = parent_id
         return self.client.post(
             f"/api/v1/timeline/{post.pk}/comments/",
-            data=json.dumps({"body": body}),
+            data=json.dumps(payload),
             content_type="application/json",
         )
 
@@ -280,3 +283,121 @@ class TimelineCommentParticipantNotificationTests(TestCase):
         Notification.objects.all().delete()
         self._api_comment(self.user_c, "next")
         self.assertEqual(self._recipient_ids(), {self.author_a.pk})
+
+    def test_reply_notifies_parent_author_and_keeps_post_author(self):
+        parent = self._api_comment(self.user_b, "from b").json()["comment"]
+        Notification.objects.all().delete()
+        res = self._api_comment(self.user_c, "reply to b", parent_id=parent["id"])
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(
+            self._recipient_ids(), {self.author_a.pk, self.user_b.pk}
+        )
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_b).count(), 1
+        )
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.author_a).count(), 1
+        )
+        self.assertEqual(
+            self._messages_for(self.user_b),
+            ["「Carolさんがあなたのコメントに返信しました」"],
+        )
+        self.assertEqual(
+            self._messages_for(self.author_a),
+            ["「Carolさんがあなたの投稿にコメントしました」"],
+        )
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.user_c).exists()
+        )
+        b_note = Notification.objects.get(recipient=self.user_b)
+        self.assertEqual(b_note.link, f"/app/posts/{self.post.pk}")
+        self.assertEqual(
+            notification_spa_path(b_note.link), f"/posts/{self.post.pk}"
+        )
+
+    def test_reply_to_post_author_comment_does_not_duplicate(self):
+        parent = self._api_comment(self.author_a, "author comment").json()[
+            "comment"
+        ]
+        Notification.objects.all().delete()
+        res = self._api_comment(
+            self.user_c, "reply to author", parent_id=parent["id"]
+        )
+        self.assertEqual(res.status_code, 201)
+        notes = list(Notification.objects.filter(recipient=self.author_a))
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(
+            notes[0].message,
+            "「Carolさんがあなたのコメントに返信しました」",
+        )
+        self.assertNotIn("あなたの投稿にコメントしました", notes[0].message)
+
+    def test_self_reply_creates_no_self_notification(self):
+        parent = self._api_comment(self.user_b, "mine").json()["comment"]
+        Notification.objects.all().delete()
+        res = self._api_comment(
+            self.user_b, "reply to myself", parent_id=parent["id"]
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.user_b).exists()
+        )
+        self.assertEqual(
+            self._messages_for(self.author_a),
+            ["「Bobさんがあなたの投稿にコメントしました」"],
+        )
+
+    def test_reply_mention_of_parent_author_dedupes_to_reply_only(self):
+        parent = self._api_comment(self.user_b, "prior").json()["comment"]
+        Notification.objects.all().delete()
+        res = self._api_comment(
+            self.user_c,
+            f"@{self.user_b.username} 返信です",
+            parent_id=parent["id"],
+        )
+        self.assertEqual(res.status_code, 201)
+        notes = list(Notification.objects.filter(recipient=self.user_b))
+        self.assertEqual(len(notes), 1)
+        self.assertIn("あなたのコメントに返信しました", notes[0].message)
+        self.assertNotIn("メンション", notes[0].message)
+
+    def test_nested_reply_notifies_immediate_parent_not_root(self):
+        root = self._api_comment(self.user_b, "root").json()["comment"]
+        child = self._api_comment(
+            self.user_c, "child", parent_id=root["id"]
+        ).json()["comment"]
+        Notification.objects.all().delete()
+        res = self._api_comment(
+            self.user_d, "grandchild", parent_id=child["id"]
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(
+            self._messages_for(self.user_c),
+            ["「Daveさんがあなたのコメントに返信しました」"],
+        )
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.user_c).count(), 1
+        )
+        self.assertNotIn(
+            "あなたのコメントに返信しました",
+            " ".join(self._messages_for(self.user_b)),
+        )
+        self.assertTrue(
+            Notification.objects.filter(recipient=self.author_a).exists()
+        )
+
+    @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
+    @patch("app.push_services.notify_user_push")
+    def test_reply_notification_uses_reply_push_body(self, mock_push):
+        mock_push.return_value = 0
+        parent = self._api_comment(self.user_b, "prior").json()["comment"]
+        mock_push.reset_mock()
+        self._api_comment(self.user_c, "reply", parent_id=parent["id"])
+        bodies = {call.kwargs["body"] for call in mock_push.call_args_list}
+        self.assertIn(
+            "「Carolさんがあなたのコメントに返信しました」", bodies
+        )
+        self.assertIn(
+            "「Carolさんがあなたの投稿にコメントしました」", bodies
+        )
+        self.assertEqual(mock_push.call_count, 2)
