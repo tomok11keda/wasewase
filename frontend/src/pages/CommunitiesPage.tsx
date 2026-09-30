@@ -187,16 +187,17 @@ export function CommunitiesPage() {
               <button
                 type="button"
                 className="btn-new-thread"
+                aria-expanded={composeOpen}
                 onClick={() => setComposeOpen((v) => !v)}
               >
-                新規スレッド
+                ＋ 新規スレッド
               </button>
             ) : (
               <Link
                 className="btn-new-thread"
                 to={spaLoginPath("/app/communities")}
               >
-                ログインして投稿
+                ＋ 新規スレッド
               </Link>
             )
           ) : null}
@@ -211,6 +212,7 @@ export function CommunitiesPage() {
           <button
             type="button"
             className={`community-hub-tab${hub === "community" ? " is-active" : ""}`}
+            aria-pressed={hub === "community"}
             onClick={() => setHub("community")}
           >
             コミュニティ
@@ -218,6 +220,7 @@ export function CommunitiesPage() {
           <button
             type="button"
             className={`community-hub-tab${hub === "courses" ? " is-active" : ""}`}
+            aria-pressed={hub === "courses"}
             onClick={() => setHub("courses")}
           >
             授業
@@ -225,10 +228,15 @@ export function CommunitiesPage() {
         </nav>
 
         {hub === "community" ? (
-          <nav className="community-sort-tabs" aria-label="コミュニティ並び順">
+          <div
+            className="community-sort-tabs"
+            role="group"
+            aria-label="コミュニティ並び順"
+          >
             <button
               type="button"
               className={`community-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+              aria-pressed={sort === "recommended"}
               onClick={() => patchParams({ sort: "" })}
             >
               おすすめ
@@ -236,11 +244,12 @@ export function CommunitiesPage() {
             <button
               type="button"
               className={`community-sort-tab${sort === "latest" ? " is-active" : ""}`}
+              aria-pressed={sort === "latest"}
               onClick={() => patchParams({ sort: "latest" })}
             >
               最新
             </button>
-          </nav>
+          </div>
         ) : (
           <p className="communities-hub-hint">
             履修中・活発・人気の授業を見つけられます

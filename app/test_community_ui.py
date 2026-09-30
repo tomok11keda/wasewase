@@ -25,11 +25,14 @@ class CommunityIndexChromeTests(SimpleTestCase):
         page = _read("frontend/src/pages/CommunitiesPage.tsx")
         self.assertIn("community-hub-tabs", page)
         self.assertIn("community-sort-tabs", page)
-        self.assertIn("新規スレッド", page)
+        self.assertIn("aria-pressed", page)
+        self.assertIn("role=\"group\"", page)
+        self.assertIn("＋ 新規スレッド", page)
         self.assertIn("おすすめ", page)
         self.assertIn("最新", page)
         self.assertIn("授業", page)
         self.assertIn("Communityでは匿名で投稿できます", page)
+        self.assertIn('hub === "community"', page)
         self.assertIn("fetchCommunityThreads", page)
         self.assertIn("tag: tag || undefined", page)
         self.assertIn("q: qParam || undefined", page)
@@ -55,3 +58,18 @@ class CommunityIndexChromeTests(SimpleTestCase):
         chrome = css.split(".community-thread-page")[0]
         self.assertNotIn("backdrop-filter", chrome)
         self.assertNotIn("position: sticky", chrome)
+
+    def test_sort_filter_is_compact_pills_not_underline_tabs(self):
+        css = _read("frontend/src/styles/community.css")
+        page = _read("frontend/src/pages/CommunitiesPage.tsx")
+        chrome = css.split(".community-thread-page")[0]
+        self.assertIn(".community-hub-tab.is-active::after", chrome)
+        self.assertNotIn(".community-sort-tab.is-active::after", chrome)
+        self.assertNotIn(
+            ".community-hub-tabs,\n.community-sort-tabs",
+            chrome,
+        )
+        self.assertIn("width: fit-content", chrome)
+        self.assertIn("rgba(137, 30, 43, 0.08)", chrome)
+        self.assertIn('aria-pressed={sort === "recommended"}', page)
+        self.assertIn("hub === \"community\" ? (", page)
