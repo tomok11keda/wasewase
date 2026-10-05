@@ -492,6 +492,10 @@ html.chrome-conversation {
   position: relative;
   isolation: isolate;
   background: var(--bg, #f7f9fc);
+  /* Clip abspos hidden panes. Without this, a transformed pane whose
+     height is content-sized (max-height:100% is none when the stack
+     height is auto) can inflate WKWebView scrollHeight. */
+  overflow: hidden;
   /* Promote a stable compositor layer for WKWebView */
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
@@ -551,7 +555,9 @@ html.chrome-conversation {
   left: 0;
   right: 0;
   top: 0;
+  bottom: 0;
   width: 100%;
+  overflow: hidden;
   z-index: 1;
   opacity: 0;
   visibility: visible;
@@ -561,15 +567,16 @@ html.chrome-conversation {
     visibility 0s linear 220ms;
 }
 
-/* Inactive (not leaving): take out of flow but keep GPU layer warm */
+/* Inactive (not leaving): take out of flow but keep GPU layer warm.
+   top+bottom stretch to the stack (active pane height). max-height:100%
+   does not clip when the stack's height is content-based. */
 .tab-keep-alive-pane:not(.is-active):not(.is-leaving) {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
+  bottom: 0;
   width: 100%;
-  /* Avoid zero-size destroy; clip without display:none */
-  max-height: 100%;
   overflow: hidden;
 }
 

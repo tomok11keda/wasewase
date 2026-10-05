@@ -21,6 +21,10 @@ def _shell_css() -> str:
     return _read("frontend/src/styles/shell.css")
 
 
+def _css_rule(css: str, selector: str) -> str:
+    return css.split(selector, 1)[1].split("{", 1)[1].split("}", 1)[0]
+
+
 def _push_helper() -> str:
     return _transition_src().split("export function shouldPlayDetailPush")[1].split(
         "export function shouldResetDetailWindowScroll"
@@ -280,6 +284,76 @@ class DetailHeaderBackExitTests(SimpleTestCase):
         self.assertIn(".tab-keep-alive-stack.is-back-underlay", css)
         self.assertIn("pointer-events: none", css.split(".tab-keep-alive-stack.is-back-underlay")[1].split("}")[0])
         self.assertIn("readScrollPosition", keep)
+
+
+class KeepAliveOverflowContractTests(SimpleTestCase):
+    """Hidden keep-alive panes must not inflate document scrollHeight."""
+
+    def test_inactive_pane_is_clipped_to_active_stack_height(self):
+        css = _shell_css()
+        stack = _css_rule(css, ".tab-keep-alive-stack")
+        self.assertIn("overflow: hidden", stack)
+        self.assertNotIn("display: none", stack)
+
+        inactive = _css_rule(
+            css, ".tab-keep-alive-pane:not(.is-active):not(.is-leaving)"
+        )
+        self.assertIn("position: absolute", inactive)
+        self.assertIn("top: 0", inactive)
+        self.assertIn("bottom: 0", inactive)
+        self.assertIn("overflow: hidden", inactive)
+        self.assertNotIn("display: none", inactive)
+        self.assertNotIn("max-height: 100%", inactive)
+
+        leaving = _css_rule(css, ".tab-keep-alive-pane.is-leaving")
+        self.assertIn("position: absolute", leaving)
+        self.assertIn("top: 0", leaving)
+        self.assertIn("bottom: 0", leaving)
+        self.assertIn("overflow: hidden", leaving)
+        self.assertNotIn("display: none", leaving)
+
+    def test_active_pane_stays_in_flow_and_visible(self):
+        css = _shell_css()
+        active = _css_rule(css, ".tab-keep-alive-pane.is-active")
+        self.assertIn("position: relative", active)
+        self.assertIn("opacity: 1", active)
+        self.assertIn("visibility: visible", active)
+        self.assertIn("pointer-events: auto", active)
+        self.assertNotIn("display: none", active)
+
+    def test_keep_alive_panes_stay_mounted_without_display_none(self):
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        pane = keep.split("function TabPane(")[1].split("export function TabKeepAliveLayout")[0]
+        self.assertNotIn("display: none", pane)
+        self.assertNotIn('display: "none"', pane)
+        self.assertNotIn("unmount", pane)
+        self.assertIn("inert", pane)
+        self.assertIn("aria-hidden={!active}", pane)
+        self.assertIn("{children}", pane)
+
+        self.assertIn("mounted.home ?", keep)
+        self.assertIn("mounted.communities ?", keep)
+        self.assertIn("<HomePage />", keep)
+        self.assertIn("<CommunitiesPage />", keep)
+        self.assertIn("<SearchPage />", keep)
+        self.assertIn("<FleaPage />", keep)
+        self.assertIn("<TimetablePage ignoreRouteUserPk />", keep)
+        self.assertIn("return { ...prev, [active]: true }", keep)
+        self.assertNotIn("delete prev", keep)
+        self.assertNotIn("setMounted({})", keep)
+
+    def test_stack_min_height_is_crossfade_only(self):
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        self.assertIn("setStackMinHeight(h)", keep)
+        self.assertIn("setStackMinHeight(undefined)", keep)
+        self.assertIn("TAB_CROSSFADE_MS", keep)
+        effect = keep.split("if (prev && prev !== active && mounted[prev])")[1].split(
+            "prevActiveRef.current = active"
+        )[0]
+        self.assertIn("setLeaving(prev)", effect)
+        self.assertIn("setTimeout", effect)
+        self.assertIn("setLeaving(null)", effect)
+        self.assertIn("setStackMinHeight(undefined)", effect)
 
 
 class DetailPushRegressionTests(SimpleTestCase):
