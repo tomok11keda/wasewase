@@ -26,7 +26,7 @@
 }
 
 .btn-new-thread {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   height: 32px;
@@ -47,6 +47,13 @@
 .btn-new-thread:focus-visible {
   background: #f7f7f7;
   outline: none;
+}
+
+/* Mobile uses the Timeline-style FAB; keep a header CTA on desktop only. */
+@media (min-width: 1024px) {
+  .btn-new-thread--desktop {
+    display: inline-flex;
+  }
 }
 
 .community-hub-tabs {
@@ -379,6 +386,37 @@
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
+}
+
+.community-compose__anon {
+  margin: 0 0 10px;
+}
+
+.community-compose__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.community-compose button.community-compose__cancel {
+  background: transparent;
+  color: var(--muted, #536471);
+}
+
+.community-compose button.community-compose__cancel:hover,
+.community-compose button.community-compose__cancel:focus-visible {
+  background: #f4f4f4;
+  outline: none;
+}
+
+.communities-page .thread-list {
+  padding-bottom: calc(52px + 24px);
+}
+
+@media (min-width: 1024px) {
+  .communities-page .thread-list {
+    padding-bottom: 16px;
+  }
 }
 
 .thread-detail {

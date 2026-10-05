@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createCommunityThread,
   fetchCommunityThreads,
-  COMMUNITY_ANON_HINT,
   participantLabel,
   type ThreadSummary,
 } from "../features/community/api";
@@ -17,7 +17,10 @@ import {
   type CourseDiscoverCard,
 } from "../features/courses/api";
 import { CourseDiscoveryPanel } from "../features/courses/CourseDiscoveryPanel";
-import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import {
+  useActiveMainTab,
+  useSoftTabRefetch,
+} from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 
 type Hub = "community" | "courses";
@@ -26,6 +29,8 @@ export function CommunitiesPage() {
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
   const hub: Hub =
     searchParams.get("hub") === "courses" ? "courses" : "community";
@@ -35,7 +40,6 @@ export function CommunitiesPage() {
     searchParams.get("sort") === "latest" ? "latest" : "recommended"
   ) as "recommended" | "latest";
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [anonymousHint, setAnonymousHint] = useState(COMMUNITY_ANON_HINT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -43,6 +47,7 @@ export function CommunitiesPage() {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const hasDataRef = useRef(false);
+  const composeFormRef = useRef<HTMLFormElement | null>(null);
 
   const [enrolled, setEnrolled] = useState<CourseDiscoverCard[]>([]);
   const [active, setActive] = useState<CourseDiscoverCard[]>([]);
@@ -89,7 +94,6 @@ export function CommunitiesPage() {
           sort,
         });
         setThreads(data.threads);
-        if (data.anonymous_hint) setAnonymousHint(data.anonymous_hint);
         hasDataRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "load_failed");
@@ -152,6 +156,31 @@ export function CommunitiesPage() {
     return load("soft");
   });
 
+  useEffect(() => {
+    if (hub === "community") return;
+    setComposeOpen(false);
+  }, [hub]);
+
+  const normalizedPath = location.pathname.replace(/\/$/, "") || "/";
+  const onCommunityList =
+    activeTab === "communities" ||
+    (activeTab === null && normalizedPath === "/communities");
+  const showComposeFab =
+    hub === "community" && !composeOpen && onCommunityList;
+
+  const openCompose = () => {
+    if (!me?.authenticated) {
+      navigate(spaLoginPath("/app/communities"));
+      return;
+    }
+    setComposeOpen(true);
+  };
+
+  useEffect(() => {
+    if (!composeOpen) return;
+    composeFormRef.current?.scrollIntoView({ block: "start" });
+  }, [composeOpen]);
+
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
     if (!me?.authenticated) {
@@ -186,7 +215,7 @@ export function CommunitiesPage() {
             me?.authenticated ? (
               <button
                 type="button"
-                className="btn-new-thread"
+                className="btn-new-thread btn-new-thread--desktop"
                 aria-expanded={composeOpen}
                 onClick={() => setComposeOpen((v) => !v)}
               >
@@ -194,7 +223,7 @@ export function CommunitiesPage() {
               </button>
             ) : (
               <Link
-                className="btn-new-thread"
+                className="btn-new-thread btn-new-thread--desktop"
                 to={spaLoginPath("/app/communities")}
               >
                 ＋ 新規スレッド
@@ -275,8 +304,14 @@ export function CommunitiesPage() {
       ) : (
         <>
           {composeOpen ? (
-            <form className="community-compose" onSubmit={onCreate}>
-              <p className="community-anon-hint">{anonymousHint}</p>
+            <form
+              ref={composeFormRef}
+              className="community-compose"
+              onSubmit={onCreate}
+            >
+              <p className="community-anon-hint community-compose__anon">
+                匿名で投稿されます
+              </p>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -292,9 +327,18 @@ export function CommunitiesPage() {
                 placeholder="相談内容や共有したいことを書いてください"
                 required
               />
-              <button type="submit" disabled={busy}>
-                作成する
-              </button>
+              <div className="community-compose__actions">
+                <button
+                  type="button"
+                  className="community-compose__cancel"
+                  onClick={() => setComposeOpen(false)}
+                >
+                  キャンセル
+                </button>
+                <button type="submit" disabled={busy}>
+                  作成する
+                </button>
+              </div>
             </form>
           ) : null}
 
@@ -350,6 +394,20 @@ export function CommunitiesPage() {
           )}
         </>
       )}
+
+      {showComposeFab
+        ? createPortal(
+            <button
+              type="button"
+              className="compose-fab home-compose-fab community-compose-fab shell-hide-on-desktop is-visible"
+              aria-label="匿名で投稿"
+              onClick={openCompose}
+            >
+              ＋
+            </button>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
