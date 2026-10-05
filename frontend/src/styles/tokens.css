@@ -81,6 +81,22 @@ body.shell-hide-bottom-nav .shell-hide-on-desktop:has(.bottom-nav) {
   background: var(--bg);
 }
 
+/* Mobile: #root fill must not stack on body BottomNav padding.
+   body.shell-desktop already reserves --nav-h + safe-area for the fixed tab bar.
+   Conversation screens hide the tab bar and drop that padding — restore full fill. */
+@media (max-width: 1023px) {
+  #root {
+    min-height: calc(100vh - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+  }
+
+  body.shell-hide-bottom-nav #root,
+  html.shell-hide-bottom-nav #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 a {
   color: inherit;
 }

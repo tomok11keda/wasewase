@@ -4,6 +4,19 @@
   min-height: 100vh;
 }
 
+@media (max-width: 1023px) {
+  .app-shell {
+    min-height: calc(100vh - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+  }
+
+  body.shell-hide-bottom-nav .app-shell,
+  html.shell-hide-bottom-nav .app-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 .sidebar-left,
 .sidebar-right {
   display: none;
@@ -685,6 +698,7 @@ html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
   }
 
   .app-shell {
+    min-height: 100vh;
     display: grid;
     /* Keep left rail wide enough for icon + Japanese labels (avoid 88px icon-only collapse). */
     grid-template-columns:

@@ -413,6 +413,10 @@
   padding-bottom: calc(52px + 24px);
 }
 
+.communities-page.is-composing .thread-list {
+  padding-bottom: 16px;
+}
+
 @media (min-width: 1024px) {
   .communities-page .thread-list {
     padding-bottom: 16px;

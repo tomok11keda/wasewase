@@ -207,7 +207,10 @@ export function CommunitiesPage() {
   };
 
   return (
-    <div className="communities-page" data-spa-page="コミュニティ">
+    <div
+      className={`communities-page${composeOpen ? " is-composing" : ""}`}
+      data-spa-page="コミュニティ"
+    >
       <div className="communities-header">
         <div className="communities-header-top">
           <h2>コミュニティ</h2>

@@ -93,3 +93,23 @@ class CommunityIndexChromeTests(SimpleTestCase):
         self.assertIn("rgba(137, 30, 43, 0.08)", chrome)
         self.assertIn('aria-pressed={sort === "recommended"}', page)
         self.assertIn("hub === \"community\" ? (", page)
+
+
+class CommunityComposeSpacingTests(SimpleTestCase):
+    def test_fab_visible_keeps_thread_list_clearance(self):
+        css = _read("frontend/src/styles/community.css")
+        page = _read("frontend/src/pages/CommunitiesPage.tsx")
+        rule = css.split(".communities-page .thread-list")[1].split("}")[0]
+        self.assertIn("padding-bottom: calc(52px + 24px)", rule)
+        self.assertIn("hub === \"community\" && !composeOpen", page)
+        self.assertIn("community-compose-fab", page)
+
+    def test_composer_open_drops_fab_clearance(self):
+        css = _read("frontend/src/styles/community.css")
+        page = _read("frontend/src/pages/CommunitiesPage.tsx")
+        self.assertIn('communities-page${composeOpen ? " is-composing" : ""}', page)
+        composing = css.split(".communities-page.is-composing .thread-list")[1].split(
+            "}"
+        )[0]
+        self.assertIn("padding-bottom: 16px", composing)
+        self.assertNotIn("52px", composing)

@@ -187,3 +187,72 @@ class NativeAndScrollPreserveTests(SimpleTestCase):
         css = _read("frontend/src/styles/shell.css")
         self.assertIn("z-index: 2400", css)
         self.assertIn("z-index: 1000", css.split(".site-header")[1][:80])
+
+
+class MobileShellViewportHeightTests(SimpleTestCase):
+    """Short tab pages must not be viewport + BottomNav padding tall."""
+
+    def test_mobile_root_min_height_excludes_nav_reserved_space(self):
+        tokens = _read("frontend/src/styles/tokens.css")
+        native = _read("static/css/capacitor_native.css")
+        www = _read("www/css/capacitor_native.css")
+        self.assertEqual(native, www)
+        self.assertIn(
+            "padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))",
+            tokens,
+        )
+        mobile_root = tokens.split("@media (max-width: 1023px)")[2]
+        self.assertIn(
+            "min-height: calc(100vh - var(--nav-h) - env(safe-area-inset-bottom, 0px))",
+            mobile_root,
+        )
+        self.assertIn(
+            "min-height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom, 0px))",
+            mobile_root,
+        )
+        self.assertIn("body.shell-hide-bottom-nav #root", mobile_root)
+        hide = mobile_root.split("body.shell-hide-bottom-nav #root")[1]
+        self.assertIn("min-height: 100vh", hide)
+        self.assertIn("min-height: 100dvh", hide)
+        self.assertIn(
+            "100dvh - var(--nav-h, 56px) - env(safe-area-inset-bottom, 0px)",
+            native,
+        )
+        self.assertIn("shell-hide-bottom-nav #root", native)
+
+    def test_mobile_app_shell_does_not_undo_root_min_height(self):
+        css = _read("frontend/src/styles/shell.css")
+        mobile = css.split("@media (max-width: 1023px)")[1].split(
+            "@media (min-width: 1024px)"
+        )[0]
+        self.assertIn(
+            "min-height: calc(100vh - var(--nav-h) - env(safe-area-inset-bottom, 0px))",
+            mobile,
+        )
+        self.assertIn(
+            "min-height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom, 0px))",
+            mobile,
+        )
+        desktop = css.split("@media (min-width: 1024px)")[1]
+        desktop_shell = desktop.split(".app-shell")[1].split("}")[0]
+        self.assertIn("min-height: 100vh", desktop_shell)
+        self.assertNotIn("100dvh - var(--nav-h)", desktop_shell)
+
+    def test_bottom_nav_stays_fixed_and_body_keeps_gutter(self):
+        css = _read("frontend/src/styles/shell.css")
+        tokens = _read("frontend/src/styles/tokens.css")
+        nav = css.split(".bottom-nav")[1].split("}")[0]
+        self.assertIn("position: fixed", nav)
+        self.assertIn("bottom: 0", nav)
+        self.assertIn(
+            "height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))",
+            nav,
+        )
+        self.assertIn(
+            "padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))",
+            tokens.split("body.shell-desktop")[1].split("}")[0],
+        )
+        self.assertIn(
+            "padding-bottom: 0",
+            tokens.split("body.shell-desktop.shell-hide-bottom-nav")[1].split("}")[0],
+        )
