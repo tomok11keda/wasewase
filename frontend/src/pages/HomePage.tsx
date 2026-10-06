@@ -95,44 +95,22 @@ export function HomePage() {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const homeComposeRef = useRef<HTMLDivElement | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasDataRef = useRef(false);
   const ensurePostReqRef = useRef(0);
   const authenticated = Boolean(me?.authenticated);
   // Keep-alive panes use transform, so fixed FAB / modal must portal to body.
-  // Show only while the home timeline is the active view.
+  // Show only while the home timeline is the active view. Scroll position
+  // must not hide it — the inline 「いまどうしてる？」 cue can coexist.
   const normalizedPath = location.pathname.replace(/\/$/, "") || "/";
   const showComposeFab =
     !composeOpen &&
     (activeTab === "home" ||
       (activeTab === null && normalizedPath === "/"));
-  // Hide FAB while 「いまどうしてる？」 is on screen; default true to avoid a first-paint flash.
-  const [composeCueInView, setComposeCueInView] = useState(true);
-  const revealComposeFab = showComposeFab && (!authenticated || !composeCueInView);
 
   const hasComposeDraft = Boolean(
     composeBody.trim() || composeImage || quoteId
   );
-
-  useEffect(() => {
-    if (!authenticated) {
-      setComposeCueInView(false);
-      return;
-    }
-    const el = homeComposeRef.current;
-    if (!el) return;
-    setComposeCueInView(true);
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.some((entry) => entry.isIntersecting);
-        setComposeCueInView(visible);
-      },
-      { threshold: 0 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [authenticated]);
 
   const openCompose = useCallback(() => {
     if (!authenticated) {
@@ -533,7 +511,7 @@ export function HomePage() {
       </nav>
 
       {authenticated ? (
-        <div ref={homeComposeRef} className="home-compose">
+        <div className="home-compose">
           <button
             type="button"
             className="home-compose__open"
@@ -629,12 +607,8 @@ export function HomePage() {
         ? createPortal(
             <button
               type="button"
-              className={`compose-fab home-compose-fab shell-hide-on-desktop${
-                revealComposeFab ? " is-visible" : ""
-              }`}
+              className="compose-fab home-compose-fab shell-hide-on-desktop is-visible"
               aria-label="投稿する"
-              aria-hidden={!revealComposeFab}
-              tabIndex={revealComposeFab ? 0 : -1}
               onClick={openCompose}
             >
               ＋

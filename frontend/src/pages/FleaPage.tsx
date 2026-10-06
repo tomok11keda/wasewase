@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
   fetchFleaList,
@@ -9,7 +10,10 @@ import {
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
-import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
+import {
+  useActiveMainTab,
+  useSoftTabRefetch,
+} from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 import { productDetailState } from "../features/flea/productNav";
 
@@ -51,6 +55,8 @@ function ProductGridCard({ product }: { product: ProductCard }) {
 
 export function FleaPage() {
   const { me, loading: sessionLoading } = useSession();
+  const { pathname } = useLocation();
+  const activeTab = useActiveMainTab();
   const browsePreview = isBrowsePreview(me);
   const [searchParams, setSearchParams] = useSearchParams();
   const feed = searchParams.get("feed") || "all";
@@ -143,6 +149,14 @@ export function FleaPage() {
     patchParams({ q: qInput.trim() });
   };
 
+  const normalizedPath = pathname.replace(/\/$/, "") || "/";
+  const showExhibitFab =
+    activeTab === "flea" ||
+    (activeTab === null && normalizedPath === "/flea");
+  const exhibitTo = me?.authenticated
+    ? "/flea/exhibit"
+    : spaLoginPath("/app/flea/exhibit");
+
   return (
     <div className="flea-page" data-spa-page="フリマ">
       {exhibitSuccess ? (
@@ -231,11 +245,14 @@ export function FleaPage() {
             <button type="submit">検索</button>
           </form>
           {me?.authenticated ? (
-            <Link className="btn-exhibit" to="/flea/exhibit">
+            <Link className="btn-exhibit btn-exhibit--desktop" to="/flea/exhibit">
               商品を出品
             </Link>
           ) : (
-            <Link className="btn-exhibit" to={spaLoginPath("/app/flea/exhibit")}>
+            <Link
+              className="btn-exhibit btn-exhibit--desktop"
+              to={spaLoginPath("/app/flea/exhibit")}
+            >
               商品を出品
             </Link>
           )}
@@ -295,6 +312,18 @@ export function FleaPage() {
           </p>
         )}
       </main>
+      {showExhibitFab
+        ? createPortal(
+            <Link
+              className="compose-fab home-compose-fab flea-compose-fab shell-hide-on-desktop is-visible"
+              to={exhibitTo}
+              aria-label="商品を出品"
+            >
+              ＋
+            </Link>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

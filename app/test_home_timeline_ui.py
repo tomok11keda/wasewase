@@ -52,21 +52,25 @@ class HomeTimelineChromeTests(SimpleTestCase):
             home_css,
             r"\.compose-fab\s*\{[^}]*#1d9bf0",
         )
+        fab = home_css.split(".compose-fab")[1].split("}")[0]
+        self.assertIn("position: fixed", fab)
+        self.assertIn("var(--nav-h)", fab)
+        self.assertIn("env(safe-area-inset-bottom, 0px)", fab)
 
-    def test_home_fab_hides_while_compose_cue_is_visible(self):
+    def test_home_fab_stays_visible_at_top_and_while_compose_cue_shows(self):
         home = _read("frontend/src/pages/HomePage.tsx")
-        self.assertIn("homeComposeRef", home)
-        self.assertIn("IntersectionObserver", home)
-        self.assertIn("composeCueInView", home)
-        self.assertIn("revealComposeFab", home)
-        self.assertIn("home-compose-fab", home)
+        self.assertNotIn("composeCueInView", home)
+        self.assertNotIn("revealComposeFab", home)
+        self.assertNotIn("homeComposeRef", home)
+        self.assertIn("showComposeFab", home)
+        self.assertIn("!composeOpen", home)
+        self.assertIn('activeTab === "home"', home)
+        self.assertIn("createPortal", home)
+        self.assertIn("document.body", home)
+        self.assertIn("home-compose-fab shell-hide-on-desktop is-visible", home)
+        self.assertIn("いまどうしてる？", home)
         home_css = _read("frontend/src/styles/home.css")
-        self.assertIn(".home-compose-fab", home_css)
         self.assertIn(".home-compose-fab.is-visible", home_css)
-        self.assertRegex(
-            home_css,
-            r"\.home-compose-fab\s*\{[^}]*opacity:\s*0",
-        )
 
     def test_feed_flatten_styles_are_home_scoped(self):
         main = _read("frontend/src/main.tsx")
@@ -112,12 +116,13 @@ class HomeMotionPilotTests(SimpleTestCase):
         self.assertIn("translateX(100%)", css)
         self.assertNotIn(".home-sort-tab.is-active::after", css)
 
-    def test_home_fab_uses_motion_tokens_and_keep_hidden_while_compose_visible(self):
+    def test_home_fab_uses_motion_tokens_and_always_visible_class(self):
         css = _read("frontend/src/styles/home.css")
         home = _read("frontend/src/pages/HomePage.tsx")
         self.assertIn("var(--motion-base)", css.split(".home-compose-fab")[1].split(".home-compose-fab.is-visible")[0])
-        self.assertIn("revealComposeFab", home)
-        self.assertIn("IntersectionObserver", home)
+        self.assertIn("is-visible", home)
+        self.assertNotIn("revealComposeFab", home)
+        self.assertNotIn("composeCueInView", home)
 
     def test_home_like_bookmark_pop_and_card_press_are_home_scoped(self):
         card = _read("frontend/src/features/timeline/TimelinePostCard.tsx")
@@ -133,3 +138,57 @@ class HomeMotionPilotTests(SimpleTestCase):
     def test_detail_push_duration_unchanged(self):
         src = _read("frontend/src/lib/detailTransition.ts")
         self.assertIn("DETAIL_PUSH_MS = 400", src)
+
+
+class PrimaryActionFabContractTests(SimpleTestCase):
+    def test_flea_main_list_has_always_on_exhibit_fab(self):
+        flea = _read("frontend/src/pages/FleaPage.tsx")
+        exhibit = _read("frontend/src/pages/ExhibitPage.tsx")
+        self.assertIn("flea-compose-fab", flea)
+        self.assertIn("createPortal", flea)
+        self.assertIn("document.body", flea)
+        self.assertIn('activeTab === "flea"', flea)
+        self.assertIn('aria-label="商品を出品"', flea)
+        self.assertIn("/flea/exhibit", flea)
+        self.assertIn("is-visible", flea)
+        self.assertNotIn("composeCueInView", flea)
+        self.assertNotIn("scrollY", flea)
+        self.assertNotIn("flea-compose-fab", exhibit)
+
+    def test_search_and_timetable_do_not_mount_create_fabs(self):
+        search = _read("frontend/src/pages/SearchPage.tsx")
+        timetable = _read("frontend/src/pages/TimetablePage.tsx")
+        self.assertNotIn("compose-fab", search)
+        self.assertNotIn("flea-compose-fab", search)
+        self.assertNotIn("compose-fab", timetable)
+        self.assertNotIn("flea-compose-fab", timetable)
+
+    def test_inactive_keep_alive_tabs_do_not_leak_fabs(self):
+        home = _read("frontend/src/pages/HomePage.tsx")
+        community = _read("frontend/src/pages/CommunitiesPage.tsx")
+        flea = _read("frontend/src/pages/FleaPage.tsx")
+        keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
+        self.assertIn("export function TabKeepAliveLayout", keep)
+        self.assertIn("useActiveMainTab", home)
+        self.assertIn("useActiveMainTab", community)
+        self.assertIn("useActiveMainTab", flea)
+        self.assertIn('activeTab === "home"', home)
+        self.assertIn('activeTab === "communities"', community)
+        self.assertIn('activeTab === "flea"', flea)
+        self.assertIn("document.body", home)
+        self.assertIn("document.body", community)
+        self.assertIn("document.body", flea)
+        css = _read("frontend/src/styles/shell.css")
+        stack = css.split(".tab-keep-alive-stack")[1].split("}")[0]
+        self.assertIn("overflow: hidden", stack)
+
+    def test_phase2_shell_height_and_nav_gutter_unchanged(self):
+        tokens = _read("frontend/src/styles/tokens.css")
+        self.assertIn(
+            "min-height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom, 0px))",
+            tokens,
+        )
+        self.assertIn(
+            "padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))",
+            tokens,
+        )

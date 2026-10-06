@@ -180,6 +180,23 @@
   flex-shrink: 0;
 }
 
+/* Mobile uses the Timeline-style FAB; keep the toolbar CTA on desktop only. */
+.flea-page .btn-exhibit--desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .flea-page .btn-exhibit--desktop {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 1023px) {
+  .flea-page .main-inner {
+    padding-bottom: calc(52px + 24px);
+  }
+}
+
 .flea-page .flea-sort-bar {
   display: flex;
   flex-wrap: wrap;

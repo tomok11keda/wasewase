@@ -113,3 +113,16 @@ class CommunityComposeSpacingTests(SimpleTestCase):
         )[0]
         self.assertIn("padding-bottom: 16px", composing)
         self.assertNotIn("52px", composing)
+
+
+class CommunityFabVisibilityTests(SimpleTestCase):
+    def test_community_fab_ignores_scroll_and_hides_only_while_composing(self):
+        page = _read("frontend/src/pages/CommunitiesPage.tsx")
+        self.assertIn("showComposeFab", page)
+        self.assertIn("hub === \"community\" && !composeOpen", page)
+        self.assertIn("createPortal", page)
+        self.assertIn("document.body", page)
+        self.assertIn("is-visible", page)
+        self.assertNotIn("composeCueInView", page)
+        self.assertNotIn("scrollY", page)
+        self.assertNotIn("IntersectionObserver", page)

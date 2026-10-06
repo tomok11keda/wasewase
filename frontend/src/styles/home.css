@@ -490,7 +490,7 @@
 .compose-fab {
   position: fixed;
   right: 16px;
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
   z-index: 250;
   display: flex;
   align-items: center;
@@ -504,6 +504,7 @@
   font-size: 30px;
   font-weight: 300;
   line-height: 1;
+  text-decoration: none;
   box-shadow: 0 4px 14px rgba(137, 30, 43, 0.32);
   cursor: pointer;
   font-family: inherit;
