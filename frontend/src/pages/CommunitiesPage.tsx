@@ -22,6 +22,7 @@ import {
   useSoftTabRefetch,
 } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
+import { PullToRefresh } from "../lib/usePullToRefresh";
 
 type Hub = "community" | "courses";
 
@@ -86,7 +87,7 @@ export function CommunitiesPage() {
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
-      setError(null);
+      if (mode !== "soft") setError(null);
       try {
         const data = await fetchCommunityThreads({
           tag: tag || undefined,
@@ -95,10 +96,14 @@ export function CommunitiesPage() {
         });
         setThreads(data.threads);
         hasDataRef.current = true;
+        setError(null);
+        return true;
       } catch (err) {
+        if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
+        return false;
       } finally {
-        setLoading(false);
+        if (mode !== "soft") setLoading(false);
       }
     },
     [tag, qParam, sort, browsePreview]
@@ -117,17 +122,21 @@ export function CommunitiesPage() {
       if (mode === "initial" && !hasCourseDataRef.current) {
         setCourseLoading(true);
       }
-      setCourseError(null);
+      if (mode !== "soft") setCourseError(null);
       try {
         const data = await fetchCourseDiscover();
         setEnrolled(data.enrolled);
         setActive(data.active);
         setPopular(data.popular);
         hasCourseDataRef.current = true;
+        setCourseError(null);
+        return true;
       } catch (err) {
+        if (mode === "soft") return false;
         setCourseError(err instanceof Error ? err.message : "load_failed");
+        return false;
       } finally {
-        setCourseLoading(false);
+        if (mode !== "soft") setCourseLoading(false);
       }
     },
     [browsePreview]
@@ -152,8 +161,11 @@ export function CommunitiesPage() {
   }, []);
 
   useSoftTabRefetch("communities", () => {
-    if (hub === "courses") return loadCourses("soft");
-    return load("soft");
+    if (hub === "courses") {
+      void loadCourses("soft");
+      return;
+    }
+    void load("soft");
   });
 
   useEffect(() => {
@@ -211,6 +223,14 @@ export function CommunitiesPage() {
       className={`communities-page${composeOpen ? " is-composing" : ""}`}
       data-spa-page="コミュニティ"
     >
+      <PullToRefresh
+        enabled={onCommunityList && !composeOpen && !browsePreview}
+        onRefresh={async () => {
+          const ok =
+            hub === "courses" ? await loadCourses("soft") : await load("soft");
+          if (!ok) throw new Error("refresh_failed");
+        }}
+      />
       <div className="communities-header">
         <div className="communities-header-top">
           <h2>コミュニティ</h2>

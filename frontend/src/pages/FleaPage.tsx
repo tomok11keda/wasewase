@@ -16,6 +16,7 @@ import {
 } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 import { productDetailState } from "../features/flea/productNav";
+import { PullToRefresh } from "../lib/usePullToRefresh";
 
 function ProductGridCard({ product }: { product: ProductCard }) {
   const sellerName = product.seller?.display_name || "出品者";
@@ -104,7 +105,7 @@ export function FleaPage() {
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
-      setError(null);
+      if (mode !== "soft") setError(null);
       try {
         const data = await fetchFleaList({
           feed: feed || undefined,
@@ -120,10 +121,14 @@ export function FleaPage() {
         setCampusLabel(data.campus_label);
         setFollowingUnauth(data.feed_following_unauthenticated);
         hasDataRef.current = true;
+        setError(null);
+        return true;
       } catch (err) {
+        if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
+        return false;
       } finally {
-        setLoading(false);
+        if (mode !== "soft") setLoading(false);
       }
     },
     [feed, qParam, faculty, campus, order, browsePreview]
@@ -138,7 +143,9 @@ export function FleaPage() {
     analytics.fleaViewed();
   }, []);
 
-  useSoftTabRefetch("flea", () => load("soft"));
+  useSoftTabRefetch("flea", () => {
+    void load("soft");
+  });
 
   useEffect(() => {
     setQInput(qParam);
@@ -159,6 +166,12 @@ export function FleaPage() {
 
   return (
     <div className="flea-page" data-spa-page="フリマ">
+      <PullToRefresh
+        enabled={showExhibitFab && !browsePreview}
+        onRefresh={async () => {
+          if (!(await load("soft"))) throw new Error("refresh_failed");
+        }}
+      />
       {exhibitSuccess ? (
         <ul className="messages">
           <li className="success">商品を出品しました。</li>

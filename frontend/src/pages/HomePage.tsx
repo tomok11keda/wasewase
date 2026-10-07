@@ -26,6 +26,7 @@ import {
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
 import { MOTION_TAB_MS } from "../lib/motion";
+import { PullToRefresh } from "../lib/usePullToRefresh";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -230,7 +231,7 @@ export function HomePage() {
       if (mode === "initial" && !hasDataRef.current) {
         setLoading(true);
       }
-      setError(null);
+      if (mode !== "soft") setError(null);
       try {
         const data = await fetchTimeline({
           sort,
@@ -242,10 +243,14 @@ export function HomePage() {
         setHasMore(data.has_more);
         setNextOffset(data.next_offset);
         hasDataRef.current = true;
+        setError(null);
+        return true;
       } catch (err) {
+        if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
+        return false;
       } finally {
-        setLoading(false);
+        if (mode !== "soft") setLoading(false);
       }
     },
     [sort, faculty, qParam, browsePreview]
@@ -256,7 +261,9 @@ export function HomePage() {
     void loadInitial(hasDataRef.current ? "soft" : "initial");
   }, [sessionLoading, loadInitial]);
 
-  useSoftTabRefetch("home", () => loadInitial("soft"));
+  useSoftTabRefetch("home", () => {
+    void loadInitial("soft");
+  });
 
   const onVisibleHome =
     activeTab === "home" ||
@@ -488,6 +495,14 @@ export function HomePage() {
 
   return (
     <div className="main-inner timeline-home" data-spa-page="タイムライン">
+      <PullToRefresh
+        enabled={onVisibleHome && !composeOpen && !browsePreview}
+        onRefresh={async () => {
+          if (!(await loadInitial("soft"))) {
+            throw new Error("refresh_failed");
+          }
+        }}
+      />
       <nav
         className="home-sort-tabs"
         aria-label="タイムライン並び順"

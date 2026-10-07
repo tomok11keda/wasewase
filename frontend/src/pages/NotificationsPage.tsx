@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import {
@@ -8,6 +8,7 @@ import {
 import { spaLoginPath } from "../features/auth/api";
 import { spaHrefTo } from "../lib/spaHref";
 import { analytics } from "../lib/analytics/events";
+import { PullToRefresh } from "../lib/usePullToRefresh";
 
 function formatBadgeCount(n: number): string {
   if (n > 99) return "99+";
@@ -65,31 +66,35 @@ export function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      if (mode === "initial") setLoading(true);
+      try {
+        const data = await fetchNotifications(mode === "initial");
+        setItems(data.notifications || []);
+        setPendingFollowRequests(Number(data.pending_follow_request_count || 0));
+        setError(null);
+        if (mode === "initial") void refresh();
+        return true;
+      } catch (err) {
+        if (mode === "soft") return false;
+        setError(err instanceof Error ? err.message : "load_failed");
+        return false;
+      } finally {
+        if (mode === "initial") setLoading(false);
+      }
+    },
+    [refresh]
+  );
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!me?.authenticated) {
       navigate(spaLoginPath("/app/notifications"), { replace: true });
       return;
     }
-    const ac = new AbortController();
-    setLoading(true);
-    void fetchNotifications(true)
-      .then((data) => {
-        if (ac.signal.aborted) return;
-        setItems(data.notifications || []);
-        setPendingFollowRequests(Number(data.pending_follow_request_count || 0));
-        setError(null);
-        void refresh();
-      })
-      .catch((err) => {
-        if (ac.signal.aborted) return;
-        setError(err instanceof Error ? err.message : "load_failed");
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [sessionLoading, me?.authenticated, navigate, refresh]);
+    void load("initial");
+  }, [sessionLoading, me?.authenticated, navigate, load]);
 
   if (sessionLoading || loading) {
     return (
@@ -105,6 +110,12 @@ export function NotificationsPage() {
 
   return (
     <div className="notifications-page" data-spa-page="通知">
+      <PullToRefresh
+        enabled={Boolean(me?.authenticated)}
+        onRefresh={async () => {
+          if (!(await load("soft"))) throw new Error("refresh_failed");
+        }}
+      />
       <main className="main-inner">
         <Link
           className="follow-request-entry"

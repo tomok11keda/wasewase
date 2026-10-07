@@ -1,0 +1,70 @@
+/* Body-portal PTR indicator — keep outside keep-alive overflow:hidden. */
+.ptr-indicator {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--wase-chrome-offset, var(--wase-header-h, 0px));
+  z-index: 180;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ptr-indicator__nub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--card, #fff);
+  color: var(--muted, #536471);
+  font-size: 13px;
+  line-height: 1.2;
+  box-shadow: 0 4px 16px rgba(15, 20, 25, 0.12);
+  transform: translateY(var(--ptr-pull, 0px));
+  opacity: 0.95;
+}
+
+.ptr-indicator__spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(137, 30, 43, 0.18);
+  border-top-color: var(--accent, #891e2b);
+  flex: 0 0 auto;
+}
+
+.ptr-indicator[data-state="pulling"] .ptr-indicator__spinner {
+  transform: rotate(calc(var(--ptr-pull, 0px) * 2.4deg));
+}
+
+.ptr-indicator[data-state="armed"] .ptr-indicator__spinner {
+  border-top-color: var(--accent, #891e2b);
+  border-right-color: var(--accent, #891e2b);
+}
+
+.ptr-indicator[data-state="refreshing"] .ptr-indicator__spinner,
+.ptr-indicator[data-state="error"] .ptr-indicator__spinner {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
+.ptr-indicator[data-state="error"] .ptr-indicator__nub {
+  color: var(--accent, #891e2b);
+}
+
+.ptr-indicator__label {
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .ptr-indicator {
+    display: none;
+  }
+}
+
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

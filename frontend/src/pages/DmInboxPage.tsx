@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { fetchDmInbox, type InboxItem } from "../features/dm/api";
+import { PullToRefresh } from "../lib/usePullToRefresh";
 
 const TABS = [
   { key: "all", label: "すべて" },
@@ -71,21 +72,27 @@ export function DmInboxPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (mode: "initial" | "soft" = "initial", signal?: AbortSignal) => {
       if (!me?.authenticated) return;
-      setLoading(true);
-      setError(null);
+      if (mode === "initial") {
+        setLoading(true);
+        setError(null);
+      }
       try {
         const data = await fetchDmInbox(tab, signal);
         if (signal?.aborted) return;
         setItems(data.conversations || []);
         setCounts(data.tab_counts || {});
         setRequestCount(Number(data.message_request_count || 0));
+        setError(null);
+        return true;
       } catch (err) {
-        if ((err as Error)?.name === "AbortError") return;
+        if ((err as Error)?.name === "AbortError") return false;
+        if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
+        return false;
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (mode === "initial" && !signal?.aborted) setLoading(false);
       }
     },
     [me?.authenticated, tab]
@@ -98,9 +105,9 @@ export function DmInboxPage() {
       return;
     }
     const ac = new AbortController();
-    void load(ac.signal);
+    void load("initial", ac.signal);
     return () => ac.abort();
-  }, [sessionLoading, me?.authenticated, load]);
+  }, [sessionLoading, me?.authenticated, load, navigate]);
 
   if (sessionLoading || !me?.authenticated) {
     return (
@@ -116,6 +123,12 @@ export function DmInboxPage() {
 
   return (
     <div className="dm-page" data-spa-page="メッセージ">
+      <PullToRefresh
+        enabled={!loading}
+        onRefresh={async () => {
+          if (!(await load("soft"))) throw new Error("refresh_failed");
+        }}
+      />
       <main className="main-inner" data-dm-inbox>
         <header className="dm-inbox-header">
           <p>DM・授業掲示板・取引チャットをまとめて確認できます。</p>
