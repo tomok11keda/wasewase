@@ -31,6 +31,14 @@ import {
 import { saveScrollPosition } from "../profile/api";
 import { analytics } from "../../lib/analytics/events";
 import { MOTION_FAST_MS } from "../../lib/motion";
+import {
+  COMMENT_FLASH_MS,
+  canJumpToReplyParent,
+  groupTimelineComments,
+  insertThreadedComment,
+  replyToLabel,
+  timelineCommentDomId,
+} from "./commentThread";
 
 type TimelinePostCardVariant = "feed" | "detail";
 
@@ -116,44 +124,118 @@ type ReplyTarget = {
   display_name: string;
 };
 
-function isDescendantOf(
-  comment: TimelineComment,
-  ancestorId: number,
-  comments: TimelineComment[]
-): boolean {
-  const byId = new Map(comments.map((row) => [row.id, row]));
-  let current: TimelineComment | undefined = comment;
-  const seen = new Set<number>();
-  while (current?.parent_comment_id) {
-    if (seen.has(current.id)) return false;
-    seen.add(current.id);
-    if (current.parent_comment_id === ancestorId) return true;
-    current = byId.get(current.parent_comment_id);
-  }
-  return false;
-}
-
-function insertThreadedComment(
-  comments: TimelineComment[],
-  comment: TimelineComment
-): TimelineComment[] {
-  if (!comment.parent_comment_id) {
-    return [...comments, comment];
-  }
-  const parentIdx = comments.findIndex((row) => row.id === comment.parent_comment_id);
-  if (parentIdx < 0) {
-    return [...comments, comment];
-  }
-  let insertAt = parentIdx + 1;
-  while (
-    insertAt < comments.length &&
-    isDescendantOf(comments[insertAt], comment.parent_comment_id, comments)
-  ) {
-    insertAt += 1;
-  }
-  const next = comments.slice();
-  next.splice(insertAt, 0, comment);
-  return next;
+function TimelineCommentBody({
+  comment,
+  busy,
+  onJumpToParent,
+  onReply,
+  onDelete,
+}: {
+  comment: TimelineComment;
+  busy: boolean;
+  onJumpToParent: (comment: TimelineComment) => void;
+  onReply: (comment: TimelineComment) => void;
+  onDelete: (comment: TimelineComment) => void;
+}) {
+  const label = replyToLabel(comment);
+  const canJump = canJumpToReplyParent(comment);
+  return (
+    <>
+      <div className="tweet-avatar-col">
+        <ThreadAvatar
+          author={comment.author}
+          className="tweet-avatar tweet-comment__avatar"
+        />
+      </div>
+      <div className="tweet-comment__content">
+        <div className="tweet-comment__identity">
+          {comment.author ? (
+            <>
+              <Link
+                className="tweet-comment__name"
+                to={`/users/${comment.author.id}/posts`}
+                onClick={() => saveScrollPosition("/")}
+              >
+                {comment.author.display_name}
+              </Link>
+              <Link
+                className="tweet-comment__handle"
+                to={`/users/${comment.author.id}/posts`}
+                onClick={() => saveScrollPosition("/")}
+              >
+                @{comment.author.username}
+              </Link>
+            </>
+          ) : (
+            <span className="tweet-comment__name tweet-comment__name--deleted">
+              削除済みユーザー
+            </span>
+          )}
+          <span className="tweet-meta-dot" aria-hidden="true">
+            ·
+          </span>
+          <time className="tweet-comment__time" dateTime={comment.created_at}>
+            {formatRelative(comment.created_at)}
+          </time>
+        </div>
+        {label ? (
+          <button
+            type="button"
+            className={`tweet-comment__reply-to${
+              canJump ? "" : " is-unavailable"
+            }`}
+            disabled={!canJump}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (canJump) onJumpToParent(comment);
+            }}
+          >
+            {label}
+          </button>
+        ) : null}
+        <div className="tweet-comment__body">{comment.body}</div>
+        <div
+          className="tweet-comment__actions"
+          role="group"
+          aria-label="返信アクション"
+        >
+          {!comment.is_deleted ? (
+            <button
+              type="button"
+              className="tweet-action tweet-action--comment"
+              aria-label="返信"
+              onClick={(event) => {
+                event.stopPropagation();
+                onReply(comment);
+              }}
+            >
+              <SfIcon name="bubble_left" size={16} />
+              {comment.reply_count ? (
+                <span className="tweet-action-count">
+                  {formatCount(comment.reply_count)}
+                </span>
+              ) : null}
+            </button>
+          ) : null}
+          {comment.can_delete ? (
+            <button
+              type="button"
+              className="tweet-action tweet-action--delete"
+              disabled={busy}
+              aria-label="削除"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(comment);
+              }}
+            >
+              削除
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
 }
 
 export function TimelinePostCard({
@@ -182,11 +264,16 @@ export function TimelinePostCard({
   const likePopTimerRef = useRef(0);
   const articleRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLInputElement | null>(null);
+  const flashTimerRef = useRef(0);
   const postRef = useRef(post);
   postRef.current = post;
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
   const showComments = variant === "detail";
   const hasThreadLine = showComments && post.comments.length > 0;
+  const commentGroups = useMemo(
+    () => groupTimelineComments(post.comments),
+    [post.comments]
+  );
 
   const focusReplyComposer = (target?: ReplyTarget | null) => {
     if (target !== undefined) {
@@ -200,6 +287,62 @@ export function TimelinePostCard({
 
   const clearReplyTarget = () => {
     setReplyTarget(null);
+  };
+
+  const startReplyToComment = (row: TimelineComment) => {
+    guard(() => {
+      focusReplyComposer(
+        row.author
+          ? {
+              id: row.id,
+              username: row.author.username,
+              display_name: row.author.display_name,
+            }
+          : {
+              id: row.id,
+              username: "",
+              display_name: "削除済みユーザー",
+            }
+      );
+    });
+  };
+
+  const deleteOneComment = (row: TimelineComment) => {
+    void run(async () => {
+      const { comment_count, comment } = await deleteComment(row.id);
+      onChange({
+        ...post,
+        comments: comment
+          ? post.comments.map((item) =>
+              item.id === comment.id ? comment : item
+            )
+          : post.comments.filter((item) => item.id !== row.id),
+        comment_count,
+      });
+      if (replyTarget?.id === row.id) {
+        clearReplyTarget();
+      }
+    });
+  };
+
+  const scrollToParentComment = (comment: TimelineComment) => {
+    if (!canJumpToReplyParent(comment) || !comment.parent_comment_id) return;
+    const el = document.getElementById(
+      timelineCommentDomId(comment.parent_comment_id)
+    );
+    if (!el) return;
+    const reduceMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    el.classList.add("is-flash");
+    window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => {
+      el.classList.remove("is-flash");
+    }, COMMENT_FLASH_MS);
   };
 
   const openDetail = (opts?: { focusComposer?: boolean }) => {
@@ -236,7 +379,10 @@ export function TimelinePostCard({
   }, [menuOpen]);
 
   useEffect(() => {
-    return () => window.clearTimeout(likePopTimerRef.current);
+    return () => {
+      window.clearTimeout(likePopTimerRef.current);
+      window.clearTimeout(flashTimerRef.current);
+    };
   }, []);
 
   // Impression observer (separate from HomePage infinite-scroll sentinel IO)
@@ -711,141 +857,49 @@ export function TimelinePostCard({
                 <p className="tweet-comments__empty">まだ返信はありません</p>
               ) : (
                 <ul className="tweet-comment-list">
-                  {post.comments.map((c, index) => {
-                    const next = post.comments[index + 1];
-                    const connects =
-                      Boolean(next) && next.parent_comment_id === c.id;
-                    const isReply = Boolean(c.parent_comment_id);
-                    const replyLabel = c.reply_to
-                      ? c.reply_to.is_unavailable || !c.reply_to.username
-                        ? "削除されたコメントへの返信"
-                        : `@${c.reply_to.username} への返信`
-                      : null;
-                    return (
+                  {commentGroups.map((group) => (
                     <li
-                      key={c.id}
-                      className={`tweet-comment${isReply ? " is-reply" : ""}${
-                        c.is_deleted ? " is-deleted" : ""
-                      }`}
+                      key={group.root.id}
+                      className="tweet-comment-thread"
+                      data-thread-root={group.root.id}
                     >
-                      <div className="tweet-avatar-col">
-                        <ThreadAvatar
-                          author={c.author}
-                          className="tweet-avatar tweet-comment__avatar"
+                      <div
+                        id={timelineCommentDomId(group.root.id)}
+                        className={`tweet-comment${
+                          group.root.is_deleted ? " is-deleted" : ""
+                        }`}
+                      >
+                        <TimelineCommentBody
+                          comment={group.root}
+                          busy={busy}
+                          onJumpToParent={scrollToParentComment}
+                          onReply={startReplyToComment}
+                          onDelete={deleteOneComment}
                         />
-                        {connects ? (
-                          <span className="tweet-thread-line" aria-hidden="true" />
-                        ) : null}
                       </div>
-                      <div className="tweet-comment__content">
-                        <div className="tweet-comment__identity">
-                          {c.author ? (
-                            <>
-                              <Link
-                                className="tweet-comment__name"
-                                to={`/users/${c.author.id}/posts`}
-                                onClick={() => saveScrollPosition("/")}
-                              >
-                                {c.author.display_name}
-                              </Link>
-                              <Link
-                                className="tweet-comment__handle"
-                                to={`/users/${c.author.id}/posts`}
-                                onClick={() => saveScrollPosition("/")}
-                              >
-                                @{c.author.username}
-                              </Link>
-                            </>
-                          ) : (
-                            <span className="tweet-comment__name tweet-comment__name--deleted">
-                              削除済みユーザー
-                            </span>
-                          )}
-                          <span className="tweet-meta-dot" aria-hidden="true">
-                            ·
-                          </span>
-                          <time
-                            className="tweet-comment__time"
-                            dateTime={c.created_at}
-                          >
-                            {formatRelative(c.created_at)}
-                          </time>
-                        </div>
-                        {replyLabel ? (
-                          <p className="tweet-comment__reply-to">{replyLabel}</p>
-                        ) : null}
-                        <div className="tweet-comment__body">{c.body}</div>
-                        <div
-                          className="tweet-comment__actions"
-                          role="group"
-                          aria-label="返信アクション"
-                        >
-                          {!c.is_deleted ? (
-                            <button
-                              type="button"
-                              className="tweet-action tweet-action--comment"
-                              aria-label="返信"
-                              onClick={() =>
-                                guard(() => {
-                                  focusReplyComposer(
-                                    c.author
-                                      ? {
-                                          id: c.id,
-                                          username: c.author.username,
-                                          display_name: c.author.display_name,
-                                        }
-                                      : {
-                                          id: c.id,
-                                          username: "",
-                                          display_name: "削除済みユーザー",
-                                        }
-                                  );
-                                })
-                              }
+                      {group.replies.length > 0 ? (
+                        <ul className="tweet-comment-replies">
+                          {group.replies.map((reply) => (
+                            <li
+                              key={reply.id}
+                              id={timelineCommentDomId(reply.id)}
+                              className={`tweet-comment is-reply${
+                                reply.is_deleted ? " is-deleted" : ""
+                              }`}
                             >
-                              <SfIcon name="bubble_left" size={16} />
-                              {c.reply_count ? (
-                                <span className="tweet-action-count">
-                                  {formatCount(c.reply_count)}
-                                </span>
-                              ) : null}
-                            </button>
-                          ) : null}
-                          {c.can_delete ? (
-                            <button
-                              type="button"
-                              className="tweet-action tweet-action--delete"
-                              disabled={busy}
-                              aria-label="削除"
-                              onClick={() =>
-                                void run(async () => {
-                                  const { comment_count, comment } =
-                                    await deleteComment(c.id);
-                                  onChange({
-                                    ...post,
-                                    comments: comment
-                                      ? post.comments.map((row) =>
-                                          row.id === comment.id ? comment : row
-                                        )
-                                      : post.comments.filter(
-                                          (row) => row.id !== c.id
-                                        ),
-                                    comment_count,
-                                  });
-                                  if (replyTarget?.id === c.id) {
-                                    clearReplyTarget();
-                                  }
-                                })
-                              }
-                            >
-                              削除
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
+                              <TimelineCommentBody
+                                comment={reply}
+                                busy={busy}
+                                onJumpToParent={scrollToParentComment}
+                                onReply={startReplyToComment}
+                                onDelete={deleteOneComment}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </li>
-                    );
-                  })}
+                  ))}
                 </ul>
               )}
               {authenticated ? (

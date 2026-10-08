@@ -109,6 +109,29 @@
   padding: 0;
 }
 
+.post-detail-page .tweet-comment-thread {
+  list-style: none;
+}
+
+.post-detail-page .tweet-comment-replies {
+  list-style: none;
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+
+.post-detail-page .tweet-comment-replies::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 8px;
+  left: calc(var(--tweet-avatar-size, 40px) / 2 - 1px);
+  width: 2px;
+  background: #cbb7bb;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
 .post-detail-page .tweet-comment {
   display: grid;
   grid-template-columns: var(--tweet-avatar-size, 40px) minmax(0, 1fr);
@@ -119,6 +142,10 @@
   background: #fff;
   box-shadow: none;
   border-radius: 0;
+  scroll-margin-top: var(--wase-chrome-offset, var(--wase-header-h, 0px));
+  scroll-margin-bottom: calc(
+    var(--nav-h) + env(safe-area-inset-bottom, 0px) + 56px
+  );
 }
 
 .post-detail-page .tweet-comment.is-reply {
@@ -129,17 +156,70 @@
   color: var(--tweet-muted, #536471);
 }
 
+.post-detail-page .tweet-comment.is-flash {
+  animation: tweet-comment-flash 1.2s ease;
+}
+
 .post-detail-page .tweet-comment__reply-to {
+  display: block;
+  max-width: 100%;
   margin: 2px 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
   font-size: 13px;
   color: var(--tweet-muted, #536471);
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.post-detail-page .tweet-comment:last-child {
+.post-detail-page .tweet-comment__reply-to:not(:disabled):hover {
+  color: var(--accent, #891e2b);
+  text-decoration: underline;
+}
+
+.post-detail-page .tweet-comment__reply-to.is-unavailable,
+.post-detail-page .tweet-comment__reply-to:disabled {
+  cursor: default;
+  text-decoration: none;
+  color: var(--tweet-muted, #536471);
+}
+
+.post-detail-page .tweet-comment-thread:last-child .tweet-comment:last-child {
   border-bottom: none;
+}
+
+@keyframes tweet-comment-flash {
+  0%,
+  35% {
+    background: #f7edf0;
+  }
+  100% {
+    background: #fff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-detail-page .tweet-comment.is-flash {
+    animation: none;
+    background: #f7edf0;
+  }
+}
+
+@media (max-width: 430px) {
+  .post-detail-page .tweet-comment.is-reply {
+    padding-left: 12px;
+  }
+}
+
+@media (max-width: 320px) {
+  .post-detail-page .tweet-comment {
+    gap: 8px;
+  }
 }
 
 .post-detail-page .tweet-comment__avatar {
