@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from dataclasses import dataclass
 import json
 import logging
 import re
@@ -164,6 +165,26 @@ def _get_fcm_executor() -> ThreadPoolExecutor:
     return _fcm_executor
 
 
+class PushDeliveryOutcome:
+    SKIPPED = "skipped"
+    SENT = "sent"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class PushDeliveryResult:
+    """Structured FCM result for campaign sending.
+
+    Existing 1:1 flows still use send_push_to_user() -> int.
+    Timeout is UNKNOWN because the message may already have left this process.
+    """
+
+    outcome: str
+    success_count: int = 0
+    reason: str = ""
+
+
 def sendable_fcm_tokens_for_user(user: AbstractBaseUser) -> tuple[list[str], int]:
     """Return FCM tokens for send, skipping raw APNs-looking values.
 
@@ -191,8 +212,28 @@ def send_push_to_user(
     成功した送信数を返す。Firebase 未設定時は 0。
     例外は飲み込んで 0 を返す（呼び出し元のユーザー操作を落とさない）。
     """
+    return deliver_push_to_user(
+        user,
+        title=title,
+        body=body,
+        link=link,
+        notification_id=notification_id,
+        notification_type=notification_type,
+    ).success_count
+
+
+def deliver_push_to_user(
+    user: AbstractBaseUser,
+    *,
+    title: str,
+    body: str,
+    link: str = "",
+    notification_id: int | str | None = None,
+    notification_type: str = "",
+) -> PushDeliveryResult:
+    """Same send path as send_push_to_user, with sent/failed/unknown/skipped."""
     try:
-        return _send_push_to_user_unguarded(
+        return _deliver_push_to_user_unguarded(
             user,
             title=title,
             body=body,
@@ -202,10 +243,12 @@ def send_push_to_user(
         )
     except Exception:
         logger.exception("Push send failed for user_id=%s", getattr(user, "pk", None))
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.FAILED, reason="exception"
+        )
 
 
-def _send_push_to_user_unguarded(
+def _deliver_push_to_user_unguarded(
     user: AbstractBaseUser,
     *,
     title: str,
@@ -213,11 +256,15 @@ def _send_push_to_user_unguarded(
     link: str = "",
     notification_id: int | str | None = None,
     notification_type: str = "",
-) -> int:
+) -> PushDeliveryResult:
     if not getattr(settings, "PUSH_NOTIFICATIONS_ENABLED", False):
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.SKIPPED, reason="disabled"
+        )
     if user is None or not getattr(user, "pk", None):
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.SKIPPED, reason="no_user"
+        )
 
     tokens, skipped_apns = sendable_fcm_tokens_for_user(user)
     if skipped_apns:
@@ -227,11 +274,15 @@ def _send_push_to_user_unguarded(
             skipped_apns,
         )
     if not tokens:
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.SKIPPED, reason="no_tokens"
+        )
 
     app = get_firebase_app()
     if not app:
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.FAILED, reason="firebase_unavailable"
+        )
 
     from firebase_admin import messaging
 
@@ -262,10 +313,14 @@ def _send_push_to_user_unguarded(
             response = future.result(timeout=_FCM_SEND_TIMEOUT_SEC)
         except FuturesTimeout:
             logger.warning("FCM send timed out for user_id=%s", user.pk)
-            return 0
+            return PushDeliveryResult(
+                PushDeliveryOutcome.UNKNOWN, reason="timeout"
+            )
     except Exception:
         logger.exception("FCM multicast send failed for user_id=%s", user.pk)
-        return 0
+        return PushDeliveryResult(
+            PushDeliveryOutcome.FAILED, reason="send_error"
+        )
 
     stale_tokens: list[str] = []
     for idx, send_response in enumerate(response.responses):
@@ -285,15 +340,25 @@ def _send_push_to_user_unguarded(
     if stale_tokens:
         DevicePushToken.objects.filter(token__in=stale_tokens).delete()
 
+    success_count = int(getattr(response, "success_count", 0) or 0)
     logger.info(
         "Push send user_id=%s type=%s success=%s stale_removed=%s apns_skipped=%s",
         user.pk,
         notification_type or "-",
-        int(getattr(response, "success_count", 0) or 0),
+        success_count,
         len(stale_tokens),
         skipped_apns,
     )
-    return int(getattr(response, "success_count", 0) or 0)
+    if success_count > 0:
+        return PushDeliveryResult(
+            PushDeliveryOutcome.SENT,
+            success_count=success_count,
+            reason="ok",
+        )
+    return PushDeliveryResult(
+        PushDeliveryOutcome.FAILED,
+        reason="all_tokens_rejected",
+    )
 
 
 def _is_unrecoverable_token_error(error: Exception) -> bool:

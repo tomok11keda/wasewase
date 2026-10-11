@@ -1046,6 +1046,112 @@ class DevicePushToken(models.Model):
         return f"{self.user_id} ({self.platform})"
 
 
+class PushCampaign(models.Model):
+    """運営による注目コミュニティスレッドの一斉プッシュ。in-app Notification は作らない。"""
+
+    class Mode(models.TextChoices):
+        TEST = "test", "テスト端末"
+        BROADCAST = "broadcast", "一斉配信"
+
+    class Status(models.TextChoices):
+        READY = "ready", "準備済み"
+        SENDING = "sending", "送信中"
+        COMPLETED = "completed", "完了"
+
+    campaign_key = models.CharField("キャンペーンキー", max_length=80, unique=True)
+    thread = models.ForeignKey(
+        "CommunityThread",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="push_campaigns",
+    )
+    thread_id_snapshot = models.PositiveIntegerField("スレッドID")
+    community_slug = models.SlugField("コミュニティslug", max_length=80)
+    title = models.CharField("通知タイトル", max_length=80)
+    body = models.CharField("通知本文", max_length=200)
+    link = models.CharField("ディープリンク", max_length=255)
+    mode = models.CharField(max_length=16, choices=Mode.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.READY,
+        db_index=True,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_push_campaigns",
+    )
+    eligible_user_count = models.PositiveIntegerField(default=0)
+    token_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "プッシュキャンペーン"
+        verbose_name_plural = "プッシュキャンペーン"
+
+    def __str__(self) -> str:
+        return self.campaign_key
+
+
+class PushCampaignRecipient(models.Model):
+    """キャンペーン開始時に固定した送信対象。同一キャンペーン×ユーザーは1行。"""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "未送信"
+        SENDING = "sending", "送信中"
+        SENT = "sent", "送信済み"
+        FAILED = "failed", "失敗"
+        UNKNOWN = "unknown", "結果不明"
+
+    campaign = models.ForeignKey(
+        PushCampaign,
+        on_delete=models.CASCADE,
+        related_name="recipients",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_campaign_receipts",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    success_count = models.PositiveIntegerField(default=0)
+    reason = models.CharField(max_length=64, blank=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "user"],
+                name="app_pushcampaignrecipient_campaign_user_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["campaign", "status"],
+                name="app_push_rcpt_camp_status_idx",
+            )
+        ]
+        verbose_name = "プッシュキャンペーン送信対象"
+        verbose_name_plural = "プッシュキャンペーン送信対象"
+
+    def __str__(self) -> str:
+        return f"{self.campaign_id}:{self.user_id}:{self.status}"
+
+
 class ContentReport(models.Model):
     """ユーザーからの UGC 通報。"""
 

@@ -28,6 +28,8 @@ from .models import (
     CourseOffering,
     CourseReview,
     DevicePushToken,
+    PushCampaign,
+    PushCampaignRecipient,
     UserDirectMessage,
     UserDirectMessageRoom,
     CourseThread,
@@ -609,6 +611,78 @@ class DevicePushTokenAdmin(admin.ModelAdmin):
         if len(obj.token) <= 24:
             return obj.token
         return f"{obj.token[:12]}…{obj.token[-8:]}"
+
+
+@admin.register(PushCampaign)
+class PushCampaignAdmin(admin.ModelAdmin):
+    list_display = (
+        "campaign_key",
+        "mode",
+        "status",
+        "thread_id_snapshot",
+        "community_slug",
+        "eligible_user_count",
+        "token_count",
+        "created_by",
+        "created_at",
+    )
+    list_filter = ("mode", "status", "created_at")
+    search_fields = ("campaign_key", "community_slug", "title")
+    readonly_fields = (
+        "campaign_key",
+        "thread",
+        "thread_id_snapshot",
+        "community_slug",
+        "title",
+        "body",
+        "link",
+        "mode",
+        "status",
+        "created_by",
+        "eligible_user_count",
+        "token_count",
+        "created_at",
+        "updated_at",
+        "started_at",
+        "finished_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PushCampaignRecipient)
+class PushCampaignRecipientAdmin(admin.ModelAdmin):
+    list_display = (
+        "campaign",
+        "user",
+        "status",
+        "success_count",
+        "reason",
+        "claimed_at",
+        "finished_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("campaign__campaign_key", "user__email", "user__username")
+    readonly_fields = (
+        "campaign",
+        "user",
+        "status",
+        "success_count",
+        "reason",
+        "claimed_at",
+        "finished_at",
+    )
+    raw_id_fields = ("campaign", "user")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Notification)

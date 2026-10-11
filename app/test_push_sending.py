@@ -30,6 +30,8 @@ from .notification_services import (
     push_payload_link,
 )
 from .push_services import (
+    PushDeliveryOutcome,
+    deliver_push_to_user,
     get_firebase_app,
     notify_user_push,
     reset_firebase_app_for_tests,
@@ -89,6 +91,33 @@ class PushSendingIsolationTests(TestCase):
             )
             self.assertEqual(sent, 0)
             mock_app.assert_not_called()
+
+    @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
+    @patch("app.push_services.get_firebase_app", return_value=object())
+    @patch("app.push_services._get_fcm_executor")
+    def test_timeout_is_unknown_and_send_push_to_user_still_returns_zero(
+        self, mock_executor, _mock_app
+    ):
+        from concurrent.futures import TimeoutError as FuturesTimeout
+
+        DevicePushToken.objects.create(
+            user=self.author, token="fcm-token-timeout", platform="ios"
+        )
+
+        class FakeFuture:
+            def result(self, timeout=None):
+                raise FuturesTimeout()
+
+        mock_executor.return_value.submit.return_value = FakeFuture()
+        result = deliver_push_to_user(
+            self.author, title="わせわせ", body="hi", link="/app/"
+        )
+        self.assertEqual(result.outcome, PushDeliveryOutcome.UNKNOWN)
+        self.assertEqual(result.reason, "timeout")
+        sent = send_push_to_user(
+            self.author, title="わせわせ", body="hi", link="/app/"
+        )
+        self.assertEqual(sent, 0)
 
     @override_settings(
         PUSH_NOTIFICATIONS_ENABLED=True,
