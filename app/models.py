@@ -2004,6 +2004,11 @@ class Community(models.Model):
   latest_thread_preview = models.CharField(max_length=200, blank=True)
   latest_activity_at = models.DateTimeField(null=True, blank=True)
   is_active = models.BooleanField(default=True, db_index=True)
+  is_official = models.BooleanField(
+      default=False,
+      verbose_name="公式コミュニティ",
+      help_text="WASEWASE運営が認証したコミュニティとして表示します。大学公認を意味しません。",
+  )
   sort_order = models.PositiveIntegerField(default=0)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)

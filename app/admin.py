@@ -199,13 +199,52 @@ class CommunityAdmin(admin.ModelAdmin):
         "slug",
         "category",
         "faculty",
+        "is_official",
         "is_active",
         "sort_order",
         "latest_activity_at",
     )
-    list_filter = ("category", "faculty", "is_active")
+    list_filter = ("category", "faculty", "is_official", "is_active")
     search_fields = ("name", "slug", "description")
     prepopulated_fields = {"slug": ("name",)}
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "slug",
+                    "description",
+                    "category",
+                    "faculty",
+                )
+            },
+        ),
+        (
+            "公式認証",
+            {
+                "fields": ("is_official",),
+                "description": (
+                    "WASEWASE運営が認証したコミュニティとして表示します。"
+                    "大学公認・大学運営を意味しません。"
+                ),
+            },
+        ),
+        (
+            "公開",
+            {"fields": ("is_active", "sort_order")},
+        ),
+        (
+            "最新アクティビティ",
+            {
+                "fields": (
+                    "latest_thread_title",
+                    "latest_thread_preview",
+                    "latest_activity_at",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(CommunityThread)

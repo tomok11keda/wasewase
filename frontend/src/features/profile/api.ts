@@ -64,6 +64,7 @@ export type SearchThreadResult = {
     slug: string;
     name: string;
     faculty: string;
+    is_official?: boolean | null;
   };
 };
 

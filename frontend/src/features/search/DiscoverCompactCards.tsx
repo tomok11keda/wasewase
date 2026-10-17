@@ -6,6 +6,11 @@ import type {
   SearchThreadResult,
 } from "../profile/api";
 import { CommunityReportMenu } from "../community/CommunityReportMenu";
+import {
+  OfficialBadge,
+  officialBoardClass,
+  shouldShowOfficialBadge,
+} from "../community/OfficialBadge";
 import { participantLabel } from "../community/api";
 import {
   communityThreadDetailState,
@@ -139,8 +144,20 @@ export function DiscoverThreadCard({ thread }: { thread: SearchThreadResult }) {
             <span className="discover-compact-card__badge is-community">
               コミュニティ
             </span>
-            <span className="discover-compact-card__board">
-              {thread.community.name}
+            <span
+              className={officialBoardClass(
+                "discover-compact-card__board",
+                thread.community.is_official
+              )}
+            >
+              {shouldShowOfficialBadge(thread.community.is_official) ? (
+                <span className="discover-compact-card__board-name">
+                  {thread.community.name}
+                </span>
+              ) : (
+                thread.community.name
+              )}
+              <OfficialBadge official={thread.community.is_official} />
             </span>
           </p>
           <strong className="discover-compact-card__title">{thread.title}</strong>

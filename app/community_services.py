@@ -187,6 +187,7 @@ def seed_communities():
                 **item,
                 "latest_activity_at": now,
                 "is_active": True,
+                # is_official is operator-owned; re-seeding must not reset it.
             },
         )
 

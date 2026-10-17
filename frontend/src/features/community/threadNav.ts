@@ -44,6 +44,7 @@ export function threadSummaryFromSearch(
       description: "",
       faculty: thread.community.faculty || "",
       category: "",
+      is_official: thread.community.is_official,
     },
   });
 }

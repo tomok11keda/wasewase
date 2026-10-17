@@ -27,6 +27,10 @@ import {
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
+import {
+  OfficialBadge,
+  officialBoardClass,
+} from "../features/community/OfficialBadge";
 import { participantLabel } from "../features/community/api";
 import {
   communityThreadDetailState,
@@ -67,7 +71,15 @@ function SearchThreadCard({ thread }: { thread: SearchThreadResult }) {
       >
         <p className="search-thread-card__meta">
           <span className="search-thread-card__badge">コミュニティ</span>
-          {thread.community.name}
+          <span
+            className={officialBoardClass(
+              "search-thread-card__board",
+              thread.community.is_official
+            )}
+          >
+            {thread.community.name}
+            <OfficialBadge official={thread.community.is_official} />
+          </span>
           {thread.community.faculty ? ` · ${thread.community.faculty}` : ""}
         </p>
         <strong className="search-thread-card__title">{thread.title}</strong>

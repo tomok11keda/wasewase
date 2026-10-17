@@ -72,6 +72,7 @@ def serialize_community(community: Community) -> dict[str, Any]:
         "description": community.description or "",
         "faculty": community.faculty or "",
         "category": community.category,
+        "is_official": bool(community.is_official),
     }
 
 

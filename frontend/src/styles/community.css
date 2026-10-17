@@ -308,6 +308,14 @@
   border-radius: 4px;
 }
 
+.communities-page .thread-card__board--official {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
 .thread-card {
   display: block;
   padding: 14px 44px 14px 16px;
@@ -353,6 +361,68 @@
   background: #f7edf0;
   padding: 2px 8px;
   border-radius: 4px;
+}
+
+.thread-card__board--official {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.official-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: #fff;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.search-thread-card__board {
+  display: inline;
+}
+
+.search-thread-card__board--official {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: baseline;
+  overflow-wrap: anywhere;
+}
+
+.discover-compact-card__board--official {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.discover-compact-card__board--official .discover-compact-card__board-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discover-compact-card__board--official .official-badge {
+  flex-shrink: 0;
 }
 
 .community-compose,

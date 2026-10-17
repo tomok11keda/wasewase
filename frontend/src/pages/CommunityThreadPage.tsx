@@ -13,6 +13,10 @@ import {
   type ThreadReply,
 } from "../features/community/api";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
+import {
+  OfficialBadge,
+  officialBoardClass,
+} from "../features/community/OfficialBadge";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { readInitialThread } from "../features/community/threadNav";
@@ -281,7 +285,15 @@ export function CommunityThreadPage() {
       </p>
 
       <article className="thread-detail forum-op">
-        <span className="thread-card__board">{thread.community.name}</span>
+        <span
+          className={officialBoardClass(
+            "thread-card__board",
+            thread.community.is_official
+          )}
+        >
+          {thread.community.name}
+          <OfficialBadge official={thread.community.is_official} />
+        </span>
         <h2>{thread.title}</h2>
         <div className="forum-post forum-post--op">
           <div className="forum-post__main">

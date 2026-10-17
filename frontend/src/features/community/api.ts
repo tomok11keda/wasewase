@@ -7,6 +7,7 @@ export type CommunityRef = {
   description: string;
   faculty: string;
   category: string;
+  is_official?: boolean | null;
 };
 
 export type FacultyTab = { value: string; label: string };

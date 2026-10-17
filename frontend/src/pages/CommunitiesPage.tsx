@@ -11,6 +11,10 @@ import {
   type ThreadSummary,
 } from "../features/community/api";
 import { CommunityReportMenu } from "../features/community/CommunityReportMenu";
+import {
+  OfficialBadge,
+  officialBoardClass,
+} from "../features/community/OfficialBadge";
 import { communityThreadDetailState } from "../features/community/threadNav";
 import {
   fetchCourseDiscover,
@@ -401,8 +405,14 @@ export function CommunitiesPage() {
                       </span>
                     </p>
                     <p className="thread-card__preview">{thread.body_preview}</p>
-                    <span className="thread-card__board">
+                    <span
+                      className={officialBoardClass(
+                        "thread-card__board",
+                        thread.community.is_official
+                      )}
+                    >
                       {thread.community.name}
+                      <OfficialBadge official={thread.community.is_official} />
                     </span>
                   </Link>
                   <CommunityReportMenu
