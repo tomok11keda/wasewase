@@ -33,6 +33,7 @@ from .services import (
     get_user_avatar_url,
     user_avatar_initial,
     user_display_name,
+    user_is_operator_verified,
 )
 from .trade_chat_inbox_services import product_thumbnail_url
 from .ugc_services import (
@@ -51,6 +52,7 @@ def serialize_author(user: AbstractBaseUser | None) -> dict[str, Any] | None:
         "display_name": user_display_name(user),
         "avatar_url": avatar,
         "initial": user_avatar_initial(user),
+        "is_operator_verified": user_is_operator_verified(user),
     }
 
 
@@ -170,6 +172,11 @@ def serialize_comment(
                 else (
                     user_display_name(parent_author) if parent_author else ""
                 )
+            ),
+            "is_operator_verified": (
+                False
+                if parent_unavailable
+                else user_is_operator_verified(parent_author)
             ),
             "is_unavailable": parent_unavailable,
         }

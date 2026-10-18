@@ -22,6 +22,7 @@ import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { readInitialProduct } from "../features/flea/productNav";
 import { analytics } from "../lib/analytics/events";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 export function ProductDetailPage() {
   const { pk } = useParams();
@@ -375,7 +376,12 @@ export function ProductDetailPage() {
             <h1 className="product-name">{product.name}</h1>
             <p className="product-seller">
               出品者{" "}
-              <strong>{product.seller?.display_name || "不明"}</strong>
+              <strong>
+                <AccountDisplayName
+                  name={product.seller?.display_name || "不明"}
+                  verified={product.seller?.is_operator_verified}
+                />
+              </strong>
               <span className="product-posted-at">
                 {product.created_at_label}
               </span>
@@ -493,7 +499,11 @@ export function ProductDetailPage() {
                   {product.seller_chat_rooms.map((room) => (
                     <div className="seller-chat-item" key={room.id}>
                       <p className="seller-chat-meta">
-                        {room.buyer?.display_name || "購入希望者"}（
+                        <AccountDisplayName
+                          name={room.buyer?.display_name || "購入希望者"}
+                          verified={room.buyer?.is_operator_verified}
+                        />
+                        （
                         {room.deal_status}）
                       </p>
                       <Link to={`/flea/chats/${room.id}`}>開く</Link>
@@ -567,7 +577,11 @@ export function ProductDetailPage() {
             product.comments.map((c) => (
               <div className="comment-item" key={c.id}>
                 <p className="comment-meta">
-                  {c.author?.display_name || "匿名"} · {c.created_at_label}
+                  <AccountDisplayName
+                    name={c.author?.display_name || "匿名"}
+                    verified={c.author?.is_operator_verified}
+                  />{" "}
+                  · {c.created_at_label}
                 </p>
                 <p className="comment-body">{c.body}</p>
               </div>

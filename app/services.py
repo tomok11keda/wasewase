@@ -21,6 +21,13 @@ from .ugc_services import (
 )
 
 
+def user_is_operator_verified(user: AbstractBaseUser | None) -> bool:
+    """WASEWASE運営認証バッジ。権限・メール認証・Community公式とは独立。"""
+    if user is None:
+        return False
+    return bool(getattr(user, "is_operator_verified", False))
+
+
 def user_display_name(user: AbstractBaseUser | None) -> str:
     """タイムライン・フリマなどで使う表示名（ニックネーム）。"""
     if user is None:

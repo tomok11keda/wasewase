@@ -14,6 +14,7 @@ export type ShareAuthor = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type ShareRecipient = {
@@ -23,6 +24,7 @@ export type ShareRecipient = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type TimelineShareContent = {

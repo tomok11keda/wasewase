@@ -226,6 +226,7 @@ def _serialize_room_message(message, current_user_id, *, anonymize_partner: bool
             "created_at": created.strftime("%m/%d %H:%M"),
             "is_mine": False,
             "is_read": message.is_read,
+            "sender_is_operator_verified": False,
         }
 
     avatar_url = get_user_avatar_url(message.sender)
@@ -239,6 +240,9 @@ def _serialize_room_message(message, current_user_id, *, anonymize_partner: bool
         "created_at": created.strftime("%m/%d %H:%M"),
         "is_mine": is_mine,
         "is_read": message.is_read,
+        "sender_is_operator_verified": bool(
+            getattr(message.sender, "is_operator_verified", False)
+        ),
     }
 
 
@@ -697,6 +701,9 @@ def api_timetable_user_slots(request, pk):
             "owner": {
                 "id": owner.pk,
                 "display_name": user_display_name(owner),
+                "is_operator_verified": bool(
+                    getattr(owner, "is_operator_verified", False)
+                ),
             },
             "is_own": is_own,
             "is_timetable_public": bool(is_public or is_own),

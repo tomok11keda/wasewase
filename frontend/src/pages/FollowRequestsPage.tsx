@@ -8,6 +8,7 @@ import {
   rejectFollowRequest,
   type FollowRequestItem,
 } from "../features/profile/api";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 export function FollowRequestsPage() {
   const { me, loading: sessionLoading, refresh } = useSession();
@@ -111,7 +112,12 @@ export function FollowRequestsPage() {
                     </span>
                   )}
                   <span className="follow-request-names">
-                    <strong>{u.display_name}</strong>
+                    <strong>
+                      <AccountDisplayName
+                        name={u.display_name}
+                        verified={u.is_operator_verified}
+                      />
+                    </strong>
                     <small>@{u.username || u.id}</small>
                   </span>
                 </Link>

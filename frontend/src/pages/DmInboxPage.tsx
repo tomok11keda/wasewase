@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { fetchDmInbox, type InboxItem } from "../features/dm/api";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 
 const TABS = [
@@ -198,7 +199,16 @@ export function DmInboxPage() {
                   </span>
                   <span className="dm-inbox-body">
                     <span className="dm-inbox-top">
-                      <span className="dm-inbox-name">{item.display_name}</span>
+                      <span className="dm-inbox-name">
+                        {item.kind === "dm" && !item.is_blocked ? (
+                          <AccountDisplayName
+                            name={item.display_name}
+                            verified={item.partner?.is_operator_verified}
+                          />
+                        ) : (
+                          item.display_name
+                        )}
+                      </span>
                     </span>
                     {item.kind === "trade" ? (
                       <>
@@ -213,7 +223,11 @@ export function DmInboxPage() {
                         ) : null}
                         {item.partner ? (
                           <span className="dm-inbox-handle">
-                            相手: {item.partner.display_name}
+                            相手:{" "}
+                            <AccountDisplayName
+                              name={item.partner.display_name}
+                              verified={item.partner.is_operator_verified}
+                            />
                           </span>
                         ) : null}
                       </>
@@ -248,10 +262,16 @@ export function DmInboxPage() {
                       <p className="dm-inbox-preview">
                         {item.latest_sender_name ? (
                           <span className="dm-inbox-preview-prefix">
-                            {item.latest_sender_name}:{" "}
+                            <AccountDisplayName
+                              name={item.latest_sender_name}
+                              verified={item.latest_sender_is_operator_verified}
+                            />
+                            :{" "}
                           </span>
                         ) : null}
-                        {item.latest_body}
+                        <span className="dm-inbox-preview-text">
+                          {item.latest_body}
+                        </span>
                       </p>
                     ) : (
                       <p className="dm-inbox-preview">まだメッセージはありません</p>

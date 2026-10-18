@@ -6,6 +6,7 @@ export type TimelineAuthor = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 } | null;
 
 export type TimelineCommentReplyTo = {
@@ -13,6 +14,7 @@ export type TimelineCommentReplyTo = {
   username: string;
   display_name: string;
   is_unavailable: boolean;
+  is_operator_verified?: boolean | null;
 };
 
 export type TimelineComment = {

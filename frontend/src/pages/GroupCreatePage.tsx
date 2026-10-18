@@ -12,6 +12,7 @@ import {
   type Author,
 } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { analytics } from "../lib/analytics/events";
 
 export function GroupCreatePage() {
@@ -138,7 +139,12 @@ export function GroupCreatePage() {
                       onChange={() => u.id != null && toggle(u.id)}
                     />
                     <span className="dm-user-text">
-                      <span className="dm-user-name">{u.display_name}</span>
+                      <span className="dm-user-name">
+                        <AccountDisplayName
+                          name={u.display_name}
+                          verified={u.is_operator_verified}
+                        />
+                      </span>
                       <span className="dm-user-handle">@{u.username}</span>
                     </span>
                   </label>

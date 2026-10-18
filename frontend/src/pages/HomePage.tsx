@@ -13,6 +13,7 @@ import {
   type TimelinePost,
 } from "../features/timeline/api";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { restoreScrollPosition } from "../features/profile/api";
 import {
   useActiveMainTab,
@@ -459,7 +460,11 @@ export function HomePage() {
       {quotePreview ? (
         <div className="quoted-post-card spa-compose__quote">
           <strong>
-            {quotePreview.author?.display_name || "投稿"} をリポスト
+            <AccountDisplayName
+              name={quotePreview.author?.display_name || "投稿"}
+              verified={quotePreview.author?.is_operator_verified}
+            />{" "}
+            をリポスト
           </strong>
           <p>{quotePreview.body.slice(0, 120)}</p>
           <button

@@ -22,6 +22,7 @@ import {
 } from "../features/flea/api";
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import {
   isChatNearBottom,
   mergeUniqueByIdAsc,
@@ -309,7 +310,14 @@ export function TradeChatPage() {
               <p className="chat-product-name">{room.product.name}</p>
               <p className="chat-status">
                 {room.trade_status_label} · 相手:{" "}
-                {room.partner?.display_name || "—"}
+                {room.partner ? (
+                  <AccountDisplayName
+                    name={room.partner.display_name || "—"}
+                    verified={room.partner.is_operator_verified}
+                  />
+                ) : (
+                  "—"
+                )}
               </p>
             </div>
           </div>
@@ -365,7 +373,15 @@ export function TradeChatPage() {
                 className={`chat-item${m.is_mine ? " mine" : " theirs"}`}
               >
                 <div className="chat-meta">
-                  {m.sender_name} · {m.created_at}
+                  {m.is_system ? (
+                    m.sender_name
+                  ) : (
+                    <AccountDisplayName
+                      name={m.sender_name}
+                      verified={m.sender_is_operator_verified}
+                    />
+                  )}{" "}
+                  · {m.created_at}
                 </div>
                 <div className="chat-bubble">{m.body}</div>
               </div>

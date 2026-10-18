@@ -44,6 +44,14 @@ class User(AbstractUser):
         verbose_name="Stripe Connect アカウントID",
         help_text="acct_ で始まる Connect アカウントID（出品者の受取先）",
     )
+    is_operator_verified = models.BooleanField(
+        default=False,
+        verbose_name="運営認証バッジ",
+        help_text=(
+            "WASEWASE運営が認証したアカウントとして表示します。"
+            "メール認証、学生認証、大学公認を意味しません。"
+        ),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

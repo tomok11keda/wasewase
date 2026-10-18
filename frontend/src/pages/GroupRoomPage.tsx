@@ -35,6 +35,7 @@ import {
   useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
 import { analytics } from "../lib/analytics/events";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 export function GroupRoomPage() {
   const { roomPk } = useParams();
@@ -280,12 +281,21 @@ export function GroupRoomPage() {
           <h1 className="dm-partner-name">{room.name}</h1>
           <p className="dm-partner-meta">
             メンバー {room.member_count}人
-            {room.members.length
-              ? ` · ${room.members
-                  .slice(0, 5)
-                  .map((m) => m.display_name)
-                  .join("、")}${room.members.length > 5 ? "…" : ""}`
-              : ""}
+            {room.members.length ? (
+              <>
+                {" · "}
+                {room.members.slice(0, 5).map((m, index) => (
+                  <span key={m.id ?? `${m.username}-${index}`}>
+                    {index > 0 ? "、" : ""}
+                    <AccountDisplayName
+                      name={m.display_name}
+                      verified={m.is_operator_verified}
+                    />
+                  </span>
+                ))}
+                {room.members.length > 5 ? "…" : ""}
+              </>
+            ) : null}
             {room.pending_invites?.length
               ? ` · 招待中 ${room.pending_invites.length}人`
               : ""}
@@ -295,7 +305,11 @@ export function GroupRoomPage() {
         {isPending ? (
           <section className="dm-group-invite-banner" aria-label="グループ招待">
             <p className="dm-group-invite-banner__lead">
-              {inviterName}さんから招待されています
+              <AccountDisplayName
+                name={inviterName}
+                verified={room.invitation?.inviter?.is_operator_verified}
+              />
+              さんから招待されています
             </p>
             <strong className="dm-group-invite-banner__question">
               このグループに参加しますか？

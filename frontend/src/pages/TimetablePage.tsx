@@ -36,6 +36,7 @@ import type { CourseOffering } from "../features/courses/api";
 import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { TimetableCalendarView } from "../features/calendar/TimetableCalendarView";
 import { analytics } from "../lib/analytics/events";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 type TimetableSectionId = "timetable" | "calendar";
 
@@ -132,6 +133,8 @@ export function TimetablePage({
   const [isPublic, setIsPublic] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const [title, setTitle] = useState("時間割");
+  const [ownerName, setOwnerName] = useState<string | null>(null);
+  const [ownerVerified, setOwnerVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);
@@ -186,6 +189,8 @@ export function TimetablePage({
             setSlots({});
             setIsPublic(false);
             setReadOnly(true);
+            setOwnerName(null);
+            setOwnerVerified(false);
             setTitle("時間割");
             readyRef.current = true;
             setReady(true);
@@ -203,6 +208,8 @@ export function TimetablePage({
             setSlots(own.slots || {});
             setIsPublic(Boolean(own.is_timetable_public));
             setReadOnly(false);
+            setOwnerName(null);
+            setOwnerVerified(false);
             setTitle("時間割");
             readyRef.current = true;
             setReady(true);
@@ -211,6 +218,8 @@ export function TimetablePage({
           setSlots(data.slots || {});
           setIsPublic(true);
           setReadOnly(true);
+          setOwnerName(data.owner.display_name);
+          setOwnerVerified(Boolean(data.owner.is_operator_verified));
           setTitle(`${data.owner.display_name}の時間割`);
           readyRef.current = true;
           setReady(true);
@@ -220,6 +229,8 @@ export function TimetablePage({
           setSlots(data.slots || {});
           setIsPublic(Boolean(data.is_timetable_public));
           setReadOnly(false);
+          setOwnerName(null);
+          setOwnerVerified(false);
           setTitle("時間割");
           readyRef.current = true;
           setReady(true);
@@ -228,6 +239,8 @@ export function TimetablePage({
           setSlots({});
           setIsPublic(false);
           setReadOnly(false);
+          setOwnerName(null);
+          setOwnerVerified(false);
           setTitle("時間割");
           readyRef.current = true;
           setReady(true);
@@ -539,7 +552,19 @@ export function TimetablePage({
       <main className="main-inner main-inner--timetable">
         {!embedded ? (
           <div className="page-title-row">
-            <h1 className="page-title">{title}</h1>
+            <h1 className="page-title">
+              {ownerName ? (
+                <>
+                  <AccountDisplayName
+                    name={ownerName}
+                    verified={ownerVerified}
+                  />
+                  の時間割
+                </>
+              ) : (
+                title
+              )}
+            </h1>
             {canEditVisibility ? (
               <div className="timetable-visibility" data-timetable-visibility>
                 <span

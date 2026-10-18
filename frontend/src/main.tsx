@@ -12,6 +12,7 @@ import "./styles/image-pick.css";
 import "./styles/faculty-filter.css";
 import "./styles/local-search.css";
 import "./styles/community.css";
+import "./styles/account-verified.css";
 import "./styles/flea.css";
 import "./styles/timetable.css";
 import "./styles/courses.css";

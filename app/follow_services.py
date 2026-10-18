@@ -11,7 +11,12 @@ from django.db.models import QuerySet
 from .handle_services import public_username
 from .models import Follow, FollowRequest, UserProfile
 from .notification_services import create_notification, notification_actor_label
-from .services import count_followers, is_following, user_display_name
+from .services import (
+    count_followers,
+    is_following,
+    user_display_name,
+    user_is_operator_verified,
+)
 from .spa_canonical import app_absolute
 from .timetable_privacy_services import get_or_create_profile
 from .ugc_services import get_either_blocked_user_ids, is_either_blocked
@@ -236,6 +241,7 @@ def serialize_follow_request(req: FollowRequest) -> dict[str, Any]:
             "display_name": user_display_name(u),
             "avatar_url": get_user_avatar_url(u) or "",
             "initial": user_avatar_initial(u),
+            "is_operator_verified": user_is_operator_verified(u),
         },
     }
 

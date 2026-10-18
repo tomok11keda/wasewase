@@ -24,6 +24,7 @@ import { startDm } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { analytics } from "../lib/analytics/events";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { TimetablePage } from "./TimetablePage";
 
 const TABS = [
@@ -265,7 +266,12 @@ export function ProfilePage() {
               <span className="profile-avatar user-avatar--icon">{u.initial}</span>
             )}
             <div className="profile-identity">
-              <h1 className="profile-name">{u.display_name}</h1>
+              <h1 className="profile-name">
+                <AccountDisplayName
+                  name={u.display_name}
+                  verified={u.is_operator_verified}
+                />
+              </h1>
               <p className="profile-username">@{u.username || u.id}</p>
               {profile.is_private ? (
                 <p className="profile-private-badge">非公開アカウント</p>

@@ -1,0 +1,67 @@
+.account-verified-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+
+.account-verified-name__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  color: var(--accent);
+  line-height: 0;
+  pointer-events: none;
+  vertical-align: -0.12em;
+}
+
+.account-verified-badge svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+/*
+  Name slots that used to ellipsis the whole box (clipping the badge).
+  Keep the parent as a shrinking flex item; ellipsize the text node only.
+*/
+.tweet-author .account-verified-name,
+.tweet-comment__name .account-verified-name,
+.tweet-comment-form__target .account-verified-name,
+.dm-inbox-name .account-verified-name,
+.dm-inbox-preview-prefix .account-verified-name,
+.discover-compact-card__name .account-verified-name,
+.sidebar-user__name .account-verified-name,
+.account-menu__name .account-verified-name,
+.dm-user-name .account-verified-name,
+.share-recipient__name .account-verified-name {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tweet-author .account-verified-name__text,
+.tweet-comment__name .account-verified-name__text,
+.tweet-comment-form__target .account-verified-name__text,
+.dm-inbox-name .account-verified-name__text,
+.dm-inbox-preview-prefix .account-verified-name__text,
+.discover-compact-card__name .account-verified-name__text,
+.sidebar-user__name .account-verified-name__text,
+.account-menu__name .account-verified-name__text,
+.dm-user-name .account-verified-name__text,
+.share-recipient__name .account-verified-name__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

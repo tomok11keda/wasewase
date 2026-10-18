@@ -80,14 +80,20 @@
   line-height: 1.3;
 }
 .tweet-author {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 700;
   color: var(--tweet-text);
   text-decoration: none;
+}
+.tweet-author--deleted {
+  display: inline-block;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
 .tweet-handle {
   font-size: 14px;

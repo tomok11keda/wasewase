@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 import type { TimelinePost } from "../timeline/api";
 import type {
   SearchProductResult,
@@ -65,7 +66,12 @@ export function DiscoverPostCard({ post }: { post: TimelinePost }) {
             </span>
           )}
           <div className="discover-compact-card__who">
-            <span className="discover-compact-card__name">{name}</span>
+            <span className="discover-compact-card__name">
+              <AccountDisplayName
+                name={name}
+                verified={post.author?.is_operator_verified}
+              />
+            </span>
             {handle ? (
               <span className="discover-compact-card__handle">{handle}</span>
             ) : null}

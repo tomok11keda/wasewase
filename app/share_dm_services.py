@@ -213,6 +213,7 @@ def _serialize_recipient(partner, room: UserDirectMessageRoom) -> dict[str, Any]
         "display_name": "",
         "avatar_url": "",
         "initial": "?",
+        "is_operator_verified": False,
     }
     return {
         "user_id": partner.pk,
@@ -221,6 +222,7 @@ def _serialize_recipient(partner, room: UserDirectMessageRoom) -> dict[str, Any]
         "display_name": author.get("display_name") or "",
         "avatar_url": author.get("avatar_url") or "",
         "initial": author.get("initial") or "?",
+        "is_operator_verified": bool(author.get("is_operator_verified")),
     }
 
 

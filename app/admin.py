@@ -90,6 +90,14 @@ class UserAdmin(DjangoUserAdmin):
         "last_login",
         "is_staff",
         "is_active",
+        "is_operator_verified",
+    )
+    list_filter = (
+        "is_staff",
+        "is_superuser",
+        "is_active",
+        "groups",
+        "is_operator_verified",
     )
     search_fields = ("email", "username")
     ordering = ("-date_joined",)
@@ -141,6 +149,16 @@ class UserAdmin(DjangoUserAdmin):
         (
             "プロフィール",
             {"fields": ("username", "first_name", "last_name", "stripe_connect_account_id")},
+        ),
+        (
+            "運営認証",
+            {
+                "fields": ("is_operator_verified",),
+                "description": (
+                    "WASEWASE運営が認証したアカウントとして表示します。"
+                    "メール認証、学生認証、大学公認を意味しません。"
+                ),
+            },
         ),
         (
             "権限",

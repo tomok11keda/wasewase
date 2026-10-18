@@ -35,6 +35,8 @@ IDENTITY_KEYS = (
     "initial",
     "anonymous_id",
     "global_id",
+    "is_operator_verified",
+    "sender_is_operator_verified",
 )
 
 

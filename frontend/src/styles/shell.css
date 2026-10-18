@@ -282,11 +282,13 @@
 }
 
 .sidebar-user__name {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
 }
 
@@ -943,12 +945,15 @@ body.account-drawer-open {
 }
 
 .account-menu__name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
   font-size: 16px;
   font-weight: 800;
   color: #0f1419;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .account-menu__handle {

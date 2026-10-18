@@ -19,6 +19,7 @@ export type ProfileUser = {
   department: string;
   grade: string;
   department_grade: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type ProfilePayload = {
@@ -90,6 +91,7 @@ export type SearchProductResult = {
     display_name: string;
     avatar_url: string;
     initial: string;
+    is_operator_verified?: boolean | null;
   } | null;
 };
 
@@ -264,6 +266,7 @@ export type FollowListUser = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type FollowListPayload = {
@@ -345,6 +348,7 @@ export type FollowRequestItem = {
     display_name: string;
     avatar_url: string;
     initial: string;
+    is_operator_verified?: boolean | null;
   };
 };
 

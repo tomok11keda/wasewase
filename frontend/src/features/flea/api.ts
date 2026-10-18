@@ -7,6 +7,7 @@ export type Author = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type ProductCard = {
@@ -84,6 +85,7 @@ export type ChatMessage = {
   created_at: string;
   is_mine: boolean;
   is_system: boolean;
+  sender_is_operator_verified?: boolean | null;
 };
 
 export type ChatRoomDetail = {

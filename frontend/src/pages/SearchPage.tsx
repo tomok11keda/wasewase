@@ -31,6 +31,7 @@ import {
   OfficialBadge,
   officialBoardClass,
 } from "../features/community/OfficialBadge";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { participantLabel } from "../features/community/api";
 import {
   communityThreadDetailState,
@@ -139,7 +140,10 @@ function SearchProductCard({
         <strong className="search-product-card__title">{product.name}</strong>
         {!compact ? (
           <p className="search-product-card__foot">
-            {sellerName}
+            <AccountDisplayName
+              name={sellerName}
+              verified={product.seller?.is_operator_verified}
+            />
             {product.created_at_label ? ` · ${product.created_at_label}` : ""}
             {product.handover_campus_label
               ? ` · ${product.handover_campus_label}`
@@ -160,7 +164,12 @@ function SearchUserCard({ user }: { user: ProfileUser }) {
         <span className="search-user-avatar is-initial">{user.initial}</span>
       )}
       <span className="search-user-text">
-        <strong>{user.display_name}</strong>
+        <strong>
+          <AccountDisplayName
+            name={user.display_name}
+            verified={user.is_operator_verified}
+          />
+        </strong>
         <span>@{user.username || user.id}</span>
       </span>
     </Link>

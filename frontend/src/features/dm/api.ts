@@ -8,6 +8,7 @@ export type Author = {
   display_name: string;
   avatar_url: string;
   initial: string;
+  is_operator_verified?: boolean | null;
 };
 
 export type InboxItem = {
@@ -22,6 +23,7 @@ export type InboxItem = {
   updated_at: string;
   latest_body: string;
   latest_sender_name: string;
+  latest_sender_is_operator_verified?: boolean | null;
   partner: Author | null;
   product_id: number | null;
   offering_id?: number | null;
@@ -33,6 +35,7 @@ export type ChatReplyPreview = {
   sender_name: string;
   text_preview: string;
   is_unavailable?: boolean;
+  sender_is_operator_verified?: boolean | null;
 };
 
 export type ChatMessage = {
@@ -55,6 +58,7 @@ export type ChatMessage = {
   enrollment_label?: string | null;
   message_kind?: "text" | "share" | string;
   share?: ShareCardPayload | null;
+  sender_is_operator_verified?: boolean | null;
 };
 
 export type DmRoomDetail = {

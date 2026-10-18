@@ -53,6 +53,16 @@ from .timeline_api_services import serialize_author
 from .ugc_services import is_either_blocked, is_user_blocked
 
 
+def _serialize_visible_author(
+    user: AbstractBaseUser | None, *, hide_verification: bool = False
+) -> dict[str, Any] | None:
+    """Keep blocked-partner identity keys, but never advertise a verification badge."""
+    payload = serialize_author(user)
+    if payload is not None and hide_verification:
+        payload["is_operator_verified"] = False
+    return payload
+
+
 def serialize_dm_message(
     message: UserDirectMessage,
     current_user_id: int,
@@ -76,6 +86,7 @@ def serialize_dm_message(
             "is_read": message.is_read,
             "message_kind": kind,
             "share": share_payload,
+            "sender_is_operator_verified": False,
         }
         return payload
     return {
@@ -90,6 +101,9 @@ def serialize_dm_message(
         "is_read": message.is_read,
         "message_kind": kind,
         "share": share_payload,
+        "sender_is_operator_verified": bool(
+            getattr(message.sender, "is_operator_verified", False)
+        ),
     }
 
 
@@ -166,7 +180,16 @@ def serialize_inbox_item(item: dict) -> dict[str, Any]:
         "updated_at": updated.isoformat() if updated is not None else "",
         "latest_body": _inbox_latest_body(latest),
         "latest_sender_name": item.get("latest_sender_display_name") or "",
-        "partner": serialize_author(partner) if partner is not None else None,
+        "latest_sender_is_operator_verified": (
+            bool(getattr(getattr(latest, "sender", None), "is_operator_verified", False))
+            if latest is not None and not item.get("is_blocked")
+            else False
+        ),
+        "partner": _serialize_visible_author(
+            partner, hide_verification=bool(item.get("is_blocked"))
+        )
+        if partner is not None
+        else None,
         "product_id": product.pk if product is not None else None,
         "offering_id": offering_id,
         "spa_path": spa_path,
@@ -250,7 +273,11 @@ def build_dm_room_payload(
         "room": {
             "id": room.pk,
             "kind": "dm",
-            "partner": serialize_author(partner) if partner else None,
+            "partner": _serialize_visible_author(
+                partner, hide_verification=is_blocked
+            )
+            if partner
+            else None,
             "is_blocked": is_blocked,
             "can_send": can_send,
             "request_status": "pending_request" if pending else "active",

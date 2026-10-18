@@ -316,7 +316,14 @@ class TimelineLikerApiTests(TestCase):
         for user in data["users"]:
             self.assertEqual(
                 set(user),
-                {"id", "username", "display_name", "avatar_url", "initial"},
+                {
+                    "id",
+                    "username",
+                    "display_name",
+                    "avatar_url",
+                    "initial",
+                    "is_operator_verified",
+                },
             )
 
     def test_non_liker_is_absent(self):

@@ -377,6 +377,7 @@ export type CourseTalkMessage = {
   sender_username?: string;
   sender_initial?: string;
   avatar_url?: string;
+  sender_is_operator_verified?: boolean | null;
   body: string;
   created_at: string;
   is_mine: boolean;
@@ -389,6 +390,7 @@ export type CourseTalkMessage = {
     sender_name: string;
     text_preview: string;
     is_unavailable?: boolean;
+    sender_is_operator_verified?: boolean | null;
   } | null;
   enrollment_role?: string | null;
   enrollment_label?: string | null;

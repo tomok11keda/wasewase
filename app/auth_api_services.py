@@ -128,6 +128,9 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
             "avatar_url": _avatar_url(user),
             "initial": (display[:1] or "?").upper(),
             "department": get_user_faculty(user),
+            "is_operator_verified": bool(
+                getattr(user, "is_operator_verified", False)
+            ),
         }
         payload["onboarding_required"] = required
         payload["onboarding_step"] = status["step"]

@@ -17,6 +17,7 @@ import {
 import { analytics } from "../lib/analytics/events";
 import { productDetailState } from "../features/flea/productNav";
 import { PullToRefresh } from "../lib/usePullToRefresh";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 function ProductGridCard({ product }: { product: ProductCard }) {
   const sellerName = product.seller?.display_name || "出品者";
@@ -45,7 +46,11 @@ function ProductGridCard({ product }: { product: ProductCard }) {
       </div>
       <p className="product-card-title">{product.name}</p>
       <p className="product-card-meta">
-        {sellerName} · {product.created_at_label}
+        <AccountDisplayName
+          name={sellerName}
+          verified={product.seller?.is_operator_verified}
+        />{" "}
+        · {product.created_at_label}
         {product.handover_campus_label
           ? ` · ${product.handover_campus_label}`
           : ""}

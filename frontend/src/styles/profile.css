@@ -584,10 +584,13 @@
 }
 
 .discover-compact-card__name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
   font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
 }
 

@@ -110,6 +110,7 @@ def serialize_profile_user(user: AbstractBaseUser, profile) -> dict[str, Any]:
         "department": (getattr(profile, "department", None) or ""),
         "grade": (getattr(profile, "grade", None) or ""),
         "department_grade": profile.department_grade_display if profile else "",
+        "is_operator_verified": bool(getattr(user, "is_operator_verified", False)),
     }
 
 

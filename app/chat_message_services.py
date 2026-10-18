@@ -9,7 +9,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import ChatMessage, ChatMessageModerationAppeal, ChatRoom
-from .services import get_user_avatar_url, user_avatar_initial, user_display_name
+from .services import (
+    get_user_avatar_url,
+    user_avatar_initial,
+    user_display_name,
+    user_is_operator_verified,
+)
 
 REPLY_PREVIEW_MAX = 80
 DELETED_PREVIEW = "削除されたメッセージ"
@@ -113,6 +118,9 @@ def serialize_reply_preview(target: ChatMessage | None) -> dict[str, Any] | None
         "sender_name": sender_name,
         "text_preview": preview,
         "is_unavailable": unavailable,
+        "sender_is_operator_verified": (
+            False if unavailable else user_is_operator_verified(target.sender)
+        ),
     }
 
 
@@ -168,6 +176,11 @@ def serialize_chat_message(
             getattr(message, "reply_to", None)
             if message.reply_to_id
             else None
+        ),
+        "sender_is_operator_verified": (
+            user_is_operator_verified(message.sender)
+            if message.sender_id
+            else False
         ),
     }
     if extra:

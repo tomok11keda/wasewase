@@ -269,10 +269,13 @@ html.chrome-detail .dm-group-header {
 }
 
 .dm-inbox-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
 }
 
@@ -407,18 +410,33 @@ html.chrome-detail .dm-group-header {
 }
 
 .dm-inbox-preview {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: 14px;
   line-height: 1.45;
   color: var(--dm-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dm-inbox-preview-prefix {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 65%;
+  flex: 0 1 auto;
+  overflow: hidden;
   font-weight: 600;
   color: var(--dm-text);
+}
+
+.dm-inbox-preview-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dm-inbox-item.has-unread .dm-inbox-name {
@@ -1091,10 +1109,13 @@ html.chrome-detail .dm-group-header {
 }
 
 .dm-user-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
 }
 
@@ -1509,13 +1530,15 @@ html.chrome-detail .dm-group-header {
 }
 
 .share-recipient__name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 72px;
+  min-width: 0;
+  overflow: hidden;
   font-size: 11px;
   font-weight: 700;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .share-recipient-more {

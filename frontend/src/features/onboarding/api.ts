@@ -29,6 +29,7 @@ export type OnboardingSuggestion = {
   department: string;
   is_following: boolean;
   follow_state: string;
+  is_operator_verified?: boolean | null;
 };
 
 async function readJson(res: Response) {

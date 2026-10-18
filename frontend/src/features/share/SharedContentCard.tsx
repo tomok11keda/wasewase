@@ -8,6 +8,7 @@ import type {
   ShareCardPayload,
   TimelineShareContent,
 } from "./api";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 
 function yen(price: number): string {
   return `¥${Number(price || 0).toLocaleString("ja-JP")}`;
@@ -36,7 +37,12 @@ function TimelineShareCard({
           )}
         </span>
         <span className="share-card__author-text">
-          <strong>{name}</strong>
+          <strong>
+            <AccountDisplayName
+              name={name}
+              verified={content.author?.is_operator_verified}
+            />
+          </strong>
           {handle ? <span className="share-card__handle">{handle}</span> : null}
         </span>
       </div>
@@ -71,7 +77,14 @@ function FleaShareCard({
       ) : null}
       <p className="share-card__title">{content.name}</p>
       <p className="share-card__price">{yen(content.price)}</p>
-      {seller ? <p className="share-card__seller">{seller}</p> : null}
+      {seller ? (
+        <p className="share-card__seller">
+          <AccountDisplayName
+            name={seller}
+            verified={content.seller?.is_operator_verified}
+          />
+        </p>
+      ) : null}
       <span className="share-card__cta">商品を見る →</span>
     </Link>
   );

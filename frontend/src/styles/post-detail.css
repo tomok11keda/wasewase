@@ -244,16 +244,21 @@
 }
 
 .post-detail-page .tweet-comment__name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 42%;
+  flex: 0 1 auto;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 800;
   color: var(--tweet-text, #0f1419);
   text-decoration: none;
+}
+.post-detail-page .tweet-comment__name--deleted {
+  display: inline-block;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
-  flex: 0 1 auto;
-  max-width: 42%;
 }
 
 .post-detail-page .tweet-comment__name:hover,
@@ -366,6 +371,8 @@
 }
 
 .post-detail-page .tweet-comment-form__target span {
+  display: flex;
+  align-items: center;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

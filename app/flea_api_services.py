@@ -69,7 +69,14 @@ def serialize_comment(comment: Comment) -> dict[str, Any]:
         "created_at_label": f"{timesince(comment.created_at)}前",
         "author": serialize_author(comment.author)
         if comment.author_id
-        else {"id": None, "username": "", "display_name": "匿名", "avatar_url": "", "initial": "?"},
+        else {
+            "id": None,
+            "username": "",
+            "display_name": "匿名",
+            "avatar_url": "",
+            "initial": "?",
+            "is_operator_verified": False,
+        },
     }
 
 

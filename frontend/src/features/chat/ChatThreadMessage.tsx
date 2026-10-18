@@ -6,6 +6,7 @@ import { ChatMessageReportSheet } from "./ChatMessageReportSheet";
 import { ChatModerationAppealSheet } from "./ChatModerationAppealSheet";
 import type { ReplyTarget } from "./ChatReplyPreview";
 import { analytics } from "../../lib/analytics/events";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 
 export type ThreadMessage = {
   id: number;
@@ -14,6 +15,7 @@ export type ThreadMessage = {
   sender_username?: string;
   sender_initial?: string;
   avatar_url?: string;
+  sender_is_operator_verified?: boolean | null;
   body: string;
   created_at: string;
   is_mine: boolean;
@@ -26,6 +28,7 @@ export type ThreadMessage = {
     sender_name: string;
     text_preview: string;
     is_unavailable?: boolean;
+    sender_is_operator_verified?: boolean | null;
   } | null;
   enrollment_label?: string | null;
   enrollment_role?: string | null;
@@ -148,13 +151,19 @@ export function ChatThreadMessage({
             <div className="chat-row__sender">
               {profilePath ? (
                 <Link className="chat-row__sender-link" to={profilePath}>
-                  {m.sender_name}
+                  <AccountDisplayName
+                    name={m.sender_name}
+                    verified={m.sender_is_operator_verified}
+                  />
                   {m.sender_username ? (
                     <span className="chat-row__handle">@{m.sender_username}</span>
                   ) : null}
                 </Link>
               ) : (
-                m.sender_name
+                <AccountDisplayName
+                  name={m.sender_name}
+                  verified={m.sender_is_operator_verified}
+                />
               )}
               {m.enrollment_label ? (
                 <span
@@ -183,9 +192,14 @@ export function ChatThreadMessage({
                   }}
                 >
                   <span className="chat-reply-quote__name">
-                    {m.reply_to.is_unavailable
-                      ? ""
-                      : m.reply_to.sender_name}
+                    {m.reply_to.is_unavailable ? (
+                      ""
+                    ) : (
+                      <AccountDisplayName
+                        name={m.reply_to.sender_name}
+                        verified={m.reply_to.sender_is_operator_verified}
+                      />
+                    )}
                   </span>
                   <span className="chat-reply-quote__text">
                     {m.reply_to.text_preview}

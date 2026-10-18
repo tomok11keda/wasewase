@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { saveScrollPosition } from "../profile/api";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 import {
   fetchTimelineLikers,
   type TimelineAuthor,
@@ -111,7 +112,12 @@ export function LikerListModal({ postId, open, onClose }: Props) {
                     </span>
                   )}
                   <span className="search-user-text">
-                    <strong>{u.display_name || u.username || "ユーザー"}</strong>
+                    <strong>
+                      <AccountDisplayName
+                        name={u.display_name || u.username || "ユーザー"}
+                        verified={u.is_operator_verified}
+                      />
+                    </strong>
                     <span>@{u.username || u.id}</span>
                   </span>
                 </Link>

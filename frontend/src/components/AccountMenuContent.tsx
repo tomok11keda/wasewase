@@ -5,6 +5,7 @@ import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
 import { WASEDA_OFFICIAL_SERVICE } from "../lib/wasedaOfficialLinks";
+import { AccountDisplayName } from "./VerifiedAccountBadge";
 
 function ClassicLink({
   href,
@@ -122,7 +123,12 @@ export function AccountMenuContent({
             {user.initial}
           </span>
           <span className="account-menu__meta">
-            <span className="account-menu__name">{user.display_name}</span>
+            <span className="account-menu__name">
+              <AccountDisplayName
+                name={user.display_name}
+                verified={user.is_operator_verified}
+              />
+            </span>
             <span className="account-menu__handle">@{user.username}</span>
           </span>
         </button>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
 import { SfIcon } from "../../components/SfIcon";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 import type { TimelineAuthor, TimelineComment, TimelinePost } from "./api";
 import {
   addComment,
@@ -122,6 +123,7 @@ type ReplyTarget = {
   id: number;
   username: string;
   display_name: string;
+  is_operator_verified?: boolean | null;
 };
 
 function TimelineCommentBody({
@@ -156,7 +158,10 @@ function TimelineCommentBody({
                 to={`/users/${comment.author.id}/posts`}
                 onClick={() => saveScrollPosition("/")}
               >
-                {comment.author.display_name}
+                <AccountDisplayName
+                  name={comment.author.display_name}
+                  verified={comment.author.is_operator_verified}
+                />
               </Link>
               <Link
                 className="tweet-comment__handle"
@@ -297,6 +302,7 @@ export function TimelinePostCard({
               id: row.id,
               username: row.author.username,
               display_name: row.author.display_name,
+              is_operator_verified: row.author.is_operator_verified,
             }
           : {
               id: row.id,
@@ -509,7 +515,10 @@ export function TimelinePostCard({
                     to={`/users/${post.author.id}/posts`}
                     onClick={() => saveScrollPosition("/")}
                   >
-                    {post.author.display_name}
+                    <AccountDisplayName
+                      name={post.author.display_name}
+                      verified={post.author.is_operator_verified}
+                    />
                   </Link>
                   <Link
                     className="tweet-handle"
@@ -693,7 +702,10 @@ export function TimelinePostCard({
                   <div className="tweet-identity">
                     {post.quoted_post.author ? (
                       <span className="tweet-author">
-                        {post.quoted_post.author.display_name}
+                        <AccountDisplayName
+                          name={post.quoted_post.author.display_name}
+                          verified={post.quoted_post.author.is_operator_verified}
+                        />
                       </span>
                     ) : null}
                   </div>
@@ -929,9 +941,17 @@ export function TimelinePostCard({
                   {replyTarget ? (
                     <div className="tweet-comment-form__target">
                       <span>
-                        {replyTarget.username
-                          ? `@${replyTarget.username} に返信`
-                          : `${replyTarget.display_name} に返信`}
+                        {replyTarget.username ? (
+                          `@${replyTarget.username} に返信`
+                        ) : (
+                          <>
+                            <AccountDisplayName
+                              name={replyTarget.display_name}
+                              verified={replyTarget.is_operator_verified}
+                            />{" "}
+                            に返信
+                          </>
+                        )}
                       </span>
                       <button
                         type="button"

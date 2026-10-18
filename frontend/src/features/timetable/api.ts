@@ -18,7 +18,11 @@ export type OwnSlotsResponse = {
 
 export type PublicSlotsResponse = {
   ok: boolean;
-  owner: { id: number; display_name: string };
+  owner: {
+    id: number;
+    display_name: string;
+    is_operator_verified?: boolean | null;
+  };
   is_own: boolean;
   is_timetable_public: boolean;
   read_only: boolean;

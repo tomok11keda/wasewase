@@ -7,6 +7,7 @@ import {
   type FollowListKind,
   type FollowListUser,
 } from "../features/profile/api";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 type Props = {
   kind: FollowListKind;
@@ -106,7 +107,12 @@ export function FollowListPage({ kind }: Props) {
                     </span>
                   )}
                   <span className="search-user-text">
-                    <strong>{u.display_name}</strong>
+                    <strong>
+                      <AccountDisplayName
+                        name={u.display_name}
+                        verified={u.is_operator_verified}
+                      />
+                    </strong>
                     <span>@{u.username || u.id}</span>
                   </span>
                 </Link>

@@ -6,6 +6,7 @@ import {
   fetchMessageRequests,
   type MessageRequestItem,
 } from "../features/dm/api";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 export function MessageRequestsPage() {
   const { me, loading: sessionLoading } = useSession();
@@ -96,7 +97,12 @@ export function MessageRequestsPage() {
                     </span>
                     <span className="dm-inbox-body">
                       <span className="dm-inbox-top">
-                        <span className="dm-inbox-name">{name}</span>
+                        <span className="dm-inbox-name">
+                          <AccountDisplayName
+                            name={name}
+                            verified={user?.is_operator_verified}
+                          />
+                        </span>
                       </span>
                       {handle ? (
                         <span className="dm-inbox-handle">{handle}</span>

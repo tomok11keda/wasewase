@@ -12,6 +12,7 @@ export type MeResponse = {
     avatar_url: string;
     initial: string;
     department?: string;
+    is_operator_verified?: boolean | null;
   };
   unread_notifications: number;
   dm_unread_total: number;

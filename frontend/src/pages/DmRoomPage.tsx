@@ -29,6 +29,7 @@ import {
   useKeepChatPinnedOnCompose,
   useLoadOlderChatMessages,
 } from "../features/chat/useChatRoomLayout";
+import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
 export function DmRoomPage() {
   const { roomPk } = useParams();
@@ -266,7 +267,16 @@ export function DmRoomPage() {
                 )}
               </span>
               <div className="dm-partner-text">
-                <h1 className="dm-partner-name">{partnerName}</h1>
+                <h1 className="dm-partner-name">
+                  {room.is_blocked ? (
+                    partnerName
+                  ) : (
+                    <AccountDisplayName
+                      name={partnerName}
+                      verified={room.partner?.is_operator_verified}
+                    />
+                  )}
+                </h1>
                 <p className="dm-partner-meta">
                   {room.is_blocked ? (
                     "ブロック中のためプロフィールは表示できません"
@@ -284,9 +294,18 @@ export function DmRoomPage() {
         {isPendingRequest ? (
           <section className="dm-group-invite-banner" aria-label="メッセージリクエスト">
             <p className="dm-group-invite-banner__lead">
-              {(room.message_request?.from_user?.display_name ||
-                room.partner?.display_name ||
-                "ユーザー") + "さんからメッセージリクエストが届いています"}
+              <AccountDisplayName
+                name={
+                  room.message_request?.from_user?.display_name ||
+                  room.partner?.display_name ||
+                  "ユーザー"
+                }
+                verified={
+                  room.message_request?.from_user?.is_operator_verified ??
+                  room.partner?.is_operator_verified
+                }
+              />
+              さんからメッセージリクエストが届いています
             </p>
             <strong className="dm-group-invite-banner__question">
               チャットを開始しますか？

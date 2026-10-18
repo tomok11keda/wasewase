@@ -5,6 +5,7 @@ import {
   fetchOnboardingSuggestions,
   type OnboardingSuggestion,
 } from "./api";
+import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 
 type Props = {
   onDone: () => void;
@@ -103,7 +104,12 @@ export function FollowStep({ onDone }: Props) {
               </span>
             )}
             <span className="search-user-text">
-              <strong>{u.display_name}</strong>
+              <strong>
+                <AccountDisplayName
+                  name={u.display_name}
+                  verified={u.is_operator_verified}
+                />
+              </strong>
               <span>@{u.username || u.id}</span>
               {u.department ? <span>{u.department}</span> : null}
             </span>

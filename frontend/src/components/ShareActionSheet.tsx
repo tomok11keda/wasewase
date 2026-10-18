@@ -13,6 +13,7 @@ import {
   type ShareRecipient,
   type ShareTarget,
 } from "../features/share/api";
+import { AccountDisplayName } from "./VerifiedAccountBadge";
 
 type RecipientStatus = "idle" | "sending" | "sent" | "error";
 
@@ -169,7 +170,12 @@ export function ShareActionSheet({
             </span>
           ) : null}
         </span>
-        <span className="share-recipient__name">{recipient.display_name}</span>
+        <span className="share-recipient__name">
+          <AccountDisplayName
+            name={recipient.display_name}
+            verified={recipient.is_operator_verified}
+          />
+        </span>
       </button>
     );
   };

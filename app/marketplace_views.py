@@ -91,6 +91,11 @@ def _serialize_room_message(message, current_user_id):
         "created_at": created.strftime("%m/%d %H:%M"),
         "is_mine": (not is_system) and message.sender_id == current_user_id,
         "is_system": is_system,
+        "sender_is_operator_verified": (
+            False
+            if is_system
+            else bool(getattr(message.sender, "is_operator_verified", False))
+        ),
     }
 
 
