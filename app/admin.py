@@ -36,6 +36,8 @@ from .models import (
     Like,
     Message,
     Notification,
+    Organization,
+    OrganizationMember,
     Product,
     Review,
     ThreadPost,
@@ -50,6 +52,13 @@ from .models import (
     FollowRequest,
     UserBlock,
     UserProfile,
+)
+from .organization_services import (
+    LastOrganizationOwnerError,
+    apply_organization_visibility_guard,
+    assert_formset_preserves_last_owner,
+    assert_queryset_delete_keeps_owner,
+    save_organization_member_formset,
 )
 
 
@@ -183,6 +192,153 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
+
+
+class OrganizationMemberInline(admin.TabularInline):
+    model = OrganizationMember
+    extra = 0
+    raw_id_fields = ("user",)
+    fields = ("user", "role", "created_at")
+    readonly_fields = ("created_at",)
+    verbose_name = "管理者"
+    verbose_name_plural = "管理者（公開前に代表管理者を1人以上）"
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "slug",
+        "category",
+        "status",
+        "is_listed",
+        "is_verified",
+        "owner_count",
+        "updated_at",
+    )
+    list_filter = ("status", "is_listed", "is_verified", "category")
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = [OrganizationMemberInline]
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "slug",
+                    "description",
+                    "avatar",
+                    "category",
+                    "instagram_url",
+                    "website_url",
+                )
+            },
+        ),
+        (
+            "公開",
+            {
+                "fields": ("status", "is_listed"),
+                "description": (
+                    "status は利用可否、is_listed は検索・一覧への表示です。"
+                    "代表管理者がいない団体は active / 一覧表示にできません。"
+                ),
+            },
+        ),
+        (
+            "運営確認",
+            {
+                "fields": ("is_verified",),
+                "description": (
+                    "WASEWASE運営が確認した学生団体です。"
+                    "個人アカウントの運営認証バッジや、"
+                    "コミュニティ掲示板の公式認証とは別です。"
+                ),
+            },
+        ),
+        ("日時", {"fields": ("created_at", "updated_at")}),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj is not None and "slug" not in readonly:
+            readonly.append("slug")
+        return readonly
+
+    @admin.display(description="代表管理者")
+    def owner_count(self, obj):
+        return obj.memberships.filter(role=OrganizationMember.Role.OWNER).count()
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        if apply_organization_visibility_guard(form.instance):
+            self.message_user(
+                request,
+                "代表管理者がいないため、公開状態を落としました。"
+                "公開するには代表管理者（owner）を1人以上追加してください。",
+                level=messages.ERROR,
+            )
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not OrganizationMember:
+            super().save_formset(request, form, formset, change)
+            return
+        try:
+            assert_formset_preserves_last_owner(form.instance, formset)
+        except LastOrganizationOwnerError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return
+        save_organization_member_formset(formset, form.instance)
+
+
+@admin.register(OrganizationMember)
+class OrganizationMemberAdmin(admin.ModelAdmin):
+    list_display = ("organization", "user", "role", "created_at")
+    list_filter = ("role",)
+    search_fields = (
+        "organization__name",
+        "organization__slug",
+        "user__email",
+        "user__username",
+    )
+    raw_id_fields = ("organization", "user")
+    readonly_fields = ("created_at",)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        delete_action = actions.get("delete_selected")
+        if delete_action:
+            _func, name, description = delete_action
+            actions["delete_selected"] = (
+                type(self).delete_selected_keeping_owner,
+                name,
+                description,
+            )
+        return actions
+
+    @admin.action(description="選択された 学生団体メンバー を削除")
+    def delete_selected_keeping_owner(self, request, queryset):
+        try:
+            assert_queryset_delete_keeps_owner(queryset)
+        except LastOrganizationOwnerError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return None
+        return django_delete_selected(self, request, queryset)
+
+    def delete_model(self, request, obj):
+        try:
+            super().delete_model(request, obj)
+        except LastOrganizationOwnerError as exc:
+            raise PermissionDenied(str(exc)) from exc
+
+    def delete_queryset(self, request, queryset):
+        try:
+            assert_queryset_delete_keeps_owner(queryset)
+        except LastOrganizationOwnerError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return
+        queryset.delete()
 
 
 @admin.register(TimelinePost)

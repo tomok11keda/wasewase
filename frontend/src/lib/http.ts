@@ -31,11 +31,7 @@ function resolveError(
   return undefined;
 }
 
-export async function apiGetJson(url: string): Promise<ApiJsonResult> {
-  const res = await fetch(url, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
+async function jsonResult(res: Response): Promise<ApiJsonResult> {
   const data = await parseJson(res);
   const error = res.ok ? undefined : resolveError(res.status, data);
   return {
@@ -44,6 +40,14 @@ export async function apiGetJson(url: string): Promise<ApiJsonResult> {
     data,
     error,
   };
+}
+
+export async function apiGetJson(url: string): Promise<ApiJsonResult> {
+  const res = await fetch(url, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  return jsonResult(res);
 }
 
 export async function apiPostJson(
@@ -60,14 +64,41 @@ export async function apiPostJson(
     },
     body: JSON.stringify(body ?? {}),
   });
-  const data = await parseJson(res);
-  const error = res.ok ? undefined : resolveError(res.status, data);
-  return {
-    ok: Boolean(res.ok && data.ok !== false),
-    status: res.status,
-    data,
-    error,
-  };
+  return jsonResult(res);
+}
+
+export async function apiPatchJson(
+  url: string,
+  body: unknown = {}
+): Promise<ApiJsonResult> {
+  const res = await fetch(url, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+  return jsonResult(res);
+}
+
+/** Multipart PATCH. Do not set Content-Type — the browser must keep the boundary. */
+export async function apiPatchForm(
+  url: string,
+  body: FormData
+): Promise<ApiJsonResult> {
+  const res = await fetch(url, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body,
+  });
+  return jsonResult(res);
 }
 
 /** Prefer Japanese message when the API returned rate_limited. */

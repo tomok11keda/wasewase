@@ -84,6 +84,16 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: `/users/${userPk}/posts` },
     };
   }
+  if (/^\/orgs\/[^/]+\/edit$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "団体を編集",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
+  if (/^\/orgs\/[^/]+$/.test(p)) {
+    return { title: "団体", back: { kind: "fallback", to: "/" } };
+  }
   if (/^\/users\/\d+/.test(p)) {
     return { title: "プロフィール", back: { kind: "fallback", to: "/" } };
   }

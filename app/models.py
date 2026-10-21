@@ -2145,3 +2145,173 @@ class TimelineLike(models.Model):
             ),
         ]
 
+
+class Organization(models.Model):
+    """学生団体。個人 User とは独立し、管理者は OrganizationMember で紐付ける。"""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "下書き"
+        ACTIVE = "active", "利用可能"
+        SUSPENDED = "suspended", "利用停止"
+
+    class Category(models.TextChoices):
+        CIRCLE = "circle", "サークル"
+        STUDENT_GROUP = "student_group", "学生団体"
+        COMMITTEE = "committee", "委員会・実行委員会"
+        PROJECT = "project", "プロジェクト"
+        OTHER = "other", "その他"
+
+    name = models.CharField("団体名", max_length=100)
+    slug = models.SlugField(
+        "識別子",
+        max_length=80,
+        unique=True,
+        help_text="URL 等で使う一意な識別子。公開後は原則変更しません。",
+    )
+    description = models.TextField("団体説明", blank=True)
+    avatar = models.ImageField(
+        "団体アイコン",
+        upload_to="organization_avatars/",
+        blank=True,
+        null=True,
+    )
+    category = models.CharField(
+        "カテゴリ",
+        max_length=20,
+        choices=Category.choices,
+        default=Category.OTHER,
+        db_index=True,
+    )
+    instagram_url = models.URLField("Instagram URL", blank=True, default="")
+    website_url = models.URLField("Webサイト URL", blank=True, default="")
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="draft=未公開の作成途中、active=利用可能、suspended=利用停止。",
+    )
+    is_listed = models.BooleanField(
+        "一覧・検索に表示する",
+        default=False,
+        db_index=True,
+        help_text="false のときは一覧・検索に出しません。status とは独立です。",
+    )
+    is_verified = models.BooleanField(
+        "運営確認済み団体",
+        default=False,
+        db_index=True,
+        help_text=(
+            "WASEWASE運営が確認した学生団体として扱います。"
+            "個人アカウントの運営認証バッジ、コミュニティ掲示板の公式認証、"
+            "大学公認を意味しません。"
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "学生団体"
+        verbose_name_plural = "学生団体"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("slug"),
+                name="app_organization_slug_lower_uniq",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=["draft", "active", "suspended"]),
+                name="app_organization_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "is_listed"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.slug:
+            self.slug = str(self.slug).strip().lower()
+        super().save(*args, **kwargs)
+
+
+class OrganizationMemberQuerySet(models.QuerySet):
+    def delete(self):
+        from .organization_services import assert_queryset_delete_keeps_owner
+
+        assert_queryset_delete_keeps_owner(self)
+        return super().delete()
+
+    def update(self, **kwargs):
+        from .organization_services import assert_queryset_role_update_keeps_owner
+
+        assert_queryset_role_update_keeps_owner(self, kwargs)
+        return super().update(**kwargs)
+
+
+class OrganizationMember(models.Model):
+    """学生団体の管理者（将来の一般メンバーも同じテーブルで扱う）。"""
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "代表管理者"
+        ADMIN = "admin", "管理者"
+        MEMBER = "member", "メンバー"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+        verbose_name="団体",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="organization_memberships",
+        verbose_name="ユーザー",
+        help_text="個人アカウント。退会時は所属行のみ消え、団体本体は残します。",
+    )
+    role = models.CharField(
+        "役割",
+        max_length=16,
+        choices=Role.choices,
+        default=Role.ADMIN,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrganizationMemberQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "学生団体メンバー"
+        verbose_name_plural = "学生団体メンバー"
+        ordering = ["created_at", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                name="uniq_organization_member_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(role__in=["owner", "admin", "member"]),
+                name="app_organization_member_role_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} in org {self.organization_id} ({self.role})"
+
+    def save(self, *args, **kwargs):
+        if self.pk and self.role != self.Role.OWNER:
+            from .organization_services import assert_can_change_organization_member_role
+
+            assert_can_change_organization_member_role(self, self.role)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from .organization_services import assert_can_remove_organization_member
+
+        assert_can_remove_organization_member(self)
+        return super().delete(*args, **kwargs)
+

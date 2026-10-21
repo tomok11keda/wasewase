@@ -1,0 +1,232 @@
+.org-profile-page .org-profile-header {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.org-profile-page .profile-identity {
+  min-width: 0;
+}
+
+.org-profile-page .profile-name {
+  overflow-wrap: anywhere;
+}
+
+.org-profile-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+}
+
+.org-profile-avatar.user-avatar--icon {
+  font-size: 32px;
+  border-radius: 20px;
+}
+
+.org-profile-kicker {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #891e2b;
+}
+
+.org-profile-category {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #536471;
+  background: #eff3f4;
+}
+
+.org-profile-description {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.org-profile-empty {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #888;
+}
+
+.org-profile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.org-profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #cfd9de;
+  color: #222;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  max-width: 100%;
+}
+
+.org-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.org-verified-badge__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #891e2b;
+  overflow-wrap: anywhere;
+}
+
+.org-edit-page {
+  --accent: #891e2b;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --radius: 14px;
+}
+
+.org-edit-page .main-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px 16px 28px;
+}
+
+.org-edit-page .form-lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.org-edit-page .form-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 20px 18px 22px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.org-edit-page .form-group {
+  margin-bottom: 14px;
+}
+
+.org-edit-page .form-group label,
+.org-edit-avatar-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.org-edit-page .form-group input,
+.org-edit-page .form-group select,
+.org-edit-page .form-group textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.org-edit-page .btn-submit,
+.org-edit-page a.btn-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.org-edit-page .btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.org-edit-error,
+.org-edit-field-error {
+  margin: 0 0 12px;
+  color: #c62828;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.org-edit-field-error {
+  margin: 6px 0 0;
+}
+
+.org-edit-counter {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.org-edit-avatar-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.org-edit-avatar-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 2px solid #eff3f4;
+  background: #eff3f4;
+}
+
+.org-edit-avatar-preview.is-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: #8b98a5;
+}
+
+.org-edit-back {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 390px) {
+  .org-profile-page .org-profile-header {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .org-profile-avatar {
+    width: 72px;
+    height: 72px;
+  }
+
+  .org-edit-avatar-row {
+    grid-template-columns: 1fr;
+  }
+}

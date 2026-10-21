@@ -9,6 +9,9 @@ class AppConfig(AppConfig):
     name = "app"
 
     def ready(self) -> None:
+        # 学生団体の削除信号（QuerySet / CASCADE）を登録する。
+        from . import organization_services as _organization_services  # noqa: F401
+
         if not os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
             return
         # manage.py（collectstatic / migrate 等）では CreateModel 系 ensure を走らせない。

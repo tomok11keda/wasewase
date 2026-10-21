@@ -17,6 +17,7 @@ from .models import (
     Community,
     CommunityThread,
     CourseReview,
+    Organization,
     Product,
     TimelinePost,
     User,
@@ -53,6 +54,9 @@ class BrowseModePathHelperTests(SimpleTestCase):
             path_denies_student_data_in_browse_mode("/api/v1/timeline/impressions/")
         )
         self.assertTrue(path_denies_student_data_in_browse_mode("/api/v1/profile/1/"))
+        self.assertTrue(
+            path_denies_student_data_in_browse_mode("/api/v1/organizations/team-wasewase/")
+        )
         self.assertTrue(path_denies_student_data_in_browse_mode("/api/v1/search/"))
         self.assertTrue(
             path_denies_student_data_in_browse_mode("/api/v1/communities/threads/")
@@ -203,6 +207,17 @@ class BrowseModePrivacyApiTests(TestCase):
         self._assert_denied(
             self.client.get(f"/api/v1/profile/{self.user.pk}/"),
             leak="秘密の自己紹介",
+        )
+        org = Organization.objects.create(
+            name="公開サークル",
+            slug="listed-circle",
+            description="団体の秘密の紹介文",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        self._assert_denied(
+            self.client.get(f"/api/v1/organizations/{org.slug}/"),
+            leak="団体の秘密の紹介文",
         )
         self._assert_denied(
             self.client.get(f"/api/v1/profile/{self.user.pk}/posts/"),

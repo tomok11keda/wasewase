@@ -22,6 +22,7 @@ from app import notification_api_views
 from app import auth_api_views
 from app import follow_api_views
 from app import onboarding_api_views
+from app import organization_api_views
 from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
@@ -339,6 +340,11 @@ urlpatterns = [
         "api/v1/search/",
         profile_api_views.api_v1_search,
         name="api_v1_search",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/",
+        organization_api_views.api_v1_organization_detail,
+        name="api_v1_organization_detail",
     ),
     path(
         "api/v1/calendar/events/",

@@ -27,6 +27,8 @@ import {
   PasswordResetVerifyPage,
 } from "./pages/PasswordResetPages";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
+import { OrganizationEditPage } from "./pages/OrganizationEditPage";
+import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SearchPage } from "./pages/SearchPage";
 import { SignupPage } from "./pages/SignupPage";
@@ -77,6 +79,8 @@ function NestedAppRoutes() {
       <Route path="timetable/user/:userPk" element={<TimetablePage />} />
       <Route path="courses/:offeringPk/talk" element={<CourseTalkPage />} />
       <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
+      <Route path="orgs/:slug/edit" element={<OrganizationEditPage />} />
+      <Route path="orgs/:slug" element={<OrganizationProfilePage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
       <Route
         path="users/:userId/followers"

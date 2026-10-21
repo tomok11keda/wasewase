@@ -60,6 +60,11 @@ FLEA_LIKE_SCOPE = "flea_like"
 FLEA_LIKE_LIMIT = 60
 FLEA_LIKE_WINDOW = 300
 
+# Organization profile edits are infrequent.
+ORGANIZATION_PROFILE_UPDATE_SCOPE = "organization_profile_update"
+ORGANIZATION_PROFILE_UPDATE_LIMIT = 30
+ORGANIZATION_PROFILE_UPDATE_WINDOW = 3600
+
 
 def allow_user_rate_limit(
     user: AbstractBaseUser | None,
@@ -135,6 +140,15 @@ def allow_flea_like(user: AbstractBaseUser | None) -> bool:
         FLEA_LIKE_SCOPE,
         limit=FLEA_LIKE_LIMIT,
         window=FLEA_LIKE_WINDOW,
+    )
+
+
+def allow_organization_profile_update(user: AbstractBaseUser | None) -> bool:
+    return allow_user_rate_limit(
+        user,
+        ORGANIZATION_PROFILE_UPDATE_SCOPE,
+        limit=ORGANIZATION_PROFILE_UPDATE_LIMIT,
+        window=ORGANIZATION_PROFILE_UPDATE_WINDOW,
     )
 
 
