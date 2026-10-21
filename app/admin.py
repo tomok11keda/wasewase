@@ -1,7 +1,9 @@
 from django.contrib import admin, messages
 from django.contrib.admin.actions import delete_selected as django_delete_selected
+from django.contrib.admin.views.autocomplete import AutocompleteJsonView
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -90,6 +92,36 @@ _SUPERUSER_BULK_DELETE_DENIED = (
 )
 
 
+def _user_autocomplete_label(user: User) -> str:
+    name = ""
+    try:
+        name = (user.profile.name or "").strip()
+    except UserProfile.DoesNotExist:
+        pass
+    email = (user.email or "").strip()
+    if name and email:
+        return f"{name} ({email})"
+    return email or user.username or str(user.pk)
+
+
+class _AdminAutocompleteJsonView(AutocompleteJsonView):
+    """Show name and email in User autocomplete without changing User.__str__."""
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if qs.model is User:
+            return qs.select_related("profile")
+        return qs
+
+    def serialize_result(self, obj, to_field_name):
+        if isinstance(obj, User):
+            return {
+                "id": str(getattr(obj, to_field_name)),
+                "text": _user_autocomplete_label(obj),
+            }
+        return super().serialize_result(obj, to_field_name)
+
+
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     list_display = (
@@ -110,6 +142,21 @@ class UserAdmin(DjangoUserAdmin):
     )
     search_fields = ("email", "username")
     ordering = ("-date_joined",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("profile")
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, use_distinct = super().get_search_results(
+            request, queryset, search_term
+        )
+        term = (search_term or "").strip()
+        if not term:
+            return queryset, use_distinct
+        queryset = queryset | self.model.objects.filter(
+            Q(profile__name__icontains=term)
+        )
+        return queryset, True
 
     def has_delete_permission(self, request, obj=None):
         if obj is not None and getattr(obj, "is_superuser", False):
@@ -194,14 +241,39 @@ class UserAdmin(DjangoUserAdmin):
     )
 
 
+def _admin_autocomplete_view(request):
+    return _AdminAutocompleteJsonView.as_view(admin_site=admin.site)(request)
+
+
+admin.site.autocomplete_view = _admin_autocomplete_view
+
+
 class OrganizationMemberInline(admin.TabularInline):
     model = OrganizationMember
-    extra = 0
-    raw_id_fields = ("user",)
+    extra = 1
+    autocomplete_fields = ("user",)
     fields = ("user", "role", "created_at")
     readonly_fields = ("created_at",)
     verbose_name = "管理者"
     verbose_name_plural = "管理者（公開前に代表管理者を1人以上）"
+
+    def get_extra(self, request, obj=None, **kwargs):
+        return 1 if obj is None else 0
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        if obj is None and "role" in formset.form.base_fields:
+            formset.form.base_fields["role"].initial = OrganizationMember.Role.OWNER
+        return formset
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "user" and field is not None:
+            field.help_text = (
+                "名前・メールアドレス・ユーザー名で検索し、"
+                "候補をクリックして選択してください。"
+            )
+        return field
 
 
 @admin.register(Organization)
@@ -288,6 +360,9 @@ class OrganizationAdmin(admin.ModelAdmin):
             assert_formset_preserves_last_owner(form.instance, formset)
         except LastOrganizationOwnerError as exc:
             self.message_user(request, str(exc), level=messages.ERROR)
+            formset.new_objects = []
+            formset.changed_objects = []
+            formset.deleted_objects = []
             return
         save_organization_member_formset(formset, form.instance)
 
@@ -302,7 +377,7 @@ class OrganizationMemberAdmin(admin.ModelAdmin):
         "user__email",
         "user__username",
     )
-    raw_id_fields = ("organization", "user")
+    autocomplete_fields = ("organization", "user")
     readonly_fields = ("created_at",)
 
     def get_actions(self, request):

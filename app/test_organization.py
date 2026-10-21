@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import json
+
 from django.contrib.admin.sites import site
 from django.contrib.auth.models import AnonymousUser, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.forms.models import inlineformset_factory
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
-from .admin import OrganizationAdmin, OrganizationMemberAdmin, UserAdmin
+from .admin import (
+    OrganizationAdmin,
+    OrganizationMemberAdmin,
+    OrganizationMemberInline,
+    UserAdmin,
+)
 from .models import Community, Organization, OrganizationMember, User, UserProfile
 from .organization_services import (
     LastOrganizationOwnerError,
@@ -405,6 +412,24 @@ class OrganizationAdminTests(TestCase):
             for field in opts["fields"]
         ]
         self.assertIn("is_operator_verified", badge_fields)
+        self.assertEqual(user_admin.search_fields, ("email", "username"))
+
+    def test_member_inline_uses_autocomplete_not_raw_id(self):
+        inline = OrganizationMemberInline(Organization, site)
+        self.assertEqual(inline.autocomplete_fields, ("user",))
+        self.assertEqual(getattr(inline, "raw_id_fields", ()), ())
+        self.assertEqual(inline.get_extra(request=None, obj=None), 1)
+        self.assertEqual(inline.get_extra(request=None, obj=_make_org(slug="extra-check")), 0)
+
+    def test_add_formset_defaults_role_to_owner(self):
+        inline = OrganizationMemberInline(Organization, site)
+        request = RequestFactory().get("/admin/app/organization/add/")
+        request.user = _org_staff("inline-formset@waseda.jp")
+        formset = inline.get_formset(request, obj=None)
+        self.assertEqual(
+            formset.form.base_fields["role"].initial,
+            OrganizationMember.Role.OWNER,
+        )
 
     def test_slug_is_readonly_after_create(self):
         org = _make_org()
@@ -635,13 +660,8 @@ class OrganizationUserDeletionVisibilityTests(TestCase):
         self.assertTrue(is_organization_owner(owner, org))
 
 
-def _org_staff(email: str) -> User:
-    user = User.objects.create_user(
-        email=email,
-        password="test-pass-12345",
-        is_staff=True,
-    )
-    for model in (Organization, OrganizationMember):
+def _grant_model_perms(user: User, *models) -> None:
+    for model in models:
         content_type = ContentType.objects.get_for_model(model)
         for action in ("add", "change", "delete", "view"):
             user.user_permissions.add(
@@ -650,6 +670,24 @@ def _org_staff(email: str) -> User:
                     codename=f"{action}_{model._meta.model_name}",
                 )
             )
+
+
+def _org_staff(email: str) -> User:
+    user = User.objects.create_user(
+        email=email,
+        password="test-pass-12345",
+        is_staff=True,
+    )
+    _grant_model_perms(user, Organization, OrganizationMember)
+    return user
+
+
+def _org_staff_with_user_view(email: str) -> User:
+    user = _org_staff(email)
+    content_type = ContentType.objects.get_for_model(User)
+    user.user_permissions.add(
+        Permission.objects.get(content_type=content_type, codename="view_user")
+    )
     return user
 
 
@@ -803,4 +841,153 @@ class OrganizationAdminFlowTests(TestCase):
         with self.assertRaises(PermissionDenied):
             model_admin.delete_model(request, member)
         self.assertTrue(OrganizationMember.objects.filter(pk=member.pk).exists())
+
+    def test_add_page_shows_autocomplete_owner_row(self):
+        response = self.client.get(reverse("admin:app_organization_add"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("admin-autocomplete", html)
+        self.assertIn('name="memberships-0-user"', html)
+        self.assertIn('name="memberships-0-role"', html)
+        self.assertNotIn("related-lookup", html)
+        self.assertIn("名前・メールアドレス・ユーザー名で検索", html)
+
+    def test_invalid_user_id_does_not_create_organization(self):
+        response = self.client.post(
+            reverse("admin:app_organization_add"),
+            _org_admin_payload(
+                **{
+                    "memberships-TOTAL_FORMS": "1",
+                    "memberships-0-user": "999999",
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                }
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Organization.objects.filter(slug="team-wasewase").exists())
+        self.assertContains(response, "正しく選択してください")
+
+    def test_add_owner_to_existing_organization(self):
+        org = _make_org(slug="add-second-owner")
+        member = add_organization_member(
+            org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        extra = _make_user("second-owner@waseda.jp")
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            _org_admin_payload(
+                org,
+                **{
+                    "memberships-TOTAL_FORMS": "2",
+                    "memberships-INITIAL_FORMS": "1",
+                    "memberships-0-id": str(member.pk),
+                    "memberships-0-organization": str(org.pk),
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                    "memberships-1-organization": str(org.pk),
+                    "memberships-1-user": str(extra.pk),
+                    "memberships-1-role": OrganizationMember.Role.OWNER,
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(is_organization_owner(self.owner, org))
+        self.assertTrue(is_organization_owner(extra, org))
+
+    def test_handover_owner_on_change_form(self):
+        org = _make_org(slug="handover-owner")
+        member = add_organization_member(
+            org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        replacement = _make_user("new-owner@waseda.jp")
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            _org_admin_payload(
+                org,
+                **{
+                    "memberships-TOTAL_FORMS": "2",
+                    "memberships-INITIAL_FORMS": "1",
+                    "memberships-0-id": str(member.pk),
+                    "memberships-0-organization": str(org.pk),
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                    "memberships-0-DELETE": "on",
+                    "memberships-1-organization": str(org.pk),
+                    "memberships-1-user": str(replacement.pk),
+                    "memberships-1-role": OrganizationMember.Role.OWNER,
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(is_organization_owner(self.owner, org))
+        self.assertTrue(is_organization_owner(replacement, org))
+
+    def test_change_form_cannot_delete_last_owner(self):
+        org = _make_org(slug="keep-last-owner")
+        member = add_organization_member(
+            org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            _org_admin_payload(
+                org,
+                **{
+                    "memberships-TOTAL_FORMS": "1",
+                    "memberships-INITIAL_FORMS": "1",
+                    "memberships-0-id": str(member.pk),
+                    "memberships-0-organization": str(org.pk),
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                    "memberships-0-DELETE": "on",
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(OrganizationMember.objects.filter(pk=member.pk).exists())
+        self.assertTrue(is_organization_owner(self.owner, org))
+
+    def test_autocomplete_finds_user_by_name_email_username(self):
+        picker = _org_staff_with_user_view("picker@waseda.jp")
+        target = _make_user("found-owner@waseda.jp")
+        target.username = "foundhandle"
+        target.save(update_fields=["username"])
+        target.profile.name = "代表太郎"
+        target.profile.save(update_fields=["name"])
+        client = Client()
+        client.force_login(picker)
+        url = reverse("admin:autocomplete")
+        params = {
+            "app_label": "app",
+            "model_name": "organizationmember",
+            "field_name": "user",
+        }
+        for term in ("found-owner@waseda.jp", "foundhandle", "代表太郎"):
+            response = client.get(url, {**params, "term": term})
+            self.assertEqual(response.status_code, 200, term)
+            payload = json.loads(response.content)
+            texts = [item["text"] for item in payload["results"]]
+            ids = [item["id"] for item in payload["results"]]
+            self.assertIn(str(target.pk), ids, term)
+            self.assertTrue(
+                any("found-owner@waseda.jp" in text for text in texts),
+                texts,
+            )
+            self.assertTrue(any("代表太郎" in text for text in texts), texts)
+
+    def test_non_staff_cannot_use_user_autocomplete(self):
+        outsider = _make_user("no-admin-search@waseda.jp")
+        client = Client()
+        client.force_login(outsider)
+        response = client.get(
+            reverse("admin:autocomplete"),
+            {
+                "app_label": "app",
+                "model_name": "organizationmember",
+                "field_name": "user",
+                "term": outsider.email,
+            },
+        )
+        self.assertIn(response.status_code, (302, 403))
+        if response.status_code == 302:
+            self.assertIn("/admin/login", response.url)
 
