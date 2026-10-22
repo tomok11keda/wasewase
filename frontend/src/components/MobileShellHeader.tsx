@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
+import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
+import { organizationInitial } from "../features/orgs/orgProfile";
+import { AccountAvatar } from "./AccountAvatar";
 
 type Props = {
   title: string;
@@ -19,7 +22,9 @@ export function MobileShellHeader({
   onOpenMenu,
 }: Props) {
   const { me } = useSession();
+  const { actor } = useAccount();
   const user = me?.user;
+  const orgActor = actor.type === "organization" ? actor.organization : null;
   const dmUnread = me?.dm_unread_total || 0;
   const notifyUnread = me?.unread_notifications || 0;
   const showTitle = Boolean(title) && !hideTitle;
@@ -39,9 +44,17 @@ export function MobileShellHeader({
             onClick={onOpenMenu}
             aria-label={user ? "アカウントメニューを開く" : "メニューを開く"}
           >
-            <span className="shell-header-avatar">
-              {user ? user.initial : "?"}
-            </span>
+            <AccountAvatar
+              url={orgActor ? orgActor.avatar_url : user?.avatar_url}
+              initial={
+                orgActor
+                  ? organizationInitial(orgActor.name)
+                  : user
+                    ? user.initial
+                    : "?"
+              }
+              className="shell-header-avatar"
+            />
           </button>
         </div>
         {showTitle ? <h1 className="shell-header-title">{title}</h1> : null}

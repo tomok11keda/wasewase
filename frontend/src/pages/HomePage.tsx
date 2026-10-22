@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { PersonalPostingNote } from "../components/AccountSwitcher";
+import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
@@ -31,7 +33,9 @@ import { PullToRefresh } from "../lib/usePullToRefresh";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
+  const { actor } = useAccount();
   const browsePreview = isBrowsePreview(me);
+  const orgMode = actor.type === "organization";
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = useActiveMainTab();
@@ -449,6 +453,7 @@ export function HomePage() {
 
   const composeForm = (
     <form className="spa-compose__form" onSubmit={submitCompose}>
+      {orgMode ? <PersonalPostingNote /> : null}
       <textarea
         ref={composeTextareaRef}
         value={composeBody}
@@ -553,6 +558,9 @@ export function HomePage() {
             )}
             <span className="home-compose__prompt">いまどうしてる？</span>
           </button>
+          {orgMode ? (
+            <PersonalPostingNote className="home-compose__note" />
+          ) : null}
         </div>
       ) : (
         <p className="feed-scope-hint">

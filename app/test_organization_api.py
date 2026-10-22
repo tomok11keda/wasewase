@@ -434,6 +434,162 @@ class OrganizationProfileApiTests(TestCase):
         self.assertEqual(self.owner.email, "org-owner@waseda.jp")
 
 
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class OrganizationManagedListApiTests(TestCase):
+    def setUp(self):
+        self.owner = _make_user("list-owner@waseda.jp", username="listowner")
+        self.admin = _make_user("list-admin@waseda.jp", username="listadmin")
+        self.member = _make_user("list-member@waseda.jp", username="listmember")
+        self.outsider = _make_user("list-out@waseda.jp", username="listout")
+        self.org = _make_org(status=Organization.Status.DRAFT, is_listed=False)
+        add_organization_member(
+            self.org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        add_organization_member(
+            self.org, self.admin, role=OrganizationMember.Role.ADMIN
+        )
+        add_organization_member(
+            self.org, self.member, role=OrganizationMember.Role.MEMBER
+        )
+        self.other = _make_org(name="別サークル", slug="other-circle")
+        self.other_owner = _make_user("list-other@waseda.jp", username="listother")
+        add_organization_member(
+            self.other, self.other_owner, role=OrganizationMember.Role.OWNER
+        )
+        self.client = Client()
+
+    def _url(self) -> str:
+        return "/api/v1/me/organizations/"
+
+    def _ids(self, data: dict) -> list[int]:
+        return [item["id"] for item in data.get("organizations", [])]
+
+    def _assert_item_shape(self, item: dict, org: Organization, role: str):
+        self.assertEqual(set(item.keys()), {
+            "id",
+            "name",
+            "slug",
+            "avatar_url",
+            "is_verified",
+            "my_role",
+            "can_manage",
+        })
+        self.assertEqual(item["id"], org.pk)
+        self.assertEqual(item["name"], org.name)
+        self.assertEqual(item["slug"], org.slug)
+        self.assertEqual(item["is_verified"], org.is_verified)
+        self.assertEqual(item["my_role"], role)
+        self.assertTrue(item["can_manage"])
+
+    def test_owner_sees_draft_organization(self):
+        self.client.force_login(self.owner)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(self._ids(data), [self.org.pk])
+        self._assert_item_shape(
+            data["organizations"][0], self.org, OrganizationMember.Role.OWNER
+        )
+        blob = json.dumps(data)
+        self.assertNotIn("@waseda.jp", blob)
+        self.assertNotIn("list-other@waseda.jp", blob)
+        self.assertNotIn("is_operator_verified", blob)
+        self.assertNotIn('"status"', blob)
+        self.assertNotIn("memberships", blob)
+
+    def test_owner_sees_active_organization(self):
+        self.org.status = Organization.Status.ACTIVE
+        self.org.is_listed = True
+        self.org.save(update_fields=["status", "is_listed"])
+        self.client.force_login(self.owner)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(self._ids(data), [self.org.pk])
+        self._assert_item_shape(
+            data["organizations"][0], self.org, OrganizationMember.Role.OWNER
+        )
+
+    def test_query_param_cannot_select_another_user(self):
+        self.client.force_login(self.outsider)
+        res = self.client.get(self._url(), {"user_id": self.owner.pk})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["organizations"], [])
+        self.assertNotIn(self.org.name, json.dumps(res.json()))
+
+    def test_admin_sees_managed_organization(self):
+        self.client.force_login(self.admin)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(self._ids(data), [self.org.pk])
+        self._assert_item_shape(
+            data["organizations"][0], self.org, OrganizationMember.Role.ADMIN
+        )
+
+    def test_member_does_not_see_organization(self):
+        self.client.force_login(self.member)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["organizations"], [])
+
+    def test_outsider_does_not_see_others_organization(self):
+        self.client.force_login(self.outsider)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["organizations"], [])
+        self.assertNotIn(self.org.name, json.dumps(res.json()))
+
+    def test_suspended_is_excluded(self):
+        self.org.status = Organization.Status.SUSPENDED
+        self.org.save(update_fields=["status"])
+        self.client.force_login(self.owner)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["organizations"], [])
+
+    def test_staff_without_membership_does_not_gain_organizations(self):
+        staff = _make_user(
+            "list-staff@waseda.jp",
+            username="liststaff",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.client.force_login(staff)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["organizations"], [])
+
+    def test_multiple_managed_organizations(self):
+        second = _make_org(name="もう一つの団体", slug="second-org", is_listed=False)
+        add_organization_member(
+            second, self.owner, role=OrganizationMember.Role.ADMIN
+        )
+        self.client.force_login(self.owner)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        ids = self._ids(res.json())
+        self.assertEqual(set(ids), {self.org.pk, second.pk})
+        self.assertNotIn(self.other.pk, ids)
+
+    def test_unauthenticated_is_401(self):
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 401)
+        data = res.json()
+        self.assertEqual(data["error"], "unauthorized")
+        self.assertNotIn(self.org.name, json.dumps(data))
+
+    def test_me_payload_is_unchanged(self):
+        self.client.force_login(self.owner)
+        res = self.client.get("/api/v1/me/")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["authenticated"])
+        self.assertEqual(data["user"]["id"], self.owner.pk)
+        self.assertNotIn("organizations", data)
+
+
 @override_settings(BROWSE_MODE_GATE_ENABLED=True, WASE_REACT_SPA=True)
 class OrganizationProfileBrowseModeTests(TestCase):
     def setUp(self):
@@ -464,3 +620,18 @@ class OrganizationProfileBrowseModeTests(TestCase):
         res = self.client.get(f"/api/v1/organizations/{self.org.slug}/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["organization"]["slug"], self.org.slug)
+
+    def test_managed_list_anonymous_and_browse_are_401(self):
+        res = self.client.get("/api/v1/me/organizations/")
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        enter = self.client.post(
+            "/api/v1/auth/browse/",
+            data=json.dumps({"next": "/app/"}),
+            content_type="application/json",
+        )
+        self.assertEqual(enter.status_code, 200)
+        browse = self.client.get("/api/v1/me/organizations/")
+        self.assertEqual(browse.status_code, 401)
+        self.assertEqual(browse.json()["error"], "unauthorized")
+        self.assertNotIn(self.org.name, json.dumps(browse.json()))

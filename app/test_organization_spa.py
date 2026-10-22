@@ -93,6 +93,83 @@ class OrganizationSpaSourceTests(SimpleTestCase):
         self.assertNotIn("←", page)
         self.assertNotIn("profile-back", edit)
 
+    def test_account_provider_is_inside_session_provider(self):
+        app = _read("frontend/src/App.tsx")
+        self.assertLess(app.find("<SessionProvider>"), app.find("<AccountProvider>"))
+        self.assertLess(
+            app.find("</AccountProvider>"), app.find("</SessionProvider>")
+        )
+        self.assertIn("from \"./lib/accountContext\"", app)
+
+    def test_account_switcher_covers_menu_sidebar_and_mobile(self):
+        menu = _read("frontend/src/components/AccountMenuContent.tsx")
+        sidebar = _read("frontend/src/components/SidebarNav.tsx")
+        header = _read("frontend/src/components/MobileShellHeader.tsx")
+        drawer = _read("frontend/src/components/AccountDrawer.tsx")
+        switcher = _read("frontend/src/components/AccountSwitcher.tsx")
+        self.assertIn("AccountSwitcher", menu)
+        self.assertIn("AccountSwitcher", sidebar)
+        self.assertIn("AccountDrawer", drawer)
+        self.assertIn("AccountMenuContent", drawer)
+        self.assertIn("selectOrganization", switcher)
+        self.assertIn("selectPersonal", switcher)
+        self.assertIn("`/orgs/${selected.slug}`", switcher)
+        self.assertIn("`/users/${user.id}/posts`", switcher)
+        self.assertIn("organizationRoleLabel", switcher)
+        self.assertIn("organizations.length === 0 && !error", switcher)
+        self.assertIn("useAccount", header)
+        self.assertIn("orgActor", header)
+        self.assertIn("selectPersonal", menu)
+        self.assertIn("selectPersonal", sidebar)
+
+    def test_account_context_restores_only_after_list_load(self):
+        ctx = _read("frontend/src/lib/accountContext.tsx")
+        managed = _read("frontend/src/features/orgs/managedOrganizations.ts")
+        api = _read("frontend/src/features/orgs/api.ts")
+        self.assertIn("fetchManagedOrganizations", ctx)
+        self.assertIn("resolveActiveOrganization", ctx)
+        self.assertIn("listLoaded", ctx)
+        self.assertIn("clearStoredOrganizationId", ctx)
+        self.assertIn("wase_active_organization:", managed)
+        self.assertIn("String(organizationId)", managed)
+        self.assertNotIn("JSON.stringify", managed)
+        self.assertIn("/api/v1/me/organizations/", api)
+        fail = ctx.split("} catch {")[1].split("} finally")[0]
+        self.assertIn('setError("load_failed")', fail)
+        self.assertIn("setOrganizations([])", fail)
+        self.assertIn('setActor({ type: "personal" })', fail)
+        self.assertNotIn("readStoredOrganizationId", fail)
+
+    def test_edit_forbidden_refreshes_managed_list(self):
+        edit = _read("frontend/src/pages/OrganizationEditPage.tsx")
+        self.assertIn("refreshOrganizations", edit)
+        self.assertIn('err.code === "forbidden"', edit)
+        self.assertIn("permissionLost", edit)
+        self.assertIn('loadError === "not_found" || loadError === "forbidden"', edit)
+        self.assertNotIn("load_failed", edit.split("refreshOrganizations")[-1][:400])
+
+    def test_personal_surfaces_do_not_switch_to_organization_actor(self):
+        for rel in (
+            "frontend/src/features/timeline/TimelinePostCard.tsx",
+            "frontend/src/pages/DmRoomPage.tsx",
+            "frontend/src/pages/NotificationsPage.tsx",
+            "frontend/src/pages/TimetablePage.tsx",
+            "frontend/src/lib/session.tsx",
+        ):
+            source = _read(rel)
+            with self.subTest(rel=rel):
+                self.assertNotIn("useAccount", source)
+                self.assertNotIn("AccountSwitcher", source)
+        home = _read("frontend/src/pages/HomePage.tsx")
+        self.assertIn("me.user.avatar_url", home)
+        self.assertIn("PersonalPostingNote", home)
+        self.assertIn("createTimelinePost", home)
+        switcher = _read("frontend/src/components/AccountSwitcher.tsx")
+        self.assertIn("現在、投稿は個人アカウントから行われます。", switcher)
+        me_api = _read("frontend/src/lib/api.ts")
+        self.assertIn("/api/v1/me/", me_api)
+        self.assertNotIn("/api/v1/me/organizations/", me_api)
+
 
 @override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False)
 class OrganizationSpaShellTests(TestCase):

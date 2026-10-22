@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods
 
 from .organization_api_services import (
     OrganizationApiError,
     build_organization_profile_payload,
     get_organization_by_slug,
+    list_managed_organizations_payload,
     parse_organization_update_request,
     update_organization_profile,
 )
@@ -31,6 +32,21 @@ def _viewer(request: HttpRequest):
 
 def _error_response(exc: OrganizationApiError) -> JsonResponse:
     return _json_error(exc.error, status=exc.status, **exc.extra)
+
+
+@require_GET
+def api_v1_me_organizations(request: HttpRequest) -> JsonResponse:
+    if not request.user.is_authenticated:
+        return _json_error(
+            "unauthorized",
+            status=401,
+            message="authentication_required",
+        )
+    try:
+        payload = list_managed_organizations_payload(request.user)
+    except OrganizationApiError as exc:
+        return _error_response(exc)
+    return JsonResponse(payload)
 
 
 @require_http_methods(["GET", "PATCH"])

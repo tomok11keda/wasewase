@@ -1,11 +1,16 @@
 import { Link, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
+import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
+import { organizationInitial } from "../features/orgs/orgProfile";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
 import { WASEDA_OFFICIAL_SERVICE } from "../lib/wasedaOfficialLinks";
+import { AccountAvatar } from "./AccountAvatar";
+import { AccountSwitcher } from "./AccountSwitcher";
 import { AccountDisplayName } from "./VerifiedAccountBadge";
+import { VerifiedOrganizationBadge } from "./VerifiedOrganizationBadge";
 
 function ClassicLink({
   href,
@@ -75,12 +80,20 @@ export function AccountMenuContent({
   showSearchLink = false,
 }: Props) {
   const { me, setMeFromAuth, refresh } = useSession();
+  const { actor, selectPersonal } = useAccount();
   const navigate = useNavigate();
   const user = me?.user;
   const notifyUnread = me?.unread_notifications || 0;
   const dmUnread = me?.dm_unread_total || 0;
+  const orgActor = actor.type === "organization" ? actor.organization : null;
 
   const spaProfile = user ? `/app/users/${user.id}/posts` : "/app/";
+  const identityPath = orgActor
+    ? `/orgs/${orgActor.slug}`
+    : user
+      ? `/users/${user.id}/posts`
+      : "/";
+  const profilePath = identityPath;
 
   const go = (to: string) => {
     onNavigate?.();
@@ -88,6 +101,7 @@ export function AccountMenuContent({
   };
 
   const onLogout = async () => {
+    selectPersonal();
     try {
       await performSpaLogout();
     } catch {
@@ -117,22 +131,37 @@ export function AccountMenuContent({
         <button
           type="button"
           className="account-menu__identity"
-          onClick={() => go(`/users/${user.id}/posts`)}
+          onClick={() => go(identityPath)}
         >
-          <span className="account-menu__avatar" aria-hidden="true">
-            {user.initial}
-          </span>
+          <AccountAvatar
+            url={orgActor ? orgActor.avatar_url : user.avatar_url}
+            initial={
+              orgActor ? organizationInitial(orgActor.name) : user.initial
+            }
+            className="account-menu__avatar"
+          />
           <span className="account-menu__meta">
             <span className="account-menu__name">
-              <AccountDisplayName
-                name={user.display_name}
-                verified={user.is_operator_verified}
-              />
+              {orgActor ? (
+                <>
+                  {orgActor.name}
+                  <VerifiedOrganizationBadge verified={orgActor.is_verified} />
+                </>
+              ) : (
+                <AccountDisplayName
+                  name={user.display_name}
+                  verified={user.is_operator_verified}
+                />
+              )}
             </span>
-            <span className="account-menu__handle">@{user.username}</span>
+            <span className="account-menu__handle">
+              {orgActor ? "学生団体" : `@${user.username}`}
+            </span>
           </span>
         </button>
       ) : null}
+
+      {user ? <AccountSwitcher onNavigate={onNavigate} /> : null}
 
       <p className="more-section-title">アカウント</p>
       <ul className="more-list">
@@ -141,12 +170,23 @@ export function AccountMenuContent({
             <li>
               <Link
                 className="more-link"
-                to={`/users/${user.id}/posts`}
+                to={profilePath}
                 onClick={() => onNavigate?.()}
               >
                 プロフィール
               </Link>
             </li>
+            {orgActor ? (
+              <li>
+                <Link
+                  className="more-link"
+                  to={`/orgs/${orgActor.slug}/edit`}
+                  onClick={() => onNavigate?.()}
+                >
+                  団体プロフィールを編集
+                </Link>
+              </li>
+            ) : null}
             <li>
               <Link
                 className="more-link"

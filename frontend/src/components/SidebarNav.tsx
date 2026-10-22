@@ -1,10 +1,15 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
+import { organizationInitial } from "../features/orgs/orgProfile";
 import { analyticsLogout } from "../lib/analytics/client";
 import { TAB_ROUTES } from "../lib/tabs";
 import type { MeResponse } from "../lib/api";
+import { AccountAvatar } from "./AccountAvatar";
+import { AccountSwitcher, PersonalPostingNote } from "./AccountSwitcher";
 import { AccountDisplayName } from "./VerifiedAccountBadge";
+import { VerifiedOrganizationBadge } from "./VerifiedOrganizationBadge";
 
 const NOTIFY_ICON =
   "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z";
@@ -18,12 +23,20 @@ const COMPOSE_ICON = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04
 
 export function SidebarNav() {
   const { me, setMeFromAuth, refresh } = useSession();
+  const { actor, selectPersonal } = useAccount();
   const navigate = useNavigate();
   const unread = me?.unread_notifications || 0;
   const dmUnread = me?.dm_unread_total || 0;
   const user = me?.user;
+  const orgActor = actor.type === "organization" ? actor.organization : null;
+  const identityPath = orgActor
+    ? `/orgs/${orgActor.slug}`
+    : user
+      ? `/users/${user.id}/posts`
+      : "/";
 
   const onLogout = async () => {
+    selectPersonal();
     try {
       await performSpaLogout();
     } catch {
@@ -157,24 +170,43 @@ export function SidebarNav() {
           <span className="sidebar-nav__compose-label">投稿する</span>
         </Link>
       )}
+      {orgActor ? (
+        <PersonalPostingNote className="sidebar-nav__compose-note" />
+      ) : null}
 
       <div className={`sidebar-user${user ? "" : " sidebar-user--guest"}`}>
         {user ? (
           <>
-            <Link className="sidebar-user__link" to={`/users/${user.id}/posts`}>
-              <span className="sidebar-user__avatar" aria-hidden="true">
-                {user.initial}
-              </span>
+            <Link className="sidebar-user__link" to={identityPath}>
+              <AccountAvatar
+                url={orgActor ? orgActor.avatar_url : user.avatar_url}
+                initial={
+                  orgActor ? organizationInitial(orgActor.name) : user.initial
+                }
+                className="sidebar-user__avatar"
+              />
               <span className="sidebar-user__meta">
                 <span className="sidebar-user__name">
-                  <AccountDisplayName
-                    name={user.display_name}
-                    verified={user.is_operator_verified}
-                  />
+                  {orgActor ? (
+                    <>
+                      {orgActor.name}
+                      <VerifiedOrganizationBadge
+                        verified={orgActor.is_verified}
+                      />
+                    </>
+                  ) : (
+                    <AccountDisplayName
+                      name={user.display_name}
+                      verified={user.is_operator_verified}
+                    />
+                  )}
                 </span>
-                <span className="sidebar-user__handle">@{user.username}</span>
+                <span className="sidebar-user__handle">
+                  {orgActor ? "学生団体" : `@${user.username}`}
+                </span>
               </span>
             </Link>
+            <AccountSwitcher />
             <button
               type="button"
               className="sidebar-nav__item"

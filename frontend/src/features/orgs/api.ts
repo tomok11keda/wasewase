@@ -5,6 +5,10 @@ import {
   mutationErrorMessage,
 } from "../../lib/http";
 import {
+  parseManagedOrganizationsPayload,
+  type ManagedOrganization,
+} from "./managedOrganizations";
+import {
   firstFieldError,
   parseOrganizationProfilePayload,
   type OrganizationProfileForm,
@@ -162,4 +166,32 @@ export async function updateOrganizationProfile(
     );
   }
   return payload;
+}
+
+export async function fetchManagedOrganizations(): Promise<ManagedOrganization[]> {
+  const result = await apiGetJson("/api/v1/me/organizations/");
+  if (result.status === 401 || result.error === "unauthorized") {
+    throw new OrganizationRequestError(
+      "unauthorized",
+      401,
+      "ログインが必要です。"
+    );
+  }
+  if (!result.ok) {
+    throwFromResult(
+      result.status,
+      result.error,
+      result.data,
+      "管理団体一覧を読み込めませんでした。"
+    );
+  }
+  const organizations = parseManagedOrganizationsPayload(result.data);
+  if (!organizations) {
+    throw new OrganizationRequestError(
+      "invalid_payload",
+      result.status,
+      "管理団体一覧を読み込めませんでした。"
+    );
+  }
+  return organizations;
 }

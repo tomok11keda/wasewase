@@ -220,6 +220,10 @@ class BrowseModePrivacyApiTests(TestCase):
             leak="団体の秘密の紹介文",
         )
         self._assert_denied(
+            self.client.get("/api/v1/me/organizations/"),
+            leak="公開サークル",
+        )
+        self._assert_denied(
             self.client.get(f"/api/v1/profile/{self.user.pk}/posts/"),
             leak="キャンパスの投稿本文",
         )

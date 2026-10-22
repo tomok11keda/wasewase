@@ -15,11 +15,29 @@ from django.http.multipartparser import MultiPartParser, MultiPartParserError
 from django.utils.datastructures import MultiValueDict
 
 from .media_services import validate_timeline_image_file
-from .models import Organization
+from .models import Organization, OrganizationMember
 from .organization_services import (
     can_manage_organization,
     can_view_organization_profile,
     get_organization_membership_role,
+)
+
+_MANAGED_LIST_STATUSES = (
+    Organization.Status.DRAFT,
+    Organization.Status.ACTIVE,
+)
+_MANAGED_LIST_ROLES = (
+    OrganizationMember.Role.OWNER,
+    OrganizationMember.Role.ADMIN,
+)
+_MANAGED_LIST_FIELDS = (
+    "id",
+    "name",
+    "slug",
+    "avatar_url",
+    "is_verified",
+    "my_role",
+    "can_manage",
 )
 
 DESCRIPTION_MAX_LENGTH = 5000
@@ -90,6 +108,49 @@ def get_organization_avatar_url(organization: Organization) -> str:
         return avatar.url or ""
     except Exception:
         return ""
+
+
+def serialize_managed_organization(
+    organization: Organization,
+    viewer: AbstractBaseUser | None,
+) -> dict[str, Any]:
+    return {
+        "id": organization.pk,
+        "name": organization.name,
+        "slug": organization.slug,
+        "avatar_url": get_organization_avatar_url(organization),
+        "is_verified": bool(organization.is_verified),
+        "my_role": get_organization_membership_role(viewer, organization),
+        "can_manage": can_manage_organization(viewer, organization),
+    }
+
+
+def list_managed_organizations_payload(viewer: AbstractBaseUser | None) -> dict[str, Any]:
+    if viewer is None or not getattr(viewer, "is_authenticated", False):
+        raise OrganizationApiError(
+            "unauthorized",
+            status=401,
+            message="authentication_required",
+        )
+    if not getattr(viewer, "pk", None):
+        return {"ok": True, "organizations": []}
+
+    queryset = (
+        Organization.objects.filter(
+            memberships__user_id=viewer.pk,
+            memberships__role__in=_MANAGED_LIST_ROLES,
+            status__in=_MANAGED_LIST_STATUSES,
+        )
+        .distinct()
+        .order_by("name", "pk")
+    )
+    organizations = []
+    for organization in queryset:
+        if not can_manage_organization(viewer, organization):
+            continue
+        item = serialize_managed_organization(organization, viewer)
+        organizations.append({key: item[key] for key in _MANAGED_LIST_FIELDS})
+    return {"ok": True, "organizations": organizations}
 
 
 def serialize_organization_profile(

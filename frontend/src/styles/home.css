@@ -205,6 +205,10 @@
   padding: 12px;
 }
 
+.spa-compose__form .account-switcher__note {
+  margin: 0 0 8px;
+}
+
 .spa-compose__form textarea {
   width: 100%;
   border: 1px solid #e5e5e5;

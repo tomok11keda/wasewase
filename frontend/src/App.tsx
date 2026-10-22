@@ -5,6 +5,7 @@ import {
   TabKeepAliveLayout,
 } from "./layouts/TabKeepAliveLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
+import { AccountProvider } from "./lib/accountContext";
 import { SessionProvider } from "./lib/session";
 import { PostHogIdentitySync } from "./lib/analytics/PostHogAppProvider";
 import { NativeSpaBridge } from "./components/NativeSpaBridge";
@@ -158,10 +159,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <SessionProvider>
-      <BrowserRouter basename={BASENAME}>
-        <SpaRuntimeHooks />
-        <AppRoutes />
-      </BrowserRouter>
+      <AccountProvider>
+        <BrowserRouter basename={BASENAME}>
+          <SpaRuntimeHooks />
+          <AppRoutes />
+        </BrowserRouter>
+      </AccountProvider>
     </SessionProvider>
   );
 }

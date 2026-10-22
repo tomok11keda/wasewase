@@ -19,6 +19,7 @@ import {
   type OrganizationProfileForm,
   type OrganizationProfilePayload,
 } from "../features/orgs/orgProfile";
+import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
 
 function statusFromError(err: unknown): string {
@@ -30,6 +31,7 @@ export function OrganizationEditPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
+  const { refreshOrganizations } = useAccount();
   const browsePreview = isBrowsePreview(me);
   const [payload, setPayload] = useState<OrganizationProfilePayload | null>(
     null
@@ -93,6 +95,18 @@ export function OrganizationEditPage() {
     }
     void load();
   }, [sessionLoading, browsePreview, me?.authenticated, load, navigate, slug]);
+
+  useEffect(() => {
+    if (payload && !payload.can_manage) {
+      void refreshOrganizations();
+    }
+  }, [payload, refreshOrganizations]);
+
+  useEffect(() => {
+    if (loadError === "not_found" || loadError === "forbidden") {
+      void refreshOrganizations();
+    }
+  }, [loadError, refreshOrganizations]);
 
   if (!slug) {
     return <Navigate to="/" replace />;
@@ -233,6 +247,7 @@ export function OrganizationEditPage() {
         setError(err.message);
         if (err.code === "forbidden") {
           setPermissionLost(true);
+          void refreshOrganizations();
         }
       } else {
         setError("保存に失敗しました。入力内容は保持されています。");
