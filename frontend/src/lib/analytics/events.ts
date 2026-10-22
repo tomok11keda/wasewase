@@ -299,4 +299,11 @@ export const analytics = {
   notificationOpened() {
     captureEvent("notification_opened");
   },
+
+  retentionPushOpened(props: { kind: string; post_id?: number | null }) {
+    captureEvent("retention_push_opened", {
+      kind: props.kind,
+      post_id: props.post_id ?? null,
+    });
+  },
 };

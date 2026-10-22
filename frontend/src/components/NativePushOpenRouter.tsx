@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { analytics } from "../lib/analytics";
+import { parseRetentionPushOpen } from "../lib/retentionPush";
 import { spaHrefTo } from "../lib/spaHref";
 import {
   consumePendingPushOpenLink,
@@ -20,6 +22,13 @@ export function NativePushOpenRouter() {
       if (!path) return;
       if (openedRef.current === path) return;
       openedRef.current = path;
+      const retention = parseRetentionPushOpen(path);
+      if (retention) {
+        analytics.retentionPushOpened({
+          kind: retention.kind,
+          post_id: retention.postId,
+        });
+      }
       navigate(spaHrefTo(path));
     };
 

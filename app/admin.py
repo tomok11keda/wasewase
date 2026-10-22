@@ -32,6 +32,7 @@ from .models import (
     DevicePushToken,
     PushCampaign,
     PushCampaignRecipient,
+    RetentionPushSend,
     UserDirectMessage,
     UserDirectMessageRoom,
     CourseThread,
@@ -564,7 +565,9 @@ class UserProfileAdmin(admin.ModelAdmin):
         "onboarding_step",
         "onboarding_completed_at",
         "onboarding_exempt",
+        "last_seen_at",
     )
+    readonly_fields = ("last_seen_at",)
     list_filter = (
         "department",
         "grade",
@@ -965,6 +968,40 @@ class PushCampaignRecipientAdmin(admin.ModelAdmin):
         "finished_at",
     )
     raw_id_fields = ("campaign", "user")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RetentionPushSend)
+class RetentionPushSendAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "kind",
+        "object_id",
+        "status",
+        "local_date",
+        "sent_at",
+        "created_at",
+    )
+    list_filter = ("kind", "status", "local_date")
+    search_fields = ("user__email", "user__username", "object_id", "link")
+    readonly_fields = (
+        "user",
+        "kind",
+        "object_id",
+        "status",
+        "local_date",
+        "success_count",
+        "reason",
+        "link",
+        "sent_at",
+        "created_at",
+    )
+    raw_id_fields = ("user",)
 
     def has_add_permission(self, request):
         return False

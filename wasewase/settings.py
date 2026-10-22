@@ -281,6 +281,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'app.middleware.LastSeenMiddleware',
     'app.middleware.BrowseModeGateMiddleware',
     # Convert /api/v1/* login redirects (gate + @login_required) to JSON 401
     'app.api_auth_middleware.ApiV1UnauthorizedJsonMiddleware',

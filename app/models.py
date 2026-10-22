@@ -194,6 +194,13 @@ class UserProfile(models.Model):
         default=False,
         help_text="staff/superuser 以外のテストアカウントをゲートから除外する。",
     )
+    last_seen_at = models.DateTimeField(
+        "最終利用日時",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="アプリ利用を観測した時刻。最大1時間に1回更新。User.last_login とは独立。",
+    )
 
     def __str__(self) -> str:
         label = self.name or self.user.username
@@ -1158,6 +1165,70 @@ class PushCampaignRecipient(models.Model):
 
     def __str__(self) -> str:
         return f"{self.campaign_id}:{self.user_id}:{self.status}"
+
+
+class RetentionPushSend(models.Model):
+    """Retention 系プッシュの送信記録。既存 1:1 / 一斉配信とは独立。"""
+
+    class Kind(models.TextChoices):
+        POPULAR_POST = "popular_post", "人気投稿"
+
+    class Status(models.TextChoices):
+        SENDING = "sending", "送信中"
+        SENT = "sent", "送信済み"
+        FAILED = "failed", "失敗"
+        UNKNOWN = "unknown", "結果不明"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="retention_push_sends",
+        verbose_name="ユーザー",
+    )
+    kind = models.CharField(
+        "種類",
+        max_length=32,
+        choices=Kind.choices,
+        default=Kind.POPULAR_POST,
+        db_index=True,
+    )
+    object_id = models.CharField(
+        "対象ID",
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="popular_post では TimelinePost.pk。",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.SENDING,
+        db_index=True,
+    )
+    local_date = models.DateField("送信日（Asia/Tokyo）", db_index=True)
+    success_count = models.PositiveIntegerField(default=0)
+    reason = models.CharField(max_length=64, blank=True)
+    link = models.CharField("ディープリンク", max_length=255, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Retentionプッシュ送信"
+        verbose_name_plural = "Retentionプッシュ送信"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["user", "created_at"],
+                name="app_rps_user_created_idx",
+            ),
+            models.Index(
+                fields=["user", "kind", "object_id"],
+                name="app_rps_user_kind_obj_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.kind}:{self.object_id}:{self.status}"
 
 
 class ContentReport(models.Model):

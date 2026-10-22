@@ -64,3 +64,18 @@ class BrowseModeGateMiddleware:
         if next_path.startswith(login_url) or next_path.startswith("/login"):
             return redirect(login_url)
         return redirect(f"{login_url}?next={quote(next_path, safe='/?&=')}")
+
+
+class LastSeenMiddleware:
+    """認証ユーザーのアプリ利用を最大1時間に1回 last_seen_at へ残す。"""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            from .last_seen_services import maybe_touch_last_seen
+
+            maybe_touch_last_seen(user, path=request.path or "/")
+        return self.get_response(request)
