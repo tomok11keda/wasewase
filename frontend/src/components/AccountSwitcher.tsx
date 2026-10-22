@@ -1,4 +1,10 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  accountSwitchMessage,
+  shouldLeaveOrganizationEdit,
+} from "../features/orgs/accountSwitch";
 import {
   organizationRoleLabel,
   type ManagedOrganization,
@@ -36,22 +42,47 @@ export function AccountSwitcher({ onNavigate }: Props) {
     refreshOrganizations,
   } = useAccount();
   const navigate = useNavigate();
+  const location = useLocation();
   const user = me?.user;
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   if (!user) return null;
   if (organizations.length === 0 && !error) return null;
 
-  const goPersonal = () => {
-    selectPersonal();
+  const finishSwitch = (nextOrgSlug: string | null, message: string) => {
     onNavigate?.();
-    navigate(`/users/${user.id}/posts`);
+    setToast(message);
+    if (shouldLeaveOrganizationEdit(location.pathname, nextOrgSlug)) {
+      navigate("/", { replace: true });
+    }
+  };
+
+  const goPersonal = () => {
+    if (actor.type === "personal") {
+      onNavigate?.();
+      return;
+    }
+    selectPersonal();
+    finishSwitch(null, accountSwitchMessage("個人アカウント"));
   };
 
   const goOrganization = (organization: ManagedOrganization) => {
+    const alreadySelected =
+      actor.type === "organization" &&
+      actor.organization.id === organization.id;
+    if (alreadySelected) {
+      onNavigate?.();
+      return;
+    }
     const selected = selectOrganization(organization.id);
     if (!selected) return;
-    onNavigate?.();
-    navigate(`/orgs/${selected.slug}`);
+    finishSwitch(selected.slug, accountSwitchMessage(selected.name));
   };
 
   const personalActive = actor.type === "personal";
@@ -143,6 +174,18 @@ export function AccountSwitcher({ onNavigate }: Props) {
         })}
       </ul>
       {actor.type === "organization" ? <PersonalPostingNote /> : null}
+      {toast
+        ? createPortal(
+            <div
+              className="share-toast account-switch-toast"
+              role="status"
+              aria-live="polite"
+            >
+              {toast}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

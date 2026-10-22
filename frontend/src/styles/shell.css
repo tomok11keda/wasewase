@@ -1148,3 +1148,7 @@ body.account-drawer-open {
   color: #536471;
   line-height: 1.4;
 }
+
+.account-switch-toast {
+  z-index: 2500;
+}
