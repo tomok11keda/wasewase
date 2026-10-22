@@ -309,7 +309,7 @@ class RetentionPopularPostPushTests(TestCase):
         ids = [row["user_id"] for row in result["deliveries"]]
         self.assertNotIn(unseen.pk, ids)
 
-    def test_posts_outside_24_to_48h_window_are_excluded(self):
+    def test_posts_outside_24_to_72h_window_are_excluded(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(
             created_at=self.now - timedelta(hours=10)
         )
@@ -320,6 +320,13 @@ class RetentionPopularPostPushTests(TestCase):
 
         TimelinePost.objects.filter(pk=self.post.pk).update(
             created_at=self.now - timedelta(hours=50)
+        )
+        in_window = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(in_window["preview"]["popular_candidates"], 1)
+        self.assertGreaterEqual(in_window["preview"]["planned_sends"], 1)
+
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=80)
         )
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
             too_old = execute_popular_post_retention(send=True, now=self.now)
@@ -577,7 +584,7 @@ class RetentionPushSourceTests(SimpleTestCase):
         self.assertNotIn("last_login", src)
         self.assertIn("last_seen_at", src)
         self.assertIn("CANDIDATE_MIN_AGE_HOURS = 24", src)
-        self.assertIn("CANDIDATE_MAX_AGE_HOURS = 48", src)
+        self.assertIn("CANDIDATE_MAX_AGE_HOURS = 72", src)
         self.assertIn("deliver_push_to_user", src)
         self.assertNotIn("create_notification(", src)
         self.assertNotIn("notify_user_push(", src)
