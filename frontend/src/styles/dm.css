@@ -322,6 +322,17 @@ html.chrome-detail .dm-group-header {
   color: #1b7a3d;
 }
 
+.dm-inbox-status.is-recruiting {
+  background: #f8eef0;
+  color: #891e2b;
+}
+
+.dm-inbox-avatar.is-recruiting {
+  overflow: hidden;
+  background: #f8eef0;
+  color: #891e2b;
+}
+
 .dm-inbox-item.is-invite {
   border-color: #d6ebdc;
 }

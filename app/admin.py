@@ -41,6 +41,8 @@ from .models import (
     Notification,
     Organization,
     OrganizationMember,
+    OrganizationRecruitingChat,
+    OrganizationRecruitingChatApplication,
     Product,
     Review,
     ThreadPost,
@@ -1037,6 +1039,37 @@ class ChatRoomMembershipAdmin(admin.ModelAdmin):
     list_display = ("room", "user", "role", "joined_at")
     list_filter = ("role", "joined_at")
     search_fields = ("room__name", "user__username")
+
+
+@admin.register(OrganizationRecruitingChat)
+class OrganizationRecruitingChatAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "organization",
+        "join_mode",
+        "listing_status",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("join_mode", "listing_status", "is_active")
+    search_fields = ("name", "organization__name", "organization__slug")
+    raw_id_fields = ("organization", "room", "created_by")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(OrganizationRecruitingChatApplication)
+class OrganizationRecruitingChatApplicationAdmin(admin.ModelAdmin):
+    list_display = (
+        "recruiting_chat",
+        "user",
+        "status",
+        "created_at",
+        "reviewed_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("recruiting_chat__name", "user__username")
+    raw_id_fields = ("recruiting_chat", "user", "reviewed_by")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(ChatMessage)

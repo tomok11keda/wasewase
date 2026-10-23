@@ -36,7 +36,7 @@ export type ThreadMessage = {
 
 type Props = {
   message: ThreadMessage;
-  kind: "group" | "course";
+  kind: "group" | "course" | "recruiting";
   /** Open long-press / … menu (copy / report / delete). */
   canAct: boolean;
   /** Show Reply in the sheet (requires send permission). */

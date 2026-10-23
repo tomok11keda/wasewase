@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { fetchDmInbox, type InboxItem } from "../features/dm/api";
+import { inboxSpaHref } from "../features/orgs/recruitingChat";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 
@@ -30,6 +31,17 @@ function avatarContent(item: InboxItem) {
     return "🛒";
   }
   if (item.kind === "course") return "📚";
+  if (item.kind === "recruiting") {
+    if (item.thumbnail_url || item.organization_avatar_url) {
+      return (
+        <img
+          src={item.thumbnail_url || item.organization_avatar_url}
+          alt=""
+        />
+      );
+    }
+    return (item.display_name || "新").slice(0, 1);
+  }
   if (item.kind === "group" || item.kind === "group_invite") return "👥";
   if (item.is_blocked) return "?";
   const name = item.partner?.display_name || item.display_name || "?";
@@ -57,7 +69,7 @@ function emptyCopy(tab: string) {
   }
   return {
     title: "まだ会話がありません",
-    body: "通常のDM・グループ、授業掲示板、またはフリマの取引チャットがここに表示されます。",
+    body: "通常のDM・グループ、新歓チャット、授業掲示板、またはフリマの取引チャットがここに表示されます。",
   };
 }
 
@@ -181,7 +193,7 @@ export function DmInboxPage() {
                   className={`dm-inbox-item${
                     item.unread_count > 0 ? " has-unread" : ""
                   }${item.kind === "group_invite" ? " is-invite" : ""}`}
-                  to={item.spa_path}
+                  to={inboxSpaHref(item.spa_path)}
                 >
                   <span
                     className={`dm-inbox-avatar${
@@ -191,7 +203,9 @@ export function DmInboxPage() {
                           ? " is-trade"
                           : item.kind === "course"
                             ? " is-course"
-                            : ""
+                            : item.kind === "recruiting"
+                              ? " is-recruiting"
+                              : ""
                     }`}
                     aria-hidden="true"
                   >
@@ -248,6 +262,13 @@ export function DmInboxPage() {
                       <>
                         <span className="dm-inbox-status is-invite">
                           {item.status_label || "招待あり"}
+                        </span>
+                        <span className="dm-inbox-handle">{item.subtitle}</span>
+                      </>
+                    ) : item.kind === "recruiting" ? (
+                      <>
+                        <span className="dm-inbox-status is-recruiting">
+                          {item.status_label || "新歓チャット"}
                         </span>
                         <span className="dm-inbox-handle">{item.subtitle}</span>
                       </>

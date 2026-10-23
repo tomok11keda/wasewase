@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AppShellLayout } from "./layouts/AppShellLayout";
 import {
   MainTabRoute,
@@ -30,6 +30,11 @@ import {
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { OrganizationEditPage } from "./pages/OrganizationEditPage";
 import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
+import { OrganizationRecruitingChatApplicationsPage } from "./pages/OrganizationRecruitingChatApplicationsPage";
+import { OrganizationRecruitingChatMembersPage } from "./pages/OrganizationRecruitingChatMembersPage";
+import { OrganizationRecruitingChatPage } from "./pages/OrganizationRecruitingChatPage";
+import { OrganizationRecruitingChatSettingsPage } from "./pages/OrganizationRecruitingChatSettingsPage";
+import { RecruitingChatRoomRedirectPage } from "./pages/RecruitingChatRoomRedirectPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SearchPage } from "./pages/SearchPage";
 import { SignupPage } from "./pages/SignupPage";
@@ -52,6 +57,17 @@ import { OnboardingGate } from "./features/onboarding/OnboardingGate";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
+
+function OrganizationRecruitingAlias() {
+  const { slug, section } = useParams();
+  const suffix = section ? `/${section}` : "";
+  return (
+    <Navigate
+      to={`/organizations/${slug || ""}/recruiting-chat${suffix}`}
+      replace
+    />
+  );
+}
 
 function SpaRuntimeHooks() {
   return (
@@ -80,6 +96,30 @@ function NestedAppRoutes() {
       <Route path="timetable/user/:userPk" element={<TimetablePage />} />
       <Route path="courses/:offeringPk/talk" element={<CourseTalkPage />} />
       <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
+      <Route
+        path="organizations/:slug/recruiting-chat/settings"
+        element={<OrganizationRecruitingChatSettingsPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/applications"
+        element={<OrganizationRecruitingChatApplicationsPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/members"
+        element={<OrganizationRecruitingChatMembersPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat"
+        element={<OrganizationRecruitingChatPage />}
+      />
+      <Route
+        path="orgs/:slug/recruiting-chat/:section"
+        element={<OrganizationRecruitingAlias />}
+      />
+      <Route
+        path="orgs/:slug/recruiting-chat"
+        element={<OrganizationRecruitingAlias />}
+      />
       <Route path="orgs/:slug/edit" element={<OrganizationEditPage />} />
       <Route path="orgs/:slug" element={<OrganizationProfilePage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
@@ -99,6 +139,10 @@ function NestedAppRoutes() {
       <Route path="dm/requests" element={<MessageRequestsPage />} />
       <Route path="dm/groups/new" element={<GroupCreatePage />} />
       <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />
+      <Route
+        path="dm/recruiting/:roomPk"
+        element={<RecruitingChatRoomRedirectPage />}
+      />
       <Route path="dm/:roomPk" element={<DmRoomPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </>

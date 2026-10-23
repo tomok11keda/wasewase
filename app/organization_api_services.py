@@ -157,6 +157,8 @@ def serialize_organization_profile(
     organization: Organization,
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
+    from .organization_recruiting_chat_services import serialize_recruiting_chat_summary
+
     return {
         "ok": True,
         "organization": {
@@ -172,6 +174,7 @@ def serialize_organization_profile(
         },
         "can_manage": can_manage_organization(viewer, organization),
         "my_role": get_organization_membership_role(viewer, organization),
+        "recruiting_chat": serialize_recruiting_chat_summary(organization, viewer),
     }
 
 

@@ -92,6 +92,25 @@ def group_room_url(room_pk: int) -> str:
     return reverse("dm_group_room", kwargs={"room_pk": room_pk})
 
 
+def recruiting_chat_spa_path(slug: str, room_pk: int) -> str:
+    """React Router path (basename=/app は付けない。inbox spa_path と同じ規約)。"""
+    org_slug = (slug or "").strip()
+    if org_slug:
+        return f"/organizations/{org_slug}/recruiting-chat"
+    return f"/dm/recruiting/{room_pk}"
+
+
+def recruiting_chat_url(slug: str, room_pk: int) -> str:
+    """通知・絶対URL用。inbox の spa_path は recruiting_chat_spa_path を使う。"""
+    path = recruiting_chat_spa_path(slug, room_pk)
+    if spa_enabled():
+        return app_absolute(path)
+    org_slug = (slug or "").strip()
+    if org_slug:
+        return f"/organizations/{org_slug}/"
+    return reverse("user_dm_inbox")
+
+
 def course_talk_url(offering_pk: int) -> str:
     if spa_enabled():
         return app_absolute(f"/courses/{offering_pk}/talk")

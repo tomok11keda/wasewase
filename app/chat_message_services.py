@@ -66,6 +66,12 @@ def create_chat_message(
         raise ValueError("empty")
     if len(body) > 500:
         raise ValueError("too_long")
+    if getattr(room, "kind", None) == ChatRoom.Kind.RECRUITING:
+        from .organization_recruiting_chat_services import (
+            assert_can_send_recruiting_message,
+        )
+
+        assert_can_send_recruiting_message(room, sender)
     reply_to = resolve_reply_target(room, reply_to_id)
     message = ChatMessage.objects.create(
         room=room,

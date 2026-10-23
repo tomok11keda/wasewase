@@ -81,6 +81,10 @@ export function isConversationPath(pathname: string): boolean {
   // Course talk room
   if (/^\/courses\/\d+\/talk$/.test(p)) return true;
 
+  // Organization recruiting chat room (not settings / applications / members)
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat$/.test(p)) return true;
+  if (/^\/dm\/recruiting\/[^/]+$/.test(p)) return true;
+
   // Group create keeps bottom nav
   if (p === "/dm/groups/new") return false;
 

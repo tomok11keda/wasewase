@@ -20,18 +20,21 @@ export class OrganizationRequestError extends Error {
   status: number;
   code: string;
   fieldErrors: Record<string, string>;
+  extra: Record<string, unknown>;
 
   constructor(
     code: string,
     status: number,
     message: string,
-    fieldErrors: Record<string, string> = {}
+    fieldErrors: Record<string, string> = {},
+    extra: Record<string, unknown> = {}
   ) {
     super(message);
     this.name = "OrganizationRequestError";
     this.code = code;
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.extra = extra;
   }
 }
 

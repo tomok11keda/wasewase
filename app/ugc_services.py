@@ -209,7 +209,7 @@ def filter_visible_comments(
     return qs
 
 
-def get_report_target(target_type: str, target_id: int):
+def get_report_target(target_type: str, target_id: int, viewer=None):
     if target_type == ContentReport.TargetType.POST:
         return TimelinePost.objects.filter(pk=target_id, is_removed=False).first()
     if target_type == ContentReport.TargetType.PRODUCT:
@@ -230,10 +230,18 @@ def get_report_target(target_type: str, target_id: int):
         return CourseReview.objects.filter(pk=target_id, is_hidden=False).first()
     if target_type == ContentReport.TargetType.CHAT_MESSAGE:
         from .models import ChatMessage
+        from .organization_recruiting_chat_services import (
+            recruiting_chat_message_is_reportable_by,
+        )
 
-        return ChatMessage.objects.filter(
+        message = ChatMessage.objects.filter(
             pk=target_id, is_hidden=False, deleted_at__isnull=True
         ).first()
+        if message is None:
+            return None
+        if not recruiting_chat_message_is_reportable_by(viewer, message):
+            return None
+        return message
     if target_type == ContentReport.TargetType.COMMUNITY_THREAD:
         return CommunityThread.objects.filter(
             pk=target_id, is_removed=False

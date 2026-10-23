@@ -2,7 +2,7 @@ import {
   isConversationPath,
   matchMainTab,
   normalizeSpaPath,
-} from "./tabs";
+} from "./tabs.ts";
 
 export type ChromeMode = "main" | "detail" | "conversation";
 
@@ -82,6 +82,27 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
     return {
       title: "フォロー中",
       back: { kind: "fallback", to: `/users/${userPk}/posts` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/settings$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "新歓チャット設定",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/applications$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "参加申請",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/members$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "参加者管理",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
     };
   }
   if (/^\/orgs\/[^/]+\/edit$/.test(p)) {

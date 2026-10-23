@@ -1,3 +1,6 @@
+import type { RecruitingChatSummary } from "./recruitingChat.ts";
+import { parseRecruitingChatSummary } from "./recruitingChat.ts";
+
 export const ORGANIZATION_NAME_MAX = 100;
 export const ORGANIZATION_DESCRIPTION_MAX = 5000;
 export const ORGANIZATION_URL_MAX = 200;
@@ -44,6 +47,7 @@ export type OrganizationProfilePayload = {
   organization: OrganizationProfile;
   can_manage: boolean;
   my_role: string | null;
+  recruiting_chat: RecruitingChatSummary | null;
 };
 
 export type OrganizationProfileForm = {
@@ -171,6 +175,7 @@ export function parseOrganizationProfilePayload(
     },
     can_manage: data.can_manage === true,
     my_role: typeof role === "string" && role ? role : null,
+    recruiting_chat: parseRecruitingChatSummary(data.recruiting_chat),
   };
 }
 

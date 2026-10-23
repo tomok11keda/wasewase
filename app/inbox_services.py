@@ -21,6 +21,7 @@ INBOX_TAB_TRADE = "trade"
 INBOX_TAB_DM = "dm"
 INBOX_TAB_COURSE = "course"
 INBOX_TABS = (INBOX_TAB_ALL, INBOX_TAB_TRADE, INBOX_TAB_DM, INBOX_TAB_COURSE)
+INBOX_DM_LIKE_KINDS = ("dm", "group", "group_invite", "recruiting")
 
 
 def normalize_inbox_tab(raw: str | None) -> str:
@@ -38,7 +39,7 @@ def filter_inbox_by_tab(items: list[dict], tab: str) -> list[dict]:
         return [
             item
             for item in items
-            if item.get("kind") in ("dm", "group", "group_invite")
+            if item.get("kind") in INBOX_DM_LIKE_KINDS
         ]
     if tab == INBOX_TAB_COURSE:
         return [item for item in items if item.get("kind") == "course"]
@@ -167,6 +168,57 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
             continue
 
     try:
+        from .organization_recruiting_chat_services import (
+            build_recruiting_conversations,
+        )
+
+        recruiting_conversations = build_recruiting_conversations(user)
+    except Exception as exc:
+        logger.warning("build_recruiting_conversations failed: %s", exc)
+        recruiting_conversations = []
+
+    for recruiting in recruiting_conversations:
+        try:
+            latest = recruiting.get("latest_message")
+            room = recruiting.get("room")
+            if room is None:
+                continue
+            items.append(
+                {
+                    "kind": "recruiting",
+                    "room": room,
+                    "partner": None,
+                    "display_name": recruiting.get("display_name")
+                    or f"新歓チャット #{getattr(room, 'pk', '')}",
+                    "subtitle": recruiting.get("subtitle") or "新歓チャット",
+                    "latest_message": latest,
+                    "latest_sender_display_name": user_display_name_safe(
+                        getattr(latest, "sender", None)
+                    )
+                    if latest
+                    else "",
+                    "unread_count": int(recruiting.get("unread_count") or 0),
+                    "updated_at": recruiting.get("updated_at") or room.updated_at,
+                    "thumbnail_url": recruiting.get("thumbnail_url") or "",
+                    "status_label": recruiting.get("status_label") or "新歓チャット",
+                    "product": None,
+                    "organization_id": recruiting.get("organization_id"),
+                    "organization_slug": recruiting.get("organization_slug") or "",
+                    "organization_name": recruiting.get("organization_name") or "",
+                    "organization_avatar_url": recruiting.get(
+                        "organization_avatar_url"
+                    )
+                    or "",
+                    "member_count": int(recruiting.get("member_count") or 0),
+                    "viewer_role": recruiting.get("viewer_role") or "member",
+                    "spa_path": recruiting.get("spa_path") or "",
+                }
+            )
+        except Exception as exc:
+            logger.warning("Skipping broken recruiting chat: %s", exc)
+            continue
+
+    try:
         trade_conversations = build_trade_chat_conversations(user)
     except Exception as exc:
         logger.warning("build_trade_chat_conversations failed: %s", exc)
@@ -229,6 +281,15 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
     except Exception as exc:
         logger.warning("build_trade_chat_unread_summary failed: %s", exc)
         trade_summary = {"total_unread": 0, "rooms": []}
+    try:
+        from .organization_recruiting_chat_services import (
+            build_recruiting_unread_summary,
+        )
+
+        recruiting_summary = build_recruiting_unread_summary(user)
+    except Exception as exc:
+        logger.warning("build_recruiting_unread_summary failed: %s", exc)
+        recruiting_summary = {"total_unread": 0, "rooms": []}
 
     rooms = (
         [
@@ -242,6 +303,7 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
         + list(group_summary["rooms"])
         + list(course_summary["rooms"])
         + list(trade_summary["rooms"])
+        + list(recruiting_summary["rooms"])
     )
     return {
         "total_unread": (
@@ -249,6 +311,7 @@ def build_inbox_unread_summary(user: AbstractBaseUser) -> dict:
             + group_summary["total_unread"]
             + course_summary["total_unread"]
             + trade_summary["total_unread"]
+            + recruiting_summary["total_unread"]
         ),
         "rooms": rooms,
     }

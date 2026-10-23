@@ -1342,7 +1342,7 @@ def submit_report(request, target_type: str, target_id: int):
 
     target_type = form.cleaned_data["target_type"]
     target_id = form.cleaned_data["target_id"]
-    target = get_report_target(target_type, target_id)
+    target = get_report_target(target_type, target_id, viewer=request.user)
     if target is None:
         message = "通報対象が見つからないか、すでに削除されています。"
         if _wants_json_response(request):
@@ -1536,7 +1536,7 @@ def user_dm_inbox(request):
         INBOX_TAB_DM: sum(
             1
             for item in all_conversations
-            if item.get("kind") in ("dm", "group", "group_invite")
+            if item.get("kind") in ("dm", "group", "group_invite", "recruiting")
         ),
         INBOX_TAB_COURSE: sum(
             1 for item in all_conversations if item.get("kind") == "course"

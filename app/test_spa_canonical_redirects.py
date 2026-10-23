@@ -10,6 +10,8 @@ from .spa_canonical import (
     app_absolute,
     dm_room_url,
     product_detail_url,
+    recruiting_chat_spa_path,
+    recruiting_chat_url,
     trade_chat_url,
     user_profile_url,
 )
@@ -114,6 +116,14 @@ class SpaLinkHelperTests(TestCase):
         self.assertEqual(dm_room_url(5), "/app/dm/5")
         self.assertEqual(user_profile_url(6), "/app/users/6/posts")
         self.assertEqual(app_absolute("/flea"), "/app/flea")
+        self.assertEqual(
+            recruiting_chat_spa_path("circle", 44),
+            "/organizations/circle/recruiting-chat",
+        )
+        self.assertEqual(
+            recruiting_chat_url("circle", 44),
+            "/app/organizations/circle/recruiting-chat",
+        )
 
     def test_notification_spa_path_covers_app_and_classic(self):
         self.assertEqual(notification_spa_path("/chat/7/"), "/flea/chats/7")
@@ -124,6 +134,18 @@ class SpaLinkHelperTests(TestCase):
         self.assertEqual(notification_spa_path("/more/"), "/more")
         self.assertEqual(notification_spa_path("/mypage/settings/"), "")
         self.assertEqual(notification_spa_path("/report/user/1/"), "")
+        self.assertEqual(
+            notification_spa_path("/app/organizations/circle/recruiting-chat"),
+            "/organizations/circle/recruiting-chat",
+        )
+        self.assertEqual(
+            notification_spa_path("/orgs/circle/recruiting-chat"),
+            "/organizations/circle/recruiting-chat",
+        )
+        self.assertEqual(
+            notification_spa_path("/dm/recruiting/44"),
+            "/dm/recruiting/44",
+        )
 
 
 @override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False)

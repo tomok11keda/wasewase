@@ -243,6 +243,214 @@
   text-decoration: none;
 }
 
+.org-recruiting-card {
+  margin: 20px 0 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.org-recruiting-card__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.org-recruiting-card__name {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.org-recruiting-card__lead,
+.org-recruiting-card__description {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.org-recruiting-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #536471;
+}
+
+.org-recruiting-card__meta li {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eff3f4;
+}
+
+.org-recruiting-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.org-recruiting-card__actions .btn,
+.org-recruiting-card__actions a.btn {
+  min-height: 44px;
+  flex: 1 1 140px;
+}
+
+.org-recruiting-card__pending {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #891e2b;
+}
+
+.org-recruiting-card__closed,
+.org-recruiting-card__rejected,
+.org-recruiting-card__error {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.org-recruiting-card__error,
+.org-recruiting-card__rejected {
+  color: #c62828;
+}
+
+.org-recruiting-manage-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.org-recruiting-manage-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #cfd9de;
+  color: #222;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.org-recruiting-manage-nav a.active {
+  background: #891e2b;
+  border-color: #891e2b;
+  color: #fff;
+}
+
+.org-recruiting-warn {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #9a3412;
+}
+
+.org-recruiting-count {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.org-recruiting-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.org-recruiting-person {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.org-recruiting-person__identity {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.org-recruiting-person__identity img,
+.org-recruiting-person__identity span {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eff3f4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.org-recruiting-person__identity p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.org-recruiting-person__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.org-recruiting-person__actions .btn {
+  min-height: 40px;
+}
+
+.org-recruiting-room__header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.org-recruiting-room__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.org-recruiting-room__avatar.user-avatar--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  background: #eff3f4;
+}
+
+.org-recruiting-room__admin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.org-recruiting-room__leave {
+  margin: 0 0 12px;
+}
+
 @media (max-width: 390px) {
   .org-profile-page .org-profile-header {
     grid-template-columns: 72px minmax(0, 1fr);

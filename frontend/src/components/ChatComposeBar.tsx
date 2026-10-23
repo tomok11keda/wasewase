@@ -18,6 +18,8 @@ type Props = {
   placeholder?: string;
   maxLength?: number;
   className?: string;
+  /** Hide camera / photo buttons when the backend cannot accept images. */
+  allowMedia?: boolean;
 };
 
 /**
@@ -38,6 +40,7 @@ export function ChatComposeBar({
   placeholder = "メッセージを入力...",
   maxLength = 500,
   className = "",
+  allowMedia = true,
 }: Props) {
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const libraryRef = useRef<HTMLInputElement | null>(null);
@@ -67,7 +70,7 @@ export function ChatComposeBar({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (disabled || busy) return;
-    if (!hasText && pendingImage) {
+    if (allowMedia && !hasText && pendingImage) {
       setImageNote(
         "画像送信は現在準備中です。テキストを入力して送信するか、プレビューを削除してください。"
       );
@@ -81,12 +84,14 @@ export function ChatComposeBar({
 
   return (
     <form
-      className={`chat-compose-bar image-pick${className ? ` ${className}` : ""}${
+      className={`chat-compose-bar${allowMedia ? " image-pick" : ""}${className ? ` ${className}` : ""}${
         disabled ? " chat-compose-bar--disabled" : ""
       }`}
       onSubmit={(e) => void handleSubmit(e)}
       aria-disabled={disabled}
     >
+      {allowMedia ? (
+        <>
       <input
         ref={cameraRef}
         type="file"
@@ -110,8 +115,10 @@ export function ChatComposeBar({
         aria-hidden="true"
         onChange={onFileChange}
       />
+        </>
+      ) : null}
 
-      {pendingImage ? (
+      {allowMedia && pendingImage ? (
         <div className="chat-compose-bar__preview">
           {previewUrl ? (
             <img
@@ -146,6 +153,7 @@ export function ChatComposeBar({
       ) : null}
 
       <div className="chat-compose-bar__row">
+        {allowMedia ? (
         <div
           className="chat-compose-bar__media"
           role="group"
@@ -180,6 +188,7 @@ export function ChatComposeBar({
             <SfIcon name="photo" size={22} />
           </button>
         </div>
+        ) : null}
 
         <input
           className="chat-compose-bar__input"

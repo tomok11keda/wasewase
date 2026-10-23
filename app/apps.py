@@ -11,6 +11,7 @@ class AppConfig(AppConfig):
     def ready(self) -> None:
         # 学生団体の削除信号（QuerySet / CASCADE）を登録する。
         from . import organization_services as _organization_services  # noqa: F401
+        from . import organization_recruiting_chat_services as _recruiting_chat_services  # noqa: F401
 
         if not os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
             return

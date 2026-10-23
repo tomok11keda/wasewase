@@ -86,8 +86,43 @@ test("payload parser ignores manager emails and requires public fields", () => {
   assert.ok(parsed);
   assert.equal(parsed?.organization.is_verified, true);
   assert.equal(parsed?.can_manage, true);
+  assert.equal(parsed?.recruiting_chat, null);
   assert.equal("email" in parsed!.organization, false);
   assert.equal(parseOrganizationProfilePayload({ ok: true }), null);
+});
+
+test("payload parser reads recruiting_chat summary without emails", () => {
+  const parsed = parseOrganizationProfilePayload({
+    ok: true,
+    organization: {
+      id: 3,
+      name: "公開サークル",
+      slug: "listed-circle",
+      description: "紹介",
+      avatar_url: "",
+      category: "circle",
+      instagram_url: "",
+      website_url: "",
+      is_verified: true,
+    },
+    can_manage: false,
+    my_role: null,
+    recruiting_chat: {
+      id: 9,
+      name: "2026新歓チャット",
+      join_mode: "approval",
+      listing_status: "open",
+      membership_status: "pending",
+      can_join: false,
+      can_apply: false,
+      can_manage: false,
+      room_id: null,
+      member_count: 12,
+    },
+  });
+  assert.equal(parsed?.recruiting_chat?.name, "2026新歓チャット");
+  assert.equal(parsed?.recruiting_chat?.membership_status, "pending");
+  assert.equal(parsed?.recruiting_chat?.room_id, null);
 });
 
 test("edit form snapshot does not include slug or status", () => {

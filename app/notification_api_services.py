@@ -51,6 +51,10 @@ _PASSWORD_RESET_RE = re.compile(r"^/password-reset/?$")
 _PASSWORD_RESET_VERIFY_RE = re.compile(r"^/password-reset/verify/?$")
 _PASSWORD_RESET_SET_RE = re.compile(r"^/password-reset/set/?$")
 _TIMELINE_POST_RE = re.compile(r"^/posts/(\d+)/?$")
+_RECRUITING_CHAT_RE = re.compile(
+    r"^/(?:organizations|orgs)/([^/]+)/recruiting-chat/?$"
+)
+_RECRUITING_CHAT_ROOM_RE = re.compile(r"^/dm/recruiting/(\d+)/?$")
 
 
 def _with_query_fragment(spa: str, query: str, fragment: str) -> str:
@@ -144,6 +148,14 @@ def notification_spa_path(link: str) -> str:
     m = _TIMELINE_POST_RE.match(path)
     if m:
         return _with_query_fragment(f"/posts/{m.group(1)}", query, fragment)
+    m = _RECRUITING_CHAT_RE.match(path)
+    if m:
+        return _with_query_fragment(
+            f"/organizations/{m.group(1)}/recruiting-chat", query, fragment
+        )
+    m = _RECRUITING_CHAT_ROOM_RE.match(path)
+    if m:
+        return _with_query_fragment(f"/dm/recruiting/{m.group(1)}", query, fragment)
 
     if path in ("/", ""):
         return _with_query_fragment("/", query, fragment)

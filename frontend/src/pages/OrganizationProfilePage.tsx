@@ -9,12 +9,18 @@ import {
   OrganizationRequestError,
   type OrganizationPostsPayload,
 } from "../features/orgs/api";
+import { RecruitingChatSection } from "../features/orgs/RecruitingChatSection";
 import {
   organizationCategoryLabel,
   organizationExternalHref,
   organizationInitial,
   type OrganizationProfilePayload,
 } from "../features/orgs/orgProfile";
+import {
+  parseRecruitingChat,
+  type RecruitingChatEnvelope,
+} from "../features/orgs/recruitingChat";
+import { fetchRecruitingChat } from "../features/orgs/recruitingChatApi";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import { isBrowsePreview, useSession } from "../lib/session";
@@ -41,6 +47,11 @@ export function OrganizationProfilePage() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [postsLoadingMore, setPostsLoadingMore] = useState(false);
+  const [recruiting, setRecruiting] = useState<RecruitingChatEnvelope | null>(
+    null
+  );
+  const [recruitingLoading, setRecruitingLoading] = useState(false);
+  const [recruitingError, setRecruitingError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -56,6 +67,7 @@ export function OrganizationProfilePage() {
       setPayload(data);
     } catch (err) {
       setPayload(null);
+      setRecruiting(null);
       setError(statusFromError(err));
     } finally {
       setLoading(false);
@@ -99,10 +111,41 @@ export function OrganizationProfilePage() {
     [slug]
   );
 
+  const loadRecruiting = useCallback(async () => {
+    if (!slug || !payload) return;
+    const summary = parseRecruitingChat(payload.recruiting_chat);
+    setRecruiting({
+      ok: true,
+      recruiting_chat: summary,
+      can_create: payload.can_manage && summary == null,
+      can_manage: payload.can_manage,
+    });
+    setRecruitingLoading(true);
+    setRecruitingError(null);
+    try {
+      setRecruiting(await fetchRecruitingChat(slug));
+    } catch {
+      setRecruiting({
+        ok: true,
+        recruiting_chat: summary,
+        can_create: payload.can_manage && summary == null,
+        can_manage: payload.can_manage,
+      });
+      setRecruitingError("新歓チャットの最新情報を取得できませんでした。");
+    } finally {
+      setRecruitingLoading(false);
+    }
+  }, [slug, payload]);
+
   useEffect(() => {
     if (sessionLoading || browsePreview || !payload || !slug) return;
     void loadPosts(0);
   }, [sessionLoading, browsePreview, payload, slug, loadPosts]);
+
+  useEffect(() => {
+    if (sessionLoading || browsePreview || !payload || !slug) return;
+    void loadRecruiting();
+  }, [sessionLoading, browsePreview, payload, slug, loadRecruiting]);
 
   if (!slug) {
     return <Navigate to="/" replace />;
@@ -247,6 +290,23 @@ export function OrganizationProfilePage() {
             </div>
           ) : null}
         </section>
+
+        <RecruitingChatSection
+          slug={org.slug}
+          envelope={recruiting}
+          loading={recruitingLoading}
+          error={recruiting && recruitingError ? null : recruitingError}
+          onReload={() => void loadRecruiting()}
+          onUpdated={(chat) => {
+            setRecruiting((prev) => ({
+              ok: true,
+              recruiting_chat: chat,
+              can_create: false,
+              can_manage: Boolean(prev?.can_manage || chat.can_manage),
+            }));
+            setRecruitingError(null);
+          }}
+        />
 
         <section className="org-profile-posts" aria-label="投稿">
           <h2 className="org-profile-posts__title">投稿</h2>

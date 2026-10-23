@@ -373,8 +373,8 @@
           <li>
             <a
               class="dm-inbox-item{% if item.unread_count %} has-unread{% endif %}"
-              href="{% if item.kind == 'trade' %}{% url 'chat_room' item.room.pk %}{% elif item.kind == 'group' %}{% url 'dm_group_room' item.room.pk %}{% else %}{% url 'user_dm_room' item.room.pk %}{% endif %}"
-              {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
+              href="{% if item.kind == 'trade' %}{% url 'chat_room' item.room.pk %}{% elif item.kind == 'group' %}{% url 'dm_group_room' item.room.pk %}{% elif item.kind == 'recruiting' %}{% if item.organization_slug %}/organizations/{{ item.organization_slug }}/{% else %}{% url 'user_dm_inbox' %}{% endif %}{% else %}{% url 'user_dm_room' item.room.pk %}{% endif %}"
+              {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% elif item.kind == 'recruiting' %}data-recruiting-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
             >
               <span class="dm-inbox-avatar{% if item.kind == 'group' %} is-group{% elif item.kind == 'trade' %} is-trade{% endif %}" aria-hidden="true">
                 {% if item.kind == 'trade' %}
@@ -382,6 +382,7 @@
                   <img src="{{ item.thumbnail_url }}" alt="">
                   {% else %}🛒{% endif %}
                 {% elif item.kind == 'group' %}👥
+                {% elif item.kind == 'recruiting' %}🏷
                 {% elif item.is_blocked %}?
                 {% else %}{{ item.partner|display_name|truncatechars:1 }}{% endif %}
               </span>
@@ -402,7 +403,7 @@
                 {% endif %}
                 {% if item.latest_message %}
                 <p class="dm-inbox-preview{% if item.latest_message.sender_id == user.id %} is-mine{% endif %}">
-                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% elif item.kind == 'trade' and not item.latest_message.sender_id %}<span class="dm-inbox-preview-prefix">システム: </span>{% endif %}{% if item.kind == 'group' or item.kind == 'course' %}{{ item.latest_message.public_display_body|truncatechars:72 }}{% else %}{{ item.latest_message.body|truncatechars:72 }}{% endif %}
+                  {% if item.latest_message.sender_id == user.id %}<span class="dm-inbox-preview-prefix">あなた: </span>{% elif item.kind == 'group' or item.kind == 'recruiting' %}<span class="dm-inbox-preview-prefix">{{ item.latest_sender_display_name|default:'不明ユーザー' }}: </span>{% elif item.kind == 'trade' and not item.latest_message.sender_id %}<span class="dm-inbox-preview-prefix">システム: </span>{% endif %}{% if item.kind == 'group' or item.kind == 'course' or item.kind == 'recruiting' %}{{ item.latest_message.public_display_body|truncatechars:72 }}{% else %}{{ item.latest_message.body|truncatechars:72 }}{% endif %}
                 </p>
                 {% else %}
                 <p class="dm-inbox-preview">まだメッセージはありません</p>
@@ -411,7 +412,7 @@
               <span
                 class="dm-inbox-unread"
                 data-dm-unread-badge
-                {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
+                {% if item.kind == 'trade' %}data-trade-room-pk="{{ item.room.pk }}"{% elif item.kind == 'group' %}data-group-room-pk="{{ item.room.pk }}"{% elif item.kind == 'recruiting' %}data-recruiting-room-pk="{{ item.room.pk }}"{% else %}data-dm-room-pk="{{ item.room.pk }}"{% endif %}
                 {% if item.unread_count <= 0 %}hidden{% endif %}
               >{% if item.unread_count %}{{ item.unread_count }}{% endif %}</span>
             </a>

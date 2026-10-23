@@ -23,6 +23,7 @@ from app import auth_api_views
 from app import follow_api_views
 from app import onboarding_api_views
 from app import organization_api_views
+from app import organization_recruiting_chat_api_views
 from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
@@ -350,6 +351,71 @@ urlpatterns = [
         "api/v1/organizations/<slug:slug>/posts/",
         organization_api_views.api_v1_organization_posts,
         name="api_v1_organization_posts",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/applications/<int:application_id>/approve/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_approve,
+        name="api_v1_organization_recruiting_chat_approve",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/applications/<int:application_id>/reject/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_reject,
+        name="api_v1_organization_recruiting_chat_reject",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/applications/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_applications,
+        name="api_v1_organization_recruiting_chat_applications",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/members/<int:user_id>/remove/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_remove_member,
+        name="api_v1_organization_recruiting_chat_remove_member",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/members/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_members,
+        name="api_v1_organization_recruiting_chat_members",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/join/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_join,
+        name="api_v1_organization_recruiting_chat_join",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/leave/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_leave,
+        name="api_v1_organization_recruiting_chat_leave",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/withdraw/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_withdraw,
+        name="api_v1_organization_recruiting_chat_withdraw",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat,
+        name="api_v1_organization_recruiting_chat",
+    ),
+    path(
+        "api/v1/recruiting-chats/<int:room_pk>/messages/<int:message_pk>/delete/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_chat_message_delete,
+        name="api_v1_recruiting_chat_message_delete",
+    ),
+    path(
+        "api/v1/recruiting-chats/<int:room_pk>/messages/send/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_chat_send,
+        name="api_v1_recruiting_chat_send",
+    ),
+    path(
+        "api/v1/recruiting-chats/<int:room_pk>/messages/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_chat_messages,
+        name="api_v1_recruiting_chat_messages",
+    ),
+    path(
+        "api/v1/recruiting-chats/<int:room_pk>/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_chat_room,
+        name="api_v1_recruiting_chat_room",
     ),
     path(
         "api/v1/organizations/<slug:slug>/",

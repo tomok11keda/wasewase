@@ -1393,6 +1393,7 @@ class ChatRoom(models.Model):
         PRODUCT = "product", "商品チャット"
         GROUP = "group", "グループチャット"
         COURSE = "course", "授業トーク"
+        RECRUITING = "recruiting", "新歓チャット"
 
     class DealStatus(models.TextChoices):
         NEGOTIATING = "negotiating", "交渉中"
@@ -1456,6 +1457,8 @@ class ChatRoom(models.Model):
             return f"授業トーク #{self.pk}"
         if self.kind == ChatRoom.Kind.GROUP:
             return self.name or f"グループチャット #{self.pk}"
+        if self.kind == ChatRoom.Kind.RECRUITING:
+            return self.name or f"新歓チャット #{self.pk}"
         if self.product_id and self.buyer_id:
             return f"{self.product.name} × {self.buyer.username}"
         return f"チャットルーム #{self.pk}"
@@ -1500,7 +1503,10 @@ class Message(models.Model):
 
 
 class ChatRoomMembership(models.Model):
-    """ChatRoom に参加しているユーザー（グループチャット用）。"""
+    """ChatRoom の参加者（グループ・授業・新歓で共用）。
+
+    新歓チャットでは OrganizationMember とは独立する。参加しても団体所属にはならない。
+    """
 
     class Role(models.TextChoices):
         OWNER = "owner", "管理者"
@@ -1592,7 +1598,7 @@ class ChatRoomInvitation(models.Model):
 
 
 class ChatMessage(models.Model):
-    """グループ／授業トーク用のメッセージ。"""
+    """グループ／授業／新歓チャット用のメッセージ。"""
 
     room = models.ForeignKey(
         ChatRoom,
@@ -2395,4 +2401,159 @@ class OrganizationMember(models.Model):
 
         assert_can_remove_organization_member(self)
         return super().delete(*args, **kwargs)
+
+
+class OrganizationRecruitingChat(models.Model):
+    """学生団体の新歓チャット設定。実体の会話は ChatRoom(kind=recruiting) を再利用する。
+
+    参加者は ChatRoomMembership。OrganizationMember にはしない。
+    MVP では団体あたり is_active=True は1件。過去行を残して年度別に増やせる。
+    """
+
+    class JoinMode(models.TextChoices):
+        OPEN = "open", "自由参加"
+        APPROVAL = "approval", "承認制"
+
+    class ListingStatus(models.TextChoices):
+        OPEN = "open", "募集中"
+        CLOSED = "closed", "募集停止"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="recruiting_chats",
+        verbose_name="団体",
+    )
+    room = models.OneToOneField(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name="organization_recruiting_chat",
+        verbose_name="チャットルーム",
+        help_text="kind=recruiting の ChatRoom。グループ／授業／商品チャットとは分離する。",
+    )
+    name = models.CharField("チャット名", max_length=120)
+    description = models.TextField("説明", blank=True, default="")
+    join_mode = models.CharField(
+        "参加方式",
+        max_length=16,
+        choices=JoinMode.choices,
+        default=JoinMode.OPEN,
+        db_index=True,
+    )
+    listing_status = models.CharField(
+        "募集状態",
+        max_length=16,
+        choices=ListingStatus.choices,
+        default=ListingStatus.OPEN,
+        db_index=True,
+    )
+    is_active = models.BooleanField(
+        "有効な新歓チャット",
+        default=True,
+        db_index=True,
+        help_text="True の行は団体あたり1件。過去のチャットは False にして残す。",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_recruiting_chats_created",
+        verbose_name="作成者",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "新歓チャット"
+        verbose_name_plural = "新歓チャット"
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=models.Q(is_active=True),
+                name="uniq_org_active_recruiting_chat",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(join_mode__in=["open", "approval"]),
+                name="app_recruiting_chat_join_mode_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(listing_status__in=["open", "closed"]),
+                name="app_recruiting_chat_listing_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.organization_id})"
+
+
+class OrganizationRecruitingChatApplication(models.Model):
+    """新歓チャットへの参加申請。1チャット×1ユーザーで1行を更新する。"""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "承認待ち"
+        APPROVED = "approved", "承認済み"
+        REJECTED = "rejected", "拒否"
+        WITHDRAWN = "withdrawn", "退出・除外"
+
+    recruiting_chat = models.ForeignKey(
+        OrganizationRecruitingChat,
+        on_delete=models.CASCADE,
+        related_name="applications",
+        verbose_name="新歓チャット",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="recruiting_chat_applications",
+        verbose_name="申請者",
+    )
+    status = models.CharField(
+        "申請状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField("申請日時", auto_now_add=True)
+    reviewed_at = models.DateTimeField("審査日時", null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recruiting_chat_reviews",
+        verbose_name="審査者",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "新歓チャット参加申請"
+        verbose_name_plural = "新歓チャット参加申請"
+        ordering = ["-updated_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recruiting_chat", "user"],
+                name="uniq_recruiting_chat_application_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=["pending", "approved", "rejected", "withdrawn"]
+                ),
+                name="app_recruiting_app_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["recruiting_chat", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"recruiting chat={self.recruiting_chat_id} "
+            f"user={self.user_id} ({self.status})"
+        )
 
