@@ -6,12 +6,21 @@ export function shouldShowVerifiedOrganizationBadge(
 
 export function VerifiedOrganizationBadge({
   verified,
+  compact = false,
 }: {
   verified?: boolean | null;
+  compact?: boolean;
 }) {
   if (!shouldShowVerifiedOrganizationBadge(verified)) return null;
   return (
-    <span className="org-verified-badge">
+    <span
+      className={
+        compact
+          ? "org-verified-badge org-verified-badge--compact"
+          : "org-verified-badge"
+      }
+      aria-label="運営確認済み団体"
+    >
       <span
         className="account-verified-badge"
         aria-hidden="true"

@@ -473,6 +473,13 @@ WASE_REACT_SPA = env.bool(
     default=bool(RENDER_EXTERNAL_HOSTNAME),
 )
 
+# 団体名義タイムライン投稿の公開（Phase 2-C の完成・検証後に True）。
+# False のあいだは作成 API は動くが、公開フィード/検索/プロフィールには出さない。
+WASE_ORG_TIMELINE_POSTS_PUBLIC = env.bool(
+    "WASE_ORG_TIMELINE_POSTS_PUBLIC",
+    default=False,
+)
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True

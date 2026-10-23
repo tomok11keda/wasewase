@@ -16,17 +16,6 @@ import { AccountAvatar } from "./AccountAvatar";
 import { AccountDisplayName } from "./VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "./VerifiedOrganizationBadge";
 
-export const PERSONAL_POSTING_NOTE =
-  "現在、投稿は個人アカウントから行われます。";
-
-export function PersonalPostingNote({ className }: { className?: string }) {
-  return (
-    <p className={className || "account-switcher__note"}>
-      {PERSONAL_POSTING_NOTE}
-    </p>
-  );
-}
-
 type Props = {
   onNavigate?: () => void;
 };
@@ -173,7 +162,6 @@ export function AccountSwitcher({ onNavigate }: Props) {
           );
         })}
       </ul>
-      {actor.type === "organization" ? <PersonalPostingNote /> : null}
       {toast
         ? createPortal(
             <div

@@ -136,17 +136,19 @@ def timeline_recommend_score(
     # Burst / activity relative to age
     score += engagement / (1.0 + age_hours / 6.0)
 
-    author_id = getattr(post, "author_id", None)
-    if author_id and author_id in following_ids:
-        score += 18.0
+    # 団体投稿は操作 User のフォロー・学部・学年で加点しない。
+    if not getattr(post, "organization_id", None):
+        author_id = getattr(post, "author_id", None)
+        if author_id and author_id in following_ids:
+            score += 18.0
 
-    profile = getattr(getattr(post, "author", None), "profile", None)
-    author_dept = (getattr(profile, "department", None) or "") if profile else ""
-    author_grade = (getattr(profile, "grade", None) or "") if profile else ""
-    if viewer_dept and author_dept == viewer_dept:
-        score += 10.0
-    if viewer_grade and author_grade == viewer_grade:
-        score += 4.0
+        profile = getattr(getattr(post, "author", None), "profile", None)
+        author_dept = (getattr(profile, "department", None) or "") if profile else ""
+        author_grade = (getattr(profile, "grade", None) or "") if profile else ""
+        if viewer_dept and author_dept == viewer_dept:
+            score += 10.0
+        if viewer_grade and author_grade == viewer_grade:
+            score += 4.0
 
     if post.pk in seen_ids:
         # Demote recently shown/viewed posts; do not hide high-signal items fully.

@@ -36,6 +36,12 @@ from .rate_limit_services import (
     allow_timeline_post,
 )
 from .services import get_user_faculty
+from .organization_post_services import (
+    OrganizationPostError,
+    parse_organization_id,
+    resolve_posting_organization,
+    user_can_delete_timeline_post,
+)
 from .timeline_api_services import (
     get_visible_timeline_post_payload,
     list_timeline_page,
@@ -116,23 +122,37 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
         )
     post = form.save(commit=False)
     post.author = request.user
-    faculty = get_user_faculty(request.user)
-    if not post.faculty and faculty:
-        post.faculty = faculty
+    try:
+        organization = resolve_posting_organization(
+            request.user,
+            parse_organization_id(request.POST.get("organization_id")),
+        )
+    except OrganizationPostError as exc:
+        return _json_error(exc.code, status=exc.status)
+    post.organization = organization
+    if organization is None:
+        faculty = get_user_faculty(request.user)
+        if not post.faculty and faculty:
+            post.faculty = faculty
+    else:
+        post.faculty = ""
     try:
         save_timeline_post_instance(post)
     except Exception as exc:
         return _json_error(compose_save_error_message(exc), status=500)
     link = timeline_post_link(post)
-    notify_mentions(body=post.body, actor=request.user, link=link)
+    if organization is None:
+        notify_mentions(body=post.body, actor=request.user, link=link)
     # Re-fetch with relations for serializer
     post = (
         TimelinePost.objects.select_related(
             "author",
             "author__profile",
+            "organization",
             "quoted_post",
             "quoted_post__author",
             "quoted_post__author__profile",
+            "quoted_post__organization",
             "shared_product",
         )
         .prefetch_related(timeline_comments_prefetch())
@@ -187,15 +207,25 @@ def api_v1_timeline_impressions(request: HttpRequest) -> JsonResponse:
     if not post_ids:
         return JsonResponse({"ok": True, "counts": {}})
 
-    # 存在する・未削除の投稿のみ atomic に +1
-    TimelinePost.objects.filter(pk__in=post_ids, is_removed=False).update(
+    from .ugc_services import filter_visible_timeline_posts
+
+    visible_ids = list(
+        filter_visible_timeline_posts(
+            TimelinePost.objects.filter(pk__in=post_ids, is_removed=False),
+            _viewer(request),
+        ).values_list("pk", flat=True)
+    )
+    if not visible_ids:
+        return JsonResponse({"ok": True, "counts": {}})
+
+    TimelinePost.objects.filter(pk__in=visible_ids).update(
         view_count=F("view_count") + 1
     )
     counts = {
         str(row.pk): int(row.view_count or 0)
-        for row in TimelinePost.objects.filter(
-            pk__in=post_ids, is_removed=False
-        ).only("pk", "view_count")
+        for row in TimelinePost.objects.filter(pk__in=visible_ids).only(
+            "pk", "view_count"
+        )
     }
     return JsonResponse({"ok": True, "counts": counts})
 
@@ -333,8 +363,14 @@ def api_v1_timeline_detail(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_http_methods(["DELETE", "POST"])
 def api_v1_timeline_delete(request: HttpRequest, pk: int) -> JsonResponse:
-    post = get_object_or_404(TimelinePost, pk=pk)
-    if post.author_id is not None and post.author_id != request.user.id:
+    post = (
+        TimelinePost.objects.select_related("organization").filter(pk=pk).first()
+    )
+    if post is None:
+        return _json_error("not_found", status=404)
+    if not user_can_delete_timeline_post(request.user, post):
+        if get_visible_timeline_post_payload(_viewer(request), pk) is None:
+            return _json_error("not_found", status=404)
         return _json_error("forbidden", status=403)
     post.delete()
     return JsonResponse({"ok": True})

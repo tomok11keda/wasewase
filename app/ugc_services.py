@@ -126,10 +126,27 @@ def filter_visible_timeline_posts(
     viewer: AbstractBaseUser | None,
 ) -> QuerySet[TimelinePost]:
     qs = qs.filter(is_removed=False)
+    from .organization_post_services import filter_public_organization_posts
+
+    qs = filter_public_organization_posts(qs)
+    personal = Q(organization_id__isnull=True)
     blocked_ids = get_either_blocked_user_ids(viewer)
     if blocked_ids:
-        qs = qs.exclude(author_id__in=blocked_ids)
-    return _filter_private_account_owners(qs, viewer, user_field="author")
+        qs = qs.exclude(personal & Q(author_id__in=blocked_ids))
+    # 団体投稿の公開主体は団体。操作 User の非公開・ブロックで隠さない。
+    private_personal = personal & Q(author__profile__is_private=True)
+    null_personal = personal & Q(author__isnull=True)
+    org_actor = Q(organization_id__isnull=False)
+    if viewer is None or not getattr(viewer, "is_authenticated", False):
+        return qs.filter(null_personal | ~private_personal | org_actor)
+    following_ids = Follow.objects.filter(follower_id=viewer.pk).values("following_id")
+    return qs.filter(
+        null_personal
+        | ~private_personal
+        | org_actor
+        | Q(author_id=viewer.pk)
+        | Q(author_id__in=following_ids)
+    )
 
 
 def filter_visible_products(
@@ -170,7 +187,11 @@ def get_visible_timeline_post_or_404(
 
     return get_object_or_404(
         filter_visible_timeline_posts(
-            TimelinePost.objects.select_related("author", "author__profile"),
+            TimelinePost.objects.select_related(
+                "author",
+                "author__profile",
+                "organization",
+            ),
             viewer,
         ),
         pk=pk,

@@ -4,6 +4,7 @@ import {
   apiPatchJson,
   mutationErrorMessage,
 } from "../../lib/http";
+import type { TimelinePost } from "../timeline/api";
 import {
   parseManagedOrganizationsPayload,
   type ManagedOrganization,
@@ -166,6 +167,60 @@ export async function updateOrganizationProfile(
     );
   }
   return payload;
+}
+
+export type OrganizationPostsPayload = {
+  posts: TimelinePost[];
+  has_more: boolean;
+  next_offset: number;
+  total_count: number;
+  preview: boolean;
+  unpublished: boolean;
+};
+
+export async function fetchOrganizationPosts(
+  slug: string,
+  offset = 0
+): Promise<OrganizationPostsPayload> {
+  const params = new URLSearchParams();
+  if (offset > 0) params.set("offset", String(offset));
+  const qs = params.toString();
+  const result = await apiGetJson(
+    `/api/v1/organizations/${encodeURIComponent(slug)}/posts/${qs ? `?${qs}` : ""}`
+  );
+  if (result.status === 404 || result.error === "not_found") {
+    throw new OrganizationRequestError(
+      "not_found",
+      404,
+      "この団体は見つからないか、表示できません。"
+    );
+  }
+  if (result.status === 401 || result.error === "unauthorized") {
+    throw new OrganizationRequestError(
+      "unauthorized",
+      401,
+      "ログインが必要です。"
+    );
+  }
+  if (!result.ok) {
+    throwFromResult(
+      result.status,
+      result.error,
+      result.data,
+      "団体の投稿を読み込めませんでした。"
+    );
+  }
+  const posts = Array.isArray(result.data.posts)
+    ? (result.data.posts as TimelinePost[])
+    : [];
+  return {
+    posts,
+    has_more: result.data.has_more === true,
+    next_offset: Number(result.data.next_offset || 0),
+    total_count: Number(result.data.total_count || 0),
+    preview: result.data.preview === true,
+    unpublished: result.data.unpublished === true,
+  };
 }
 
 export async function fetchManagedOrganizations(): Promise<ManagedOrganization[]> {

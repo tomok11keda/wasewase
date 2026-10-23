@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -2574,8 +2574,16 @@ def board_timeline_comment(request, pk):
 @login_required
 @require_POST
 def delete_timeline_post(request, pk):
-    post = get_object_or_404(TimelinePost, pk=pk)
-    if post.author_id is not None and post.author_id != request.user.id:
+    post = get_object_or_404(
+        TimelinePost.objects.select_related("organization"),
+        pk=pk,
+    )
+    from .organization_post_services import user_can_delete_timeline_post
+    from .timeline_api_services import get_visible_timeline_post_payload
+
+    if not user_can_delete_timeline_post(request.user, post):
+        if get_visible_timeline_post_payload(request.user, pk) is None:
+            raise Http404()
         messages.error(request, "この投稿を削除する権限がありません。")
         return _board_redirect(request, tag=post.course_name or "")
 

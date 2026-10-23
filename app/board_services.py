@@ -48,19 +48,21 @@ def build_timeline_posts_queryset(request):
         TimelinePost.objects.select_related(
             "author",
             "author__profile",
+            "organization",
             "quoted_post",
             "quoted_post__author",
             "quoted_post__author__profile",
+            "quoted_post__organization",
             "shared_product",
         )
         .prefetch_related(timeline_comments_prefetch())
     )
     if active_faculty:
-        # 投稿に付けた学部ではなく、投稿者プロフィールの所属学部で絞り込む。
-        # 旧データ互換として TimelinePost.faculty も OR する。
-        timeline_posts = timeline_posts.filter(
-            Q(author__profile__department=active_faculty)
-            | Q(faculty=active_faculty)
+        from .organization_post_services import filter_timeline_posts_by_faculty
+
+        # 個人投稿のみ学部で絞る。団体投稿は操作 User の学部に載せない。
+        timeline_posts = filter_timeline_posts_by_faculty(
+            timeline_posts, active_faculty
         )
     if active_tag:
         timeline_posts = timeline_posts.filter(course_name=active_tag)
@@ -73,7 +75,10 @@ def build_timeline_posts_queryset(request):
     if feed_scope == "following":
         if request.user.is_authenticated:
             following_ids = get_following_user_ids(request.user)
-            timeline_posts = timeline_posts.filter(author_id__in=following_ids)
+            timeline_posts = timeline_posts.filter(
+                author_id__in=following_ids,
+                organization_id__isnull=True,
+            )
         else:
             timeline_posts = TimelinePost.objects.none()
     timeline_posts = filter_visible_timeline_posts(
@@ -105,13 +110,15 @@ def get_profile_timeline_posts(
         TimelinePost.objects.select_related(
             "author",
             "author__profile",
+            "organization",
             "quoted_post",
             "quoted_post__author",
             "quoted_post__author__profile",
+            "quoted_post__organization",
             "shared_product",
         )
         .prefetch_related(timeline_comments_prefetch())
-        .filter(author=profile_user, is_removed=False)
+        .filter(author=profile_user, is_removed=False, organization_id__isnull=True)
         .order_by("-created_at")
     )
     queryset = filter_visible_timeline_posts(
@@ -145,6 +152,7 @@ def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> Timeline
         TimelinePost.objects.select_related(
             "author",
             "author__profile",
+            "organization",
             "quoted_post",
             "quoted_post__author",
             "shared_product",
@@ -154,6 +162,15 @@ def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> Timeline
     )
     if not post:
         return None
+    from .organization_post_services import (
+        is_organization_timeline_post,
+        organization_post_is_publicly_listed,
+    )
+
+    if is_organization_timeline_post(post):
+        if not organization_post_is_publicly_listed(post):
+            return None
+        return post
     if viewer and viewer.is_authenticated and post.author_id:
         blocked_ids = get_blocked_user_ids(viewer)
         if post.author_id in blocked_ids:
@@ -168,6 +185,11 @@ def notify_timeline_post_author(
     actor: AbstractBaseUser,
     message: str,
 ) -> None:
+    from .organization_post_services import is_organization_timeline_post
+
+    if is_organization_timeline_post(post):
+        # 団体通知基盤ができるまで、操作 User 個人へいいね通知を送らない。
+        return
     if not post.author_id:
         return
     if actor.is_authenticated and actor.id == post.author_id:
@@ -263,10 +285,13 @@ def notify_timeline_comment(
         )
         notified.add(parent_author_id)
 
+    from .organization_post_services import is_organization_timeline_post
+
     if (
         post.author_id
         and post.author_id != actor.pk
         and post.author_id not in notified
+        and not is_organization_timeline_post(post)
     ):
         create_notification(
             recipient=post.author,

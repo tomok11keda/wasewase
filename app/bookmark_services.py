@@ -342,9 +342,11 @@ def _timeline_posts_queryset_base():
     return TimelinePost.objects.select_related(
         "author",
         "author__profile",
+        "organization",
         "quoted_post",
         "quoted_post__author",
         "quoted_post__author__profile",
+        "quoted_post__organization",
         "shared_product",
     ).prefetch_related(timeline_comments_prefetch())
 

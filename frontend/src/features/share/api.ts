@@ -1,4 +1,4 @@
-import { getCsrfToken } from "../timeline/api";
+import { getCsrfToken, type TimelineOrganization } from "../timeline/api";
 import { userFacingMutationError } from "../../lib/rateLimit";
 
 export type ShareTargetType = "timeline" | "flea";
@@ -32,6 +32,8 @@ export type TimelineShareContent = {
   body_preview: string;
   image_url: string | null;
   author: ShareAuthor | null;
+  actor_type?: "organization" | string | null;
+  organization?: TimelineOrganization | null;
 };
 
 export type FleaShareContent = {

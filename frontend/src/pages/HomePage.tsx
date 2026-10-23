@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { PersonalPostingNote } from "../components/AccountSwitcher";
 import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -16,6 +15,16 @@ import {
 } from "../features/timeline/api";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
+import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
+import { organizationPostDisplay } from "../features/timeline/organizationActor";
+import { ComposeIdentity } from "../features/timeline/ComposeIdentity";
+import {
+  composeActorKey,
+  composeActorLabel,
+  organizationIdForCompose,
+  snapshotComposeActor,
+  type ComposeActorSnapshot,
+} from "../features/timeline/composeActor";
 import { restoreScrollPosition } from "../features/profile/api";
 import {
   useActiveMainTab,
@@ -35,7 +44,8 @@ export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
   const { actor } = useAccount();
   const browsePreview = isBrowsePreview(me);
-  const orgMode = actor.type === "organization";
+  const liveComposeActor = snapshotComposeActor(actor);
+  const liveComposeKey = composeActorKey(liveComposeActor);
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = useActiveMainTab();
@@ -99,6 +109,16 @@ export function HomePage() {
   const [quotePreview, setQuotePreview] = useState<TimelinePost | null>(null);
   const [composeBusy, setComposeBusy] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeActor, setComposeActor] = useState<ComposeActorSnapshot | null>(
+    null
+  );
+  const [actorMismatch, setActorMismatch] = useState(false);
+  const [composeNotice, setComposeNotice] = useState<string | null>(null);
+  const [composeNoticeSlug, setComposeNoticeSlug] = useState<string | null>(
+    null
+  );
+  const quoteOrgDisplay = organizationPostDisplay(quotePreview);
+  const sendActor = composeActor || liveComposeActor;
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -123,9 +143,10 @@ export function HomePage() {
       navigate(spaLoginPath("/app/?compose=1"));
       return;
     }
-    // Overlay only — do not scroll the timeline.
+    setComposeActor((prev) => prev ?? snapshotComposeActor(actor));
+    setActorMismatch(false);
     setComposeOpen(true);
-  }, [authenticated, navigate]);
+  }, [authenticated, navigate, actor]);
 
   const resetComposeDraft = useCallback(() => {
     setComposeBody("");
@@ -136,6 +157,8 @@ export function HomePage() {
 
   const closeCompose = useCallback(() => {
     setComposeOpen(false);
+    setComposeActor(null);
+    setActorMismatch(false);
     resetComposeDraft();
   }, [resetComposeDraft]);
 
@@ -157,7 +180,7 @@ export function HomePage() {
       Boolean(state?.openCompose) || searchParams.get("compose") === "1";
     if (!wantCompose) return;
     if (authenticated) {
-      setComposeOpen(true);
+      openCompose();
     }
     if (state?.openCompose) {
       navigate(".", { replace: true, state: {} });
@@ -167,7 +190,22 @@ export function HomePage() {
       next.delete("compose");
       setSearchParams(next, { replace: true });
     }
-  }, [authenticated, location.state, navigate, searchParams, setSearchParams]);
+  }, [
+    authenticated,
+    location.state,
+    navigate,
+    openCompose,
+    searchParams,
+    setSearchParams,
+  ]);
+
+  useEffect(() => {
+    if (!composeOpen || !composeActor) {
+      setActorMismatch(false);
+      return;
+    }
+    setActorMismatch(composeActorKey(composeActor) !== liveComposeKey);
+  }, [composeOpen, composeActor, liveComposeKey]);
 
   // Lock page scroll while compose overlay is open (keeps timeline scrollY).
   useEffect(() => {
@@ -416,7 +454,7 @@ export function HomePage() {
       const quoted = await fetchQuotable(post.id);
       setQuoteId(quoted.id);
       setQuotePreview(quoted);
-      setComposeOpen(true);
+      openCompose();
     } catch {
       window.alert("この投稿はリポストできません。");
     }
@@ -430,20 +468,39 @@ export function HomePage() {
     }
     const body = composeBody.trim();
     if (!body && !composeImage && !quoteId) return;
+    if (actorMismatch) return;
     setComposeBusy(true);
     try {
+      const organizationId = organizationIdForCompose(sendActor);
       const post = await createTimelinePost({
         body: body || (quoteId ? "リポスト" : ""),
         image: composeImage,
         quoted_post_id: quoteId,
+        organization_id: organizationId,
       });
       analytics.timelinePostCreated({
         has_image: Boolean(composeImage),
         is_quote: Boolean(quoteId),
       });
-      setPosts((prev) => [post, ...prev]);
+      const unpublished =
+        post.actor_type === "organization" &&
+        post.visibility === "organization_preview";
+      if (unpublished) {
+        setComposeNotice(
+          `団体名義で投稿しました。一般公開前のため、タイムラインには表示されません。「${composeActorLabel(sendActor)}」のプロフィール（管理者プレビュー）で確認できます。`
+        );
+        setComposeNoticeSlug(
+          sendActor.type === "organization" ? sendActor.organization.slug : null
+        );
+      } else {
+        setPosts((prev) => [post, ...prev]);
+        setComposeNotice(null);
+        setComposeNoticeSlug(null);
+      }
       resetComposeDraft();
       setComposeOpen(false);
+      setComposeActor(null);
+      setActorMismatch(false);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "投稿に失敗しました");
     } finally {
@@ -453,7 +510,38 @@ export function HomePage() {
 
   const composeForm = (
     <form className="spa-compose__form" onSubmit={submitCompose}>
-      {orgMode ? <PersonalPostingNote /> : null}
+      <ComposeIdentity
+        actor={sendActor}
+        personalName={me?.user?.display_name || "自分"}
+        personalAvatarUrl={me?.user?.avatar_url}
+        personalInitial={me?.user?.initial}
+        personalVerified={me?.user?.is_operator_verified}
+      />
+      {actorMismatch ? (
+        <div className="spa-compose__mismatch" role="status">
+          <p>
+            投稿の途中でアカウントが切り替わりました。この下書きは「
+            {composeActorLabel(sendActor)}」名義のままです。送信名義を選んでください。
+          </p>
+          <div className="spa-compose__mismatch-actions">
+            <button
+              type="button"
+              onClick={() => setActorMismatch(false)}
+            >
+              この名義のまま続ける
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setComposeActor(snapshotComposeActor(actor));
+                setActorMismatch(false);
+              }}
+            >
+              切り替えた「{composeActorLabel(liveComposeActor)}」名義に変更
+            </button>
+          </div>
+        </div>
+      ) : null}
       <textarea
         ref={composeTextareaRef}
         value={composeBody}
@@ -465,10 +553,30 @@ export function HomePage() {
       {quotePreview ? (
         <div className="quoted-post-card spa-compose__quote">
           <strong>
-            <AccountDisplayName
-              name={quotePreview.author?.display_name || "投稿"}
-              verified={quotePreview.author?.is_operator_verified}
-            />{" "}
+            {quoteOrgDisplay ? (
+              <>
+                <span className="account-verified-name">
+                  <span className="account-verified-name__text">
+                    {quoteOrgDisplay.name}
+                  </span>
+                  <VerifiedOrganizationBadge
+                    verified={quoteOrgDisplay.isVerified}
+                    compact
+                  />
+                </span>
+                {quoteOrgDisplay.kindLabel ? (
+                  <span className="tweet-org-kind">
+                    {" "}
+                    {quoteOrgDisplay.kindLabel}
+                  </span>
+                ) : null}{" "}
+              </>
+            ) : (
+              <AccountDisplayName
+                name={quotePreview.author?.display_name || "投稿"}
+                verified={quotePreview.author?.is_operator_verified}
+              />
+            )}
             をリポスト
           </strong>
           <p>{quotePreview.body.slice(0, 120)}</p>
@@ -496,7 +604,7 @@ export function HomePage() {
         <button type="button" onClick={requestCloseCompose}>
           閉じる
         </button>
-        <button type="submit" disabled={composeBusy}>
+        <button type="submit" disabled={composeBusy || actorMismatch}>
           投稿する
         </button>
       </div>
@@ -542,7 +650,21 @@ export function HomePage() {
             className="home-compose__open"
             onClick={openCompose}
           >
-            {me?.user?.avatar_url ? (
+            {liveComposeActor.type === "organization" &&
+            liveComposeActor.organization.avatar_url ? (
+              <img
+                className="home-compose__avatar"
+                src={liveComposeActor.organization.avatar_url}
+                alt=""
+              />
+            ) : liveComposeActor.type === "organization" ? (
+              <span
+                className="home-compose__avatar home-compose__avatar--initial"
+                aria-hidden="true"
+              >
+                {liveComposeActor.organization.name.slice(0, 1) || "?"}
+              </span>
+            ) : me?.user?.avatar_url ? (
               <img
                 className="home-compose__avatar"
                 src={me.user.avatar_url}
@@ -556,11 +678,12 @@ export function HomePage() {
                 {me?.user?.initial || "?"}
               </span>
             )}
-            <span className="home-compose__prompt">いまどうしてる？</span>
+            <span className="home-compose__prompt">
+              {liveComposeActor.type === "organization"
+                ? `${liveComposeActor.organization.name}として投稿`
+                : "いまどうしてる？"}
+            </span>
           </button>
-          {orgMode ? (
-            <PersonalPostingNote className="home-compose__note" />
-          ) : null}
         </div>
       ) : (
         <p className="feed-scope-hint">
@@ -569,6 +692,27 @@ export function HomePage() {
           してください。
         </p>
       )}
+      {composeNotice ? (
+        <p className="org-compose-notice" role="status">
+          {composeNotice}
+          {composeNoticeSlug ? (
+            <>
+              {" "}
+              <Link to={`/orgs/${composeNoticeSlug}`}>団体プロフィールを開く</Link>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="org-compose-notice__close"
+            onClick={() => {
+              setComposeNotice(null);
+              setComposeNoticeSlug(null);
+            }}
+          >
+            閉じる
+          </button>
+        </p>
+      ) : null}
       {sessionLoading ||
       (loading && visiblePosts.length === 0) ||
       (waitingForTarget && visiblePosts.length === 0) ? (

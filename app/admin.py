@@ -422,12 +422,14 @@ class TimelinePostAdmin(admin.ModelAdmin):
     list_display = (
         "course_name",
         "author",
+        "organization",
         "quoted_post",
         "like_count",
         "has_image",
         "is_removed",
         "created_at",
     )
+    raw_id_fields = ("author", "organization", "quoted_post")
     actions = [mark_as_removed, restore_removed]
     list_filter = ("is_removed", "faculty", "created_at")
 

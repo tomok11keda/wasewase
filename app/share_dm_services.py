@@ -62,7 +62,7 @@ def _timeline_visible_qs(viewer: AbstractBaseUser | None, ids: Iterable[int]):
         return TimelinePost.objects.none()
     return filter_visible_timeline_posts(
         TimelinePost.objects.filter(pk__in=id_list).select_related(
-            "author", "author__profile"
+            "author", "author__profile", "organization"
         ),
         viewer,
     )
@@ -97,8 +97,12 @@ def require_shareable_target(
     if kind == SHARE_TYPE_TIMELINE:
         post = _timeline_visible_qs(viewer, [pk]).first()
         if post is None:
-            exists = TimelinePost.objects.filter(pk=pk).exists()
-            raise ValueError("unavailable" if exists else "invalid_target")
+            hidden = (
+                TimelinePost.objects.filter(pk=pk).only("organization_id").first()
+            )
+            if hidden is None or hidden.organization_id:
+                raise ValueError("invalid_target")
+            raise ValueError("unavailable")
         return post
     product = _product_visible_qs(viewer, [pk]).first()
     if product is None:
@@ -115,12 +119,24 @@ def serialize_timeline_share_content(post: TimelinePost) -> dict[str, Any]:
         except ValueError:
             image_url = None
     body = post.body or ""
-    return {
+    payload = {
         "id": post.pk,
         "body_preview": body[:BODY_PREVIEW_LIMIT],
         "image_url": image_url,
         "author": serialize_author(post.author),
     }
+    from .organization_post_services import (
+        is_organization_timeline_post,
+        serialize_post_organization,
+    )
+
+    if is_organization_timeline_post(post):
+        payload["author"] = None
+        payload["actor_type"] = "organization"
+        payload["organization"] = serialize_post_organization(
+            getattr(post, "organization", None)
+        )
+    return payload
 
 
 def serialize_flea_share_content(product: Product) -> dict[str, Any]:

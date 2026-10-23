@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
+import { VerifiedOrganizationBadge } from "../../components/VerifiedOrganizationBadge";
 import type { TimelinePost } from "../timeline/api";
+import { organizationPostDisplay } from "../timeline/organizationActor";
 import type {
   SearchProductResult,
   SearchThreadResult,
@@ -41,8 +43,15 @@ function formatCount(n: number): string {
 
 /** Compact discovery card for timeline posts (search empty state only). */
 export function DiscoverPostCard({ post }: { post: TimelinePost }) {
-  const name = post.author?.display_name || "ユーザー";
-  const handle = post.author?.username ? `@${post.author.username}` : "";
+  const org = organizationPostDisplay(post);
+  const name = org?.name || post.author?.display_name || "ユーザー";
+  const handle = org
+    ? org.kindLabel
+    : post.author?.username
+      ? `@${post.author.username}`
+      : "";
+  const avatarUrl = org ? org.avatarUrl : post.author?.avatar_url || "";
+  const initial = org ? org.initial : post.author?.initial || "?";
   const preview = (post.body || "").replace(/\s+/g, " ").trim();
   const truncated =
     preview.length > 110 ? `${preview.slice(0, 107)}…` : preview;
@@ -54,23 +63,33 @@ export function DiscoverPostCard({ post }: { post: TimelinePost }) {
     >
       <div className="discover-compact-card__main">
         <div className="discover-compact-card__head">
-          {post.author?.avatar_url ? (
+          {avatarUrl ? (
             <img
               className="discover-compact-card__avatar"
-              src={post.author.avatar_url}
+              src={avatarUrl}
               alt=""
             />
           ) : (
             <span className="discover-compact-card__avatar is-initial">
-              {post.author?.initial || "?"}
+              {initial}
             </span>
           )}
           <div className="discover-compact-card__who">
             <span className="discover-compact-card__name">
-              <AccountDisplayName
-                name={name}
-                verified={post.author?.is_operator_verified}
-              />
+              {org ? (
+                <span className="account-verified-name">
+                  <span className="account-verified-name__text">{name}</span>
+                  <VerifiedOrganizationBadge
+                    verified={org.isVerified}
+                    compact
+                  />
+                </span>
+              ) : (
+                <AccountDisplayName
+                  name={name}
+                  verified={post.author?.is_operator_verified}
+                />
+              )}
             </span>
             {handle ? (
               <span className="discover-compact-card__handle">{handle}</span>

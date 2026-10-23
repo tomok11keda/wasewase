@@ -2015,6 +2015,16 @@ class TimelinePost(models.Model):
         related_name="timeline_posts",
         null=True,
         blank=True,
+        help_text="操作した個人User。団体投稿でも公開表示には使わない。",
+    )
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.PROTECT,
+        related_name="timeline_posts",
+        null=True,
+        blank=True,
+        verbose_name="投稿主体の団体",
+        help_text="設定時は団体名義投稿。null は個人投稿。団体削除では投稿を残すため PROTECT。",
     )
     quoted_post = models.ForeignKey(
         "self",

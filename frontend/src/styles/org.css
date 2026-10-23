@@ -51,6 +51,29 @@
   color: #888;
 }
 
+.org-profile-posts {
+  margin: 20px 0 0;
+}
+
+.org-profile-posts__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.org-profile-posts__preview {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #4a3b12;
+  font-size: 13px;
+}
+
+.org-profile-posts__more {
+  margin: 12px 0 0;
+  text-align: center;
+}
+
 .org-profile-links {
   display: flex;
   flex-wrap: wrap;
@@ -87,6 +110,10 @@
   font-weight: 700;
   color: #891e2b;
   overflow-wrap: anywhere;
+}
+
+.org-verified-badge--compact .org-verified-badge__label {
+  display: none;
 }
 
 .org-edit-page {

@@ -75,6 +75,42 @@ def serialize_quoted_post(
     from .follow_services import can_view_private_content
     from .ugc_services import is_either_blocked
 
+    if getattr(post, "organization_id", None):
+        from .organization_post_services import (
+            organization_post_is_publicly_listed,
+            serialize_post_organization,
+        )
+
+        if not organization_post_is_publicly_listed(post):
+            return {
+                "id": post.pk,
+                "is_removed": True,
+                "body": "",
+                "author": None,
+                "image_url": None,
+                "course_name": "",
+            }
+        image_url = None
+        if post.image:
+            try:
+                image_url = post.image.url
+            except ValueError:
+                image_url = None
+        body = post.body or ""
+        payload = {
+            "id": post.pk,
+            "is_removed": False,
+            "body": body[:120],
+            "author": None,
+            "image_url": image_url,
+            "course_name": post.course_name or "",
+            "actor_type": "organization",
+            "organization": serialize_post_organization(
+                getattr(post, "organization", None)
+            ),
+        }
+        return payload
+
     author = post.author
     if author is not None and is_either_blocked(viewer, author):
         return {
@@ -211,10 +247,13 @@ def serialize_timeline_post(
         if viewer is not None and getattr(viewer, "is_authenticated", False)
         else None
     )
-    can_delete = bool(
-        viewer_id is not None
-        and (post.author_id is None or post.author_id == viewer_id)
+    from .organization_post_services import (
+        is_organization_timeline_post,
+        serialize_post_organization,
+        user_can_delete_timeline_post,
     )
+
+    can_delete = user_can_delete_timeline_post(viewer, post)
 
     comments_payload: list[dict[str, Any]] = []
     blocked_ids = get_either_blocked_user_ids(
@@ -253,7 +292,7 @@ def serialize_timeline_post(
     if quote_count is None:
         quote_count = post.quotes.filter(is_removed=False).count()
 
-    return {
+    payload = {
         "id": post.pk,
         "body": post.body,
         "created_at": post.created_at.isoformat(),
@@ -276,6 +315,16 @@ def serialize_timeline_post(
         "shared_product": serialize_shared_product(post),
         "comments": comments_payload,
     }
+    if is_organization_timeline_post(post):
+        from .organization_post_services import organization_post_visibility
+
+        payload["author"] = None
+        payload["actor_type"] = "organization"
+        payload["organization"] = serialize_post_organization(
+            getattr(post, "organization", None)
+        )
+        payload["visibility"] = organization_post_visibility(post)
+    return payload
 
 
 def get_visible_timeline_post_payload(
@@ -289,9 +338,11 @@ def get_visible_timeline_post_payload(
         TimelinePost.objects.select_related(
             "author",
             "author__profile",
+            "organization",
             "quoted_post",
             "quoted_post__author",
             "quoted_post__author__profile",
+            "quoted_post__organization",
             "shared_product",
         ).prefetch_related(timeline_comments_prefetch())
     )
@@ -313,7 +364,27 @@ def get_visible_timeline_post_payload(
         )
     post = queryset.filter(pk=pk).first()
     if post is None:
-        return None
+        from .organization_post_services import viewer_can_see_organization_post
+
+        managed = (
+            TimelinePost.objects.select_related(
+                "author",
+                "author__profile",
+                "organization",
+                "quoted_post",
+                "quoted_post__author",
+                "quoted_post__author__profile",
+                "quoted_post__organization",
+                "shared_product",
+            )
+            .prefetch_related(timeline_comments_prefetch())
+            .filter(pk=pk, is_removed=False)
+            .first()
+        )
+        if not viewer_can_see_organization_post(auth_viewer, managed):
+            return None
+        prepared = prepare_timeline_posts([managed], auth_viewer)
+        return serialize_timeline_post(prepared[0], auth_viewer)
     prepared = prepare_timeline_posts([post], auth_viewer)
     return serialize_timeline_post(prepared[0], auth_viewer)
 

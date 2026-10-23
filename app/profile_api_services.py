@@ -289,16 +289,18 @@ def _discover_timeline_candidates(
     qs = TimelinePost.objects.select_related(
         "author",
         "author__profile",
+        "organization",
         "quoted_post",
         "quoted_post__author",
         "quoted_post__author__profile",
+        "quoted_post__organization",
         "shared_product",
     ).prefetch_related(timeline_comments_prefetch())
     qs = filter_visible_timeline_posts(qs, viewer)
     if faculty:
-        qs = qs.filter(
-            Q(author__profile__department=faculty) | Q(faculty=faculty)
-        )
+        from .organization_post_services import filter_timeline_posts_by_faculty
+
+        qs = filter_timeline_posts_by_faculty(qs, faculty)
     qs = annotate_timeline_quote_count(qs).annotate(
         feed_comment_count=Count(
             "comments",
@@ -635,8 +637,10 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             .select_related(
                 "author",
                 "author__profile",
+                "organization",
                 "quoted_post",
                 "quoted_post__author",
+                "quoted_post__organization",
                 "shared_product",
             )
             .prefetch_related(timeline_comments_prefetch())

@@ -13,6 +13,10 @@ from .organization_api_services import (
     parse_organization_update_request,
     update_organization_profile,
 )
+from .organization_post_services import (
+    ORG_PROFILE_POSTS_PAGE,
+    build_organization_posts_payload,
+)
 from .organization_services import (
     can_manage_organization,
     can_view_organization_profile,
@@ -46,6 +50,28 @@ def api_v1_me_organizations(request: HttpRequest) -> JsonResponse:
         payload = list_managed_organizations_payload(request.user)
     except OrganizationApiError as exc:
         return _error_response(exc)
+    return JsonResponse(payload)
+
+
+@require_GET
+def api_v1_organization_posts(request: HttpRequest, slug: str) -> JsonResponse:
+    organization = get_organization_by_slug(slug)
+    try:
+        offset = int(request.GET.get("offset") or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        limit = int(request.GET.get("limit") or ORG_PROFILE_POSTS_PAGE)
+    except (TypeError, ValueError):
+        limit = ORG_PROFILE_POSTS_PAGE
+    payload = build_organization_posts_payload(
+        organization,
+        _viewer(request),
+        offset=offset,
+        limit=limit,
+    )
+    if payload is None:
+        return _json_error("not_found", status=404)
     return JsonResponse(payload)
 
 

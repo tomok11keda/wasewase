@@ -90,6 +90,7 @@ def load_popular_post_candidates(*, now=None) -> list[TimelinePost]:
     oldest = when - timedelta(hours=CANDIDATE_MAX_AGE_HOURS)
     qs: QuerySet[TimelinePost] = TimelinePost.objects.filter(
         is_removed=False,
+        organization_id__isnull=True,
         created_at__gte=oldest,
         created_at__lte=newest,
     ).filter(

@@ -9,6 +9,14 @@ export type TimelineAuthor = {
   is_operator_verified?: boolean | null;
 } | null;
 
+export type TimelineOrganization = {
+  id: number;
+  name: string;
+  slug: string;
+  avatar_url: string;
+  is_verified: boolean;
+};
+
 export type TimelineCommentReplyTo = {
   id: number;
   username: string;
@@ -36,6 +44,8 @@ export type QuotedPost = {
   author: TimelineAuthor;
   image_url: string | null;
   course_name: string;
+  actor_type?: "organization" | string | null;
+  organization?: TimelineOrganization | null;
 } | null;
 
 export type SharedProduct = {
@@ -64,6 +74,9 @@ export type TimelinePost = {
   user_has_bookmarked: boolean;
   can_delete: boolean;
   author: TimelineAuthor;
+  actor_type?: "organization" | string | null;
+  organization?: TimelineOrganization | null;
+  visibility?: "public" | "organization_preview" | string | null;
   quoted_post: QuotedPost;
   shared_product: SharedProduct | null;
   comments: TimelineComment[];
@@ -162,12 +175,20 @@ export async function createTimelinePost(input: {
   body: string;
   image?: File | null;
   quoted_post_id?: number | null;
+  organization_id?: number | null;
 }): Promise<TimelinePost> {
   const form = new FormData();
   form.append("body", input.body);
   if (input.image) form.append("image", input.image);
   if (input.quoted_post_id) {
     form.append("quoted_post_id", String(input.quoted_post_id));
+  }
+  if (
+    typeof input.organization_id === "number" &&
+    Number.isInteger(input.organization_id) &&
+    input.organization_id > 0
+  ) {
+    form.append("organization_id", String(input.organization_id));
   }
   const res = await fetch("/api/v1/timeline/", {
     method: "POST",
@@ -177,11 +198,19 @@ export async function createTimelinePost(input: {
   });
   const data = await res.json();
   if (!res.ok || !data.ok) {
+    const code = String(data.error || `compose_${res.status}`);
+    if (code === "forbidden") {
+      throw new Error(
+        "この団体名義では投稿できません。権限を確認してください。個人名義への切り替えは自動では行いません。"
+      );
+    }
+    if (code === "organization_not_found") {
+      throw new Error(
+        "指定された団体が見つかりません。個人名義への切り替えは自動では行いません。"
+      );
+    }
     throw new Error(
-      userFacingMutationError(
-        data.error || `compose_${res.status}`,
-        "投稿に失敗しました"
-      )
+      userFacingMutationError(code, "投稿に失敗しました")
     );
   }
   return data.post as TimelinePost;
@@ -291,7 +320,17 @@ export async function deletePost(postId: number): Promise<void> {
     headers: { "X-CSRFToken": getCsrfToken(), Accept: "application/json" },
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "delete_failed");
+  if (!res.ok || !data.ok) {
+    const code = String(data.error || "delete_failed");
+    throw new Error(
+      userFacingMutationError(
+        code,
+        code === "forbidden"
+          ? "この投稿を削除する権限がありません。"
+          : "削除に失敗しました"
+      )
+    );
+  }
 }
 
 export async function deleteComment(

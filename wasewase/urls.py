@@ -347,6 +347,11 @@ urlpatterns = [
         name="api_v1_search",
     ),
     path(
+        "api/v1/organizations/<slug:slug>/posts/",
+        organization_api_views.api_v1_organization_posts,
+        name="api_v1_organization_posts",
+    ),
+    path(
         "api/v1/organizations/<slug:slug>/",
         organization_api_views.api_v1_organization_detail,
         name="api_v1_organization_detail",

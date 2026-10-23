@@ -3,7 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
 import { SfIcon } from "../../components/SfIcon";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
-import type { TimelineAuthor, TimelineComment, TimelinePost } from "./api";
+import type { TimelineAuthor, TimelineComment, TimelinePost, QuotedPost } from "./api";
+import {
+  OrganizationPostAvatar,
+  OrganizationPostName,
+} from "./OrganizationPostIdentity";
+import { organizationPostDisplay } from "./organizationActor";
 import {
   addComment,
   deleteComment,
@@ -117,6 +122,26 @@ function ThreadAvatar({
       退
     </span>
   );
+}
+
+function PostActorAvatar({
+  post,
+  className,
+}: {
+  post: TimelinePost | NonNullable<QuotedPost>;
+  className: string;
+}) {
+  const org = organizationPostDisplay(post);
+  if (org) {
+    return (
+      <OrganizationPostAvatar
+        display={org}
+        className={className}
+        onNavigate={() => saveScrollPosition("/")}
+      />
+    );
+  }
+  return <ThreadAvatar author={post.author} className={className} />;
 }
 
 type ReplyTarget = {
@@ -279,6 +304,8 @@ export function TimelinePostCard({
     () => groupTimelineComments(post.comments),
     [post.comments]
   );
+  const orgDisplay = organizationPostDisplay(post);
+  const quotedOrgDisplay = organizationPostDisplay(post.quoted_post);
 
   const focusReplyComposer = (target?: ReplyTarget | null) => {
     if (target !== undefined) {
@@ -496,19 +523,24 @@ export function TimelinePostCard({
       <div className={`tweet-layout${variant === "detail" ? " tweet-thread-root" : ""}`}>
         {variant === "detail" ? (
           <div className="tweet-avatar-col">
-            <ThreadAvatar author={post.author} className="tweet-avatar" />
+            <PostActorAvatar post={post} className="tweet-avatar" />
             {hasThreadLine ? (
               <span className="tweet-thread-line" aria-hidden="true" />
             ) : null}
           </div>
         ) : (
-          <ThreadAvatar author={post.author} className="tweet-avatar" />
+          <PostActorAvatar post={post} className="tweet-avatar" />
         )}
 
         <div className="tweet-main">
           <header className="tweet-header">
             <div className="tweet-identity">
-              {post.author ? (
+              {orgDisplay ? (
+                <OrganizationPostName
+                  display={orgDisplay}
+                  onNavigate={() => saveScrollPosition("/")}
+                />
+              ) : post.author ? (
                 <>
                   <Link
                     className="tweet-author"
@@ -700,7 +732,12 @@ export function TimelinePostCard({
               ) : (
                 <>
                   <div className="tweet-identity">
-                    {post.quoted_post.author ? (
+                    {quotedOrgDisplay ? (
+                      <OrganizationPostName
+                        display={quotedOrgDisplay}
+                        onNavigate={() => saveScrollPosition("/")}
+                      />
+                    ) : post.quoted_post.author ? (
                       <span className="tweet-author">
                         <AccountDisplayName
                           name={post.quoted_post.author.display_name}

@@ -103,6 +103,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.tweet-org-kind {
+  font-size: 13px;
+  color: var(--tweet-muted);
+  white-space: nowrap;
+}
+.tweet-identity .org-verified-badge,
+.quoted-post-card .org-verified-badge,
+.discover-compact-card .org-verified-badge,
+.share-card .org-verified-badge,
+.spa-compose__quote .org-verified-badge {
+  margin: 0;
+}
 .tweet-meta-dot {
   color: var(--tweet-muted);
   font-size: 14px;

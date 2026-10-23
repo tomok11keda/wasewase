@@ -209,6 +209,86 @@
   margin: 0 0 8px;
 }
 
+.spa-compose__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  min-width: 0;
+}
+
+.spa-compose__identity-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #f7edf0;
+  color: #891e2b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.spa-compose__identity-text {
+  min-width: 0;
+}
+
+.spa-compose__identity-text strong {
+  display: block;
+  font-size: 15px;
+}
+
+.spa-compose__identity-text p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #536471;
+}
+
+.spa-compose__mismatch {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #4a3b12;
+  font-size: 13px;
+}
+
+.spa-compose__mismatch p {
+  margin: 0 0 8px;
+}
+
+.spa-compose__mismatch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spa-compose__mismatch-actions button {
+  background: #fff;
+  color: #0f1419;
+  border: 1px solid #cfd9de;
+}
+
+.org-compose-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7edf0;
+  color: #3b151c;
+  font-size: 13px;
+}
+
+.org-compose-notice__close {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .spa-compose__form textarea {
   width: 100%;
   border: 1px solid #e5e5e5;

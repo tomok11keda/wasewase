@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
 import { spaLoginPath } from "../features/auth/api";
 import {
+  fetchOrganizationPosts,
   fetchOrganizationProfile,
   OrganizationRequestError,
+  type OrganizationPostsPayload,
 } from "../features/orgs/api";
 import {
   organizationCategoryLabel,
@@ -13,6 +15,8 @@ import {
   organizationInitial,
   type OrganizationProfilePayload,
 } from "../features/orgs/orgProfile";
+import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
+import type { TimelinePost } from "../features/timeline/api";
 import { isBrowsePreview, useSession } from "../lib/session";
 
 function statusFromError(err: unknown): string {
@@ -22,6 +26,7 @@ function statusFromError(err: unknown): string {
 
 export function OrganizationProfilePage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const [payload, setPayload] = useState<OrganizationProfilePayload | null>(
@@ -29,6 +34,13 @@ export function OrganizationProfilePage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [posts, setPosts] = useState<TimelinePost[]>([]);
+  const [postsMeta, setPostsMeta] = useState<OrganizationPostsPayload | null>(
+    null
+  );
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [postsLoadingMore, setPostsLoadingMore] = useState(false);
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -60,6 +72,37 @@ export function OrganizationProfilePage() {
     }
     void load();
   }, [sessionLoading, browsePreview, load]);
+
+  const loadPosts = useCallback(
+    async (nextOffset = 0) => {
+      if (!slug) return;
+      if (nextOffset > 0) setPostsLoadingMore(true);
+      else setPostsLoading(true);
+      setPostsError(null);
+      try {
+        const data = await fetchOrganizationPosts(slug, nextOffset);
+        setPostsMeta(data);
+        setPosts((prev) =>
+          nextOffset > 0 ? [...prev, ...data.posts] : data.posts
+        );
+      } catch (err) {
+        if (nextOffset === 0) {
+          setPosts([]);
+          setPostsMeta(null);
+        }
+        setPostsError(statusFromError(err));
+      } finally {
+        setPostsLoading(false);
+        setPostsLoadingMore(false);
+      }
+    },
+    [slug]
+  );
+
+  useEffect(() => {
+    if (sessionLoading || browsePreview || !payload || !slug) return;
+    void loadPosts(0);
+  }, [sessionLoading, browsePreview, payload, slug, loadPosts]);
 
   if (!slug) {
     return <Navigate to="/" replace />;
@@ -202,6 +245,69 @@ export function OrganizationProfilePage() {
                 プロフィールを編集
               </Link>
             </div>
+          ) : null}
+        </section>
+
+        <section className="org-profile-posts" aria-label="投稿">
+          <h2 className="org-profile-posts__title">投稿</h2>
+          {postsMeta?.preview ? (
+            <p className="org-profile-posts__preview" role="status">
+              これらの投稿は一般公開されていません。管理者プレビューです。
+            </p>
+          ) : null}
+          {postsMeta?.unpublished && !payload.can_manage ? (
+            <p className="org-profile-empty">投稿はまだ公開されていません。</p>
+          ) : postsLoading ? (
+            <p className="org-profile-empty">投稿を読み込み中…</p>
+          ) : postsError ? (
+            <p className="org-profile-empty">
+              投稿を読み込めませんでした。
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void loadPosts(0)}
+              >
+                再試行
+              </button>
+            </p>
+          ) : posts.length === 0 ? (
+            <p className="org-profile-empty">投稿はまだありません。</p>
+          ) : (
+            <div className="timeline-list org-profile-posts__list">
+              {posts.map((post) => (
+                <TimelinePostCard
+                  key={post.id}
+                  post={post}
+                  authenticated={Boolean(me?.authenticated)}
+                  onChange={(next) =>
+                    setPosts((prev) =>
+                      prev.map((item) => (item.id === next.id ? next : item))
+                    )
+                  }
+                  onRemove={(id) =>
+                    setPosts((prev) => prev.filter((item) => item.id !== id))
+                  }
+                  onQuote={() =>
+                    navigate("/", { state: { openCompose: true } })
+                  }
+                  onRequireLogin={() =>
+                    navigate(spaLoginPath(`/app/orgs/${org.slug}`))
+                  }
+                />
+              ))}
+            </div>
+          )}
+          {postsMeta?.has_more ? (
+            <p className="org-profile-posts__more">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={postsLoadingMore}
+                onClick={() => void loadPosts(postsMeta.next_offset)}
+              >
+                {postsLoadingMore ? "読み込み中…" : "さらに表示"}
+              </button>
+            </p>
           ) : null}
         </section>
       </div>

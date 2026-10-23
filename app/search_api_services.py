@@ -20,9 +20,21 @@ def normalize_search_scope(scope: str | None) -> str:
 
 
 def _serialize_post(post: TimelinePost) -> dict:
-    author_name = user_display_name(post.author)
     body = (post.body or "").strip()
     preview = body if len(body) <= 120 else body[:117] + "…"
+    if getattr(post, "organization_id", None):
+        from .organization_post_services import serialize_post_organization
+
+        org = serialize_post_organization(getattr(post, "organization", None)) or {}
+        return {
+            "type": "post",
+            "id": post.pk,
+            "title": preview or "(本文なし)",
+            "subtitle": org.get("name") or "学生団体",
+            "meta": (post.course_name or "").strip() or "学生団体",
+            "url": reverse("home") + f"#post-{post.pk}",
+        }
+    author_name = user_display_name(post.author)
     return {
         "type": "post",
         "id": post.pk,
@@ -67,7 +79,9 @@ def search_home_posts(query: str, viewer=None, *, limit: int = SEARCH_RESULT_LIM
     query = (query or "").strip()
     if not query:
         return []
-    qs = TimelinePost.objects.select_related("author", "author__profile").filter(
+    qs = TimelinePost.objects.select_related(
+        "author", "author__profile", "organization"
+    ).filter(
         Q(body__icontains=query)
         | Q(course_name__icontains=query)
         | Q(professor_name__icontains=query)

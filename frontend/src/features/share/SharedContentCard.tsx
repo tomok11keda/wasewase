@@ -9,6 +9,8 @@ import type {
   TimelineShareContent,
 } from "./api";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
+import { VerifiedOrganizationBadge } from "../../components/VerifiedOrganizationBadge";
+import { organizationPostDisplay } from "../timeline/organizationActor";
 
 function yen(price: number): string {
   return `¥${Number(price || 0).toLocaleString("ja-JP")}`;
@@ -21,27 +23,44 @@ function TimelineShareCard({
   content: TimelineShareContent;
   targetId: number;
 }) {
-  const name = content.author?.display_name || "わせわせ";
-  const handle = content.author?.username
-    ? `@${content.author.username}`
-    : "";
+  const org = organizationPostDisplay(content);
+  const name = org?.name || content.author?.display_name || "わせわせ";
+  const handle = org
+    ? org.kindLabel
+    : content.author?.username
+      ? `@${content.author.username}`
+      : "";
+  const avatarUrl = org ? org.avatarUrl : content.author?.avatar_url || "";
+  const initial = org
+    ? org.initial
+    : content.author?.initial || name.slice(0, 1);
   return (
     <Link className="share-card share-card--timeline" to={`/posts/${targetId}`} state={{ fromWaseWase: true }}>
       <p className="share-card__brand">わせわせ</p>
       <div className="share-card__author">
         <span className="share-card__avatar" aria-hidden="true">
-          {content.author?.avatar_url ? (
-            <img src={content.author.avatar_url} alt="" />
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" />
           ) : (
-            <span>{content.author?.initial || name.slice(0, 1)}</span>
+            <span>{initial}</span>
           )}
         </span>
         <span className="share-card__author-text">
           <strong>
-            <AccountDisplayName
-              name={name}
-              verified={content.author?.is_operator_verified}
-            />
+            {org ? (
+              <span className="account-verified-name">
+                <span className="account-verified-name__text">{name}</span>
+                <VerifiedOrganizationBadge
+                  verified={org.isVerified}
+                  compact
+                />
+              </span>
+            ) : (
+              <AccountDisplayName
+                name={name}
+                verified={content.author?.is_operator_verified}
+              />
+            )}
           </strong>
           {handle ? <span className="share-card__handle">{handle}</span> : null}
         </span>

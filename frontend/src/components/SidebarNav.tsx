@@ -7,7 +7,7 @@ import { analyticsLogout } from "../lib/analytics/client";
 import { TAB_ROUTES } from "../lib/tabs";
 import type { MeResponse } from "../lib/api";
 import { AccountAvatar } from "./AccountAvatar";
-import { AccountSwitcher, PersonalPostingNote } from "./AccountSwitcher";
+import { AccountSwitcher } from "./AccountSwitcher";
 import { AccountDisplayName } from "./VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "./VerifiedOrganizationBadge";
 
@@ -170,10 +170,6 @@ export function SidebarNav() {
           <span className="sidebar-nav__compose-label">投稿する</span>
         </Link>
       )}
-      {orgActor ? (
-        <PersonalPostingNote className="sidebar-nav__compose-note" />
-      ) : null}
-
       <div className={`sidebar-user${user ? "" : " sidebar-user--guest"}`}>
         {user ? (
           <>
