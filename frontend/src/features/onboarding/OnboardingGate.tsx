@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { BootSkeleton } from "../../components/BootSkeleton";
 import { useSession } from "../../lib/session";
 
 export function OnboardingGate() {
@@ -6,11 +7,7 @@ export function OnboardingGate() {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="main-inner">
-        <p>読み込み中…</p>
-      </div>
-    );
+    return <BootSkeleton pathname={location.pathname} />;
   }
 
   if (me?.authenticated && me.onboarding_required) {

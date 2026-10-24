@@ -132,3 +132,60 @@
     opacity: 0.55;
   }
 }
+
+.boot-skeleton {
+  overflow-x: hidden;
+  max-width: 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.boot-skeleton .shell-header-profile,
+.boot-skeleton .shell-header-back,
+.boot-skeleton .shell-header-dm,
+.boot-skeleton .shell-header-notify,
+.boot-skeleton .nav-item,
+.boot-skeleton .sidebar-brand,
+.boot-skeleton .sidebar-nav__item,
+.boot-skeleton .home-sort-tabs,
+.boot-skeleton .home-sort-tab {
+  cursor: default;
+  pointer-events: none;
+}
+
+.boot-skeleton .shell-header-avatar.sk-bone {
+  background: rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+}
+
+.boot-skeleton-feed {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.boot-skeleton .home-sort-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-skeleton .sk-post,
+.timeline-home .sk-post {
+  padding: 10px 12px 8px;
+  gap: 10px;
+  background: #fff;
+  border-bottom-color: var(--tweet-border, #eff3f4);
+}
+
+.timeline-home .home-feed--skeleton {
+  background: #fff;
+  border: none;
+}
+
+@media (min-width: 600px) {
+  .boot-skeleton .sk-post,
+  .timeline-home .sk-post {
+    padding: 12px 16px 10px;
+  }
+}

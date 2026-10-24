@@ -5,6 +5,7 @@ import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { PostCardSkeleton } from "../components/skeleton";
 import {
   createTimelinePost,
   fetchQuotable,
@@ -26,6 +27,10 @@ import {
   type ComposeActorSnapshot,
 } from "../features/timeline/composeActor";
 import { restoreScrollPosition } from "../features/profile/api";
+import {
+  TIMELINE_FEED_SKELETON_COUNT,
+  timelineFeedPhase,
+} from "../features/timeline/timelineFeedPhase";
 import {
   useActiveMainTab,
   useSoftTabRefetch,
@@ -328,6 +333,16 @@ export function HomePage() {
     !browsePreview &&
     !postUnavailable &&
     !visiblePosts.some((p) => p.id === targetPostId);
+
+  const feedPhase = timelineFeedPhase({
+    browsePreview,
+    sessionLoading,
+    feedLoading: loading,
+    waitingForTarget,
+    postUnavailable,
+    error,
+    postCount: visiblePosts.length,
+  });
 
   useEffect(() => {
     if (!onVisibleHome || browsePreview) return;
@@ -643,7 +658,7 @@ export function HomePage() {
         <span className="home-sort-indicator" aria-hidden="true" />
       </nav>
 
-      {authenticated ? (
+      {sessionLoading ? null : authenticated ? (
         <div className="home-compose">
           <button
             type="button"
@@ -713,11 +728,11 @@ export function HomePage() {
           </button>
         </p>
       ) : null}
-      {sessionLoading ||
-      (loading && visiblePosts.length === 0) ||
-      (waitingForTarget && visiblePosts.length === 0) ? (
-        <p className="empty-message">読み込み中…</p>
-      ) : browsePreview ? (
+      {feedPhase === "skeleton" ? (
+        <div className="timeline-list home-feed home-feed--skeleton">
+          <PostCardSkeleton count={TIMELINE_FEED_SKELETON_COUNT} />
+        </div>
+      ) : feedPhase === "browse" ? (
         <BrowsePreviewNotice
           nextPath={
             targetPostId ? `/app/posts/${targetPostId}` : "/app/"
@@ -725,11 +740,11 @@ export function HomePage() {
         >
           タイムラインはログイン後に表示されます。
         </BrowsePreviewNotice>
-      ) : postUnavailable && visiblePosts.length === 0 ? (
+      ) : feedPhase === "unavailable" ? (
         <p className="empty-message">この投稿は表示できません</p>
-      ) : error && visiblePosts.length === 0 ? (
+      ) : feedPhase === "error" ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
-      ) : visiblePosts.length === 0 ? (
+      ) : feedPhase === "empty" ? (
         <p className="empty-message">
           {qParam
             ? "一致する投稿はありません。"

@@ -143,6 +143,10 @@
   }
 }
 
+.timeline-home .home-feed--skeleton .sk-feed {
+  background: #fff;
+}
+
 .timeline-home .empty-message {
   margin: 20px 12px;
 }

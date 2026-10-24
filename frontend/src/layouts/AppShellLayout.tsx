@@ -7,6 +7,7 @@ import { BrowseModeBanner } from "../components/BrowseModeBanner";
 import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
+import { BootSkeleton } from "../components/BootSkeleton";
 import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import { useDetailPushTransition } from "../lib/detailTransition";
 import { useSession } from "../lib/session";
@@ -50,6 +51,10 @@ export function AppShellLayout() {
     };
   }, [hideBottomNav]);
 
+  if (loading) {
+    return <BootSkeleton pathname={location.pathname} />;
+  }
+
   return (
     <>
       <div className="app-shell" data-chrome-mode={chromeMode}>
@@ -67,15 +72,7 @@ export function AppShellLayout() {
           ) : null}
           {chromeMode === "detail" ? <AppDetailHeader /> : null}
           <BrowseModeBanner />
-          {loading ? (
-            <div className="main-inner">
-              <div className="spa-placeholder">
-                <p>読み込み中…</p>
-              </div>
-            </div>
-          ) : (
-            <Outlet />
-          )}
+          <Outlet />
         </div>
 
         <aside className="sidebar-right" aria-label="サイド情報">
