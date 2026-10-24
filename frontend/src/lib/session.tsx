@@ -4,9 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { clearNotificationsCache } from "../features/notifications/notificationsCache";
+import { clearOwnProfileCache } from "../features/profile/ownProfileCache";
 import {
   fetchDmUnreadTotal,
   fetchMe,
@@ -39,6 +42,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const prevUserIdRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -62,6 +66,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const prevUnreadRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const previousUserId = prevUserIdRef.current;
+    if (previousUserId != null && previousUserId !== sessionUserId) {
+      clearNotificationsCache(previousUserId);
+      clearOwnProfileCache(previousUserId);
+    }
+    if (previousUserId != null && sessionUserId == null) {
+      clearNotificationsCache();
+      clearOwnProfileCache();
+    }
+    prevUserIdRef.current = sessionUserId;
+    if (sessionUserId == null) prevUnreadRef.current = null;
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    if (sessionUserId == null) return;
+    const unread = me?.unread_notifications ?? 0;
+    const previousUnread = prevUnreadRef.current;
+    if (previousUnread != null && unread > previousUnread) {
+      clearNotificationsCache(sessionUserId);
+    }
+    prevUnreadRef.current = unread;
+  }, [sessionUserId, me?.unread_notifications]);
 
   useEffect(() => {
     if (!me?.authenticated) return;

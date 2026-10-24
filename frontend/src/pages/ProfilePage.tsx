@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   NavLink,
@@ -20,10 +20,27 @@ import {
   toggleFollow,
   type ProfilePayload,
 } from "../features/profile/api";
+import {
+  clearOwnProfileCache,
+  invalidateOwnProfileCacheAfterEdit,
+  isOwnProfileCacheFresh,
+  readOwnProfileCache,
+  writeOwnProfileCache,
+} from "../features/profile/ownProfileCache";
 import { startDm } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import {
+  PostCardSkeleton,
+  ProductGridSkeleton,
+  ProfileHeaderSkeleton,
+} from "../components/skeleton";
 import { analytics } from "../lib/analytics/events";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { TimetablePage } from "./TimetablePage";
 
@@ -48,12 +65,23 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
+  const viewerId = me?.authenticated ? me.user?.id ?? null : null;
+  const pkRef = useRef(pk);
+  const viewerIdRef = useRef(viewerId);
+  const loadGenRef = useRef(0);
+  useEffect(() => {
+    pkRef.current = pk;
+  }, [pk]);
+  useEffect(() => {
+    viewerIdRef.current = viewerId;
+  }, [viewerId]);
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tabError, setTabError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -62,34 +90,120 @@ export function ProfilePage() {
     [tabParam, profile?.can_view_bookmarks]
   );
 
-  const loadProfile = useCallback(async () => {
-    if (!Number.isFinite(pk)) {
-      setError("invalid_id");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchProfile(pk);
-      setProfile(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "load_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [pk]);
+  const loadProfile = useCallback(
+    async (options: { silent?: boolean; signal?: AbortSignal } = {}) => {
+      if (!Number.isFinite(pk)) {
+        setError("invalid_id");
+        setLoading(false);
+        return;
+      }
+      if (!options.silent) {
+        setLoading(true);
+        setError(null);
+      }
+      const startedViewerId = viewerId;
+      const requestId = nextRequestId(loadGenRef);
+      try {
+        const data = await fetchProfile(pk);
+        if (
+          options.signal?.aborted ||
+          !isLatestRequest(loadGenRef, requestId) ||
+          pkRef.current !== pk
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+        if (data.user.id !== pk) return;
+        setProfile(data);
+        setError(null);
+        if (
+          viewerIdRef.current != null &&
+          data.user.id === viewerIdRef.current
+        ) {
+          if (data.is_own) writeOwnProfileCache(viewerIdRef.current, data);
+          else clearOwnProfileCache(viewerIdRef.current);
+        }
+      } catch (err) {
+        if (
+          options.signal?.aborted ||
+          !isLatestRequest(loadGenRef, requestId) ||
+          pkRef.current !== pk
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+        const message = err instanceof Error ? err.message : "load_failed";
+        if (
+          viewerId != null &&
+          pk === viewerId &&
+          /403|401|forbidden|unauthorized/i.test(message)
+        ) {
+          clearOwnProfileCache(viewerId);
+        }
+        if (!options.silent) {
+          setProfile(null);
+          setError(message);
+        }
+      } finally {
+        if (
+          !options.signal?.aborted &&
+          isLatestRequest(loadGenRef, requestId) &&
+          pkRef.current === pk
+        ) {
+          setLoading(false);
+        }
+      }
+    },
+    [pk, viewerId]
+  );
 
   useEffect(() => {
     if (sessionLoading) return;
     if (browsePreview) {
       setLoading(false);
       setProfile(null);
+      setPosts([]);
+      setProducts([]);
       setError(null);
+      setTabError(null);
+      setMenuOpen(false);
       return;
     }
-    void loadProfile();
-  }, [sessionLoading, browsePreview, loadProfile]);
+    setMenuOpen(false);
+    setPosts([]);
+    setProducts([]);
+    setTabError(null);
+    const cached =
+      viewerId != null && viewerId === pk ? readOwnProfileCache(viewerId) : null;
+    if (cached) {
+      setProfile(cached.profile);
+      setLoading(false);
+      setError(null);
+    } else {
+      setProfile(null);
+      setLoading(true);
+      setError(null);
+    }
+    const ac = new AbortController();
+    if (cached && isOwnProfileCacheFresh(cached)) {
+      return () => ac.abort();
+    }
+    void loadProfile({ silent: Boolean(cached), signal: ac.signal });
+    return () => ac.abort();
+  }, [sessionLoading, browsePreview, pk, viewerId, loadProfile]);
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      if (browsePreview || sessionLoading || !Number.isFinite(pk)) return;
+      if (viewerId != null && viewerId === pk) {
+        invalidateOwnProfileCacheAfterEdit(viewerId);
+      }
+      void loadProfile({ silent: true });
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [browsePreview, sessionLoading, pk, viewerId, loadProfile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -112,6 +226,7 @@ export function ProfilePage() {
         return;
       }
       setTabLoading(true);
+      setTabError(null);
       try {
         if (tab === "posts") {
           const list = await fetchProfilePosts(pk);
@@ -125,7 +240,7 @@ export function ProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "tab_failed");
+          setTabError(err instanceof Error ? err.message : "tab_failed");
         }
       } finally {
         if (!cancelled) setTabLoading(false);
@@ -221,11 +336,26 @@ export function ProfilePage() {
     );
   }
 
-  if (loading) {
+  const showProfileSkeleton =
+    !browsePreview && !profile && (sessionLoading || loading) && !error;
+
+  if (showProfileSkeleton) {
     return (
       <div className="profile-page" data-spa-page="プロフィール">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <ProfileHeaderSkeleton variant="user" />
+          <ProfileTabsNav
+            pk={pk}
+            tab={tab}
+            canViewBookmarks={false}
+          />
+          {tab === "flea" ? (
+            <ProductGridSkeleton />
+          ) : tab === "timetable" ? (
+            <PostCardSkeleton count={2} />
+          ) : (
+            <PostCardSkeleton />
+          )}
         </div>
       </div>
     );
@@ -367,6 +497,11 @@ export function ProfilePage() {
                   `/app/users/${u.id}/posts`
                 )}`}
                 title="プロフィール編集は従来ページで行います"
+                onClick={() => {
+                  if (viewerId != null) {
+                    invalidateOwnProfileCacheAfterEdit(viewerId);
+                  }
+                }}
               >
                 プロフィールを編集
               </a>
@@ -441,31 +576,26 @@ export function ProfilePage() {
           </div>
         </section>
 
-        <nav className="profile-tabs" aria-label="プロフィールタブ">
-          {TABS.map((t) => (
-            <NavLink
-              key={t.key}
-              to={`/users/${pk}/${t.key}`}
-              className={({ isActive }) =>
-                `profile-tab${isActive || (t.key === "posts" && tab === "posts") ? " is-active" : ""}`
-              }
-            >
-              {t.label}
-            </NavLink>
-          ))}
-          {profile.can_view_bookmarks ? (
-            <NavLink
-              to={`/users/${pk}/bookmarks`}
-              className={({ isActive }) =>
-                `profile-tab${isActive ? " is-active" : ""}`
-              }
-            >
-              ブックマーク
-            </NavLink>
-          ) : null}
-        </nav>
+        <ProfileTabsNav
+          pk={pk}
+          tab={tab}
+          canViewBookmarks={profile.can_view_bookmarks}
+        />
 
-        {tabLoading ? <p className="profile-empty">読み込み中…</p> : null}
+        {tabError ? (
+          <p className="profile-empty">読み込みに失敗しました（{tabError}）</p>
+        ) : null}
+
+        {tabLoading &&
+        (tab === "posts" || tab === "bookmarks") &&
+        posts.length === 0 &&
+        !tabError ? (
+          <PostCardSkeleton />
+        ) : null}
+
+        {tabLoading && tab === "flea" && products.length === 0 && !tabError ? (
+          <ProductGridSkeleton />
+        ) : null}
 
         {!tabLoading &&
         !profile.can_view_content &&
@@ -476,7 +606,10 @@ export function ProfilePage() {
           </div>
         ) : null}
 
-        {!tabLoading && profile.can_view_content && tab === "posts" ? (
+        {profile.can_view_content &&
+        tab === "posts" &&
+        (posts.length > 0 || !tabLoading) &&
+        !tabError ? (
           posts.length ? (
             <div className="timeline-feed">
               {posts.map((post) => (
@@ -506,7 +639,9 @@ export function ProfilePage() {
           )
         ) : null}
 
-        {!tabLoading && tab === "bookmarks" ? (
+        {tab === "bookmarks" &&
+        (posts.length > 0 || !tabLoading) &&
+        !tabError ? (
           posts.length ? (
             <div className="timeline-feed">
               {posts.map((post) => (
@@ -534,7 +669,10 @@ export function ProfilePage() {
           )
         ) : null}
 
-        {!tabLoading && profile.can_view_content && tab === "flea" ? (
+        {profile.can_view_content &&
+        tab === "flea" &&
+        (products.length > 0 || !tabLoading) &&
+        !tabError ? (
           products.length ? (
             <div className="product-grid profile-product-grid">
               {products.map((p) => (
@@ -570,6 +708,42 @@ export function ProfilePage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ProfileTabsNav({
+  pk,
+  tab,
+  canViewBookmarks,
+}: {
+  pk: number;
+  tab: TabKey;
+  canViewBookmarks: boolean;
+}) {
+  return (
+    <nav className="profile-tabs" aria-label="プロフィールタブ">
+      {TABS.map((t) => (
+        <NavLink
+          key={t.key}
+          to={`/users/${pk}/${t.key}`}
+          className={({ isActive }) =>
+            `profile-tab${isActive || (t.key === "posts" && tab === "posts") ? " is-active" : ""}`
+          }
+        >
+          {t.label}
+        </NavLink>
+      ))}
+      {canViewBookmarks ? (
+        <NavLink
+          to={`/users/${pk}/bookmarks`}
+          className={({ isActive }) =>
+            `profile-tab${isActive ? " is-active" : ""}`
+          }
+        >
+          ブックマーク
+        </NavLink>
+      ) : null}
+    </nav>
   );
 }
 

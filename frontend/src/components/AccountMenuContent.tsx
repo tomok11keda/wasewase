@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
+import { invalidateOwnProfileCacheAfterEdit } from "../features/profile/ownProfileCache";
 import { organizationInitial } from "../features/orgs/orgProfile";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
@@ -199,7 +200,10 @@ export function AccountMenuContent({
             <li>
               <ClassicLink
                 href={`/mypage/edit/?next=${encodeURIComponent(spaProfile)}`}
-                onNavigate={onNavigate}
+                onNavigate={() => {
+                  if (user?.id) invalidateOwnProfileCacheAfterEdit(user.id);
+                  onNavigate?.();
+                }}
               >
                 プロフィール設定
               </ClassicLink>

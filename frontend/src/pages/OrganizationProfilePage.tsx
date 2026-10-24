@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { PostCardSkeleton, ProfileHeaderSkeleton } from "../components/skeleton";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
 import { spaLoginPath } from "../features/auth/api";
 import {
@@ -24,9 +25,17 @@ import { fetchRecruitingChat } from "../features/orgs/recruitingChatApi";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import { isBrowsePreview, useSession } from "../lib/session";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function statusFromError(err: unknown): string {
-  if (err instanceof OrganizationRequestError) return err.code;
+  if (err instanceof OrganizationRequestError) {
+    if (err.status === 403 || err.code === "forbidden") return "not_found";
+    return err.code;
+  }
   return "load_failed";
 }
 
@@ -35,6 +44,7 @@ export function OrganizationProfilePage() {
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
+  const viewerId = me?.authenticated ? me.user?.id ?? null : null;
   const [payload, setPayload] = useState<OrganizationProfilePayload | null>(
     null
   );
@@ -52,67 +62,145 @@ export function OrganizationProfilePage() {
   );
   const [recruitingLoading, setRecruitingLoading] = useState(false);
   const [recruitingError, setRecruitingError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!slug) {
-      setError("not_found");
-      setPayload(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchOrganizationProfile(slug);
-      setPayload(data);
-    } catch (err) {
-      setPayload(null);
-      setRecruiting(null);
-      setError(statusFromError(err));
-    } finally {
-      setLoading(false);
-    }
+  const slugRef = useRef(slug);
+  const viewerIdRef = useRef(viewerId);
+  const loadGenRef = useRef(0);
+  const postsGenRef = useRef(0);
+  const recruitingGenRef = useRef(0);
+  useEffect(() => {
+    slugRef.current = slug;
   }, [slug]);
+  useEffect(() => {
+    viewerIdRef.current = viewerId;
+  }, [viewerId]);
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!slug) {
+        setError("not_found");
+        setPayload(null);
+        setLoading(false);
+        return;
+      }
+      const requestedSlug = slug;
+      const startedViewerId = viewerId;
+      const requestId = nextRequestId(loadGenRef);
+      setLoading(true);
+      setError(null);
+      setPayload(null);
+      setPosts([]);
+      setPostsMeta(null);
+      setPostsError(null);
+      setRecruiting(null);
+      setRecruitingError(null);
+      try {
+        const data = await fetchOrganizationProfile(requestedSlug);
+        if (
+          signal?.aborted ||
+          !isLatestRequest(loadGenRef, requestId) ||
+          slugRef.current !== requestedSlug
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+        setPayload(data);
+      } catch (err) {
+        if (
+          signal?.aborted ||
+          !isLatestRequest(loadGenRef, requestId) ||
+          slugRef.current !== requestedSlug
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+        setPayload(null);
+        setRecruiting(null);
+        setError(statusFromError(err));
+      } finally {
+        if (
+          !signal?.aborted &&
+          isLatestRequest(loadGenRef, requestId) &&
+          slugRef.current === requestedSlug &&
+          isSameUserScope(startedViewerId, viewerIdRef.current)
+        ) {
+          setLoading(false);
+        }
+      }
+    },
+    [slug, viewerId]
+  );
 
   useEffect(() => {
     if (sessionLoading) return;
     if (browsePreview) {
       setLoading(false);
       setPayload(null);
+      setPosts([]);
+      setPostsMeta(null);
+      setRecruiting(null);
       setError(null);
       return;
     }
-    void load();
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => ac.abort();
   }, [sessionLoading, browsePreview, load]);
 
   const loadPosts = useCallback(
     async (nextOffset = 0) => {
       if (!slug) return;
+      const requestedSlug = slug;
+      const startedViewerId = viewerId;
+      const requestId =
+        nextOffset > 0 ? postsGenRef.current : nextRequestId(postsGenRef);
       if (nextOffset > 0) setPostsLoadingMore(true);
       else setPostsLoading(true);
       setPostsError(null);
       try {
-        const data = await fetchOrganizationPosts(slug, nextOffset);
+        const data = await fetchOrganizationPosts(requestedSlug, nextOffset);
+        if (
+          !isLatestRequest(postsGenRef, requestId) ||
+          slugRef.current !== requestedSlug
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
         setPostsMeta(data);
         setPosts((prev) =>
           nextOffset > 0 ? [...prev, ...data.posts] : data.posts
         );
       } catch (err) {
+        if (
+          !isLatestRequest(postsGenRef, requestId) ||
+          slugRef.current !== requestedSlug
+        ) {
+          return;
+        }
+        if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
         if (nextOffset === 0) {
           setPosts([]);
           setPostsMeta(null);
         }
         setPostsError(statusFromError(err));
       } finally {
-        setPostsLoading(false);
-        setPostsLoadingMore(false);
+        if (
+          isLatestRequest(postsGenRef, requestId) &&
+          slugRef.current === requestedSlug &&
+          isSameUserScope(startedViewerId, viewerIdRef.current)
+        ) {
+          setPostsLoading(false);
+          setPostsLoadingMore(false);
+        }
       }
     },
-    [slug]
+    [slug, viewerId]
   );
 
   const loadRecruiting = useCallback(async () => {
     if (!slug || !payload) return;
+    const requestedSlug = slug;
+    const startedViewerId = viewerId;
+    const requestId = nextRequestId(recruitingGenRef);
     const summary = parseRecruitingChat(payload.recruiting_chat);
     setRecruiting({
       ok: true,
@@ -123,8 +211,23 @@ export function OrganizationProfilePage() {
     setRecruitingLoading(true);
     setRecruitingError(null);
     try {
-      setRecruiting(await fetchRecruitingChat(slug));
+      const next = await fetchRecruitingChat(requestedSlug);
+      if (
+        !isLatestRequest(recruitingGenRef, requestId) ||
+        slugRef.current !== requestedSlug
+      ) {
+        return;
+      }
+      if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+      setRecruiting(next);
     } catch {
+      if (
+        !isLatestRequest(recruitingGenRef, requestId) ||
+        slugRef.current !== requestedSlug
+      ) {
+        return;
+      }
+      if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
       setRecruiting({
         ok: true,
         recruiting_chat: summary,
@@ -133,9 +236,15 @@ export function OrganizationProfilePage() {
       });
       setRecruitingError("新歓チャットの最新情報を取得できませんでした。");
     } finally {
-      setRecruitingLoading(false);
+      if (
+        isLatestRequest(recruitingGenRef, requestId) &&
+        slugRef.current === requestedSlug &&
+        isSameUserScope(startedViewerId, viewerIdRef.current)
+      ) {
+        setRecruitingLoading(false);
+      }
     }
-  }, [slug, payload]);
+  }, [slug, payload, viewerId]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview || !payload || !slug) return;
@@ -165,11 +274,15 @@ export function OrganizationProfilePage() {
     );
   }
 
-  if (loading || sessionLoading) {
+  if ((loading || sessionLoading) && !payload && !error) {
     return (
       <div className="profile-page org-profile-page" data-spa-page="団体">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <ProfileHeaderSkeleton variant="org" />
+          <section className="org-profile-posts" aria-label="投稿">
+            <h2 className="org-profile-posts__title">投稿</h2>
+            <PostCardSkeleton />
+          </section>
         </div>
       </div>
     );
@@ -317,9 +430,9 @@ export function OrganizationProfilePage() {
           ) : null}
           {postsMeta?.unpublished && !payload.can_manage ? (
             <p className="org-profile-empty">投稿はまだ公開されていません。</p>
-          ) : postsLoading ? (
-            <p className="org-profile-empty">投稿を読み込み中…</p>
-          ) : postsError ? (
+          ) : postsLoading && posts.length === 0 && !postsError ? (
+            <PostCardSkeleton />
+          ) : postsError && posts.length === 0 ? (
             <p className="org-profile-empty">
               投稿を読み込めませんでした。
               <button

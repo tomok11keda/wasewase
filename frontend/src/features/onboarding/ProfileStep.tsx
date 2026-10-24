@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { ImagePickField } from "../../components/ImagePickField";
 import type { OnboardingProfile } from "./api";
 import { saveOnboardingProfile } from "./api";
+import { clearOwnProfileCache } from "../profile/ownProfileCache";
 
 type Props = {
   profile: OnboardingProfile;
@@ -105,6 +106,7 @@ export function ProfileStep({ profile, faculties, onDone }: Props) {
         if (firstKey) goTo(ERROR_SLIDE[firstKey]);
         return;
       }
+      clearOwnProfileCache();
       onDone();
     } catch {
       setError("保存に失敗しました。");

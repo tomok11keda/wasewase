@@ -21,7 +21,13 @@ export async function fetchNotifications(markRead = true): Promise<{
     headers: { Accept: "application/json" },
   });
   const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "notifications_failed");
+  if (!res.ok || !data.ok) {
+    const error = new Error(data.error || "notifications_failed") as Error & {
+      status?: number;
+    };
+    error.status = res.status;
+    throw error;
+  }
   return {
     notifications: data.notifications || [],
     unread_count: Number(data.unread_count || 0),

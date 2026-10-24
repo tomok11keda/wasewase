@@ -6,6 +6,7 @@ import {
   fetchProfile,
   updatePrivacy,
 } from "../features/profile/api";
+import { invalidateOwnProfileCacheAfterEdit } from "../features/profile/ownProfileCache";
 
 export function SettingsPage() {
   const { me, loading: sessionLoading } = useSession();
@@ -53,6 +54,7 @@ export function SettingsPage() {
     setError(null);
     try {
       const result = await updatePrivacy(next);
+      if (me?.user?.id) invalidateOwnProfileCacheAfterEdit(me.user.id);
       setIsPrivate(result.is_private);
       setSavedMsg(
         result.is_private
