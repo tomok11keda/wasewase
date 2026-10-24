@@ -667,51 +667,112 @@ html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
   }
 }
 
-/* Message-stack iOS push: header + body travel together. */
-@keyframes wase-stack-push-in {
-  from {
-    transform: translate3d(100%, 0, 0);
-  }
-  to {
-    transform: none;
-  }
-}
-
-@keyframes wase-stack-pop-out {
-  from {
-    transform: none;
-  }
-  to {
-    transform: translate3d(100%, 0, 0);
-  }
-}
-
+/* Message-stack iOS push. Keep duration/easing in sync with stackTransition.ts. */
+html.wase-stack-prepare-push,
 html.wase-stack-push,
+html.wase-stack-prepare-pop,
 html.wase-stack-pop {
   overflow-x: clip;
 }
 
-html.wase-stack-push .main-column,
-html.wase-stack-pop .main-column {
-  will-change: transform;
+html.wase-stack-prepare-push .site-header--detail,
+html.wase-stack-prepare-push .tab-keep-alive-outlet:not(.is-hidden),
+html.wase-stack-push .site-header--detail,
+html.wase-stack-push .tab-keep-alive-outlet:not(.is-hidden),
+html.wase-stack-prepare-pop .site-header--detail,
+html.wase-stack-prepare-pop .tab-keep-alive-outlet:not(.is-hidden),
+html.wase-stack-pop .site-header--detail,
+html.wase-stack-pop .tab-keep-alive-outlet:not(.is-hidden) {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
 }
 
-html.wase-stack-push .main-column {
-  animation: wase-stack-push-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+html.wase-stack-prepare-push .site-header--detail,
+html.wase-stack-prepare-push .tab-keep-alive-outlet:not(.is-hidden) {
+  transform: translate3d(100%, 0, 0);
+  transition: none;
 }
 
-html.wase-stack-pop .main-column {
+html.wase-stack-push .tab-keep-alive-outlet:not(.is-hidden),
+html.wase-stack-prepare-pop .tab-keep-alive-outlet:not(.is-hidden),
+html.wase-stack-pop .tab-keep-alive-outlet:not(.is-hidden) {
   position: relative;
   z-index: 2;
   background: var(--bg, #f7f9fc);
-  animation: wase-stack-pop-out 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  box-shadow: -16px 0 40px rgba(15, 20, 25, 0.12);
+}
+
+html.wase-stack-push .site-header--detail,
+html.wase-stack-push .tab-keep-alive-outlet:not(.is-hidden) {
+  transform: translate3d(0, 0, 0);
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.wase-stack-prepare-pop .site-header--detail,
+html.wase-stack-prepare-pop .tab-keep-alive-outlet:not(.is-hidden) {
+  transform: translate3d(0, 0, 0);
+  transition: none;
+}
+
+html.wase-stack-pop .site-header--detail,
+html.wase-stack-pop .tab-keep-alive-outlet:not(.is-hidden) {
+  transform: translate3d(100%, 0, 0);
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.wase-stack-prepare-push .tab-keep-alive-stack.is-back-underlay,
+html.wase-stack-push .tab-keep-alive-stack.is-back-underlay,
+html.wase-stack-prepare-pop .tab-keep-alive-stack.is-back-underlay,
+html.wase-stack-pop .tab-keep-alive-stack.is-back-underlay {
+  top: calc(-1 * var(--wase-chrome-offset, var(--wase-header-h, 0px)));
+}
+
+html.wase-stack-prepare-push .tab-keep-alive-stack.is-back-underlay {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  transition: none;
+}
+
+html.wase-stack-push .tab-keep-alive-stack.is-back-underlay {
+  transform: translate3d(-22%, 0, 0);
+  opacity: 0.96;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.wase-stack-prepare-pop .tab-keep-alive-stack.is-back-underlay {
+  transform: translate3d(-22%, 0, 0);
+  opacity: 0.96;
+  transition: none;
+}
+
+html.wase-stack-pop .tab-keep-alive-stack.is-back-underlay {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.wase-stack-push .main-column,
-  html.wase-stack-pop .main-column {
-    animation: none;
+  html.wase-stack-prepare-push .site-header--detail,
+  html.wase-stack-prepare-push .tab-keep-alive-outlet:not(.is-hidden),
+  html.wase-stack-push .site-header--detail,
+  html.wase-stack-push .tab-keep-alive-outlet:not(.is-hidden),
+  html.wase-stack-prepare-pop .site-header--detail,
+  html.wase-stack-prepare-pop .tab-keep-alive-outlet:not(.is-hidden),
+  html.wase-stack-pop .site-header--detail,
+  html.wase-stack-pop .tab-keep-alive-outlet:not(.is-hidden),
+  html.wase-stack-prepare-push .tab-keep-alive-stack.is-back-underlay,
+  html.wase-stack-push .tab-keep-alive-stack.is-back-underlay,
+  html.wase-stack-prepare-pop .tab-keep-alive-stack.is-back-underlay,
+  html.wase-stack-pop .tab-keep-alive-stack.is-back-underlay {
+    transition: none;
+    transform: none;
+    opacity: 1;
+    box-shadow: none;
   }
 }
 

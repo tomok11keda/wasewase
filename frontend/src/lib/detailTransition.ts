@@ -13,13 +13,17 @@ import {
   stackPopState,
 } from "./messageStack";
 import {
-  applyStackEnter,
-  applyStackExit,
   clearStackTransitionClasses,
+  commitStackEnter,
+  commitStackExit,
+  prepareStackEnter,
+  prepareStackExit,
   queryStackSurface,
+  scheduleStackCommit,
   shouldPlayStackPush,
-  STACK_EXIT_ANIMATION,
   STACK_PUSH_MS,
+  STACK_UNDERLAY_CLASS,
+  waitForStackTransition,
 } from "./stackTransition";
 import { matchMainTab, normalizeSpaPath } from "./tabs";
 import {
@@ -49,7 +53,11 @@ export function subscribeDetailPopVisual(onChange: () => void): () => void {
 
 export function getDetailPopVisualSnapshot(): boolean {
   if (typeof document === "undefined") return false;
-  return document.documentElement.classList.contains(DETAIL_POP_CLASS);
+  const root = document.documentElement;
+  return (
+    root.classList.contains(DETAIL_POP_CLASS) ||
+    root.classList.contains(STACK_UNDERLAY_CLASS)
+  );
 }
 
 function setHtmlPopClass(on: boolean): void {
@@ -203,12 +211,13 @@ export function requestDetailHeaderBack(
   setHtmlPopClass(false);
 
   if (isMessageStackPath(pathname)) {
-    applyStackExit(root);
-    void waitForNamedAnimation(
-      queryStackSurface(),
-      STACK_EXIT_ANIMATION,
-      STACK_PUSH_MS
-    ).then(go);
+    const withUnderlay = matchChromeMode(pathname) === "detail";
+    prepareStackExit(root, withUnderlay);
+    notifyDetailPopVisual();
+    scheduleStackCommit(() => {
+      commitStackExit(root);
+      void waitForStackTransition(queryStackSurface(), STACK_PUSH_MS).then(go);
+    });
     return;
   }
 
@@ -249,12 +258,12 @@ export function requestStackHeaderBack(
   const root = document.documentElement;
   root.classList.remove(DETAIL_PUSH_CLASS);
   setHtmlPopClass(false);
-  applyStackExit(root);
-  void waitForNamedAnimation(
-    queryStackSurface(),
-    STACK_EXIT_ANIMATION,
-    STACK_PUSH_MS
-  ).then(go);
+  prepareStackExit(root, false);
+  notifyDetailPopVisual();
+  scheduleStackCommit(() => {
+    commitStackExit(root);
+    void waitForStackTransition(queryStackSurface(), STACK_PUSH_MS).then(go);
+  });
 }
 
 /** Apply enter animation on <html> for one navigation, then drop it. */
@@ -289,6 +298,7 @@ export function useDetailPushTransition(): void {
     clearStackTransitionClasses(root);
     setHtmlPopClass(false);
     releaseDetailBackLock();
+    notifyDetailPopVisual();
 
     const samePath =
       normalizeSpaPath(previousPath) === normalizeSpaPath(location.pathname);
@@ -302,13 +312,24 @@ export function useDetailPushTransition(): void {
       if (fromKey) saveScrollPosition(fromKey);
       window.scrollTo(0, 0);
       if (prefersReducedMotion()) return;
-      applyStackEnter(root);
+      detailBackInFlight = true;
+      const fromMain = matchMainTab(previousPath) != null;
+      prepareStackEnter(root, fromMain);
+      notifyDetailPopVisual();
+      const cancelCommit = scheduleStackCommit(() => {
+        commitStackEnter(root);
+      });
       const timer = window.setTimeout(() => {
         clearStackTransitionClasses(root);
-      }, STACK_PUSH_MS + 40);
+        releaseDetailBackLock();
+        notifyDetailPopVisual();
+      }, STACK_PUSH_MS + 80);
       return () => {
+        cancelCommit();
         window.clearTimeout(timer);
         clearStackTransitionClasses(root);
+        releaseDetailBackLock();
+        notifyDetailPopVisual();
       };
     }
 

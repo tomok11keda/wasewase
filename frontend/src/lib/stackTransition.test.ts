@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isMessageStackPath } from "./messageStack.ts";
-import { shouldPlayStackPush } from "./stackTransition.ts";
+import {
+  STACK_EASING,
+  STACK_PUSH_MS,
+  shouldPlayStackPush,
+} from "./stackTransition.ts";
+
+test("stack motion uses a 360ms iOS-style ease-out, not a snap", () => {
+  assert.equal(STACK_PUSH_MS, 360);
+  assert.equal(STACK_EASING, "cubic-bezier(0.22, 1, 0.36, 1)");
+});
 
 const stack = (pathname: string) => isMessageStackPath(pathname);
 
