@@ -31,9 +31,11 @@ import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { OrganizationEditPage } from "./pages/OrganizationEditPage";
 import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
 import { OrganizationRecruitingChatApplicationsPage } from "./pages/OrganizationRecruitingChatApplicationsPage";
+import { OrganizationRecruitingChatInfoPage } from "./pages/OrganizationRecruitingChatInfoPage";
 import { OrganizationRecruitingChatMembersPage } from "./pages/OrganizationRecruitingChatMembersPage";
 import { OrganizationRecruitingChatPage } from "./pages/OrganizationRecruitingChatPage";
 import { OrganizationRecruitingChatSettingsPage } from "./pages/OrganizationRecruitingChatSettingsPage";
+import { GroupRoomInfoPage } from "./pages/GroupRoomInfoPage";
 import { RecruitingChatRoomRedirectPage } from "./pages/RecruitingChatRoomRedirectPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SearchPage } from "./pages/SearchPage";
@@ -97,6 +99,10 @@ function NestedAppRoutes() {
       <Route path="courses/:offeringPk/talk" element={<CourseTalkPage />} />
       <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
       <Route
+        path="organizations/:slug/recruiting-chat/info"
+        element={<OrganizationRecruitingChatInfoPage />}
+      />
+      <Route
         path="organizations/:slug/recruiting-chat/settings"
         element={<OrganizationRecruitingChatSettingsPage />}
       />
@@ -138,6 +144,7 @@ function NestedAppRoutes() {
       <Route path="dm" element={<DmInboxPage />} />
       <Route path="dm/requests" element={<MessageRequestsPage />} />
       <Route path="dm/groups/new" element={<GroupCreatePage />} />
+      <Route path="dm/groups/:roomPk/info" element={<GroupRoomInfoPage />} />
       <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />
       <Route
         path="dm/recruiting/:roomPk"

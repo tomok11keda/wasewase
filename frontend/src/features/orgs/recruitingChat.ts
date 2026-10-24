@@ -134,6 +134,10 @@ export function recruitingChatPath(slug: string): string {
   return `/organizations/${slug}/recruiting-chat`;
 }
 
+export function recruitingChatInfoPath(slug: string): string {
+  return `${recruitingChatPath(slug)}/info`;
+}
+
 export function recruitingChatSettingsPath(slug: string): string {
   return `${recruitingChatPath(slug)}/settings`;
 }

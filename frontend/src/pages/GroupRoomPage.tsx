@@ -21,11 +21,14 @@ import {
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { ChatDateDivider } from "../features/chat/ChatDateDivider";
+import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
 import {
   ChatReplyPreview,
   type ReplyTarget,
 } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import { buildChatThread } from "../features/chat/chatThread";
 import {
   isChatNearBottom,
   mergeUniqueByIdAsc,
@@ -183,7 +186,7 @@ export function GroupRoomPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !canSend) return;
+    if (!body.trim() || !canSend || busy) return;
     const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
@@ -271,36 +274,14 @@ export function GroupRoomPage() {
   return (
     <div className="dm-page dm-room-page" data-spa-page="メッセージ">
       <main className="main-inner dm-room-main">
-        <p className="dm-room-top">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-        </p>
-
-        <section className="dm-partner-card">
-          <h1 className="dm-partner-name">{room.name}</h1>
-          <p className="dm-partner-meta">
-            メンバー {room.member_count}人
-            {room.members.length ? (
-              <>
-                {" · "}
-                {room.members.slice(0, 5).map((m, index) => (
-                  <span key={m.id ?? `${m.username}-${index}`}>
-                    {index > 0 ? "、" : ""}
-                    <AccountDisplayName
-                      name={m.display_name}
-                      verified={m.is_operator_verified}
-                    />
-                  </span>
-                ))}
-                {room.members.length > 5 ? "…" : ""}
-              </>
-            ) : null}
-            {room.pending_invites?.length
-              ? ` · 招待中 ${room.pending_invites.length}人`
-              : ""}
-          </p>
-        </section>
+        <ChatRoomHeader
+          backTo="/dm"
+          backLabel="メッセージ一覧"
+          title={room.name}
+          subtitle={`メンバー${room.member_count}人`}
+          avatarInitial={(room.name || "G").slice(0, 1)}
+          detailsTo={`/dm/groups/${room.id}/info`}
+        />
 
         {isPending ? (
           <section className="dm-group-invite-banner" aria-label="グループ招待">
@@ -339,9 +320,6 @@ export function GroupRoomPage() {
         ) : null}
 
         <section className="chat-panel" aria-label="グループチャット">
-          <h2>メッセージ</h2>
-          <p className="chat-hint">グループのやり取りです（15秒ごとに自動更新）</p>
-
           <div className="dm-message-area" ref={threadRef}>
             {loadingOlder ? (
               <p className="chat-hint" style={{ textAlign: "center" }}>
@@ -356,23 +334,28 @@ export function GroupRoomPage() {
               <p className="empty-message">まだメッセージはありません。</p>
             ) : (
               <ul className="message-list">
-                {messages.map((m) => (
-                  <ChatThreadMessage
-                    key={m.id}
-                    kind="group"
-                    message={m}
-                    canAct
-                    canReply={canSend}
-                    highlightedId={highlightId}
-                    onReply={setReplyingTo}
-                    onDelete={async (id) => {
-                      const updated = await deleteGroupMessage(roomId, id);
-                      upsertMessage(updated);
-                    }}
-                    onScrollToReply={scrollToReply}
-                    onToast={showToast}
-                  />
-                ))}
+                {buildChatThread(messages).map((entry) =>
+                  entry.kind === "day" ? (
+                    <ChatDateDivider key={entry.key} label={entry.label} />
+                  ) : (
+                    <ChatThreadMessage
+                      key={entry.message.id}
+                      kind="group"
+                      message={entry.message}
+                      layout={entry.layout}
+                      canAct
+                      canReply={canSend}
+                      highlightedId={highlightId}
+                      onReply={setReplyingTo}
+                      onDelete={async (id) => {
+                        const updated = await deleteGroupMessage(roomId, id);
+                        upsertMessage(updated);
+                      }}
+                      onScrollToReply={scrollToReply}
+                      onToast={showToast}
+                    />
+                  )
+                )}
               </ul>
             )}
             <div ref={bottomRef} />

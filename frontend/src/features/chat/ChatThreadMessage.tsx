@@ -5,6 +5,7 @@ import { MessageActionSheet } from "./MessageActionSheet";
 import { ChatMessageReportSheet } from "./ChatMessageReportSheet";
 import { ChatModerationAppealSheet } from "./ChatModerationAppealSheet";
 import type { ReplyTarget } from "./ChatReplyPreview";
+import { chatTimeLabel, type ChatThreadLayout } from "./chatThread";
 import { analytics } from "../../lib/analytics/events";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 
@@ -42,6 +43,7 @@ type Props = {
   /** Show Reply in the sheet (requires send permission). */
   canReply?: boolean;
   highlightedId: number | null;
+  layout?: ChatThreadLayout;
   onReply: (target: ReplyTarget) => void;
   onDelete: (messageId: number) => Promise<void>;
   onScrollToReply: (messageId: number) => void;
@@ -54,6 +56,7 @@ export function ChatThreadMessage({
   canAct,
   canReply = true,
   highlightedId,
+  layout,
   onReply,
   onDelete,
   onScrollToReply,
@@ -80,10 +83,11 @@ export function ChatThreadMessage({
   }, [canAct, isTombstone, kind]);
 
   const lp = useLongPress({ onLongPress: openSheet, enabled: canAct && !isTombstone });
-  const profilePath =
-    kind === "course" && m.sender_id
-      ? `/users/${m.sender_id}/posts`
-      : null;
+  const showAvatar = layout ? layout.showAvatar : !m.is_mine;
+  const showSender = layout ? layout.showSender : !m.is_mine;
+  const showTime = layout ? layout.showTime : true;
+  const cluster = layout?.cluster || "solo";
+  const profilePath = m.sender_id ? `/users/${m.sender_id}/posts` : null;
   const avatar = m.avatar_url ? (
     <img className="user-avatar--image" src={m.avatar_url} alt="" />
   ) : (
@@ -127,27 +131,34 @@ export function ChatThreadMessage({
       <li
         ref={rowRef}
         id={`chat-msg-${m.id}`}
-        className={`chat-row${m.is_mine ? " is-mine" : ""}${
+        className={`chat-row is-cluster-${cluster}${m.is_mine ? " is-mine" : ""}${
           highlightedId === m.id ? " is-highlight" : ""
-        }${m.is_deleted ? " is-deleted" : ""}${isRemoved ? " is-removed" : ""}`}
+        }${m.is_deleted ? " is-deleted" : ""}${isRemoved ? " is-removed" : ""}${
+          showSender ? "" : " is-continued"
+        }`}
         data-message-id={m.id}
         {...lp}
       >
-        {profilePath ? (
-          <Link
-            className="chat-row__avatar"
-            to={profilePath}
-            aria-label={`${m.sender_name}のプロフィール`}
-          >
-            {avatar}
-          </Link>
-        ) : (
-          <div className="chat-row__avatar" aria-hidden="true">
-            {avatar}
-          </div>
-        )}
+        {!m.is_mine ? (
+          showAvatar && profilePath ? (
+            <Link
+              className="chat-row__avatar"
+              to={profilePath}
+              aria-label={`${m.sender_name}のプロフィール`}
+            >
+              {avatar}
+            </Link>
+          ) : (
+            <div
+              className={`chat-row__avatar${showAvatar ? "" : " is-spacer"}`}
+              aria-hidden="true"
+            >
+              {showAvatar ? avatar : null}
+            </div>
+          )
+        ) : null}
         <div className="chat-row__main">
-          {!m.is_mine ? (
+          {showSender ? (
             <div className="chat-row__sender">
               {profilePath ? (
                 <Link className="chat-row__sender-link" to={profilePath}>
@@ -234,7 +245,9 @@ export function ChatThreadMessage({
               </button>
             ) : null}
             <div className="chat-row__meta">
-              <time className="chat-row__time">{m.created_at}</time>
+              {showTime ? (
+                <time className="chat-row__time">{chatTimeLabel(m.created_at)}</time>
+              ) : null}
               {canAct && !isTombstone ? (
                 <button
                   type="button"

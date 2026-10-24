@@ -11,6 +11,7 @@ import {
   parseRecruitingChatSummary,
   parseRecruitingMember,
   parseRecruitingRoom,
+  recruitingChatInfoPath,
   recruitingChatPath,
   shouldConfirmAutoApprove,
   shouldShowRecruitingSection,
@@ -225,4 +226,8 @@ test("create form validation matches backend name/description limits", () => {
   assert.ok(errors.description);
   assert.equal(joinModeLabel("approval"), "承認制");
   assert.equal(listingStatusLabel("closed"), "募集停止");
+  assert.equal(
+    recruitingChatInfoPath("circle"),
+    "/organizations/circle/recruiting-chat/info"
+  );
 });

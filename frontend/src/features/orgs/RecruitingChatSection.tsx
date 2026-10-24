@@ -24,6 +24,8 @@ type Props = {
   envelope: RecruitingChatEnvelope | null;
   loading?: boolean;
   error?: string | null;
+  /** Hide settings/applications/members — those live on the details screen. */
+  hideManageActions?: boolean;
   onReload: () => void | Promise<void>;
   onUpdated: (chat: RecruitingChat) => void;
 };
@@ -39,6 +41,7 @@ export function RecruitingChatSection({
   envelope,
   loading = false,
   error = null,
+  hideManageActions = false,
   onReload,
   onUpdated,
 }: Props) {
@@ -225,7 +228,7 @@ export function RecruitingChatSection({
             {busy === "leave" ? "退出中…" : "退出する"}
           </button>
         ) : null}
-        {canManage ? (
+        {canManage && !hideManageActions ? (
           <>
             <Link className="btn btn-secondary" to={recruitingChatSettingsPath(slug)}>
               設定

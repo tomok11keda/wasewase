@@ -22,8 +22,11 @@ import {
 } from "../features/courses/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { ChatDateDivider } from "../features/chat/ChatDateDivider";
+import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
 import { ChatReplyPreview, type ReplyTarget } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import { buildChatThread } from "../features/chat/chatThread";
 import {
   isChatNearBottom,
   mergeUniqueByIdAsc,
@@ -201,7 +204,7 @@ export function CourseTalkPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send) return;
+    if (!body.trim() || !room?.can_send || busy) return;
     const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
@@ -275,31 +278,25 @@ export function CourseTalkPage() {
       data-spa-page="授業掲示板"
     >
       <main className="main-inner dm-room-main">
-        <p className="dm-room-top">
-          <Link className="dm-back-text" to="/dm?tab=course">
-            ← 授業掲示板一覧
-          </Link>
-        </p>
-
-        <section className="dm-partner-card course-talk-header">
-          <h1 className="dm-partner-name">{offering.title}</h1>
-          <p className="dm-partner-meta">
-            {offering.instructor}
-            {" ｜ "}
-            {offeringScheduleText(offering)}
-          </p>
-          <p className="course-talk-header__links">
-            <Link to={`/courses/${offering.id}`}>授業詳細</Link>
+        <ChatRoomHeader
+          backTo="/dm?tab=course"
+          backLabel="授業掲示板一覧"
+          title={offering.title}
+          subtitle={`${offering.instructor} · ${offeringScheduleText(offering)}`}
+          avatarInitial={(offering.title || "授").slice(0, 1)}
+          detailsTo={`/courses/${offering.id}`}
+          detailsLabel="授業詳細"
+          trailing={
             <button
               type="button"
-              className="course-talk-leave"
+              className="chat-room-header__leave"
               disabled={leaveBusy}
               onClick={() => void onLeave()}
             >
               退出
             </button>
-          </p>
-        </section>
+          }
+        />
 
         <div className="dm-thread course-talk-thread" ref={threadRef}>
           {loadingOlder ? (
@@ -331,23 +328,31 @@ export function CourseTalkPage() {
             </div>
           ) : (
             <ul className="message-list">
-              {messages.map((m) => (
-                <ChatThreadMessage
-                  key={m.id}
-                  kind="course"
-                  message={m}
-                  canAct
-                  canReply={Boolean(room.can_send)}
-                  highlightedId={highlightId}
-                  onReply={setReplyingTo}
-                  onDelete={async (id) => {
-                    const updated = await deleteCourseTalkMessage(room.id, id);
-                    upsertMessage(updated);
-                  }}
-                  onScrollToReply={scrollToReply}
-                  onToast={showToast}
-                />
-              ))}
+              {buildChatThread(messages).map((entry) =>
+                entry.kind === "day" ? (
+                  <ChatDateDivider key={entry.key} label={entry.label} />
+                ) : (
+                  <ChatThreadMessage
+                    key={entry.message.id}
+                    kind="course"
+                    message={entry.message}
+                    layout={entry.layout}
+                    canAct
+                    canReply={Boolean(room.can_send)}
+                    highlightedId={highlightId}
+                    onReply={setReplyingTo}
+                    onDelete={async (id) => {
+                      const updated = await deleteCourseTalkMessage(
+                        room.id,
+                        id
+                      );
+                      upsertMessage(updated);
+                    }}
+                    onScrollToReply={scrollToReply}
+                    onToast={showToast}
+                  />
+                )
+              )}
             </ul>
           )}
           <div ref={bottomRef} />

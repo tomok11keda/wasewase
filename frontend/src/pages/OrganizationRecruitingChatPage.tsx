@@ -8,11 +8,14 @@ import {
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { spaLoginPath } from "../features/auth/api";
+import { ChatDateDivider } from "../features/chat/ChatDateDivider";
+import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
 import {
   ChatReplyPreview,
   type ReplyTarget,
 } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
+import { buildChatThread } from "../features/chat/chatThread";
 import {
   isChatNearBottom,
   mergeUniqueByIdAsc,
@@ -29,9 +32,7 @@ import {
 } from "../features/orgs/api";
 import { RecruitingChatSection } from "../features/orgs/RecruitingChatSection";
 import {
-  recruitingChatApplicationsPath,
-  recruitingChatMembersPath,
-  recruitingChatSettingsPath,
+  recruitingChatInfoPath,
   type RecruitingChat,
   type RecruitingChatEnvelope,
   type RecruitingRoom,
@@ -41,7 +42,6 @@ import {
   fetchOlderRecruitingMessages,
   fetchRecruitingChat,
   fetchRecruitingRoom,
-  leaveRecruitingChat,
   pollRecruitingMessages,
   sendRecruitingMessage,
 } from "../features/orgs/recruitingChatApi";
@@ -85,7 +85,6 @@ export function OrganizationRecruitingChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [accessLost, setAccessLost] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [leaveBusy, setLeaveBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -339,36 +338,6 @@ export function OrganizationRecruitingChatPage() {
     }
   };
 
-  const onLeave = async () => {
-    if (!slug) return;
-    if (
-      !window.confirm(
-        "新歓チャットから退出しますか？退出するとメッセージを読めなくなります。"
-      )
-    ) {
-      return;
-    }
-    if (leaveBusy) return;
-    setLeaveBusy(true);
-    try {
-      const next = await leaveRecruitingChat(slug);
-      clearThread();
-      setEnvelope((prev) =>
-        prev
-          ? {
-              ...prev,
-              recruiting_chat: next,
-              can_manage: prev.can_manage || next.can_manage,
-            }
-          : prev
-      );
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "退出に失敗しました");
-    } finally {
-      setLeaveBusy(false);
-    }
-  };
-
   if (!slug) return <Navigate to="/" replace />;
 
   if (browsePreview) {
@@ -407,47 +376,28 @@ export function OrganizationRecruitingChatPage() {
     );
   }
 
+  const memberCount = room?.member_count ?? chat?.member_count;
+  const subtitle = [
+    orgLabel || null,
+    "新歓チャット",
+    typeof memberCount === "number" ? `${memberCount}人` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="dm-page dm-room-page org-recruiting-room" data-spa-page="新歓チャット">
       <main className="main-inner dm-room-main">
-        <p className="dm-room-top">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-        </p>
-
-        <section className="dm-partner-card org-recruiting-room__header">
-          {orgAvatar ? (
-            <img
-              className="org-recruiting-room__avatar user-avatar--image"
-              src={orgAvatar}
-              alt=""
-            />
-          ) : (
-            <span className="org-recruiting-room__avatar user-avatar--icon">
-              {organizationInitial(orgLabel || displayName)}
-            </span>
-          )}
-          <div>
-            <h1 className="dm-partner-name">{displayName}</h1>
-            <p className="dm-partner-meta">
-              {orgLabel ? (
-                <Link to={`/orgs/${slug}`}>{orgLabel}</Link>
-              ) : (
-                "新歓チャット"
-              )}
-              {room ? ` · メンバー ${room.member_count}人` : ""}
-            </p>
-          </div>
-        </section>
-
-        {canManage ? (
-          <p className="org-recruiting-room__admin">
-            <Link to={recruitingChatSettingsPath(slug)}>設定</Link>
-            <Link to={recruitingChatApplicationsPath(slug)}>申請管理</Link>
-            <Link to={recruitingChatMembersPath(slug)}>参加者管理</Link>
-          </p>
-        ) : null}
+        <ChatRoomHeader
+          backTo="/dm"
+          backLabel="メッセージ一覧"
+          title={displayName}
+          subtitle={subtitle}
+          avatarUrl={orgAvatar || undefined}
+          avatarInitial={organizationInitial(orgLabel || displayName)}
+          avatarShape="rounded"
+          detailsTo={recruitingChatInfoPath(slug)}
+        />
 
         {accessLost ? (
           <p className="org-recruiting-card__closed" role="status">
@@ -456,9 +406,11 @@ export function OrganizationRecruitingChatPage() {
         ) : null}
 
         {!showThread ? (
+          <div className="dm-message-area org-recruiting-join">
           <RecruitingChatSection
             slug={slug}
             envelope={envelope}
+            hideManageActions
             error={
               error && error !== "forbidden" && error !== "not_found"
                 ? "通信に失敗しました。"
@@ -499,44 +451,32 @@ export function OrganizationRecruitingChatPage() {
                 });
             }}
           />
+          </div>
         ) : (
-          <>
-            {chat?.can_leave ? (
-              <p className="org-recruiting-room__leave">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={leaveBusy}
-                  onClick={() => void onLeave()}
-                >
-                  {leaveBusy ? "退出中…" : "退出する"}
-                </button>
-              </p>
-            ) : null}
-            <section className="chat-panel" aria-label="新歓チャット">
-              <h2>メッセージ</h2>
-              <p className="chat-hint">
-                団体の新歓チャットです（15秒ごとに自動更新）
-              </p>
-              <div className="dm-message-area" ref={threadRef}>
-                {loadingOlder ? (
-                  <p className="chat-hint" style={{ textAlign: "center" }}>
-                    過去のメッセージを読み込み中…
-                  </p>
-                ) : hasMore ? (
-                  <p className="chat-hint" style={{ textAlign: "center" }}>
-                    上にスクロールして過去のメッセージを表示
-                  </p>
-                ) : null}
-                {messages.length === 0 ? (
-                  <p className="empty-message">まだメッセージはありません。</p>
-                ) : (
-                  <ul className="message-list">
-                    {messages.map((m) => (
+          <section className="chat-panel" aria-label="新歓チャット">
+            <div className="dm-message-area" ref={threadRef}>
+              {loadingOlder ? (
+                <p className="chat-hint" style={{ textAlign: "center" }}>
+                  過去のメッセージを読み込み中…
+                </p>
+              ) : hasMore ? (
+                <p className="chat-hint" style={{ textAlign: "center" }}>
+                  上にスクロールして過去のメッセージを表示
+                </p>
+              ) : null}
+              {messages.length === 0 ? (
+                <p className="empty-message">まだメッセージはありません。</p>
+              ) : (
+                <ul className="message-list">
+                  {buildChatThread(messages).map((entry) =>
+                    entry.kind === "day" ? (
+                      <ChatDateDivider key={entry.key} label={entry.label} />
+                    ) : (
                       <ChatThreadMessage
-                        key={m.id}
+                        key={entry.message.id}
                         kind="recruiting"
-                        message={m}
+                        message={entry.message}
+                        layout={entry.layout}
                         canAct
                         canReply={canSend}
                         highlightedId={highlightId}
@@ -554,35 +494,35 @@ export function OrganizationRecruitingChatPage() {
                         onScrollToReply={scrollToReply}
                         onToast={showToast}
                       />
-                    ))}
-                  </ul>
-                )}
-                <div ref={bottomRef} />
-              </div>
-              {canSend ? (
-                <>
-                  {replyingTo ? (
-                    <ChatReplyPreview
-                      reply={replyingTo}
-                      onClear={() => setReplyingTo(null)}
-                    />
-                  ) : null}
-                  <ChatComposeBar
-                    value={body}
-                    onChange={setBody}
-                    onSend={onSend}
-                    busy={busy}
-                    allowMedia={false}
-                    placeholder={replyingTo ? "返信を入力…" : "メッセージを入力..."}
-                  />
-                </>
-              ) : (
-                <p className="dm-group-invite-locked">
-                  メッセージを送信できません。
-                </p>
+                    )
+                  )}
+                </ul>
               )}
-            </section>
-          </>
+              <div ref={bottomRef} />
+            </div>
+            {canSend ? (
+              <>
+                {replyingTo ? (
+                  <ChatReplyPreview
+                    reply={replyingTo}
+                    onClear={() => setReplyingTo(null)}
+                  />
+                ) : null}
+                <ChatComposeBar
+                  value={body}
+                  onChange={setBody}
+                  onSend={onSend}
+                  busy={busy}
+                  allowMedia={false}
+                  placeholder={replyingTo ? "返信を入力…" : "メッセージを入力..."}
+                />
+              </>
+            ) : (
+              <p className="dm-group-invite-locked">
+                メッセージを送信できません。
+              </p>
+            )}
+          </section>
         )}
       </main>
       {toast ? <div className="chat-toast">{toast}</div> : null}

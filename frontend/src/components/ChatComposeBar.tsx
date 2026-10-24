@@ -24,7 +24,7 @@ type Props = {
 
 /**
  * DM / group / trade compose row:
- * left: camera + photo library (always)
+ * left: camera + photo library when allowMedia
  * center: text input
  * right: send (only when text is non-empty)
  *

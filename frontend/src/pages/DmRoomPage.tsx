@@ -20,6 +20,12 @@ import {
 } from "../features/dm/api";
 import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { ChatDateDivider } from "../features/chat/ChatDateDivider";
+import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  buildChatThread,
+  chatTimeLabel,
+} from "../features/chat/chatThread";
 import { SharedContentCard } from "../features/share/SharedContentCard";
 import {
   isChatNearBottom,
@@ -162,7 +168,7 @@ export function DmRoomPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send) return;
+    if (!body.trim() || !room?.can_send || busy) return;
     setBusy(true);
     try {
       const message = await sendDmMessage(roomId, body.trim());
@@ -239,57 +245,32 @@ export function DmRoomPage() {
     ? "?"
     : room.partner?.initial || partnerName.slice(0, 1);
 
+  const partnerProfileTo =
+    !room.is_blocked && room.partner?.id
+      ? `/users/${room.partner.id}/posts`
+      : undefined;
+
   return (
     <div className="dm-page dm-room-page" data-spa-page="メッセージ">
       <main className="main-inner dm-room-main">
-        <p className="dm-room-top">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-        </p>
-
-        {room.partner || room.is_blocked ? (
-          <section
-            className={`dm-partner-card${
-              room.is_blocked ? " dm-partner-card--blocked" : ""
-            }`}
-          >
-            <div className="dm-partner-row">
-              <span className="dm-partner-avatar" aria-hidden="true">
-                {room.partner?.avatar_url && !room.is_blocked ? (
-                  <img
-                    className="user-avatar--image"
-                    src={room.partner.avatar_url}
-                    alt=""
-                  />
-                ) : (
-                  <span className="user-avatar--initial">{partnerInitial}</span>
-                )}
-              </span>
-              <div className="dm-partner-text">
-                <h1 className="dm-partner-name">
-                  {room.is_blocked ? (
-                    partnerName
-                  ) : (
-                    <AccountDisplayName
-                      name={partnerName}
-                      verified={room.partner?.is_operator_verified}
-                    />
-                  )}
-                </h1>
-                <p className="dm-partner-meta">
-                  {room.is_blocked ? (
-                    "ブロック中のためプロフィールは表示できません"
-                  ) : room.partner ? (
-                    <Link to={`/users/${room.partner.id}/posts`}>
-                      プロフィールを見る
-                    </Link>
-                  ) : null}
-                </p>
-              </div>
-            </div>
-          </section>
-        ) : null}
+        <ChatRoomHeader
+          backTo="/dm"
+          backLabel="メッセージ一覧"
+          title={partnerName}
+          subtitle={
+            room.is_blocked
+              ? "ブロック中のためプロフィールは表示できません"
+              : undefined
+          }
+          avatarUrl={
+            room.partner?.avatar_url && !room.is_blocked
+              ? room.partner.avatar_url
+              : undefined
+          }
+          avatarInitial={partnerInitial}
+          detailsTo={partnerProfileTo}
+          detailsLabel="プロフィール"
+        />
 
         {isPendingRequest ? (
           <section className="dm-group-invite-banner" aria-label="メッセージリクエスト">
@@ -335,16 +316,13 @@ export function DmRoomPage() {
         ) : null}
 
         <section className="chat-panel" aria-label="ダイレクトメッセージ">
-          <h2>メッセージ</h2>
           {!room.can_send || room.is_blocked ? (
             <p className="block-banner">
               {room.is_blocked
                 ? "このユーザーをブロック中です。メッセージの送信はできません。"
                 : "このユーザーとはメッセージの送受信が制限されています。"}
             </p>
-          ) : (
-            <p className="chat-hint">1対1のやり取りです（15秒ごとに自動更新）</p>
-          )}
+          ) : null}
 
           <div className="dm-message-area" ref={threadRef}>
             {loadingOlder ? (
@@ -362,42 +340,44 @@ export function DmRoomPage() {
               </p>
             ) : (
               <ul className="message-list">
-                {messages.map((m) => (
-                  <li
-                    key={m.id}
-                    className={`chat-row${m.is_mine ? " is-mine" : ""}`}
-                    data-message-id={m.id}
-                  >
-                    <div className="chat-row__avatar" aria-hidden="true">
-                      {m.avatar_url && !(room.is_blocked && !m.is_mine) ? (
-                        <img
-                          className="user-avatar--image"
-                          src={m.avatar_url}
-                          alt=""
-                        />
-                      ) : (
-                        <span className="user-avatar--initial">
-                          {room.is_blocked && !m.is_mine
-                            ? "?"
-                            : m.sender_initial || "?"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="chat-row__main">
-                      {m.message_kind === "share" && m.share ? (
-                        <SharedContentCard share={m.share} />
-                      ) : (
-                        <div className="chat-row__bubble">{m.body}</div>
-                      )}
-                      <div className="chat-row__meta">
-                        {m.is_mine && m.is_read ? (
-                          <span className="chat-row__read">既読</span>
-                        ) : null}
-                        <time className="chat-row__time">{m.created_at}</time>
+                {buildChatThread(messages, {
+                  showPeerAvatar: false,
+                  showPeerName: false,
+                }).map((entry) => {
+                  if (entry.kind === "day") {
+                    return (
+                      <ChatDateDivider key={entry.key} label={entry.label} />
+                    );
+                  }
+                  const m = entry.message;
+                  return (
+                    <li
+                      key={m.id}
+                      className={`chat-row is-cluster-${entry.layout.cluster}${
+                        m.is_mine ? " is-mine" : ""
+                      }`}
+                      data-message-id={m.id}
+                    >
+                      <div className="chat-row__main">
+                        {m.message_kind === "share" && m.share ? (
+                          <SharedContentCard share={m.share} />
+                        ) : (
+                          <div className="chat-row__bubble">{m.body}</div>
+                        )}
+                        <div className="chat-row__meta">
+                          {m.is_mine && m.is_read ? (
+                            <span className="chat-row__read">既読</span>
+                          ) : null}
+                          {entry.layout.showTime ? (
+                            <time className="chat-row__time">
+                              {chatTimeLabel(m.created_at)}
+                            </time>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             <div ref={bottomRef} />

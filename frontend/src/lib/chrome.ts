@@ -84,25 +84,39 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: `/users/${userPk}/posts` },
     };
   }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/info$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "チャット詳細",
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat` },
+    };
+  }
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/settings$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {
       title: "新歓チャット設定",
-      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
     };
   }
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/applications$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {
       title: "参加申請",
-      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
     };
   }
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/members$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {
       title: "参加者管理",
-      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
+    };
+  }
+  if (/^\/dm\/groups\/\d+\/info$/.test(p)) {
+    const roomPk = p.split("/")[3];
+    return {
+      title: "グループ情報",
+      back: { kind: "fallback", to: `/dm/groups/${roomPk}` },
     };
   }
   if (/^\/orgs\/[^/]+\/edit$/.test(p)) {

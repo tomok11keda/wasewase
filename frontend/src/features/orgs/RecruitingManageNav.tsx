@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   recruitingChatApplicationsPath,
+  recruitingChatInfoPath,
   recruitingChatMembersPath,
   recruitingChatPath,
   recruitingChatSettingsPath,
@@ -17,6 +18,7 @@ export function RecruitingManageNav({ slug, pendingCount }: Props) {
       <NavLink to={recruitingChatPath(slug)} end>
         チャット
       </NavLink>
+      <NavLink to={recruitingChatInfoPath(slug)}>詳細</NavLink>
       <NavLink to={recruitingChatSettingsPath(slug)}>設定</NavLink>
       <NavLink to={recruitingChatApplicationsPath(slug)}>
         申請管理

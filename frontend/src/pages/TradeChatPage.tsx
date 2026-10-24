@@ -22,6 +22,7 @@ import {
 } from "../features/flea/api";
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
+import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import {
   isChatNearBottom,
@@ -281,47 +282,22 @@ export function TradeChatPage() {
   return (
     <div className="trade-chat-page dm-room-page" data-spa-page="フリマ">
       <div className="main-inner dm-room-main">
-        <Link
-          className="back-link"
-          to={`/flea/products/${room.product.id}`}
-          state={productDetailState(room.product)}
-        >
-          ← 商品詳細へ戻る
-        </Link>
-        <p>
-          <Link className="back-link" to="/dm">
-            ← メッセージ一覧
-          </Link>
-        </p>
-
-        <div className="chat-product-card">
-          <div className="chat-product-card-inner">
-            <div className="chat-product-thumb">
-              {room.product_thumbnail_url ? (
-                <img
-                  src={room.product_thumbnail_url}
-                  alt={room.product.name}
-                />
-              ) : (
-                "📦"
-              )}
-            </div>
-            <div>
-              <p className="chat-product-name">{room.product.name}</p>
-              <p className="chat-status">
-                {room.trade_status_label} · 相手:{" "}
-                {room.partner ? (
-                  <AccountDisplayName
-                    name={room.partner.display_name || "—"}
-                    verified={room.partner.is_operator_verified}
-                  />
-                ) : (
-                  "—"
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
+        <ChatRoomHeader
+          backTo="/dm"
+          backLabel="メッセージ一覧"
+          title={room.product.name}
+          subtitle={`${room.trade_status_label}${
+            room.partner
+              ? ` · ${room.partner.display_name || "相手"}`
+              : ""
+          }`}
+          avatarUrl={room.product_thumbnail_url || undefined}
+          avatarInitial="📦"
+          avatarShape="rounded"
+          detailsTo={`/flea/products/${room.product.id}`}
+          detailsState={productDetailState(room.product)}
+          detailsLabel="商品詳細"
+        />
 
         {actionError ? (
           <p className="trade-action-error" role="alert">

@@ -1156,14 +1156,15 @@
 }
 
 .trade-chat-page .chat-item.mine .chat-bubble {
-  background: #f7edf0;
-  color: #222;
-  border: 1px solid #e8c4ca;
+  background: var(--accent, #891e2b);
+  color: #fff;
+  border: none;
   border-bottom-right-radius: 4px;
 }
 
 .trade-chat-page .chat-item.theirs .chat-bubble {
-  background: #f0f3f6;
+  background: #e9ebee;
+  color: #0f1419;
   border-bottom-left-radius: 4px;
 }
 

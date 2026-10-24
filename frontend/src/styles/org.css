@@ -451,6 +451,15 @@
   margin: 0 0 12px;
 }
 
+.dm-room-page .org-recruiting-card {
+  margin: 12px;
+  box-shadow: none;
+}
+
+.dm-room-page .org-recruiting-card__closed {
+  margin: 8px 12px;
+}
+
 @media (max-width: 390px) {
   .org-profile-page .org-profile-header {
     grid-template-columns: 72px minmax(0, 1fr);
