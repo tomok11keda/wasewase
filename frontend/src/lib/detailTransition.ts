@@ -6,6 +6,21 @@ import {
   type NavigationType,
 } from "react-router-dom";
 import { matchChromeMode, resolveDetailBack } from "./chrome";
+import {
+  DM_INBOX_SCROLL_KEY,
+  isDmInboxPath,
+  isMessageStackPath,
+  stackPopState,
+} from "./messageStack";
+import {
+  applyStackEnter,
+  applyStackExit,
+  clearStackTransitionClasses,
+  queryStackSurface,
+  shouldPlayStackPush,
+  STACK_EXIT_ANIMATION,
+  STACK_PUSH_MS,
+} from "./stackTransition";
 import { matchMainTab, normalizeSpaPath } from "./tabs";
 import {
   restoreScrollPosition,
@@ -121,7 +136,8 @@ function queryVisibleDetailOutlet(): HTMLElement | null {
 
 function waitForNamedAnimation(
   el: HTMLElement | null,
-  animationName: string
+  animationName: string,
+  timeoutMs = DETAIL_PUSH_MS
 ): Promise<void> {
   return new Promise((resolve) => {
     let settled = false;
@@ -137,7 +153,7 @@ function waitForNamedAnimation(
       if (event.animationName !== animationName) return;
       settle();
     };
-    const timer = window.setTimeout(settle, DETAIL_PUSH_MS + 40);
+    const timer = window.setTimeout(settle, timeoutMs + 40);
     if (!el) {
       settle();
       return;
@@ -183,7 +199,19 @@ export function requestDetailHeaderBack(
 
   const root = document.documentElement;
   root.classList.remove(DETAIL_PUSH_CLASS);
+  clearStackTransitionClasses(root);
   setHtmlPopClass(false);
+
+  if (isMessageStackPath(pathname)) {
+    applyStackExit(root);
+    void waitForNamedAnimation(
+      queryStackSurface(),
+      STACK_EXIT_ANIMATION,
+      STACK_PUSH_MS
+    ).then(go);
+    return;
+  }
+
   void root.offsetWidth;
   setHtmlPopClass(true);
 
@@ -193,18 +221,64 @@ export function requestDetailHeaderBack(
   ).then(go);
 }
 
-/** Apply `wase-detail-push` on <html> for one enter animation, then drop it. */
+/**
+ * Conversation-header back: play the stack pop, then navigate to `to`.
+ * Destination stays a normal history PUSH so React Router URLs are unchanged;
+ * enter animation is skipped via `waseStackPop` state.
+ */
+export function requestStackHeaderBack(
+  navigate: NavigateFunction,
+  to: string
+): void {
+  if (detailBackInFlight) return;
+  detailBackInFlight = true;
+  let navigated = false;
+
+  const go = () => {
+    if (navigated) return;
+    navigated = true;
+    navigate(to, { state: stackPopState() });
+    window.setTimeout(releaseDetailBackLock, 80);
+  };
+
+  if (prefersReducedMotion()) {
+    go();
+    return;
+  }
+
+  const root = document.documentElement;
+  root.classList.remove(DETAIL_PUSH_CLASS);
+  setHtmlPopClass(false);
+  applyStackExit(root);
+  void waitForNamedAnimation(
+    queryStackSurface(),
+    STACK_EXIT_ANIMATION,
+    STACK_PUSH_MS
+  ).then(go);
+}
+
+/** Apply enter animation on <html> for one navigation, then drop it. */
 export function useDetailPushTransition(): void {
   const location = useLocation();
   const navigationType = useNavigationType();
   const sessionStartRef = useRef(true);
   const prevPathRef = useRef(location.pathname);
 
-  const play = shouldPlayDetailPush({
+  const playStack = shouldPlayStackPush({
     navigationType,
     pathname: location.pathname,
     isSessionStart: sessionStartRef.current,
+    state: location.state,
+    isStackPath: isMessageStackPath,
   });
+  const playDetail =
+    !playStack &&
+    !isMessageStackPath(location.pathname) &&
+    shouldPlayDetailPush({
+      navigationType,
+      pathname: location.pathname,
+      isSessionStart: sessionStartRef.current,
+    });
 
   useLayoutEffect(() => {
     const previousPath = prevPathRef.current;
@@ -212,14 +286,40 @@ export function useDetailPushTransition(): void {
     sessionStartRef.current = false;
     const root = document.documentElement;
     root.classList.remove(DETAIL_PUSH_CLASS);
+    clearStackTransitionClasses(root);
     setHtmlPopClass(false);
     releaseDetailBackLock();
 
-    if (!play) {
+    const samePath =
+      normalizeSpaPath(previousPath) === normalizeSpaPath(location.pathname);
+
+    if (isDmInboxPath(previousPath) && !isDmInboxPath(location.pathname)) {
+      saveScrollPosition(DM_INBOX_SCROLL_KEY);
+    }
+
+    if (playStack && !samePath) {
+      const fromKey = mainTabScrollKey(previousPath);
+      if (fromKey) saveScrollPosition(fromKey);
+      window.scrollTo(0, 0);
+      if (prefersReducedMotion()) return;
+      applyStackEnter(root);
+      const timer = window.setTimeout(() => {
+        clearStackTransitionClasses(root);
+      }, STACK_PUSH_MS + 40);
+      return () => {
+        window.clearTimeout(timer);
+        clearStackTransitionClasses(root);
+      };
+    }
+
+    if (!playDetail) {
       syncMainTabWindowScroll(previousPath, location.pathname);
       if (navigationType === "POP") {
         const key = mainTabScrollKey(location.pathname);
         if (key) restoreScrollPosition(key, true);
+      }
+      if (isDmInboxPath(location.pathname) && !samePath) {
+        restoreScrollPosition(DM_INBOX_SCROLL_KEY, true);
       }
       return;
     }
@@ -237,5 +337,12 @@ export function useDetailPushTransition(): void {
       window.clearTimeout(timer);
       root.classList.remove(DETAIL_PUSH_CLASS);
     };
-  }, [location.key, location.pathname, navigationType, play]);
+  }, [
+    location.key,
+    location.pathname,
+    location.state,
+    navigationType,
+    playDetail,
+    playStack,
+  ]);
 }

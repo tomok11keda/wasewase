@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import type { MouseEvent, ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
+import { requestStackHeaderBack } from "../../lib/detailTransition";
+import { isMessageStackPath } from "../../lib/messageStack";
 
 type Props = {
   backTo: string;
@@ -29,6 +31,9 @@ export function ChatRoomHeader({
   detailsState,
   trailing,
 }: Props) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const stackBack = isMessageStackPath(location.pathname);
   const initial = (avatarInitial || title || "?").slice(0, 1);
   const avatar = (
     <span
@@ -55,9 +60,21 @@ export function ChatRoomHeader({
     </>
   );
 
+  const onStackBack = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!stackBack) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    requestStackHeaderBack(navigate, backTo);
+  };
+
   return (
     <header className="chat-room-header">
-      <Link className="chat-room-header__back" to={backTo} aria-label={backLabel}>
+      <Link
+        className="chat-room-header__back"
+        to={backTo}
+        aria-label={backLabel}
+        onClick={onStackBack}
+      >
         <span className="chat-room-header__back-icon" aria-hidden="true">
           ‹
         </span>

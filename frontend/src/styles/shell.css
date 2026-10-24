@@ -667,6 +667,54 @@ html.wase-detail-pop .tab-keep-alive-outlet:not(.is-hidden) {
   }
 }
 
+/* Message-stack iOS push: header + body travel together. */
+@keyframes wase-stack-push-in {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes wase-stack-pop-out {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+html.wase-stack-push,
+html.wase-stack-pop {
+  overflow-x: clip;
+}
+
+html.wase-stack-push .main-column,
+html.wase-stack-pop .main-column {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+html.wase-stack-push .main-column {
+  animation: wase-stack-push-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html.wase-stack-pop .main-column {
+  position: relative;
+  z-index: 2;
+  background: var(--bg, #f7f9fc);
+  animation: wase-stack-pop-out 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.wase-stack-push .main-column,
+  html.wase-stack-pop .main-column {
+    animation: none;
+  }
+}
+
 .spa-placeholder {
   margin: 12px 4px;
   padding: 16px;

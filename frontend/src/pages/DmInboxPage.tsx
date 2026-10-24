@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
-import { fetchDmInbox, type InboxItem } from "../features/dm/api";
+import type { InboxItem } from "../features/dm/api";
+import {
+  clearInboxCache,
+  isInboxCacheFresh,
+  loadDmInbox,
+  readInboxCache,
+} from "../features/dm/inboxCache";
 import { inboxSpaHref } from "../features/orgs/recruitingChat";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { PullToRefresh } from "../lib/usePullToRefresh";
@@ -73,11 +79,33 @@ function emptyCopy(tab: string) {
   };
 }
 
+function InboxSkeleton() {
+  return (
+    <ul
+      className="dm-inbox-list dm-inbox-skeleton"
+      aria-busy="true"
+      aria-label="読み込み中"
+    >
+      {Array.from({ length: 7 }, (_, index) => (
+        <li key={index} className="dm-inbox-skeleton-item">
+          <span className="dm-inbox-skeleton-avatar" />
+          <span className="dm-inbox-skeleton-lines">
+            <span className="dm-inbox-skeleton-line is-name" />
+            <span className="dm-inbox-skeleton-line is-preview" />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function DmInboxPage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "all";
+  const userId = me?.authenticated ? me.user?.id ?? null : null;
+  const prevUserIdRef = useRef<number | null>(null);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [requestCount, setRequestCount] = useState(0);
@@ -85,22 +113,29 @@ export function DmInboxPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (mode: "initial" | "soft" = "initial", signal?: AbortSignal) => {
-      if (!me?.authenticated) return;
+    async (
+      mode: "initial" | "soft" = "initial",
+      signal?: AbortSignal,
+      forUserId?: number
+    ) => {
+      const scopedUserId = forUserId ?? userId;
+      if (scopedUserId == null) return false;
       if (mode === "initial") {
         setLoading(true);
         setError(null);
       }
       try {
-        const data = await fetchDmInbox(tab, signal);
-        if (signal?.aborted) return;
-        setItems(data.conversations || []);
-        setCounts(data.tab_counts || {});
-        setRequestCount(Number(data.message_request_count || 0));
+        const entry = await loadDmInbox(scopedUserId, tab, {
+          force: mode === "soft",
+        });
+        if (signal?.aborted) return false;
+        setItems(entry.items);
+        setCounts(entry.counts);
+        setRequestCount(entry.requestCount);
         setError(null);
         return true;
       } catch (err) {
-        if ((err as Error)?.name === "AbortError") return false;
+        if (signal?.aborted) return false;
         if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
         return false;
@@ -108,36 +143,62 @@ export function DmInboxPage() {
         if (mode === "initial" && !signal?.aborted) setLoading(false);
       }
     },
-    [me?.authenticated, tab]
+    [tab, userId]
   );
 
   useEffect(() => {
+    const previousUserId = prevUserIdRef.current;
+    if (previousUserId != null && previousUserId !== userId) {
+      clearInboxCache(previousUserId);
+      setItems([]);
+      setCounts({});
+      setRequestCount(0);
+    }
+    if (userId == null) {
+      clearInboxCache();
+      setItems([]);
+      setCounts({});
+      setRequestCount(0);
+    }
+    prevUserIdRef.current = userId;
+  }, [userId]);
+
+  useEffect(() => {
     if (sessionLoading) return;
-    if (!me?.authenticated) {
+    if (userId == null) {
       navigate(spaLoginPath("/app/dm"), { replace: true });
       return;
     }
+    const cached = readInboxCache(userId, tab);
+    if (cached) {
+      setItems(cached.items);
+      setCounts(cached.counts);
+      setRequestCount(cached.requestCount);
+      setLoading(false);
+      setError(null);
+    } else {
+      setItems([]);
+      setCounts({});
+      setRequestCount(0);
+      setLoading(true);
+      setError(null);
+    }
     const ac = new AbortController();
-    void load("initial", ac.signal);
+    if (cached && isInboxCacheFresh(cached)) {
+      return () => ac.abort();
+    }
+    void load(cached ? "soft" : "initial", ac.signal, userId);
     return () => ac.abort();
-  }, [sessionLoading, me?.authenticated, load, navigate]);
+  }, [sessionLoading, userId, tab, load, navigate]);
 
-  if (sessionLoading || !me?.authenticated) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
-
+  const showSafeChrome = sessionLoading || userId == null;
+  const showSkeleton = showSafeChrome || (loading && items.length === 0);
   const empty = emptyCopy(tab);
 
   return (
     <div className="dm-page" data-spa-page="メッセージ">
       <PullToRefresh
-        enabled={!loading}
+        enabled={!loading && !showSafeChrome}
         onRefresh={async () => {
           if (!(await load("soft"))) throw new Error("refresh_failed");
         }}
@@ -152,6 +213,7 @@ export function DmInboxPage() {
                 type="button"
                 className={`dm-inbox-tab${tab === t.key ? " is-active" : ""}`}
                 aria-current={tab === t.key ? "page" : undefined}
+                disabled={showSafeChrome}
                 onClick={() =>
                   setSearchParams(t.key === "all" ? {} : { tab: t.key })
                 }
@@ -165,7 +227,7 @@ export function DmInboxPage() {
           </nav>
         </header>
 
-        {!loading && requestCount > 0 ? (
+        {!showSafeChrome && requestCount > 0 ? (
           <Link className="dm-request-entry" to="/dm/requests">
             <span className="dm-request-entry__label">
               💬 メッセージリクエスト
@@ -176,8 +238,8 @@ export function DmInboxPage() {
           </Link>
         ) : null}
 
-        {loading ? (
-          <p className="dm-inbox-empty">読み込み中…</p>
+        {showSkeleton ? (
+          <InboxSkeleton />
         ) : error ? (
           <p className="dm-inbox-empty">読み込みに失敗しました（{error}）</p>
         ) : items.length === 0 ? (
@@ -311,13 +373,15 @@ export function DmInboxPage() {
         )}
       </main>
 
-      <Link
-        className="dm-create-fab"
-        to="/dm/groups/new"
-        aria-label="グループを作成"
-      >
-        +
-      </Link>
+      {userId != null ? (
+        <Link
+          className="dm-create-fab"
+          to="/dm/groups/new"
+          aria-label="グループを作成"
+        >
+          +
+        </Link>
+      ) : null}
     </div>
   );
 }

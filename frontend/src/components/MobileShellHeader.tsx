@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { prefetchDmInbox } from "../features/dm/inboxCache";
 import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { organizationInitial } from "../features/orgs/orgProfile";
@@ -28,6 +29,10 @@ export function MobileShellHeader({
   const dmUnread = me?.dm_unread_total || 0;
   const notifyUnread = me?.unread_notifications || 0;
   const showTitle = Boolean(title) && !hideTitle;
+  const prefetchInbox = () => {
+    if (!me?.authenticated || !user?.id) return;
+    void prefetchDmInbox(user.id);
+  };
 
   return (
     <header
@@ -59,7 +64,13 @@ export function MobileShellHeader({
         </div>
         {showTitle ? <h1 className="shell-header-title">{title}</h1> : null}
         <div className="shell-header-end">
-          <Link className="shell-header-dm" to="/dm" aria-label="メッセージ">
+          <Link
+            className="shell-header-dm"
+            to="/dm"
+            aria-label="メッセージ"
+            onPointerDown={prefetchInbox}
+            onFocus={prefetchInbox}
+          >
             <svg viewBox="0 0 24 24" width={22} height={22} aria-hidden="true">
               <path d={DM_ICON} />
             </svg>

@@ -1,4 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { prefetchDmInbox } from "../features/dm/inboxCache";
 import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
@@ -34,6 +35,10 @@ export function SidebarNav() {
     : user
       ? `/users/${user.id}/posts`
       : "/";
+  const prefetchInbox = () => {
+    if (!me?.authenticated || !user?.id) return;
+    void prefetchDmInbox(user.id);
+  };
 
   const onLogout = async () => {
     selectPersonal();
@@ -109,6 +114,8 @@ export function SidebarNav() {
             className={({ isActive }) =>
               isActive ? "sidebar-nav__item is-active" : "sidebar-nav__item"
             }
+            onPointerDown={prefetchInbox}
+            onFocus={prefetchInbox}
           >
             <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true">
               <path d={DM_ICON} />
