@@ -31,6 +31,8 @@ class TimelinePreviewNavTests(SimpleTestCase):
         self.assertIn("const [loading, setLoading] = useState(() => !post)", src)
         self.assertIn("fetchTimelinePost", src)
         self.assertIn("commentsPending={!hydrated}", src)
+        self.assertIn("hydrated={hydrated}", src)
+        self.assertIn("PostDetailSkeleton", src)
         self.assertIn("mutatedRef", src)
         self.assertIn("fetchGen", src)
 
@@ -40,7 +42,9 @@ class TimelinePreviewNavTests(SimpleTestCase):
         self.assertIn("setHydrated(true)", src)
         self.assertIn('setError("この投稿は表示できません")', src)
         self.assertIn("setPost(null)", src)
-        self.assertIn('message !== "この投稿は表示できません"', src)
+        self.assertIn("shouldKeepDetailPreview", src)
+        self.assertIn("DETAIL_NETWORK_ERROR", src)
+        self.assertIn("再試行", src)
         self.assertIn("navState?.fromWaseWase", src)
         self.assertIn("navState?.focusComposer", src)
 
@@ -129,9 +133,12 @@ class CommunityPreviewNavTests(SimpleTestCase):
         src = _read("frontend/src/pages/CommunityThreadPage.tsx")
         self.assertIn("readInitialThread", src)
         self.assertIn("fetchThreadDetail", src)
-        self.assertIn("発言を読み込み中", src)
+        self.assertIn("ThreadDetailSkeleton", src)
+        self.assertIn("ListRowSkeleton", src)
         self.assertIn("mutatedRef", src)
-        self.assertIn("err instanceof TypeError", src)
+        self.assertIn("shouldKeepDetailPreview", src)
+        self.assertIn("DETAIL_NETWORK_ERROR", src)
+        self.assertIn("再試行", src)
         self.assertIn("const [loading, setLoading] = useState(() => !thread)", src)
 
     def test_search_and_discover_thread_links_use_preview(self):
@@ -162,11 +169,14 @@ class FleaPreviewNavTests(SimpleTestCase):
         self.assertIn("readInitialProduct", src)
         self.assertIn("fetchProductDetail", src)
         self.assertIn("const [loading, setLoading] = useState(() => !product)", src)
-        self.assertIn("product.can_delete", src)
-        self.assertIn("product.can_purchase", src)
+        self.assertIn("hydrated && product.can_delete", src)
+        self.assertIn("hydrated && product.can_purchase", src)
         self.assertIn("product.can_contact_seller", src)
-        self.assertIn("コメントを読み込み中", src)
-        self.assertIn("err instanceof TypeError", src)
+        self.assertIn("ProductDetailSkeleton", src)
+        self.assertIn("ListRowSkeleton", src)
+        self.assertIn("shouldKeepDetailPreview", src)
+        self.assertIn("DETAIL_NETWORK_ERROR", src)
+        self.assertIn("再試行", src)
 
     def test_other_product_entry_points_pass_preview(self):
         profile = _read("frontend/src/pages/ProfilePage.tsx")

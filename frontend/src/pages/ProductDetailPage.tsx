@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { BookmarkButton } from "../components/BookmarkButton";
 import { ShareActionSheet } from "../components/ShareActionSheet";
@@ -20,7 +27,19 @@ import {
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { ListRowSkeleton, ProductDetailSkeleton } from "../components/skeleton";
 import { readInitialProduct } from "../features/flea/productNav";
+import {
+  DETAIL_NETWORK_ERROR,
+  detailContentPhase,
+  detailItemMatches,
+  shouldKeepDetailPreview,
+} from "../lib/detailContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import { analytics } from "../lib/analytics/events";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 
@@ -49,16 +68,36 @@ export function ProductDetailPage() {
   const deletingRef = useRef(false);
   const mutatedRef = useRef(false);
   const fetchGen = useRef(0);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = readInitialProduct(location.state, productId);
     mutatedRef.current = false;
-    fetchGen.current += 1;
+    nextRequestId(fetchGen);
     setProduct(next);
     setLoading(!next);
     setHydrated(!next);
     setError(null);
+    setCommentBody("");
+    // location.key identifies this navigation; state is read for the matching snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, location.key]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    mutatedRef.current = false;
+    setProduct(null);
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+    setCommentBody("");
+  }, [sessionUserId]);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(productId)) {
@@ -67,15 +106,17 @@ export function ProductDetailPage() {
       setHydrated(true);
       return;
     }
-    const gen = ++fetchGen.current;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     const hadPreview = Boolean(readInitialProduct(location.state, productId));
+    setError(null);
     if (!hadPreview) {
       setLoading(true);
-      setError(null);
     }
     try {
       const data = await fetchProductDetail(productId);
-      if (gen !== fetchGen.current) return;
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       if (mutatedRef.current) {
         setProduct((prev) =>
           prev
@@ -97,16 +138,18 @@ export function ProductDetailPage() {
       setError(null);
       setHydrated(true);
     } catch (err) {
-      if (gen !== fetchGen.current) return;
-      if (hadPreview && err instanceof TypeError) {
-        setHydrated(true);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      if (shouldKeepDetailPreview(hadPreview, err)) {
+        setError(DETAIL_NETWORK_ERROR);
+        setHydrated(false);
         return;
       }
       setError(err instanceof Error ? err.message : "load_failed");
       setProduct(null);
       setHydrated(true);
     } finally {
-      if (gen === fetchGen.current) setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [productId, location.state]);
 
@@ -120,7 +163,7 @@ export function ProductDetailPage() {
       return;
     }
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   useEffect(() => {
     if (!product) return;
@@ -184,7 +227,7 @@ export function ProductDetailPage() {
   };
 
   const onPurchase = async () => {
-    if (!product) return;
+    if (!hydrated || !product?.can_purchase) return;
     if (!me?.authenticated) {
       requireLogin(`/app/flea/products/${product.id}`);
       return;
@@ -212,7 +255,7 @@ export function ProductDetailPage() {
   };
 
   const onStartChat = async () => {
-    if (!product) return;
+    if (!hydrated || !product?.can_negotiate) return;
     if (!me?.authenticated) {
       requireLogin(`/app/flea/products/${product.id}`);
       return;
@@ -235,7 +278,7 @@ export function ProductDetailPage() {
 
   const onComment = async (e: FormEvent) => {
     e.preventDefault();
-    if (!product || !commentBody.trim()) return;
+    if (!hydrated || !product || !commentBody.trim()) return;
     setBusy(true);
     try {
       const comment = await postProductComment(product.id, commentBody.trim());
@@ -256,7 +299,7 @@ export function ProductDetailPage() {
   };
 
   const onDelete = () => {
-    if (!product || busy || deletingRef.current) return;
+    if (!hydrated || !product?.can_delete || busy || deletingRef.current) return;
     setFlash(null);
     setConfirmDelete(true);
   };
@@ -267,7 +310,7 @@ export function ProductDetailPage() {
   };
 
   const confirmDeleteProduct = async () => {
-    if (!product || deletingRef.current) return;
+    if (!hydrated || !product?.can_delete || deletingRef.current) return;
     deletingRef.current = true;
     setBusy(true);
     try {
@@ -286,7 +329,7 @@ export function ProductDetailPage() {
   };
 
   const onShare = async () => {
-    if (!product) return;
+    if (!hydrated || !product?.can_share_to_timeline) return;
     setBusy(true);
     try {
       await shareProductToTimeline(product.id);
@@ -304,7 +347,7 @@ export function ProductDetailPage() {
 
   const onReview = async (e: FormEvent) => {
     e.preventDefault();
-    if (!product) return;
+    if (!hydrated || !product?.can_review) return;
     setBusy(true);
     try {
       await submitProductReview(product.id, rating, reviewComment);
@@ -320,7 +363,16 @@ export function ProductDetailPage() {
     }
   };
 
-  if (browsePreview) {
+  const productMatches = detailItemMatches(product, productId);
+  const phase = detailContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading || Boolean(product && !productMatches),
+    error: productMatches ? error : product ? null : error,
+    hasItem: productMatches,
+    hydrated: productMatches && hydrated,
+  });
+
+  if (phase === "browse") {
     return (
       <div className="product-detail-page" data-spa-page="フリマ">
         <div className="main-inner">
@@ -332,21 +384,30 @@ export function ProductDetailPage() {
     );
   }
 
-  if (loading) {
+  if (phase === "skeleton") {
     return (
       <div className="product-detail-page" data-spa-page="フリマ">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <ProductDetailSkeleton />
         </div>
       </div>
     );
   }
 
-  if (error || !product) {
+  if (phase === "error" || !productMatches || !product) {
     return (
       <div className="product-detail-page" data-spa-page="フリマ">
         <div className="main-inner">
           <p>商品を表示できません（{error || "not_found"}）</p>
+          <p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+            >
+              再試行
+            </button>
+          </p>
         </div>
       </div>
     );
@@ -355,6 +416,18 @@ export function ProductDetailPage() {
   return (
     <div className="product-detail-page" data-spa-page="フリマ">
       <div className="main-inner">
+        {error === DETAIL_NETWORK_ERROR ? (
+          <p className="feed-scope-hint">
+            通信に失敗しました。
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+            >
+              再試行
+            </button>
+          </p>
+        ) : null}
         {flash ? <div className={`flash ${flash.type}`}>{flash.text}</div> : null}
 
         <article
@@ -422,7 +495,7 @@ export function ProductDetailPage() {
                   : ""}
             </p>
 
-            {product.can_purchase ? (
+            {hydrated && product.can_purchase ? (
               <p className="purchase-hint">
                 即決購入すると取引チャットが始まり、商品は「取引中」になります。
               </p>
@@ -443,7 +516,7 @@ export function ProductDetailPage() {
                   disabled={busy}
                   onClick={() => void onBookmark()}
                 />
-                {product.can_purchase ? (
+                {hydrated && product.can_purchase ? (
                   <button
                     type="button"
                     className="btn btn-purchase"
@@ -464,7 +537,7 @@ export function ProductDetailPage() {
                 シェア
               </button>
 
-              {product.can_share_to_timeline ? (
+              {hydrated && product.can_share_to_timeline ? (
                 <button
                   type="button"
                   className="btn-share-timeline"
@@ -475,14 +548,16 @@ export function ProductDetailPage() {
                 </button>
               ) : null}
 
-              {product.user_chat_room ? (
+              {hydrated && product.user_chat_room ? (
                 <Link
                   className="btn-chat-open"
                   to={`/flea/chats/${product.user_chat_room.id}`}
                 >
                   取引チャットを開く
                 </Link>
-              ) : product.can_contact_seller && product.can_negotiate ? (
+              ) : hydrated &&
+                product.can_contact_seller &&
+                product.can_negotiate ? (
                 <button
                   type="button"
                   className="btn-chat-contact"
@@ -493,7 +568,7 @@ export function ProductDetailPage() {
                 </button>
               ) : null}
 
-              {product.seller_chat_rooms.length > 0 ? (
+              {hydrated && product.seller_chat_rooms.length > 0 ? (
                 <div className="seller-chat-list">
                   <h3>問い合わせ・取引チャット</h3>
                   {product.seller_chat_rooms.map((room) => (
@@ -512,7 +587,7 @@ export function ProductDetailPage() {
                 </div>
               ) : null}
 
-              {product.can_delete ? (
+              {hydrated && product.can_delete ? (
                 <div className="owner-actions">
                   <button
                     type="button"
@@ -540,7 +615,7 @@ export function ProductDetailPage() {
           </div>
         </article>
 
-        {product.can_review ? (
+        {hydrated && product.can_review ? (
           <section className="comments-section">
             <h2>取引相手を評価</h2>
             <form className="review-form" onSubmit={onReview}>
@@ -572,7 +647,7 @@ export function ProductDetailPage() {
             {hydrated ? `（${product.comments.length}）` : ""}
           </h2>
           {!hydrated && product.comments.length === 0 ? (
-            <p className="empty-message">コメントを読み込み中…</p>
+            <ListRowSkeleton rows={3} />
           ) : (
             product.comments.map((c) => (
               <div className="comment-item" key={c.id}>
@@ -594,8 +669,9 @@ export function ProductDetailPage() {
               rows={3}
               placeholder="コメントを入力..."
               required
+              disabled={!hydrated}
             />
-            <button type="submit" disabled={busy}>
+            <button type="submit" disabled={!hydrated || busy}>
               投稿
             </button>
           </form>

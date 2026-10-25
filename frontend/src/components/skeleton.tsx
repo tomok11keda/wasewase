@@ -137,6 +137,48 @@ export function ProductGridSkeleton({
   );
 }
 
+export function PostDetailSkeleton() {
+  return (
+    <div className="post-detail-body" aria-busy="true" aria-label="読み込み中">
+      <PostCardSkeleton count={1} />
+      <ListRowSkeleton rows={3} />
+    </div>
+  );
+}
+
+export function ProductDetailSkeleton() {
+  return (
+    <article className="product-hero" aria-busy="true" aria-label="読み込み中">
+      <div className="product-hero-image" aria-hidden="true">
+        <SkeletonBone className="sk-product-hero" />
+      </div>
+      <div className="product-info" aria-hidden="true">
+        <SkeletonPrimitive className="sk-bone--name" />
+        <SkeletonPrimitive variant="line" className="sk-thread-meta" />
+        <SkeletonPrimitive className="sk-product-price" />
+        <SkeletonPrimitive className="sk-bone--bio" />
+        <SkeletonPrimitive className="sk-bone--bio is-short" />
+        <SkeletonPrimitive className="sk-bone--btn" />
+      </div>
+    </article>
+  );
+}
+
+export function ThreadDetailSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="読み込み中">
+      <article className="thread-detail forum-op" aria-hidden="true">
+        <SkeletonPrimitive className="sk-thread-board" />
+        <SkeletonPrimitive className="sk-bone--name" />
+        <SkeletonPrimitive className="sk-list-row__title" />
+        <SkeletonPrimitive className="sk-list-row__title is-mid" />
+        <SkeletonPrimitive className="sk-bone--bio" />
+      </article>
+      <ListRowSkeleton rows={4} />
+    </div>
+  );
+}
+
 export function ThreadListSkeleton({ count = 6 }: { count?: number }) {
   return (
     <ul className="thread-list" aria-busy="true" aria-label="読み込み中">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookmarkButton } from "../../components/BookmarkButton";
+import { ListRowSkeleton } from "../../components/skeleton";
 import { SfIcon } from "../../components/SfIcon";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
 import type { TimelineAuthor, TimelineComment, TimelinePost, QuotedPost } from "./api";
@@ -58,6 +59,8 @@ type Props = {
   variant?: TimelinePostCardVariant;
   focusComposer?: boolean;
   commentsPending?: boolean;
+  /** False until the detail API confirms permissions. Feed cards leave this unset. */
+  hydrated?: boolean;
   composerUser?: { avatar_url: string; initial: string } | null;
 };
 
@@ -278,6 +281,7 @@ export function TimelinePostCard({
   variant = "feed",
   focusComposer = false,
   commentsPending = false,
+  hydrated = true,
   composerUser = null,
 }: Props) {
   const navigate = useNavigate();
@@ -583,7 +587,7 @@ export function TimelinePostCard({
               ) : null}
             </div>
             <div className="tweet-header-menu">
-              {authenticated && post.can_delete ? (
+              {authenticated && hydrated && post.can_delete ? (
                 <button
                   type="button"
                   className="tweet-menu-btn tweet-menu-btn--danger"
@@ -615,7 +619,7 @@ export function TimelinePostCard({
                   }
                 />
               ) : null}
-              {!(authenticated && post.can_delete) ? (
+              {!(authenticated && hydrated && post.can_delete) ? (
                 <div className="tweet-overflow" ref={menuRef}>
                   <button
                     type="button"
@@ -901,7 +905,7 @@ export function TimelinePostCard({
           {showComments ? (
             <div className="tweet-comments">
               {commentsPending ? (
-                <p className="tweet-comments__empty">返信を読み込み中…</p>
+                <ListRowSkeleton rows={3} />
               ) : post.comments.length === 0 ? (
                 <p className="tweet-comments__empty">まだ返信はありません</p>
               ) : (
@@ -1025,11 +1029,14 @@ export function TimelinePostCard({
                     }
                     maxLength={500}
                     aria-label="返信を入力"
+                    disabled={commentsPending}
                   />
                   <button
                     type="submit"
                     className="tweet-comment-form__send"
-                    disabled={busy || !commentBody.trim()}
+                    disabled={
+                      commentsPending || busy || !commentBody.trim()
+                    }
                     aria-label="送信"
                   >
                     <SfIcon name="paperplane" size={16} />

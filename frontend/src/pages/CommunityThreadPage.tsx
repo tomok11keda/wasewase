@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
@@ -19,7 +26,19 @@ import {
 } from "../features/community/OfficialBadge";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { ListRowSkeleton, ThreadDetailSkeleton } from "../components/skeleton";
 import { readInitialThread } from "../features/community/threadNav";
+import {
+  DETAIL_NETWORK_ERROR,
+  detailContentPhase,
+  detailItemMatches,
+  shouldKeepDetailPreview,
+} from "../lib/detailContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function formatTime(iso: string): string {
   try {
@@ -52,28 +71,56 @@ export function CommunityThreadPage() {
 
   const mutatedRef = useRef(false);
   const fetchGen = useRef(0);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = readInitialThread(location.state, pk);
     mutatedRef.current = false;
-    fetchGen.current += 1;
+    nextRequestId(fetchGen);
     setThread(next);
     setLoading(!next);
     setHydrated(!next);
     setError(null);
+    setReplyBody("");
+    setReplyTarget(null);
+    setEditingId(null);
+    setEditBody("");
+    // location.key identifies this navigation; state is read for the matching snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, pk, location.key]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    mutatedRef.current = false;
+    setThread(null);
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+    setReplyBody("");
+    setReplyTarget(null);
+    setEditingId(null);
+    setEditBody("");
+  }, [sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug || !pk) return;
-    const gen = ++fetchGen.current;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     const hadPreview = Boolean(readInitialThread(location.state, pk));
+    setError(null);
     if (!hadPreview) {
       setLoading(true);
-      setError(null);
     }
     try {
       const data = await fetchThreadDetail(slug, pk);
-      if (gen !== fetchGen.current) return;
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       if (mutatedRef.current) {
         setThread((prev) =>
           prev
@@ -96,9 +143,11 @@ export function CommunityThreadPage() {
       setError(null);
       setHydrated(true);
     } catch (err) {
-      if (gen !== fetchGen.current) return;
-      if (hadPreview && err instanceof TypeError) {
-        setHydrated(true);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      if (shouldKeepDetailPreview(hadPreview, err)) {
+        setError(DETAIL_NETWORK_ERROR);
+        setHydrated(false);
         return;
       }
       const message = err instanceof Error ? err.message : "detail_failed";
@@ -106,7 +155,7 @@ export function CommunityThreadPage() {
       setError(message);
       setHydrated(true);
     } finally {
-      if (gen === fetchGen.current) setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [slug, pk, location.state]);
 
@@ -120,13 +169,14 @@ export function CommunityThreadPage() {
       return;
     }
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   const requireLogin = () => {
     navigate(spaLoginPath(`/app/communities/${slug}/threads/${pk}`));
   };
 
   const startReplyTo = (reply: ThreadReply) => {
+    if (!hydrated) return;
     if (!me?.authenticated) {
       requireLogin();
       return;
@@ -153,7 +203,7 @@ export function CommunityThreadPage() {
       requireLogin();
       return;
     }
-    if (!thread) return;
+    if (!hydrated || !thread) return;
     const body = replyBody.trim();
     if (!body) return;
     setBusy(true);
@@ -181,7 +231,7 @@ export function CommunityThreadPage() {
   };
 
   const onDeleteThread = async () => {
-    if (!thread?.can_delete) return;
+    if (!hydrated || !thread?.can_delete) return;
     if (!window.confirm("このスレッドを削除しますか？")) return;
     setBusy(true);
     try {
@@ -195,7 +245,7 @@ export function CommunityThreadPage() {
   };
 
   const onDeleteReply = async (reply: ThreadReply) => {
-    if (!reply.can_delete || !thread) return;
+    if (!hydrated || !reply.can_delete || !thread) return;
     if (!window.confirm("この発言を削除しますか？")) return;
     setBusy(true);
     try {
@@ -234,7 +284,7 @@ export function CommunityThreadPage() {
   };
 
   const onSaveEdit = async (reply: ThreadReply) => {
-    if (!thread) return;
+    if (!hydrated || !thread) return;
     setBusy(true);
     try {
       const updated = await editReply(slug, pk, reply.id, editBody.trim());
@@ -251,7 +301,17 @@ export function CommunityThreadPage() {
     }
   };
 
-  if (browsePreview) {
+  const threadMatches =
+    detailItemMatches(thread, pk) && thread?.community.slug === slug;
+  const phase = detailContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading || Boolean(thread && !threadMatches),
+    error: threadMatches ? error : thread ? null : error,
+    hasItem: threadMatches,
+    hydrated: threadMatches && hydrated,
+  });
+
+  if (phase === "browse") {
     return (
       <div data-spa-page="コミュニティ" className="community-thread-page">
         <BrowsePreviewNotice
@@ -263,23 +323,46 @@ export function CommunityThreadPage() {
     );
   }
 
-  if (loading) {
+  if (phase === "skeleton") {
     return (
       <div data-spa-page="コミュニティ" className="community-thread-page">
-        <p className="empty-message">読み込み中…</p>
+        <ThreadDetailSkeleton />
       </div>
     );
   }
-  if (error || !thread) {
+  if (phase === "error" || !threadMatches || !thread) {
     return (
       <div data-spa-page="コミュニティ" className="community-thread-page">
-        <p className="empty-message">スレッドを表示できません（{error}）</p>
+        <div className="empty-message">
+          <p>スレッドを表示できません（{error}）</p>
+          <p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+            >
+              再試行
+            </button>
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div data-spa-page="コミュニティ" className="community-thread-page">
+      {error === DETAIL_NETWORK_ERROR ? (
+        <p className="feed-scope-hint">
+          通信に失敗しました。
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void load()}
+          >
+            再試行
+          </button>
+        </p>
+      ) : null}
       <p className="community-anon-hint">
         {thread.anonymous_hint || COMMUNITY_ANON_HINT}
       </p>
@@ -310,14 +393,14 @@ export function CommunityThreadPage() {
               <CommunityReportMenu
                 targetType="community_thread"
                 targetId={thread.id}
-                canReport={Boolean(thread.can_report)}
+                canReport={hydrated && Boolean(thread.can_report)}
                 ariaLabel="この投稿を通報"
               />
             </div>
             <div className="forum-post__body">{thread.body}</div>
           </div>
         </div>
-        {thread.can_delete ? (
+        {hydrated && thread.can_delete ? (
           <div className="thread-detail__actions">
             <button
               type="button"
@@ -333,7 +416,7 @@ export function CommunityThreadPage() {
 
       <section className="forum-replies" aria-label="スレッドの発言">
         {!hydrated && thread.replies.length === 0 ? (
-          <p className="empty-message">発言を読み込み中…</p>
+          <ListRowSkeleton rows={4} />
         ) : null}
         <ul className="reply-list">
           {thread.replies.map((reply) => {
@@ -369,7 +452,7 @@ export function CommunityThreadPage() {
                       <CommunityReportMenu
                         targetType="community_reply"
                         targetId={reply.id}
-                        canReport={Boolean(reply.can_report)}
+                        canReport={hydrated && Boolean(reply.can_report)}
                         ariaLabel="この発言を通報"
                       />
                     </div>
@@ -425,10 +508,11 @@ export function CommunityThreadPage() {
                           <button
                             type="button"
                             onClick={() => startReplyTo(reply)}
+                            disabled={!hydrated}
                           >
                             返信
                           </button>
-                          {reply.can_edit ? (
+                          {hydrated && reply.can_edit ? (
                             <button
                               type="button"
                               onClick={() => {
@@ -439,7 +523,7 @@ export function CommunityThreadPage() {
                               編集
                             </button>
                           ) : null}
-                          {reply.can_delete ? (
+                          {hydrated && reply.can_delete ? (
                             <button
                               type="button"
                               className="danger"
@@ -485,8 +569,12 @@ export function CommunityThreadPage() {
                 : "このテーマについて発言する…"
             }
             required
+            disabled={!hydrated}
           />
-          <button type="submit" disabled={busy || !replyBody.trim()}>
+          <button
+            type="submit"
+            disabled={!hydrated || busy || !replyBody.trim()}
+          >
             {replyTarget ? "返信する" : "発言する"}
           </button>
         </form>

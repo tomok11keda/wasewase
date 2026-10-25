@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { PostDetailSkeleton } from "../components/skeleton";
 import { spaLoginPath } from "../features/auth/api";
 import {
   fetchTimelinePost,
@@ -11,7 +12,18 @@ import {
   readInitialTimelinePost,
   type TimelinePostDetailNavState,
 } from "../features/timeline/postAnchor";
+import {
+  DETAIL_NETWORK_ERROR,
+  detailContentPhase,
+  detailItemMatches,
+  shouldKeepDetailPreview,
+} from "../lib/detailContentPhase";
 import { isBrowsePreview, useSession } from "../lib/session";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 export function TimelinePostDetailPage() {
   const { postId: rawPostId } = useParams();
@@ -31,6 +43,11 @@ export function TimelinePostDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const mutatedRef = useRef(false);
   const fetchGen = useRef(0);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
 
   const goBack = useCallback(() => {
     if (navState?.fromWaseWase) {
@@ -45,15 +62,28 @@ export function TimelinePostDetailPage() {
     setPost(next);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = readInitialTimelinePost(location.state, postId);
     mutatedRef.current = false;
-    fetchGen.current += 1;
+    nextRequestId(fetchGen);
     setPost(next);
     setLoading(!next);
     setHydrated(!next);
     setError(null);
+    // location.key identifies this navigation; state is read for the matching snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId, location.key]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    mutatedRef.current = false;
+    setPost(null);
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [sessionUserId]);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(postId) || postId <= 0) {
@@ -63,15 +93,17 @@ export function TimelinePostDetailPage() {
       setHydrated(true);
       return;
     }
-    const gen = ++fetchGen.current;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     const hadPreview = Boolean(readInitialTimelinePost(location.state, postId));
+    setError(null);
     if (!hadPreview) {
       setLoading(true);
-      setError(null);
     }
     try {
       const next = await fetchTimelinePost(postId);
-      if (gen !== fetchGen.current) return;
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       if (mutatedRef.current) {
         setPost((prev) =>
           prev
@@ -89,18 +121,20 @@ export function TimelinePostDetailPage() {
       setError(null);
       setHydrated(true);
     } catch (err) {
-      if (gen !== fetchGen.current) return;
-      const message =
-        err instanceof Error ? err.message : "この投稿は表示できません";
-      if (hadPreview && message !== "この投稿は表示できません") {
-        setHydrated(true);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      if (shouldKeepDetailPreview(hadPreview, err)) {
+        setError(DETAIL_NETWORK_ERROR);
+        setHydrated(false);
         return;
       }
       setPost(null);
-      setError(message);
+      setError(
+        err instanceof Error ? err.message : "この投稿は表示できません"
+      );
       setHydrated(true);
     } finally {
-      if (gen === fetchGen.current) setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [postId, location.state]);
 
@@ -114,24 +148,47 @@ export function TimelinePostDetailPage() {
       return;
     }
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   const authenticated = Boolean(me?.authenticated);
+  const postMatches = detailItemMatches(post, postId);
+  const phase = detailContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading || Boolean(post && !postMatches),
+    error: postMatches ? error : post ? null : error,
+    hasItem: postMatches,
+    hydrated: postMatches && hydrated,
+  });
 
   return (
     <div className="post-detail-page" data-spa-page="投稿">
-      {browsePreview ? (
+      {phase === "browse" ? (
         <BrowsePreviewNotice nextPath={`/app/posts/${postId}`}>
           投稿の詳細はログイン後に表示されます。
         </BrowsePreviewNotice>
-      ) : post ? (
+      ) : phase === "skeleton" ? (
+        <PostDetailSkeleton />
+      ) : post && (phase === "preview" || phase === "ready") ? (
         <div className="post-detail-body">
+          {error === DETAIL_NETWORK_ERROR ? (
+            <p className="feed-scope-hint">
+              通信に失敗しました。
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void load()}
+              >
+                再試行
+              </button>
+            </p>
+          ) : null}
           <TimelinePostCard
             post={post}
             authenticated={authenticated}
             variant="detail"
-            focusComposer={focusComposerOnce}
+            focusComposer={focusComposerOnce && phase === "ready"}
             commentsPending={!hydrated}
+            hydrated={hydrated}
             composerUser={me?.user ?? null}
             onChange={applyLocalPost}
             onRemove={() => {
@@ -145,10 +202,19 @@ export function TimelinePostDetailPage() {
             }}
           />
         </div>
-      ) : loading || sessionLoading ? (
-        <p className="empty-message">読み込み中…</p>
       ) : (
-        <p className="empty-message">{error || "この投稿は表示できません"}</p>
+        <div className="empty-message">
+          <p>{error || "この投稿は表示できません"}</p>
+          <p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+            >
+              再試行
+            </button>
+          </p>
+        </div>
       )}
     </div>
   );
