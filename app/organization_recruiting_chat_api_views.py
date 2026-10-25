@@ -150,13 +150,16 @@ def api_v1_organization_recruiting_chat(
 
 
 def _get_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
-    organization = _visible_organization(slug, _viewer(request))
-    if isinstance(organization, JsonResponse):
-        return organization
+    organization = get_organization_by_slug(slug)
+    if organization is None:
+        return _json_error("not_found", status=404)
     viewer = _viewer(request)
-    chat = get_active_recruiting_chat(organization)
+    visible = can_view_organization_profile(viewer, organization)
     can_manage = can_manage_organization(viewer, organization)
+    chat = get_active_recruiting_chat(organization)
     if chat is None:
+        if not visible and not can_manage:
+            return _json_error("not_found", status=404)
         return JsonResponse(
             {
                 "ok": True,
@@ -170,8 +173,11 @@ def _get_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
     payload = serialize_recruiting_chat_for_viewer(
         chat, viewer, include_manager_fields=can_manage
     )
+    invited = payload.get("membership_status") == "invited"
+    if not visible and not can_manage and not can_access and not invited:
+        return _json_error("not_found", status=404)
     if not (can_manage or can_access or discoverable):
-        if payload.get("membership_status") == "invited":
+        if invited:
             return JsonResponse(
                 {
                     "ok": True,
@@ -682,14 +688,14 @@ def api_v1_organization_recruiting_invitation(
     auth_error = _require_auth(request)
     if auth_error:
         return auth_error
-    organization = _visible_organization(slug, request.user)
-    if isinstance(organization, JsonResponse):
-        return organization
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
+    # Invitees may open a pending invite even when the org profile is draft
+    # or unlisted. Inbox/notifications already show that row.
+    organization = get_organization_by_slug(slug)
+    if organization is None:
         return _json_error("not_found", status=404)
+    chat = get_active_recruiting_chat(organization)
     invitation = viewer_recruiting_invitation_payload(chat, request.user)
-    if invitation is None:
+    if invitation is None or chat is None:
         return _json_error("not_found", status=404)
     return JsonResponse(
         {

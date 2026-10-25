@@ -193,6 +193,36 @@ export function recruitingChatInvitePath(slug: string): string {
   return `${recruitingChatPath(slug)}/invite`;
 }
 
+export type RecruitingInviteOpenState =
+  | "pending"
+  | "responded"
+  | "missing"
+  | "login"
+  | "error";
+
+/** Map API/session outcome to the invitee detail screen. Do not treat every
+ * 404 as cancelled — that hid pending invites the inbox could still show. */
+export function recruitingInviteOpenState(args: {
+  authenticated: boolean;
+  error: string | null;
+  invitation: RecruitingInvitation | null;
+}): RecruitingInviteOpenState {
+  if (!args.authenticated) return "login";
+  if (args.invitation) {
+    return args.invitation.status === "pending" ? "pending" : "responded";
+  }
+  if (args.error === "unauthorized") return "login";
+  if (
+    args.error === "not_found" ||
+    args.error === "forbidden" ||
+    args.error === "invalid_payload"
+  ) {
+    return "missing";
+  }
+  if (args.error) return "error";
+  return "missing";
+}
+
 /** Inbox spa_path is basename-relative; tolerate a leftover /app prefix. */
 export function inboxSpaHref(spaPath: string): string {
   const raw = (spaPath || "").trim();

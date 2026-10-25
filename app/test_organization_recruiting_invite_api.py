@@ -440,6 +440,120 @@ class OrganizationRecruitingInviteApiTests(TestCase):
         self.assertEqual(invite_row["latest_body"], "")
         self.assertIn("/recruiting-chat/invite", invite_row["spa_path"])
 
+    def test_invitee_can_open_pending_invite_when_org_profile_is_not_public(self):
+        """Inbox/notification show the invite, so the detail API must too.
+
+        Draft/unlisted orgs are the default. Managers can still invite.
+        Students must open/accept without org profile visibility.
+        """
+        from .notification_api_services import notification_spa_path
+        from .spa_canonical import recruiting_invite_spa_path
+
+        self.org.status = Organization.Status.DRAFT
+        self.org.is_listed = False
+        self.org.save(update_fields=["status", "is_listed", "updated_at"])
+        created = self._create_chat()
+        self.assertEqual(created.status_code, 201, created.content)
+        room_id = created.json()["recruiting_chat"]["room_id"]
+        ChatMessage.objects.create(
+            room_id=room_id, sender=self.owner, body="下書き団体の本文"
+        )
+        invited = self._invite(self.student)
+        self.assertEqual(invited.status_code, 201, invited.content)
+        invitation_id = invited.json()["invited"][0]["id"]
+
+        self.client.force_login(self.student)
+        inbox = self.client.get("/api/v1/dm/inbox/")
+        invite_row = next(
+            row
+            for row in inbox.json()["conversations"]
+            if row["kind"] == "recruiting_invite"
+        )
+        self.assertEqual(invite_row["latest_body"], "")
+        spa_path = invite_row["spa_path"]
+        self.assertEqual(spa_path.split("?")[0], recruiting_invite_spa_path(self.org.slug))
+
+        notes = self.client.get("/api/v1/notifications/?mark_read=0")
+        note = next(
+            row
+            for row in notes.json()["notifications"]
+            if "新歓チャットに招待" in row["message"]
+        )
+        self.assertEqual(
+            notification_spa_path(note["link"]).split("?")[0],
+            recruiting_invite_spa_path(self.org.slug),
+        )
+
+        by_slug = self.client.get(self._url("invitation/"))
+        self.assertEqual(by_slug.status_code, 200, by_slug.content)
+        body = by_slug.json()
+        self.assertEqual(body["invitation"]["id"], invitation_id)
+        self.assertEqual(body["invitation"]["status"], "pending")
+        self.assertIsNone(body["recruiting_chat"]["room_id"])
+        self.assertFalse(body["recruiting_chat"]["can_send"])
+        self.assertNotIn("下書き団体の本文", json.dumps(body))
+
+        pending_chat = self.client.get(self._url())
+        self.assertEqual(pending_chat.status_code, 200, pending_chat.content)
+        pending_payload = pending_chat.json()["recruiting_chat"]
+        self.assertEqual(pending_payload["membership_status"], "invited")
+        self.assertIsNone(pending_payload["room_id"])
+        hidden = self.client.get(f"/api/v1/recruiting-chats/{room_id}/messages/")
+        self.assertEqual(hidden.status_code, 403)
+
+        by_id = self.client.get(f"/api/v1/recruiting-invitations/{invitation_id}/")
+        self.assertEqual(by_id.status_code, 200, by_id.content)
+        self.assertEqual(by_id.json()["invitation"]["status"], "pending")
+
+        self.client.force_login(self.stranger)
+        self.assertEqual(self.client.get(self._url("invitation/")).status_code, 404)
+        self.assertEqual(self.client.get(self._url()).status_code, 404)
+        self.assertEqual(
+            self.client.get("/api/v1/organizations/%s/" % self.org.slug).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(f"/api/v1/recruiting-invitations/{invitation_id}/").status_code,
+            404,
+        )
+
+        self.client.force_login(self.student)
+        accepted = self._json(
+            "post", f"/api/v1/recruiting-invitations/{invitation_id}/accept/"
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.content)
+        accepted_chat = accepted.json()["recruiting_chat"]
+        self.assertEqual(accepted_chat["room_id"], room_id)
+        self.assertTrue(accepted_chat["can_send"])
+        self.assertTrue(
+            ChatRoomMembership.objects.filter(
+                room_id=room_id, user=self.student
+            ).exists()
+        )
+
+        opened = self.client.get(self._url())
+        self.assertEqual(opened.status_code, 200, opened.content)
+        opened_chat = opened.json()["recruiting_chat"]
+        self.assertEqual(opened_chat["room_id"], room_id)
+        self.assertTrue(opened_chat["can_send"])
+        history = self.client.get(f"/api/v1/recruiting-chats/{room_id}/messages/")
+        self.assertEqual(history.status_code, 200, history.content)
+        bodies = [row["body"] for row in history.json()["messages"]]
+        self.assertIn("下書き団体の本文", bodies)
+        sent = self._json(
+            "post",
+            f"/api/v1/recruiting-chats/{room_id}/messages/send/",
+            body="招待承諾後の返信",
+        )
+        self.assertEqual(sent.status_code, 201, sent.content)
+
+        self.client.force_login(self.stranger)
+        self.assertEqual(self.client.get(self._url()).status_code, 404)
+        self.assertIn(
+            self.client.get(f"/api/v1/recruiting-chats/{room_id}/messages/").status_code,
+            (403, 404),
+        )
+
     def test_group_dm_invite_still_works(self):
         self.client.force_login(self.owner)
         created = self._json(

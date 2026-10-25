@@ -31,10 +31,7 @@ from .organization_recruiting_chat_services import (
     organization_allows_recruiting_access,
     serialize_recruiting_chat_for_viewer,
 )
-from .organization_services import (
-    can_manage_organization,
-    can_view_organization_profile,
-)
+from .organization_services import can_manage_organization
 from .services import search_users
 from .spa_canonical import recruiting_invite_spa_path, recruiting_invite_url
 from .timeline_api_services import serialize_author
@@ -533,8 +530,6 @@ def accept_recruiting_invitation(
         raise OrganizationRecruitingChatError("organization_suspended", status=403)
     if not chat.is_active:
         raise OrganizationRecruitingChatError("inactive", status=404)
-    if not can_view_organization_profile(user, organization):
-        raise OrganizationRecruitingChatError("organization_not_viewable", status=404)
     if is_either_blocked(user, invitation.inviter):
         raise OrganizationRecruitingChatError("blocked", status=403)
 

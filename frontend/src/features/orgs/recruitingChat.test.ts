@@ -18,6 +18,7 @@ import {
   recruitingChatInvitesPath,
   recruitingChatPath,
   recruitingChatErrorMessage,
+  recruitingInviteOpenState,
   recruitingInviteSkipLabel,
   shouldConfirmAutoApprove,
   canShowRecruitingManageNav,
@@ -280,6 +281,77 @@ test("parses invited membership and invitation payload without a room id", () =>
     organization_name: "テニスサークル",
   });
   assert.equal(invitation?.status, "cancelled");
+});
+
+test("pending invite detail stays pending; 404 is missing not cancelled", () => {
+  const pending = {
+    id: 88,
+    status: "pending",
+    created_at: "",
+    responded_at: null,
+    organization_id: 1,
+    organization_slug: "tennis",
+    organization_name: "テニス",
+    organization_avatar_url: "",
+    chat_name: "2026新歓",
+    inviter: null,
+  };
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: null,
+      invitation: pending,
+    }),
+    "pending"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: "not_found",
+      invitation: null,
+    }),
+    "missing"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: "forbidden",
+      invitation: null,
+    }),
+    "missing"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: "unauthorized",
+      invitation: null,
+    }),
+    "login"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: "busy",
+      invitation: null,
+    }),
+    "error"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: null,
+      invitation: { ...pending, status: "cancelled" },
+    }),
+    "responded"
+  );
+  assert.equal(
+    recruitingInviteOpenState({
+      authenticated: true,
+      error: null,
+      invitation: { ...pending, status: "declined" },
+    }),
+    "responded"
+  );
 });
 
 test("sqlite lock and quota errors stay retryable and are not duplicate copy", () => {

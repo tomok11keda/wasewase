@@ -4,7 +4,9 @@ import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingInviteBanner } from "../features/orgs/RecruitingInviteBanner";
 import {
+  recruitingChatErrorMessage,
   recruitingChatPath,
+  recruitingInviteOpenState,
   type RecruitingInvitation,
 } from "../features/orgs/recruitingChat";
 import {
@@ -131,17 +133,18 @@ export function OrganizationRecruitingChatInvitePage() {
     });
   };
 
-  const unavailable =
-    error === "not_found" ||
-    error === "forbidden" ||
-    (invitation && invitation.status !== "pending");
+  const view = recruitingInviteOpenState({
+    authenticated: true,
+    error,
+    invitation,
+  });
 
   return (
     <div className="org-edit-page" data-spa-page="新歓チャット招待">
       <div className="main-inner">
         {loading || sessionLoading ? (
           <PeopleListSkeleton />
-        ) : unavailable ? (
+        ) : view === "responded" ? (
           <section className="org-recruiting-card" aria-label="新歓チャット招待">
             <h1 className="org-recruiting-card__title">招待を確認できません</h1>
             <p className="org-recruiting-card__lead">
@@ -151,11 +154,11 @@ export function OrganizationRecruitingChatInvitePage() {
               団体プロフィールへ
             </Link>
           </section>
-        ) : invitation ? (
+        ) : view === "pending" && invitation ? (
           <>
             {error ? (
               <p className="org-edit-error" role="alert">
-                {error}
+                {recruitingChatErrorMessage(error, error)}
               </p>
             ) : null}
             <RecruitingInviteBanner
@@ -165,6 +168,10 @@ export function OrganizationRecruitingChatInvitePage() {
               onDecline={onDecline}
             />
           </>
+        ) : view === "error" ? (
+          <p className="org-edit-error" role="alert">
+            {recruitingChatErrorMessage(error || undefined, "招待を読み込めませんでした。")}
+          </p>
         ) : (
           <p className="org-profile-empty">招待が見つかりません。</p>
         )}
