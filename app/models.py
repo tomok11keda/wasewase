@@ -2559,3 +2559,290 @@ class OrganizationRecruitingChatApplication(models.Model):
             f"user={self.user_id} ({self.status})"
         )
 
+
+class OrganizationEvent(models.Model):
+    """学生団体の新歓イベント。個人カレンダー CalendarEvent とは別物。"""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "下書き"
+        PUBLISHED = "published", "公開"
+        CANCELLED = "cancelled", "中止"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="events",
+        verbose_name="団体",
+    )
+    title = models.CharField("イベント名", max_length=120)
+    description = models.TextField("説明", blank=True, default="")
+    starts_at = models.DateTimeField("開始日時", db_index=True)
+    ends_at = models.DateTimeField("終了日時")
+    venue_name = models.CharField("会場名", max_length=120)
+    venue_address = models.CharField(
+        "会場住所",
+        max_length=200,
+        blank=True,
+        default="",
+    )
+    registration_deadline = models.DateTimeField(
+        "申込締切",
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(
+        "公開状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+    )
+    registration_open = models.BooleanField(
+        "申込受付中",
+        default=True,
+        db_index=True,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_events_created",
+        verbose_name="作成者",
+    )
+    deleted_at = models.DateTimeField(
+        "削除日時",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="ソフト削除。公開一覧からは外す。",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "新歓イベント"
+        verbose_name_plural = "新歓イベント"
+        ordering = ["starts_at", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["draft", "published", "cancelled"]),
+                name="app_org_event_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ends_at__gt=models.F("starts_at")),
+                name="app_org_event_ends_after_starts",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status", "starts_at"]),
+            models.Index(fields=["organization", "deleted_at", "starts_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.organization_id})"
+
+
+class OrganizationEventRegistration(models.Model):
+    """新歓イベントへの参加申込。1イベント×1ユーザーで1行を更新する。"""
+
+    class Status(models.TextChoices):
+        REGISTERED = "registered", "申込済み"
+        CANCELLED = "cancelled", "取消"
+
+    event = models.ForeignKey(
+        OrganizationEvent,
+        on_delete=models.CASCADE,
+        related_name="registrations",
+        verbose_name="イベント",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="organization_event_registrations",
+        verbose_name="申込者",
+    )
+    status = models.CharField(
+        "申込状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.REGISTERED,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "新歓イベント申込"
+        verbose_name_plural = "新歓イベント申込"
+        ordering = ["-updated_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "user"],
+                name="uniq_organization_event_registration_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=["registered", "cancelled"]),
+                name="app_org_event_reg_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["event", "status"]),
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"event={self.event_id} user={self.user_id} ({self.status})"
+
+
+class OrganizationEventLottery(models.Model):
+    """新歓イベントの確定抽選。1イベントにつき1回のみ。"""
+
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "確定"
+
+    event = models.OneToOneField(
+        OrganizationEvent,
+        on_delete=models.CASCADE,
+        related_name="lottery",
+        verbose_name="イベント",
+    )
+    executed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_event_lotteries_executed",
+        verbose_name="実行者",
+    )
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.COMPLETED,
+        db_index=True,
+    )
+    applicant_count = models.PositiveIntegerField("申込者数")
+    eligible_count = models.PositiveIntegerField("抽選対象者数")
+    excluded_count = models.PositiveIntegerField("除外者数")
+    winner_count = models.PositiveIntegerField("当選人数")
+    executed_at = models.DateTimeField("抽選日時", auto_now_add=True, db_index=True)
+    shared_at = models.DateTimeField("共有日時", null=True, blank=True)
+    shared_message = models.OneToOneField(
+        "ChatMessage",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_event_lottery_share",
+        verbose_name="共有メッセージ",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "新歓イベント抽選"
+        verbose_name_plural = "新歓イベント抽選"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["completed"]),
+                name="app_org_event_lottery_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(winner_count__lte=models.F("eligible_count")),
+                name="app_org_event_lottery_winner_lte_eligible",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    excluded_count=models.F("applicant_count")
+                    - models.F("eligible_count")
+                ),
+                name="app_org_event_lottery_excluded_matches",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["executed_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"lottery event={self.event_id} winners={self.winner_count}"
+
+
+class OrganizationEventLotteryEntry(models.Model):
+    """抽選時点の対象者スナップショット。当選・落選・除外は変更しない。"""
+
+    class Result(models.TextChoices):
+        SELECTED = "selected", "当選"
+        NOT_SELECTED = "not_selected", "落選"
+        EXCLUDED = "excluded", "対象外"
+
+    lottery = models.ForeignKey(
+        OrganizationEventLottery,
+        on_delete=models.CASCADE,
+        related_name="entries",
+        verbose_name="抽選",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_event_lottery_entries",
+        verbose_name="ユーザー",
+    )
+    result = models.CharField(
+        "結果",
+        max_length=16,
+        choices=Result.choices,
+        db_index=True,
+    )
+    exclusion_note = models.CharField(
+        "除外備考",
+        max_length=100,
+        blank=True,
+        default="",
+    )
+    display_name_snapshot = models.CharField("表示名スナップショット", max_length=120)
+    username_snapshot = models.CharField(
+        "ユーザー名スナップショット",
+        max_length=150,
+        blank=True,
+        default="",
+    )
+    avatar_url_snapshot = models.CharField(
+        "アバタースナップショット",
+        max_length=500,
+        blank=True,
+        default="",
+    )
+    initial_snapshot = models.CharField(
+        "イニシャルスナップショット",
+        max_length=8,
+        blank=True,
+        default="",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "新歓イベント抽選結果"
+        verbose_name_plural = "新歓イベント抽選結果"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["lottery", "user"],
+                condition=models.Q(user__isnull=False),
+                name="uniq_organization_event_lottery_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    result__in=["selected", "not_selected", "excluded"]
+                ),
+                name="app_org_event_lottery_entry_result_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["lottery", "result"]),
+            models.Index(fields=["user", "result"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"lottery={self.lottery_id} user={self.user_id} ({self.result})"
+

@@ -84,6 +84,60 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: `/users/${userPk}/posts` },
     };
   }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/new$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "イベントを作成",
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/events/manage` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/manage$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "イベント管理",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/\d+\/edit$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    const eventId = p.split("/")[4];
+    return {
+      title: "イベントを編集",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/events/${eventId}`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/\d+\/registrations$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    const eventId = p.split("/")[4];
+    return {
+      title: "申込者",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/events/${eventId}`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/\d+\/lottery$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    const eventId = p.split("/")[4];
+    return {
+      title: "抽選",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/events/${eventId}`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/events\/\d+$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "イベント",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/info$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {

@@ -8,6 +8,8 @@ import type { ReplyTarget } from "./ChatReplyPreview";
 import { chatTimeLabel, type ChatThreadLayout } from "./chatThread";
 import { analytics } from "../../lib/analytics/events";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
+import { LotteryShareCard } from "../orgs/LotteryShareCard";
+import type { OrganizationEventLotteryShareCard } from "../orgs/orgEvents";
 
 export type ThreadMessage = {
   id: number;
@@ -33,6 +35,8 @@ export type ThreadMessage = {
   } | null;
   enrollment_label?: string | null;
   enrollment_role?: string | null;
+  message_kind?: "text" | "share" | string;
+  share?: OrganizationEventLotteryShareCard | { type?: string } | null;
 };
 
 type Props = {
@@ -225,6 +229,10 @@ export function ChatThreadMessage({
                 <span className="chat-row__deleted">
                   このメッセージは削除されました
                 </span>
+              ) : m.message_kind === "share" &&
+                m.share &&
+                m.share.type === "org_event_lottery" ? (
+                <LotteryShareCard share={m.share} />
               ) : (
                 m.body
               )}

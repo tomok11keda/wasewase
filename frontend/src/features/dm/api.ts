@@ -1,5 +1,6 @@
 import { getCsrfToken } from "../timeline/api";
 import { userFacingMutationError } from "../../lib/rateLimit";
+import type { OrganizationEventLotteryShareCard } from "../orgs/orgEvents";
 import type { ShareCardPayload } from "../share/api";
 
 export type Author = {
@@ -67,7 +68,7 @@ export type ChatMessage = {
   enrollment_role?: string | null;
   enrollment_label?: string | null;
   message_kind?: "text" | "share" | string;
-  share?: ShareCardPayload | null;
+  share?: ShareCardPayload | OrganizationEventLotteryShareCard | null;
   sender_is_operator_verified?: boolean | null;
 };
 

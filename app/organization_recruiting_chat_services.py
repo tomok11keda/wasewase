@@ -1046,6 +1046,26 @@ def build_recruiting_unread_summary(user: AbstractBaseUser) -> dict[str, Any]:
     }
 
 
+def _serialize_recruiting_messages(
+    messages: list[ChatMessage], viewer_id: int
+) -> list[dict[str, Any]]:
+    from .organization_event_lottery_services import lottery_share_extras_for_messages
+
+    extras = lottery_share_extras_for_messages(messages)
+    return [
+        serialize_chat_message(
+            message,
+            viewer_id,
+            extra=(
+                None
+                if message.deleted_at or message.is_hidden
+                else extras.get(message.pk)
+            ),
+        )
+        for message in messages
+    ]
+
+
 def get_accessible_recruiting_room(
     room_pk: int, user: AbstractBaseUser
 ) -> ChatRoom:
@@ -1096,7 +1116,7 @@ def build_recruiting_room_payload(
             "membership_status": "joined",
         },
         "recruiting_chat": serialize_recruiting_chat_for_viewer(chat, viewer),
-        "messages": [serialize_chat_message(m, viewer.pk) for m in messages],
+        "messages": _serialize_recruiting_messages(messages, viewer.pk),
         **history_meta(has_more, next_before),
     }
 
@@ -1134,7 +1154,7 @@ def build_recruiting_messages_payload(
     latest_id = mark_group_room_read(room, viewer)
     return {
         "ok": True,
-        "messages": [serialize_chat_message(m, viewer.pk) for m in messages],
+        "messages": _serialize_recruiting_messages(messages, viewer.pk),
         "latest_id": latest_id or 0,
         "can_send": True,
         **history,

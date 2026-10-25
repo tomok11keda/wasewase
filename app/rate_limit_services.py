@@ -70,6 +70,10 @@ ORGANIZATION_RECRUITING_CHAT_SCOPE = "organization_recruiting_chat"
 ORGANIZATION_RECRUITING_CHAT_LIMIT = 40
 ORGANIZATION_RECRUITING_CHAT_WINDOW = 600
 
+ORGANIZATION_EVENT_SCOPE = "organization_event"
+ORGANIZATION_EVENT_LIMIT = 40
+ORGANIZATION_EVENT_WINDOW = 600
+
 
 def allow_user_rate_limit(
     user: AbstractBaseUser | None,
@@ -163,6 +167,15 @@ def allow_organization_recruiting_chat_write(user: AbstractBaseUser | None) -> b
         ORGANIZATION_RECRUITING_CHAT_SCOPE,
         limit=ORGANIZATION_RECRUITING_CHAT_LIMIT,
         window=ORGANIZATION_RECRUITING_CHAT_WINDOW,
+    )
+
+
+def allow_organization_event_write(user: AbstractBaseUser | None) -> bool:
+    return allow_user_rate_limit(
+        user,
+        ORGANIZATION_EVENT_SCOPE,
+        limit=ORGANIZATION_EVENT_LIMIT,
+        window=ORGANIZATION_EVENT_WINDOW,
     )
 
 

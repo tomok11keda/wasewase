@@ -561,6 +561,136 @@
   background: #fff;
 }
 
+.org-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.org-event-row {
+  display: grid;
+  gap: 4px;
+  min-height: 44px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  color: inherit;
+  text-decoration: none;
+}
+
+.org-event-row__title {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.org-event-row__meta {
+  font-size: 12px;
+  color: #536471;
+}
+
+.org-event-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #536471;
+}
+
+.org-event-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.org-event-privacy {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #536471;
+}
+
+.org-event-person-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.org-event-person {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f5;
+}
+
+.org-event-person--select {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.org-event-person__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e8eef2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.org-event-person__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.org-event-person__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.org-event-person__text strong {
+  overflow-wrap: anywhere;
+}
+
+.org-event-person__text span,
+.org-event-person__text em {
+  font-size: 12px;
+  color: #536471;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.org-event-note {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.org-event-lottery-lists {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.org-event-lottery-lists h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.share-card--lottery {
+  max-width: 100%;
+}
+
 .org-recruiting-invite-feedback {
   margin: 0 0 12px;
   font-size: 14px;

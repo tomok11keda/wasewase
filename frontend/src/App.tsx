@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AppShellLayout } from "./layouts/AppShellLayout";
 import {
   MainTabRoute,
@@ -29,6 +29,11 @@ import {
 } from "./pages/PasswordResetPages";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { OrganizationEditPage } from "./pages/OrganizationEditPage";
+import { OrganizationEventDetailPage } from "./pages/OrganizationEventDetailPage";
+import { OrganizationEventFormPage } from "./pages/OrganizationEventFormPage";
+import { OrganizationEventLotteryPage } from "./pages/OrganizationEventLotteryPage";
+import { OrganizationEventManagePage } from "./pages/OrganizationEventManagePage";
+import { OrganizationEventRegistrationsPage } from "./pages/OrganizationEventRegistrationsPage";
 import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
 import { OrganizationRecruitingChatApplicationsPage } from "./pages/OrganizationRecruitingChatApplicationsPage";
 import { OrganizationRecruitingChatInfoPage } from "./pages/OrganizationRecruitingChatInfoPage";
@@ -74,6 +79,17 @@ function OrganizationRecruitingAlias() {
   );
 }
 
+function OrganizationEventAlias() {
+  const { slug } = useParams();
+  const { pathname } = useLocation();
+  const marker = "/events";
+  const idx = pathname.lastIndexOf(marker);
+  const tail = idx >= 0 ? pathname.slice(idx + marker.length) : "";
+  return (
+    <Navigate to={`/organizations/${slug || ""}/events${tail}`} replace />
+  );
+}
+
 function SpaRuntimeHooks() {
   return (
     <>
@@ -101,6 +117,46 @@ function NestedAppRoutes() {
       <Route path="timetable/user/:userPk" element={<TimetablePage />} />
       <Route path="courses/:offeringPk/talk" element={<CourseTalkPage />} />
       <Route path="courses/:offeringPk" element={<CourseDetailPage />} />
+      <Route
+        path="organizations/:slug/events/new"
+        element={<OrganizationEventFormPage />}
+      />
+      <Route
+        path="organizations/:slug/events/manage"
+        element={<OrganizationEventManagePage />}
+      />
+      <Route
+        path="organizations/:slug/events/:eventId/edit"
+        element={<OrganizationEventFormPage />}
+      />
+      <Route
+        path="organizations/:slug/events/:eventId/registrations"
+        element={<OrganizationEventRegistrationsPage />}
+      />
+      <Route
+        path="organizations/:slug/events/:eventId/lottery"
+        element={<OrganizationEventLotteryPage />}
+      />
+      <Route
+        path="organizations/:slug/events/:eventId"
+        element={<OrganizationEventDetailPage />}
+      />
+      <Route
+        path="orgs/:slug/events/new"
+        element={<OrganizationEventAlias />}
+      />
+      <Route
+        path="orgs/:slug/events/manage"
+        element={<OrganizationEventAlias />}
+      />
+      <Route
+        path="orgs/:slug/events/:eventId/:section"
+        element={<OrganizationEventAlias />}
+      />
+      <Route
+        path="orgs/:slug/events/:eventId"
+        element={<OrganizationEventAlias />}
+      />
       <Route
         path="organizations/:slug/recruiting-chat/info"
         element={<OrganizationRecruitingChatInfoPage />}

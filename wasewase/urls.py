@@ -23,6 +23,7 @@ from app import auth_api_views
 from app import follow_api_views
 from app import onboarding_api_views
 from app import organization_api_views
+from app import organization_event_api_views
 from app import organization_recruiting_chat_api_views
 from app.spa_canonical import spa_get_redirect
 
@@ -96,6 +97,11 @@ urlpatterns = [
         "api/v1/me/organizations/",
         organization_api_views.api_v1_me_organizations,
         name="api_v1_me_organizations",
+    ),
+    path(
+        "api/v1/me/event-registrations/",
+        organization_event_api_views.api_v1_me_event_registrations,
+        name="api_v1_me_event_registrations",
     ),
     path(
         "api/v1/internal/push-diag/",
@@ -361,6 +367,61 @@ urlpatterns = [
         "api/v1/organizations/<slug:slug>/posts/",
         organization_api_views.api_v1_organization_posts,
         name="api_v1_organization_posts",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/lottery/share/",
+        organization_event_api_views.api_v1_organization_event_lottery_share,
+        name="api_v1_organization_event_lottery_share",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/lottery/",
+        organization_event_api_views.api_v1_organization_event_lottery,
+        name="api_v1_organization_event_lottery",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/registrations/",
+        organization_event_api_views.api_v1_organization_event_registrations,
+        name="api_v1_organization_event_registrations",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/register/",
+        organization_event_api_views.api_v1_organization_event_register,
+        name="api_v1_organization_event_register",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/unregister/",
+        organization_event_api_views.api_v1_organization_event_unregister,
+        name="api_v1_organization_event_unregister",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/publish/",
+        organization_event_api_views.api_v1_organization_event_publish,
+        name="api_v1_organization_event_publish",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/unpublish/",
+        organization_event_api_views.api_v1_organization_event_unpublish,
+        name="api_v1_organization_event_unpublish",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/cancel/",
+        organization_event_api_views.api_v1_organization_event_cancel,
+        name="api_v1_organization_event_cancel",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/delete/",
+        organization_event_api_views.api_v1_organization_event_delete,
+        name="api_v1_organization_event_delete",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/",
+        organization_event_api_views.api_v1_organization_event_detail,
+        name="api_v1_organization_event_detail",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/",
+        organization_event_api_views.api_v1_organization_events,
+        name="api_v1_organization_events",
     ),
     path(
         "api/v1/organizations/<slug:slug>/recruiting-chat/invite-candidates/",

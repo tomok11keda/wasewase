@@ -129,7 +129,7 @@ export function OrganizationRecruitingChatInvitePage() {
     if (!window.confirm("この招待を辞退しますか？")) return;
     void run(async () => {
       await declineRecruitingInvitation(invitation.id);
-      navigate(`/orgs/${slug}`, { replace: true });
+      navigate("/dm", { replace: true });
     });
   };
 

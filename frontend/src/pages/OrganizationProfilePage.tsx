@@ -10,7 +10,12 @@ import {
   OrganizationRequestError,
   type OrganizationPostsPayload,
 } from "../features/orgs/api";
+import { OrganizationEventSection } from "../features/orgs/OrganizationEventSection";
 import { RecruitingChatSection } from "../features/orgs/RecruitingChatSection";
+import {
+  fetchOrganizationEvents,
+} from "../features/orgs/orgEventsApi";
+import type { OrganizationEvent } from "../features/orgs/orgEvents";
 import {
   organizationCategoryLabel,
   organizationExternalHref,
@@ -62,11 +67,15 @@ export function OrganizationProfilePage() {
   );
   const [recruitingLoading, setRecruitingLoading] = useState(false);
   const [recruitingError, setRecruitingError] = useState<string | null>(null);
+  const [events, setEvents] = useState<OrganizationEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const slugRef = useRef(slug);
   const viewerIdRef = useRef(viewerId);
   const loadGenRef = useRef(0);
   const postsGenRef = useRef(0);
   const recruitingGenRef = useRef(0);
+  const eventsGenRef = useRef(0);
   useEffect(() => {
     slugRef.current = slug;
   }, [slug]);
@@ -93,6 +102,8 @@ export function OrganizationProfilePage() {
       setPostsError(null);
       setRecruiting(null);
       setRecruitingError(null);
+      setEvents([]);
+      setEventsError(null);
       try {
         const data = await fetchOrganizationProfile(requestedSlug);
         if (
@@ -115,6 +126,7 @@ export function OrganizationProfilePage() {
         if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
         setPayload(null);
         setRecruiting(null);
+        setEvents([]);
         setError(statusFromError(err));
       } finally {
         if (
@@ -138,6 +150,7 @@ export function OrganizationProfilePage() {
       setPosts([]);
       setPostsMeta(null);
       setRecruiting(null);
+      setEvents([]);
       setError(null);
       return;
     }
@@ -255,6 +268,49 @@ export function OrganizationProfilePage() {
     if (sessionLoading || browsePreview || !payload || !slug) return;
     void loadRecruiting();
   }, [sessionLoading, browsePreview, payload, slug, loadRecruiting]);
+
+  const loadEvents = useCallback(async () => {
+    if (!slug || !payload) return;
+    const requestedSlug = slug;
+    const startedViewerId = viewerId;
+    const requestId = nextRequestId(eventsGenRef);
+    setEventsLoading(true);
+    setEventsError(null);
+    try {
+      const next = await fetchOrganizationEvents(requestedSlug);
+      if (
+        !isLatestRequest(eventsGenRef, requestId) ||
+        slugRef.current !== requestedSlug
+      ) {
+        return;
+      }
+      if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+      setEvents(next.events);
+    } catch {
+      if (
+        !isLatestRequest(eventsGenRef, requestId) ||
+        slugRef.current !== requestedSlug
+      ) {
+        return;
+      }
+      if (!isSameUserScope(startedViewerId, viewerIdRef.current)) return;
+      setEvents([]);
+      setEventsError("イベントを読み込めませんでした。");
+    } finally {
+      if (
+        isLatestRequest(eventsGenRef, requestId) &&
+        slugRef.current === requestedSlug &&
+        isSameUserScope(startedViewerId, viewerIdRef.current)
+      ) {
+        setEventsLoading(false);
+      }
+    }
+  }, [slug, payload, viewerId]);
+
+  useEffect(() => {
+    if (sessionLoading || browsePreview || !payload || !slug) return;
+    void loadEvents();
+  }, [sessionLoading, browsePreview, payload, slug, loadEvents]);
 
   if (!slug) {
     return <Navigate to="/" replace />;
@@ -419,6 +475,16 @@ export function OrganizationProfilePage() {
             }));
             setRecruitingError(null);
           }}
+        />
+
+        <OrganizationEventSection
+          slug={org.slug}
+          events={events}
+          loading={eventsLoading}
+          error={eventsError}
+          canManage={payload.can_manage}
+          hydrated={!eventsLoading}
+          onRetry={() => void loadEvents()}
         />
 
         <section className="org-profile-posts" aria-label="投稿">

@@ -17,6 +17,40 @@ test("recruiting chat room uses conversation chrome so the composer can use the 
   );
 });
 
+test("organization events use detail chrome and not the message thread", () => {
+  assert.equal(isConversationPath("/organizations/circle/events/11"), false);
+  assert.equal(matchChromeMode("/organizations/circle/events/11"), "detail");
+  assert.equal(matchDetailChrome("/organizations/circle/events/11")?.title, "イベント");
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/11")?.back.to,
+    "/orgs/circle"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/manage")?.title,
+    "イベント管理"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/new")?.title,
+    "イベントを作成"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/11/edit")?.title,
+    "イベントを編集"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/11/registrations")?.title,
+    "申込者"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/events/11/lottery")?.title,
+    "抽選"
+  );
+  assert.equal(
+    isConversationPath("/organizations/circle/events/11/lottery"),
+    false
+  );
+});
+
 test("recruiting admin pages stay on detail chrome and do not reuse the message thread", () => {
   assert.equal(
     isConversationPath("/organizations/circle/recruiting-chat/info"),

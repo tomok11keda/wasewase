@@ -434,7 +434,9 @@ export function DmRoomPage() {
                       data-message-id={m.id}
                     >
                       <div className="chat-row__main">
-                        {m.message_kind === "share" && m.share ? (
+                        {m.message_kind === "share" &&
+                        m.share &&
+                        m.share.type !== "org_event_lottery" ? (
                           <SharedContentCard share={m.share} />
                         ) : (
                           <div className="chat-row__bubble">{m.body}</div>

@@ -41,6 +41,10 @@ from .models import (
     Notification,
     Organization,
     OrganizationMember,
+    OrganizationEvent,
+    OrganizationEventLottery,
+    OrganizationEventLotteryEntry,
+    OrganizationEventRegistration,
     OrganizationRecruitingChat,
     OrganizationRecruitingChatApplication,
     Product,
@@ -1055,6 +1059,73 @@ class OrganizationRecruitingChatAdmin(admin.ModelAdmin):
     search_fields = ("name", "organization__name", "organization__slug")
     raw_id_fields = ("organization", "room", "created_by")
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(OrganizationEvent)
+class OrganizationEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "organization",
+        "status",
+        "starts_at",
+        "registration_open",
+        "deleted_at",
+    )
+    list_filter = ("status", "registration_open")
+    search_fields = ("title", "organization__name", "organization__slug")
+    raw_id_fields = ("organization", "created_by")
+    readonly_fields = ("created_at", "updated_at", "deleted_at")
+
+
+@admin.register(OrganizationEventRegistration)
+class OrganizationEventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ("event", "user", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("event__title", "user__username")
+    raw_id_fields = ("event", "user")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(OrganizationEventLottery)
+class OrganizationEventLotteryAdmin(admin.ModelAdmin):
+    list_display = (
+        "event",
+        "winner_count",
+        "eligible_count",
+        "excluded_count",
+        "executed_at",
+        "shared_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("event__title",)
+    raw_id_fields = ("event", "executed_by", "shared_message")
+    readonly_fields = (
+        "applicant_count",
+        "eligible_count",
+        "excluded_count",
+        "winner_count",
+        "executed_at",
+        "shared_at",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(OrganizationEventLotteryEntry)
+class OrganizationEventLotteryEntryAdmin(admin.ModelAdmin):
+    list_display = ("lottery", "user", "result")
+    list_filter = ("result",)
+    search_fields = ("display_name_snapshot", "username_snapshot")
+    raw_id_fields = ("lottery", "user")
+    readonly_fields = (
+        "result",
+        "exclusion_note",
+        "display_name_snapshot",
+        "username_snapshot",
+        "avatar_url_snapshot",
+        "initial_snapshot",
+        "created_at",
+    )
 
 
 @admin.register(OrganizationRecruitingChatApplication)

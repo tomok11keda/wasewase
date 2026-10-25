@@ -61,6 +61,12 @@ _RECRUITING_CHAT_INVITES_RE = re.compile(
     r"^/(?:organizations|orgs)/([^/]+)/recruiting-chat/invites/?$"
 )
 _RECRUITING_CHAT_ROOM_RE = re.compile(r"^/dm/recruiting/(\d+)/?$")
+_ORG_EVENT_LOTTERY_RE = re.compile(
+    r"^/(?:organizations|orgs)/([^/]+)/events/(\d+)/lottery/?$"
+)
+_ORG_EVENT_RE = re.compile(
+    r"^/(?:organizations|orgs)/([^/]+)/events/(\d+)/?$"
+)
 
 
 def _with_query_fragment(spa: str, query: str, fragment: str) -> str:
@@ -154,6 +160,18 @@ def notification_spa_path(link: str) -> str:
     m = _TIMELINE_POST_RE.match(path)
     if m:
         return _with_query_fragment(f"/posts/{m.group(1)}", query, fragment)
+    m = _ORG_EVENT_LOTTERY_RE.match(path)
+    if m:
+        return _with_query_fragment(
+            f"/organizations/{m.group(1)}/events/{m.group(2)}/lottery",
+            query,
+            fragment,
+        )
+    m = _ORG_EVENT_RE.match(path)
+    if m:
+        return _with_query_fragment(
+            f"/organizations/{m.group(1)}/events/{m.group(2)}", query, fragment
+        )
     m = _RECRUITING_CHAT_INVITE_RE.match(path)
     if m:
         return _with_query_fragment(

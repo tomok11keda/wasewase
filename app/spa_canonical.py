@@ -112,6 +112,30 @@ def recruiting_invite_url(slug: str) -> str:
     return path
 
 
+def organization_event_spa_path(slug: str, event_id: int) -> str:
+    org_slug = (slug or "").strip()
+    return f"/organizations/{org_slug}/events/{int(event_id)}"
+
+
+def organization_event_url(slug: str, event_id: int) -> str:
+    path = organization_event_spa_path(slug, event_id)
+    if spa_enabled():
+        return app_absolute(path)
+    return path
+
+
+def organization_event_lottery_spa_path(slug: str, event_id: int) -> str:
+    org_slug = (slug or "").strip()
+    return f"/organizations/{org_slug}/events/{int(event_id)}/lottery"
+
+
+def organization_event_lottery_url(slug: str, event_id: int) -> str:
+    path = organization_event_lottery_spa_path(slug, event_id)
+    if spa_enabled():
+        return app_absolute(path)
+    return path
+
+
 def recruiting_chat_url(slug: str, room_pk: int) -> str:
     """通知・絶対URL用。inbox の spa_path は recruiting_chat_spa_path を使う。"""
     path = recruiting_chat_spa_path(slug, room_pk)

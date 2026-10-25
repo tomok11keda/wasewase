@@ -156,6 +156,22 @@ class SpaLinkHelperTests(TestCase):
             notification_spa_path("/organizations/circle/recruiting-chat/invites"),
             "/organizations/circle/recruiting-chat/invites",
         )
+        self.assertEqual(
+            notification_spa_path("/app/organizations/circle/events/11"),
+            "/organizations/circle/events/11",
+        )
+        self.assertEqual(
+            notification_spa_path("/orgs/circle/events/11"),
+            "/organizations/circle/events/11",
+        )
+        self.assertEqual(
+            notification_spa_path("/app/organizations/circle/events/11/lottery"),
+            "/organizations/circle/events/11/lottery",
+        )
+        self.assertEqual(
+            notification_spa_path("/orgs/circle/events/11/lottery"),
+            "/organizations/circle/events/11/lottery",
+        )
 
 
 @override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False)
