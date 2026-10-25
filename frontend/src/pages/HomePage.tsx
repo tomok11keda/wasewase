@@ -19,6 +19,7 @@ import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
 import { organizationPostDisplay } from "../features/timeline/organizationActor";
 import { ComposeIdentity } from "../features/timeline/ComposeIdentity";
+import { ComposeVisibility } from "../features/timeline/ComposeVisibility";
 import {
   composeActorFromNavOrganization,
   composeActorKey,
@@ -27,6 +28,12 @@ import {
   snapshotComposeActor,
   type ComposeActorSnapshot,
 } from "../features/timeline/composeActor";
+import {
+  composeNoticeForOrganizationPost,
+  DEFAULT_ORGANIZATION_COMPOSE_VISIBILITY,
+  isUnpublishedOrganizationPost,
+  type OrganizationPostVisibility,
+} from "../features/timeline/organizationPostVisibility";
 import { restoreScrollPosition } from "../features/profile/api";
 import {
   TIMELINE_FEED_SKELETON_COUNT,
@@ -114,6 +121,10 @@ export function HomePage() {
   const [quoteId, setQuoteId] = useState<number | null>(null);
   const [quotePreview, setQuotePreview] = useState<TimelinePost | null>(null);
   const [composeBusy, setComposeBusy] = useState(false);
+  const [composeVisibility, setComposeVisibility] =
+    useState<OrganizationPostVisibility>(
+      DEFAULT_ORGANIZATION_COMPOSE_VISIBILITY
+    );
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeActor, setComposeActor] = useState<ComposeActorSnapshot | null>(
     null
@@ -128,6 +139,7 @@ export function HomePage() {
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const composeBusyRef = useRef(false);
   const hasDataRef = useRef(false);
   const ensurePostReqRef = useRef(0);
   const authenticated = Boolean(me?.authenticated);
@@ -159,6 +171,7 @@ export function HomePage() {
     setComposeImage(null);
     setQuoteId(null);
     setQuotePreview(null);
+    setComposeVisibility(DEFAULT_ORGANIZATION_COMPOSE_VISIBILITY);
   }, []);
 
   const closeCompose = useCallback(() => {
@@ -497,6 +510,8 @@ export function HomePage() {
     const body = composeBody.trim();
     if (!body && !composeImage && !quoteId) return;
     if (actorMismatch) return;
+    if (composeBusyRef.current) return;
+    composeBusyRef.current = true;
     setComposeBusy(true);
     try {
       const organizationId = organizationIdForCompose(sendActor);
@@ -505,21 +520,27 @@ export function HomePage() {
         image: composeImage,
         quoted_post_id: quoteId,
         organization_id: organizationId,
+        visibility:
+          sendActor.type === "organization" ? composeVisibility : null,
       });
       analytics.timelinePostCreated({
         has_image: Boolean(composeImage),
         is_quote: Boolean(quoteId),
       });
-      const unpublished =
-        post.actor_type === "organization" &&
-        post.visibility === "organization_preview";
-      if (unpublished) {
+      const unpublished = isUnpublishedOrganizationPost(post);
+      if (post.actor_type === "organization") {
         setComposeNotice(
-          `団体名義で投稿しました。一般公開前のため、タイムラインには表示されません。「${composeActorLabel(sendActor)}」のプロフィール（管理者プレビュー）で確認できます。`
+          composeNoticeForOrganizationPost({
+            unpublished,
+            organizationName: composeActorLabel(sendActor),
+          })
         );
         setComposeNoticeSlug(
           sendActor.type === "organization" ? sendActor.organization.slug : null
         );
+        if (!unpublished) {
+          setPosts((prev) => [post, ...prev]);
+        }
       } else {
         setPosts((prev) => [post, ...prev]);
         setComposeNotice(null);
@@ -532,6 +553,7 @@ export function HomePage() {
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "投稿に失敗しました");
     } finally {
+      composeBusyRef.current = false;
       setComposeBusy(false);
     }
   };
@@ -577,7 +599,15 @@ export function HomePage() {
         maxLength={280}
         rows={3}
         placeholder="いま思ったこと、質問、情報共有など（280字まで）"
+        disabled={composeBusy}
       />
+      {sendActor.type === "organization" ? (
+        <ComposeVisibility
+          value={composeVisibility}
+          onChange={setComposeVisibility}
+          disabled={composeBusy}
+        />
+      ) : null}
       {quotePreview ? (
         <div className="quoted-post-card spa-compose__quote">
           <strong>
@@ -633,7 +663,14 @@ export function HomePage() {
           閉じる
         </button>
         <button type="submit" disabled={composeBusy || actorMismatch}>
-          投稿する
+          {composeBusy
+            ? "保存中…"
+            : sendActor.type === "organization" &&
+                composeVisibility === "draft"
+              ? "下書き保存"
+              : sendActor.type === "organization"
+                ? "公開する"
+                : "投稿する"}
         </button>
       </div>
     </form>

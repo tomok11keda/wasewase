@@ -69,6 +69,7 @@ def api_v1_organization_posts(request: HttpRequest, slug: str) -> JsonResponse:
         _viewer(request),
         offset=offset,
         limit=limit,
+        scope=str(request.GET.get("scope") or ""),
     )
     if payload is None:
         return _json_error("not_found", status=404)

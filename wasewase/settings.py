@@ -473,8 +473,8 @@ WASE_REACT_SPA = env.bool(
     default=bool(RENDER_EXTERNAL_HOSTNAME),
 )
 
-# 団体名義タイムライン投稿の公開（Phase 2-C の完成・検証後に True）。
-# False のあいだは作成 API は動くが、公開フィード/検索/プロフィールには出さない。
+# 互換のため残す。公開判定は TimelinePost.organization_visibility を使う。
+# True にしても既存 unlisted 投稿は一括公開しない。本番では False のまま。
 WASE_ORG_TIMELINE_POSTS_PUBLIC = env.bool(
     "WASE_ORG_TIMELINE_POSTS_PUBLIC",
     default=False,

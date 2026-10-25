@@ -69,6 +69,31 @@
   font-size: 13px;
 }
 
+.org-profile-posts__tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.org-profile-posts__tab {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #cfd9de;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f1419;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.org-profile-posts__tab.is-active {
+  border-color: var(--accent, #891e2b);
+  background: #f7edf0;
+  color: #891e2b;
+}
+
 .org-profile-posts__more {
   margin: 12px 0 0;
   text-align: center;

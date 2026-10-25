@@ -18,7 +18,12 @@ import {
   submitContentReport,
   toggleBookmark,
   toggleLike,
+  updateTimelinePostVisibility,
 } from "./api";
+import {
+  isUnpublishedOrganizationPost,
+  organizationPostVisibilityLabel,
+} from "./organizationPostVisibility";
 import { ImageLightbox } from "./ImageLightbox";
 import { TimelineFleaShareCard } from "./TimelineFleaShareCard";
 import { LikerListModal } from "./LikerListModal";
@@ -288,6 +293,7 @@ export function TimelinePostCard({
   const [commentBody, setCommentBody] = useState("");
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [likersOpen, setLikersOpen] = useState(false);
   const [likePopping, setLikePopping] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -498,13 +504,15 @@ export function TimelinePostCard({
   };
 
   const run = async (fn: () => Promise<void>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       await fn();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "操作に失敗しました");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -540,10 +548,25 @@ export function TimelinePostCard({
           <header className="tweet-header">
             <div className="tweet-identity">
               {orgDisplay ? (
-                <OrganizationPostName
-                  display={orgDisplay}
-                  onNavigate={() => saveScrollPosition("/")}
-                />
+                <>
+                  <OrganizationPostName
+                    display={orgDisplay}
+                    onNavigate={() => saveScrollPosition("/")}
+                  />
+                  {organizationPostVisibilityLabel(post.visibility) &&
+                  (isUnpublishedOrganizationPost(post) ||
+                    (authenticated && post.can_delete && hydrated)) ? (
+                    <span
+                      className={`tweet-visibility-badge${
+                        isUnpublishedOrganizationPost(post)
+                          ? " is-unpublished"
+                          : " is-public"
+                      }`}
+                    >
+                      {organizationPostVisibilityLabel(post.visibility)}
+                    </span>
+                  ) : null}
+                </>
               ) : post.author ? (
                 <>
                   <Link
@@ -588,22 +611,55 @@ export function TimelinePostCard({
             </div>
             <div className="tweet-header-menu">
               {authenticated && hydrated && post.can_delete ? (
-                <button
-                  type="button"
-                  className="tweet-menu-btn tweet-menu-btn--danger"
-                  disabled={busy}
-                  onClick={() =>
-                    guard(() => {
-                      if (!window.confirm("この投稿を削除しますか？")) return;
-                      void run(async () => {
-                        await deletePost(post.id);
-                        onRemove(post.id);
-                      });
-                    })
-                  }
-                >
-                  削除
-                </button>
+                <>
+                  {orgDisplay ? (
+                    <button
+                      type="button"
+                      className="tweet-menu-btn"
+                      disabled={busy}
+                      onClick={() =>
+                        guard(() => {
+                          const nextVisibility = isUnpublishedOrganizationPost(
+                            post
+                          )
+                            ? "public"
+                            : "draft";
+                          const confirmText = isUnpublishedOrganizationPost(post)
+                            ? "この投稿を公開しますか？タイムラインと検索に表示されます。"
+                            : "この投稿を下書きに戻しますか？一般には表示されなくなります。";
+                          if (!window.confirm(confirmText)) return;
+                          void run(async () => {
+                            const updated = await updateTimelinePostVisibility(
+                              post.id,
+                              nextVisibility
+                            );
+                            onChange(updated);
+                          });
+                        })
+                      }
+                    >
+                      {isUnpublishedOrganizationPost(post)
+                        ? "公開する"
+                        : "下書きにする"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="tweet-menu-btn tweet-menu-btn--danger"
+                    disabled={busy}
+                    onClick={() =>
+                      guard(() => {
+                        if (!window.confirm("この投稿を削除しますか？")) return;
+                        void run(async () => {
+                          await deletePost(post.id);
+                          onRemove(post.id);
+                        });
+                      })
+                    }
+                  >
+                    削除
+                  </button>
+                </>
               ) : null}
               {variant !== "detail" ? (
                 <BookmarkButton

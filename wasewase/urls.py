@@ -194,6 +194,11 @@ urlpatterns = [
         name="api_v1_timeline_quote",
     ),
     path(
+        "api/v1/timeline/<int:pk>/visibility/",
+        timeline_api_views.api_v1_timeline_visibility,
+        name="api_v1_timeline_visibility",
+    ),
+    path(
         "api/v1/timeline/<int:pk>/",
         timeline_api_views.api_v1_timeline_item,
         name="api_v1_timeline_item",

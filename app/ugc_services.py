@@ -211,11 +211,35 @@ def filter_visible_comments(
 
 def get_report_target(target_type: str, target_id: int, viewer=None):
     if target_type == ContentReport.TargetType.POST:
-        return TimelinePost.objects.filter(pk=target_id, is_removed=False).first()
+        from .organization_post_services import viewer_may_report_timeline_post
+
+        post = (
+            TimelinePost.objects.select_related("organization")
+            .filter(pk=target_id, is_removed=False)
+            .first()
+        )
+        if not viewer_may_report_timeline_post(viewer, post):
+            return None
+        return post
     if target_type == ContentReport.TargetType.PRODUCT:
         return Product.objects.filter(pk=target_id, is_removed=False).first()
     if target_type == ContentReport.TargetType.COMMENT:
-        return Comment.objects.filter(pk=target_id, is_removed=False).first()
+        from .organization_post_services import viewer_may_report_timeline_post
+
+        comment = (
+            Comment.objects.select_related(
+                "timeline_post",
+                "timeline_post__organization",
+            )
+            .filter(pk=target_id, is_removed=False)
+            .first()
+        )
+        if comment is None:
+            return None
+        parent = getattr(comment, "timeline_post", None)
+        if parent is not None and not viewer_may_report_timeline_post(viewer, parent):
+            return None
+        return comment
     if target_type == ContentReport.TargetType.USER:
         return User.objects.filter(pk=target_id, is_active=True).first()
     if target_type == ContentReport.TargetType.COURSE_OFFERING:

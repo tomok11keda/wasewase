@@ -34,13 +34,17 @@ from .rate_limit_services import (
     allow_timeline_comment,
     allow_timeline_like,
     allow_timeline_post,
+    allow_timeline_visibility,
 )
 from .services import get_user_faculty
 from .organization_post_services import (
     OrganizationPostError,
     parse_organization_id,
+    parse_requested_visibility,
     resolve_posting_organization,
+    update_organization_post_visibility,
     user_can_delete_timeline_post,
+    visibility_for_new_organization_post,
 )
 from .timeline_api_services import (
     get_visible_timeline_post_payload,
@@ -136,6 +140,12 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
             post.faculty = faculty
     else:
         post.faculty = ""
+        try:
+            post.organization_visibility = visibility_for_new_organization_post(
+                request.POST.get("visibility")
+            )
+        except OrganizationPostError as vis_exc:
+            return _json_error(vis_exc.code, status=vis_exc.status)
     try:
         save_timeline_post_instance(post)
     except Exception as exc:
@@ -376,10 +386,49 @@ def api_v1_timeline_delete(request: HttpRequest, pk: int) -> JsonResponse:
     return JsonResponse({"ok": True})
 
 
-@require_http_methods(["GET", "DELETE", "POST"])
+@login_required
+@require_http_methods(["PATCH"])
+def api_v1_timeline_visibility(request: HttpRequest, pk: int) -> JsonResponse:
+    if not allow_timeline_visibility(request.user):
+        return _json_error(
+            "rate_limited",
+            status=429,
+            message=RATE_LIMIT_USER_MESSAGE,
+        )
+    post = (
+        TimelinePost.objects.select_related("organization")
+        .filter(pk=pk, is_removed=False)
+        .first()
+    )
+    if post is None:
+        return _json_error("not_found", status=404)
+    raw = request.POST.get("visibility")
+    if raw is None:
+        try:
+            body = json.loads(request.body.decode() or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            body = {}
+        if isinstance(body, dict):
+            raw = body.get("visibility")
+    try:
+        visibility = parse_requested_visibility(raw)
+        if visibility is None:
+            raise OrganizationPostError("invalid_visibility", status=400)
+        update_organization_post_visibility(request.user, post, visibility)
+    except OrganizationPostError as exc:
+        return _json_error(exc.code, status=exc.status)
+    payload = get_visible_timeline_post_payload(_viewer(request), post.pk)
+    if payload is None:
+        return _json_error("not_found", status=404)
+    return JsonResponse({"ok": True, "post": payload})
+
+
+@require_http_methods(["GET", "DELETE", "POST", "PATCH"])
 def api_v1_timeline_item(request: HttpRequest, pk: int) -> JsonResponse:
     if request.method == "GET":
         return api_v1_timeline_detail(request, pk)
+    if request.method == "PATCH":
+        return api_v1_timeline_visibility(request, pk)
     return api_v1_timeline_delete(request, pk)
 
 

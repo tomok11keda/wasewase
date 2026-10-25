@@ -179,14 +179,21 @@ export type OrganizationPostsPayload = {
   total_count: number;
   preview: boolean;
   unpublished: boolean;
+  scope?: "public" | "unpublished" | string;
+  public_count?: number;
+  unpublished_count?: number;
 };
 
 export async function fetchOrganizationPosts(
   slug: string,
-  offset = 0
+  offset = 0,
+  scope?: "public" | "unpublished" | string
 ): Promise<OrganizationPostsPayload> {
   const params = new URLSearchParams();
   if (offset > 0) params.set("offset", String(offset));
+  if (scope === "unpublished" || scope === "public") {
+    params.set("scope", scope);
+  }
   const qs = params.toString();
   const result = await apiGetJson(
     `/api/v1/organizations/${encodeURIComponent(slug)}/posts/${qs ? `?${qs}` : ""}`
@@ -223,6 +230,18 @@ export async function fetchOrganizationPosts(
     total_count: Number(result.data.total_count || 0),
     preview: result.data.preview === true,
     unpublished: result.data.unpublished === true,
+    scope:
+      result.data.scope === "unpublished" || result.data.scope === "public"
+        ? result.data.scope
+        : undefined,
+    public_count:
+      typeof result.data.public_count === "number"
+        ? result.data.public_count
+        : undefined,
+    unpublished_count:
+      typeof result.data.unpublished_count === "number"
+        ? result.data.unpublished_count
+        : undefined,
   };
 }
 

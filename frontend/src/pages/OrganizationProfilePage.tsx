@@ -65,6 +65,9 @@ export function OrganizationProfilePage() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [postsLoadingMore, setPostsLoadingMore] = useState(false);
+  const [postsScope, setPostsScope] = useState<"public" | "unpublished">(
+    "public"
+  );
   const [recruiting, setRecruiting] = useState<RecruitingChatEnvelope | null>(
     null
   );
@@ -85,6 +88,9 @@ export function OrganizationProfilePage() {
   useEffect(() => {
     viewerIdRef.current = viewerId;
   }, [viewerId]);
+  useEffect(() => {
+    setPostsScope("public");
+  }, [slug]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -173,7 +179,11 @@ export function OrganizationProfilePage() {
       else setPostsLoading(true);
       setPostsError(null);
       try {
-        const data = await fetchOrganizationPosts(requestedSlug, nextOffset);
+        const data = await fetchOrganizationPosts(
+          requestedSlug,
+          nextOffset,
+          postsScope
+        );
         if (
           !isLatestRequest(postsGenRef, requestId) ||
           slugRef.current !== requestedSlug
@@ -209,7 +219,7 @@ export function OrganizationProfilePage() {
         }
       }
     },
-    [slug, viewerId]
+    [slug, viewerId, postsScope]
   );
 
   const loadRecruiting = useCallback(async () => {
@@ -506,9 +516,41 @@ export function OrganizationProfilePage() {
 
         <section className="org-profile-posts" aria-label="投稿">
           <h2 className="org-profile-posts__title">投稿</h2>
+          {payload.can_manage ? (
+            <div className="org-profile-posts__tabs" role="tablist" aria-label="投稿の公開状態">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={postsScope === "public"}
+                className={`org-profile-posts__tab${
+                  postsScope === "public" ? " is-active" : ""
+                }`}
+                onClick={() => setPostsScope("public")}
+              >
+                公開
+                {typeof postsMeta?.public_count === "number"
+                  ? `（${postsMeta.public_count}）`
+                  : ""}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={postsScope === "unpublished"}
+                className={`org-profile-posts__tab${
+                  postsScope === "unpublished" ? " is-active" : ""
+                }`}
+                onClick={() => setPostsScope("unpublished")}
+              >
+                下書き・非公開
+                {typeof postsMeta?.unpublished_count === "number"
+                  ? `（${postsMeta.unpublished_count}）`
+                  : ""}
+              </button>
+            </div>
+          ) : null}
           {postsMeta?.preview ? (
             <p className="org-profile-posts__preview" role="status">
-              これらの投稿は一般公開されていません。管理者プレビューです。
+              下書きと、公開前のまま残っている投稿です。一般のタイムラインと検索には表示されません。「公開する」で1件ずつ公開できます。
             </p>
           ) : null}
           {postsMeta?.unpublished && !payload.can_manage ? (
@@ -527,7 +569,13 @@ export function OrganizationProfilePage() {
               </button>
             </p>
           ) : posts.length === 0 ? (
-            <p className="org-profile-empty">投稿はまだありません。</p>
+            <p className="org-profile-empty">
+              {payload.can_manage && postsScope === "unpublished"
+                ? "下書きと過去の非公開投稿はありません。"
+                : payload.can_manage
+                  ? "公開中の投稿はまだありません。下書きタブから公開できます。"
+                  : "投稿はまだありません。"}
+            </p>
           ) : (
             <div className="timeline-list org-profile-posts__list">
               {posts.map((post) => (
@@ -535,11 +583,40 @@ export function OrganizationProfilePage() {
                   key={post.id}
                   post={post}
                   authenticated={Boolean(me?.authenticated)}
-                  onChange={(next) =>
+                  onChange={(next) => {
+                    const movedOffList =
+                      (postsScope === "unpublished" &&
+                        next.visibility === "public") ||
+                      (postsScope === "public" &&
+                        next.visibility !== "public");
+                    if (movedOffList) {
+                      setPosts((prev) =>
+                        prev.filter((item) => item.id !== next.id)
+                      );
+                      setPostsMeta((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              public_count:
+                                next.visibility === "public"
+                                  ? (prev.public_count ?? 0) + 1
+                                  : Math.max(0, (prev.public_count ?? 1) - 1),
+                              unpublished_count:
+                                next.visibility === "public"
+                                  ? Math.max(
+                                      0,
+                                      (prev.unpublished_count ?? 1) - 1
+                                    )
+                                  : (prev.unpublished_count ?? 0) + 1,
+                            }
+                          : prev
+                      );
+                      return;
+                    }
                     setPosts((prev) =>
                       prev.map((item) => (item.id === next.id ? next : item))
-                    )
-                  }
+                    );
+                  }}
                   onRemove={(id) =>
                     setPosts((prev) => prev.filter((item) => item.id !== id))
                   }

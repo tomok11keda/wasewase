@@ -65,6 +65,11 @@ ORGANIZATION_PROFILE_UPDATE_SCOPE = "organization_profile_update"
 ORGANIZATION_PROFILE_UPDATE_LIMIT = 30
 ORGANIZATION_PROFILE_UPDATE_WINDOW = 3600
 
+# Org post public/draft toggles. Independent from compose.
+TIMELINE_VISIBILITY_SCOPE = "timeline_visibility"
+TIMELINE_VISIBILITY_LIMIT = 30
+TIMELINE_VISIBILITY_WINDOW = 3600
+
 # 新歓チャット作成・参加申請・承認。メッセージ送信は chat_message を使う。
 ORGANIZATION_RECRUITING_CHAT_SCOPE = "organization_recruiting_chat"
 ORGANIZATION_RECRUITING_CHAT_LIMIT = 40
@@ -158,6 +163,15 @@ def allow_organization_profile_update(user: AbstractBaseUser | None) -> bool:
         ORGANIZATION_PROFILE_UPDATE_SCOPE,
         limit=ORGANIZATION_PROFILE_UPDATE_LIMIT,
         window=ORGANIZATION_PROFILE_UPDATE_WINDOW,
+    )
+
+
+def allow_timeline_visibility(user: AbstractBaseUser | None) -> bool:
+    return allow_user_rate_limit(
+        user,
+        TIMELINE_VISIBILITY_SCOPE,
+        limit=TIMELINE_VISIBILITY_LIMIT,
+        window=TIMELINE_VISIBILITY_WINDOW,
     )
 
 

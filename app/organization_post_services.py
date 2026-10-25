@@ -31,8 +31,18 @@ class OrganizationPostError(ValueError):
         super().__init__(message or code)
 
 
+ORG_POST_VISIBILITY_PUBLIC = TimelinePost.OrganizationVisibility.PUBLIC
+ORG_POST_VISIBILITY_DRAFT = TimelinePost.OrganizationVisibility.DRAFT
+ORG_POST_VISIBILITY_UNLISTED = TimelinePost.OrganizationVisibility.UNLISTED
+ORG_POST_SCOPE_PUBLIC = "public"
+ORG_POST_SCOPE_UNPUBLISHED = "unpublished"
+_WRITABLE_ORG_VISIBILITIES = frozenset(
+    {ORG_POST_VISIBILITY_PUBLIC, ORG_POST_VISIBILITY_DRAFT}
+)
+
+
 def org_timeline_posts_are_public() -> bool:
-    """本番一般公開は統合テスト後。default False を維持する。"""
+    """互換用。公開判定は organization_visibility を使う。"""
     return bool(getattr(settings, "WASE_ORG_TIMELINE_POSTS_PUBLIC", False))
 
 
@@ -41,30 +51,68 @@ def is_organization_timeline_post(post: TimelinePost | None) -> bool:
 
 
 def organization_posts_are_publicly_listable(organization: Organization | None) -> bool:
-    """タイムライン/検索に団体投稿を載せるか。フラグ × active × is_listed。"""
-    return org_timeline_posts_are_public() and can_list_organization(organization)
+    """団体自体が一般掲載できるか。投稿ごとの visibility とは独立。"""
+    return can_list_organization(organization)
+
+
+def _post_organization(post: TimelinePost | None) -> Organization | None:
+    if post is None:
+        return None
+    organization = getattr(post, "organization", None)
+    if organization is None and getattr(post, "organization_id", None):
+        organization = Organization.objects.filter(pk=post.organization_id).first()
+    return organization
+
+
+def organization_post_is_explicitly_public(post: TimelinePost | None) -> bool:
+    return (
+        is_organization_timeline_post(post)
+        and getattr(post, "organization_visibility", None)
+        == ORG_POST_VISIBILITY_PUBLIC
+    )
 
 
 def organization_post_is_publicly_listed(post: TimelinePost | None) -> bool:
-    if not is_organization_timeline_post(post):
+    if not organization_post_is_explicitly_public(post):
         return False
-    organization = getattr(post, "organization", None)
-    if organization is None and post.organization_id:
-        organization = Organization.objects.filter(pk=post.organization_id).first()
-    return organization_posts_are_publicly_listable(organization)
+    return organization_posts_are_publicly_listable(_post_organization(post))
+
+
+def public_organization_post_q() -> Q:
+    """一般公開の団体投稿。フラグは見ない。unlisted/draft は含めない。"""
+    return Q(
+        organization_id__isnull=False,
+        organization_visibility=ORG_POST_VISIBILITY_PUBLIC,
+        organization__status=Organization.Status.ACTIVE,
+        organization__is_listed=True,
+    )
 
 
 def filter_public_organization_posts(qs: QuerySet[TimelinePost]) -> QuerySet[TimelinePost]:
-    """公開フィード用。draft/suspended/未掲載の団体投稿は出さない。"""
-    if not org_timeline_posts_are_public():
-        return qs.filter(organization_id__isnull=True)
-    return qs.filter(
-        Q(organization_id__isnull=True)
-        | Q(
-            organization__status=Organization.Status.ACTIVE,
-            organization__is_listed=True,
-        )
-    )
+    """公開フィード用。既存 unlisted と下書き、draft/unlisted/suspended 団体は出さない。"""
+    return qs.filter(Q(organization_id__isnull=True) | public_organization_post_q())
+
+
+def viewer_may_access_unpublished_organization_post(
+    viewer: AbstractBaseUser | None,
+    post: TimelinePost | None,
+) -> bool:
+    """管理者プレビュー。公開フィードや通報の一般経路には使わない。"""
+    return viewer_can_see_organization_post(viewer, post)
+
+
+def viewer_may_report_timeline_post(
+    viewer: AbstractBaseUser | None,
+    post: TimelinePost | None,
+) -> bool:
+    """非公開団体投稿の存在を通報APIから推測させない。"""
+    if post is None or getattr(post, "is_removed", False):
+        return False
+    if not is_organization_timeline_post(post):
+        return True
+    if organization_post_is_publicly_listed(post):
+        return True
+    return viewer_may_access_unpublished_organization_post(viewer, post)
 
 
 def filter_timeline_posts_by_faculty(
@@ -78,6 +126,30 @@ def filter_timeline_posts_by_faculty(
         Q(organization_id__isnull=True)
         & (Q(author__profile__department=value) | Q(faculty=value))
     )
+
+
+def parse_requested_visibility(raw) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        value = raw.strip().lower()
+        if not value:
+            return None
+        raw = value
+    else:
+        raw = str(raw).strip().lower()
+        if not raw:
+            return None
+    if raw in _WRITABLE_ORG_VISIBILITIES:
+        return raw
+    raise OrganizationPostError("invalid_visibility", status=400)
+
+
+def visibility_for_new_organization_post(raw) -> str:
+    parsed = parse_requested_visibility(raw)
+    if parsed is None:
+        return ORG_POST_VISIBILITY_DRAFT
+    return parsed
 
 
 def parse_organization_id(raw) -> int | None:
@@ -155,21 +227,47 @@ def viewer_can_see_organization_post(
     viewer: AbstractBaseUser | None,
     post: TimelinePost | None,
 ) -> bool:
-    """フラグOFF時の詳細GET例外。公開フィードには使わない。"""
+    """下書き・非公開の詳細GET例外。公開フィードには使わない。"""
     if not is_organization_timeline_post(post):
         return False
     if getattr(post, "is_removed", False):
         return False
-    organization = getattr(post, "organization", None)
-    if organization is None and post.organization_id:
-        organization = Organization.objects.filter(pk=post.organization_id).first()
-    return is_organization_admin(viewer, organization)
+    return is_organization_admin(viewer, _post_organization(post))
 
 
 def organization_post_visibility(post: TimelinePost | None) -> str:
-    if organization_post_is_publicly_listed(post):
-        return "public"
-    return "organization_preview"
+    if not is_organization_timeline_post(post):
+        return ORG_POST_VISIBILITY_PUBLIC
+    value = getattr(post, "organization_visibility", None)
+    if value == ORG_POST_VISIBILITY_PUBLIC:
+        return ORG_POST_VISIBILITY_PUBLIC
+    if value == ORG_POST_VISIBILITY_DRAFT:
+        return ORG_POST_VISIBILITY_DRAFT
+    return ORG_POST_VISIBILITY_UNLISTED
+
+
+def update_organization_post_visibility(
+    actor: AbstractBaseUser | None,
+    post: TimelinePost | None,
+    visibility: str,
+) -> TimelinePost:
+    if post is None or getattr(post, "is_removed", False):
+        raise OrganizationPostError("not_found", status=404)
+    if not is_organization_timeline_post(post):
+        raise OrganizationPostError("not_organization_post", status=400)
+    if visibility not in _WRITABLE_ORG_VISIBILITIES:
+        raise OrganizationPostError("invalid_visibility", status=400)
+    organization = _post_organization(post)
+    if not is_organization_admin(actor, organization):
+        if organization_post_is_publicly_listed(post):
+            raise OrganizationPostError("forbidden", status=403)
+        raise OrganizationPostError("not_found", status=404)
+    if not can_manage_organization(actor, organization):
+        raise OrganizationPostError("forbidden", status=403)
+    if post.organization_visibility != visibility:
+        post.organization_visibility = visibility
+        post.save(update_fields=["organization_visibility"])
+    return post
 
 
 def build_organization_posts_payload(
@@ -178,6 +276,7 @@ def build_organization_posts_payload(
     *,
     offset: int = 0,
     limit: int = ORG_PROFILE_POSTS_PAGE,
+    scope: str = "",
 ) -> dict[str, Any] | None:
     """団体プロフィールの投稿一覧。プロフィール閲覧不可なら None（404）。"""
     if organization is None or not can_view_organization_profile(viewer, organization):
@@ -185,9 +284,15 @@ def build_organization_posts_payload(
 
     page_size = max(1, min(int(limit or ORG_PROFILE_POSTS_PAGE), 50))
     start = max(0, int(offset or 0))
-    public = organization_posts_are_publicly_listable(organization)
-    preview = not public
-    if preview and not is_organization_admin(viewer, organization):
+    is_admin = is_organization_admin(viewer, organization)
+    listable = organization_posts_are_publicly_listable(organization)
+    requested_scope = (scope or "").strip().lower()
+    if is_admin and requested_scope == ORG_POST_SCOPE_UNPUBLISHED:
+        active_scope = ORG_POST_SCOPE_UNPUBLISHED
+    else:
+        active_scope = ORG_POST_SCOPE_PUBLIC
+
+    if not listable and not is_admin:
         return {
             "ok": True,
             "posts": [],
@@ -196,6 +301,7 @@ def build_organization_posts_payload(
             "total_count": 0,
             "preview": False,
             "unpublished": True,
+            "scope": ORG_POST_SCOPE_PUBLIC,
         }
 
     from .bookmark_services import prepare_timeline_posts
@@ -217,6 +323,26 @@ def build_organization_posts_payload(
         .filter(organization=organization, is_removed=False)
         .order_by("-created_at")
     )
+    public_count = queryset.filter(
+        organization_visibility=ORG_POST_VISIBILITY_PUBLIC
+    ).count()
+    unpublished_count = queryset.filter(
+        organization_visibility__in=[
+            ORG_POST_VISIBILITY_DRAFT,
+            ORG_POST_VISIBILITY_UNLISTED,
+        ]
+    ).count()
+    if active_scope == ORG_POST_SCOPE_UNPUBLISHED:
+        queryset = queryset.filter(
+            organization_visibility__in=[
+                ORG_POST_VISIBILITY_DRAFT,
+                ORG_POST_VISIBILITY_UNLISTED,
+            ]
+        )
+    else:
+        queryset = queryset.filter(
+            organization_visibility=ORG_POST_VISIBILITY_PUBLIC
+        )
     total = queryset.count()
     page = list(queryset[start : start + page_size])
     prepared = prepare_timeline_posts(page, viewer)
@@ -225,12 +351,17 @@ def build_organization_posts_payload(
         for post in prepared
     ]
     next_offset = start + len(posts)
-    return {
+    payload = {
         "ok": True,
         "posts": posts,
         "has_more": next_offset < total,
         "next_offset": next_offset,
         "total_count": total,
-        "preview": preview,
-        "unpublished": preview,
+        "preview": is_admin and active_scope == ORG_POST_SCOPE_UNPUBLISHED,
+        "unpublished": (not is_admin) and public_count == 0,
+        "scope": active_scope,
     }
+    if is_admin:
+        payload["public_count"] = public_count
+        payload["unpublished_count"] = unpublished_count
+    return payload

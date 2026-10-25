@@ -108,6 +108,24 @@
   color: var(--tweet-muted);
   white-space: nowrap;
 }
+.tweet-visibility-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tweet-visibility-badge.is-unpublished {
+  background: #fff8e6;
+  color: #4a3b12;
+}
+.tweet-visibility-badge.is-public {
+  background: #e8f5ee;
+  color: #0f5132;
+}
 .tweet-identity .org-verified-badge,
 .quoted-post-card .org-verified-badge,
 .discover-compact-card .org-verified-badge,

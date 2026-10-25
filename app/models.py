@@ -2034,6 +2034,24 @@ class TimelinePost(models.Model):
         verbose_name="投稿主体の団体",
         help_text="設定時は団体名義投稿。null は個人投稿。団体削除では投稿を残すため PROTECT。",
     )
+
+    class OrganizationVisibility(models.TextChoices):
+        PUBLIC = "public", "公開"
+        DRAFT = "draft", "下書き"
+        UNLISTED = "unlisted", "非公開"
+
+    organization_visibility = models.CharField(
+        max_length=16,
+        choices=OrganizationVisibility.choices,
+        default=OrganizationVisibility.UNLISTED,
+        db_default=OrganizationVisibility.UNLISTED,
+        verbose_name="団体投稿の公開状態",
+        help_text=(
+            "個人投稿では無視する。既存団体投稿は unlisted のまま一般公開しない。"
+            "public は一般タイムライン・検索・団体プロフィールに出す。"
+            "draft は管理者のみ。"
+        ),
+    )
     quoted_post = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -2071,6 +2089,12 @@ class TimelinePost(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["organization", "organization_visibility"],
+                name="app_tlpost_org_vis_idx",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.course_name:

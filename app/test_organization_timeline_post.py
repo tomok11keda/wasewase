@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,6 +11,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
+    Comment,
     Follow,
     Notification,
     Organization,
@@ -112,6 +114,10 @@ class OrganizationTimelinePostApiTests(TestCase):
         self.assertEqual(payload["organization"]["slug"], self.org.slug)
         self.assertTrue(payload["organization"]["is_verified"])
         self.assertNotIn("is_operator_verified", payload["organization"])
+        self.assertEqual(payload["visibility"], "draft")
+        self.assertEqual(
+            row.organization_visibility, TimelinePost.OrganizationVisibility.DRAFT
+        )
 
     def test_admin_can_create_organization_post(self):
         response = self._create(
@@ -319,7 +325,7 @@ class OrganizationTimelinePostApiTests(TestCase):
         created = self._create(
             self.owner, organization_id=str(self.org.pk)
         ).json()["post"]
-        self.assertEqual(created["visibility"], "organization_preview")
+        self.assertEqual(created["visibility"], "draft")
         self.client.force_login(self.outsider)
         hidden = self.client.get(
             f"/api/v1/organizations/{self.org.slug}/posts/"
@@ -329,15 +335,27 @@ class OrganizationTimelinePostApiTests(TestCase):
         self.assertTrue(hidden_data["unpublished"])
         self.assertFalse(hidden_data["preview"])
         self.assertEqual(hidden_data["posts"], [])
+        self.assertNotIn("unpublished_count", hidden_data)
         self.client.force_login(self.owner)
-        preview = self.client.get(
+        public_tab = self.client.get(
             f"/api/v1/organizations/{self.org.slug}/posts/"
+        )
+        self.assertEqual(public_tab.status_code, 200)
+        public_data = public_tab.json()
+        self.assertFalse(public_data["preview"])
+        self.assertEqual(public_data["posts"], [])
+        self.assertEqual(public_data["unpublished_count"], 1)
+        self.assertEqual(public_data["public_count"], 0)
+        preview = self.client.get(
+            f"/api/v1/organizations/{self.org.slug}/posts/",
+            {"scope": "unpublished"},
         )
         self.assertEqual(preview.status_code, 200)
         data = preview.json()
         self.assertTrue(data["preview"])
-        self.assertTrue(data["unpublished"])
+        self.assertEqual(data["scope"], "unpublished")
         self.assertEqual(data["posts"][0]["id"], created["id"])
+        self.assertEqual(data["posts"][0]["visibility"], "draft")
         self.assertIsNone(data["posts"][0]["author"])
         self.assertNotIn("Secret Operator", json.dumps(data))
 
@@ -478,14 +496,15 @@ class OrganizationTimelinePostApiTests(TestCase):
             )
         self.client.force_login(self.owner)
         first = self.client.get(
-            f"/api/v1/organizations/{self.org.slug}/posts/"
+            f"/api/v1/organizations/{self.org.slug}/posts/",
+            {"scope": "unpublished"},
         ).json()
         self.assertTrue(first["preview"])
         self.assertTrue(first["has_more"])
         self.assertEqual(len(first["posts"]), ORG_PROFILE_POSTS_PAGE)
         second = self.client.get(
             f"/api/v1/organizations/{self.org.slug}/posts/",
-            {"offset": first["next_offset"]},
+            {"offset": first["next_offset"], "scope": "unpublished"},
         ).json()
         self.assertEqual(len(second["posts"]), 1)
         self.assertFalse(second["has_more"])
@@ -503,13 +522,388 @@ class OrganizationTimelinePostApiTests(TestCase):
         )
         self.assertNotIn("post", response.json())
 
+    def test_legacy_unlisted_org_posts_stay_off_public_surfaces(self):
+        row = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            body="legacy unpublished org post",
+        )
+        self.assertEqual(
+            row.organization_visibility,
+            TimelinePost.OrganizationVisibility.UNLISTED,
+        )
+        self.client.force_login(self.outsider)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertFalse(any(item["id"] == row.pk for item in listed))
+        detail = self.client.get(f"/api/v1/timeline/{row.pk}/")
+        self.assertEqual(detail.status_code, 404)
+        search = self.client.get(
+            "/api/v1/search/", {"q": "legacy unpublished org post", "tab": "all"}
+        )
+        self.assertNotIn(
+            row.pk, [item["id"] for item in search.json().get("posts") or []]
+        )
+        profile = self.client.get(
+            f"/api/v1/organizations/{self.org.slug}/posts/"
+        ).json()
+        self.assertEqual(profile["posts"], [])
+        self.assertTrue(profile["unpublished"])
+
+    def test_explicit_public_org_post_is_listed_while_flag_is_off(self):
+        created = self._create(
+            self.owner,
+            body="safe public org promo",
+            organization_id=str(self.org.pk),
+            visibility="public",
+        ).json()["post"]
+        self.assertEqual(created["visibility"], "public")
+        self.assertIsNone(created["author"])
+        self.client.logout()
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertTrue(any(item["id"] == created["id"] for item in listed))
+        self.assertTrue(any(item["id"] == self.personal.pk for item in listed))
+        detail = self.client.get(f"/api/v1/timeline/{created['id']}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIsNone(detail.json()["post"]["author"])
+        self.client.force_login(self.outsider)
+        search = self.client.get(
+            "/api/v1/search/", {"q": "safe public org promo", "tab": "all"}
+        )
+        hit = next(
+            item
+            for item in search.json().get("posts") or []
+            if item["id"] == created["id"]
+        )
+        self.assertIsNone(hit["author"])
+        profile = self.client.get(
+            f"/api/v1/organizations/{self.org.slug}/posts/"
+        ).json()
+        self.assertFalse(profile["unpublished"])
+        self.assertEqual(profile["posts"][0]["id"], created["id"])
+
+    def test_draft_org_post_stays_manager_only(self):
+        created = self._create(
+            self.owner,
+            body="org draft only",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]
+        self.assertEqual(created["visibility"], "draft")
+        self.client.force_login(self.outsider)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertFalse(any(item["id"] == created["id"] for item in listed))
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created['id']}/").status_code,
+            404,
+        )
+        self.client.force_login(self.owner)
+        detail = self.client.get(f"/api/v1/timeline/{created['id']}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["post"]["visibility"], "draft")
+        self.assertIsNone(detail.json()["post"]["author"])
+
+    def test_invalid_visibility_does_not_create(self):
+        before = TimelinePost.objects.count()
+        response = self._create(
+            self.owner,
+            organization_id=str(self.org.pk),
+            visibility="unlisted",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_visibility")
+        self.assertEqual(TimelinePost.objects.count(), before)
+
+    def test_personal_post_ignores_visibility(self):
+        response = self._create(
+            self.owner, body="just me vis", visibility="draft"
+        )
+        self.assertEqual(response.status_code, 201)
+        post = response.json()["post"]
+        self.assertNotIn("visibility", post)
+        self.assertEqual(post["author"]["id"], self.owner.pk)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertTrue(any(item["id"] == post["id"] for item in listed))
+
+    def test_manager_can_publish_and_unpublish(self):
+        created = self._create(
+            self.owner,
+            body="toggle org visibility",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created['id']}/").status_code,
+            404,
+        )
+        self.client.force_login(self.owner)
+        published = self.client.patch(
+            f"/api/v1/timeline/{created['id']}/visibility/",
+            data=json.dumps({"visibility": "public"}),
+            content_type="application/json",
+        )
+        self.assertEqual(published.status_code, 200)
+        self.assertEqual(published.json()["post"]["visibility"], "public")
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created['id']}/").status_code,
+            200,
+        )
+        self.client.force_login(self.member)
+        denied = self.client.patch(
+            f"/api/v1/timeline/{created['id']}/visibility/",
+            data=json.dumps({"visibility": "draft"}),
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.client.force_login(self.outsider)
+        outsider_denied = self.client.patch(
+            f"/api/v1/timeline/{created['id']}/visibility/",
+            data=json.dumps({"visibility": "draft"}),
+            content_type="application/json",
+        )
+        self.assertEqual(outsider_denied.status_code, 403)
+        self.client.force_login(self.owner)
+        unpublished = self.client.patch(
+            f"/api/v1/timeline/{created['id']}/visibility/",
+            data=json.dumps({"visibility": "draft"}),
+            content_type="application/json",
+        )
+        self.assertEqual(unpublished.status_code, 200)
+        self.assertEqual(unpublished.json()["post"]["visibility"], "draft")
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created['id']}/").status_code,
+            404,
+        )
+
+    def test_legacy_unlisted_can_be_published_without_bulk_change(self):
+        legacy = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            body="one legacy to publish",
+        )
+        other = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            body="other legacy stays unpublished",
+        )
+        self.client.force_login(self.owner)
+        published = self.client.patch(
+            f"/api/v1/timeline/{legacy.pk}/visibility/",
+            data=json.dumps({"visibility": "public"}),
+            content_type="application/json",
+        )
+        self.assertEqual(published.status_code, 200)
+        legacy.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(
+            legacy.organization_visibility,
+            TimelinePost.OrganizationVisibility.PUBLIC,
+        )
+        self.assertEqual(
+            other.organization_visibility,
+            TimelinePost.OrganizationVisibility.UNLISTED,
+        )
+        self.client.force_login(self.outsider)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertTrue(any(item["id"] == legacy.pk for item in listed))
+        self.assertFalse(any(item["id"] == other.pk for item in listed))
+
+    def test_public_post_of_draft_org_stays_off_feed(self):
+        draft = _make_org(
+            name="Draft Promo",
+            slug="draft-promo-org",
+            status=Organization.Status.DRAFT,
+            is_listed=False,
+        )
+        add_organization_member(
+            draft, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        created = self._create(
+            self.owner,
+            body="draft org public attempt",
+            organization_id=str(draft.pk),
+            visibility="public",
+        ).json()["post"]
+        self.assertEqual(created["visibility"], "public")
+        self.client.force_login(self.outsider)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertFalse(any(item["id"] == created["id"] for item in listed))
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created['id']}/").status_code,
+            404,
+        )
+
+    def test_organization_id_snapshot_is_not_overridden_by_other_org(self):
+        created = self._create(
+            self.owner,
+            body="circledancers only",
+            organization_id=str(self.org.pk),
+            visibility="public",
+        )
+        self.assertEqual(created.status_code, 201)
+        post = created.json()["post"]
+        self.assertEqual(post["organization"]["id"], self.org.pk)
+        self.assertNotEqual(post["organization"]["id"], self.other_org.pk)
+        row = TimelinePost.objects.get(pk=post["id"])
+        self.assertEqual(row.organization_id, self.org.pk)
+
+    def test_public_org_post_can_be_reported_without_operator_name(self):
+        created = self._create(
+            self.owner,
+            body="reportable org promo",
+            organization_id=str(self.org.pk),
+            visibility="public",
+        ).json()["post"]["id"]
+        self.owner.profile.name = "Secret Operator"
+        self.owner.profile.save(update_fields=["name"])
+        self.client.force_login(self.outsider)
+        report = self.client.post(
+            f"/report/post/{created}/",
+            {"reason": "spam"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(report.status_code, 200)
+        raw = json.dumps(report.json())
+        self.assertNotIn("Secret Operator", raw)
+        draft = self._create(
+            self.owner,
+            body="hidden draft report",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]["id"]
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{draft}/").status_code, 404
+        )
+
+    def test_report_of_unpublished_org_post_matches_missing(self):
+        created = self._create(
+            self.owner,
+            body="hidden draft report-secret",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]["id"]
+        missing_pk = 9_888_777
+        self.client.force_login(self.outsider)
+        hidden = self.client.post(
+            f"/report/post/{created}/",
+            {"reason": "spam"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        missing = self.client.post(
+            f"/report/post/{missing_pk}/",
+            {"reason": "spam"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(hidden.status_code, 404)
+        self.assertEqual(hidden.json(), missing.json())
+        raw = json.dumps(hidden.json())
+        self.assertNotIn("hidden draft report-secret", raw)
+        self.assertNotIn("Secret Operator", raw)
+        comment = Comment.objects.create(
+            timeline_post_id=created,
+            author=self.owner,
+            body="draft comment secret",
+        )
+        hidden_comment = self.client.post(
+            f"/report/comment/{comment.pk}/",
+            {"reason": "spam"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(hidden_comment.status_code, 404)
+        self.assertNotIn(
+            "draft comment secret", json.dumps(hidden_comment.json())
+        )
+
+    def test_visibility_patch_csrf_and_rate_limit(self):
+        created = self._create(
+            self.owner,
+            body="csrf vis",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]["id"]
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.owner)
+        csrf = csrf_client.patch(
+            f"/api/v1/timeline/{created}/visibility/",
+            data=json.dumps({"visibility": "public"}),
+            content_type="application/json",
+        )
+        self.assertEqual(csrf.status_code, 403)
+        self.client.force_login(self.owner)
+        with patch(
+            "app.timeline_api_views.allow_timeline_visibility",
+            return_value=False,
+        ):
+            limited = self.client.patch(
+                f"/api/v1/timeline/{created}/visibility/",
+                data=json.dumps({"visibility": "public"}),
+                content_type="application/json",
+            )
+        self.assertEqual(limited.status_code, 429)
+        row = TimelinePost.objects.get(pk=created)
+        self.assertEqual(
+            row.organization_visibility, TimelinePost.OrganizationVisibility.DRAFT
+        )
+
+    def test_unlisting_or_suspending_org_hides_public_posts_until_restored(self):
+        created = self._create(
+            self.owner,
+            body="listed public then hidden",
+            organization_id=str(self.org.pk),
+            visibility="public",
+        ).json()["post"]["id"]
+        draft = self._create(
+            self.owner,
+            body="stays draft",
+            organization_id=str(self.org.pk),
+            visibility="draft",
+        ).json()["post"]["id"]
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created}/").status_code, 200
+        )
+        self.org.is_listed = False
+        self.org.save(update_fields=["is_listed"])
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created}/").status_code, 404
+        )
+        self.org.is_listed = True
+        self.org.save(update_fields=["is_listed"])
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created}/").status_code, 200
+        )
+        self.org.status = Organization.Status.SUSPENDED
+        self.org.save(update_fields=["status"])
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created}/").status_code, 404
+        )
+        self.client.force_login(self.owner)
+        denied = self.client.patch(
+            f"/api/v1/timeline/{created}/visibility/",
+            data=json.dumps({"visibility": "draft"}),
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.org.status = Organization.Status.ACTIVE
+        self.org.save(update_fields=["status"])
+        self.client.force_login(self.outsider)
+        self.assertEqual(
+            self.client.get(f"/api/v1/timeline/{created}/").status_code, 200
+        )
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertTrue(any(item["id"] == created for item in listed))
+        self.assertFalse(any(item["id"] == draft for item in listed))
+
 
 @override_settings(
     BROWSE_MODE_GATE_ENABLED=False,
     WASE_ORG_TIMELINE_POSTS_PUBLIC=True,
 )
 class OrganizationTimelinePostPublicApiTests(TestCase):
-    """Isolated flag-ON checks. Production default stays False."""
+    """Explicit public posts. Flag ON still does not bulk-publish unlisted rows."""
 
     def setUp(self):
         self.owner = _make_user("org-pub-owner@waseda.jp")
@@ -538,7 +932,31 @@ class OrganizationTimelinePostPublicApiTests(TestCase):
 
     def _create(self, user, body="org public unique body", **extra):
         self.client.force_login(user)
+        if extra.get("organization_id") and "visibility" not in extra:
+            extra = {**extra, "visibility": "public"}
         return self.client.post("/api/v1/timeline/", {"body": body, **extra})
+
+    def test_flag_on_does_not_publish_default_or_legacy(self):
+        self.client.force_login(self.owner)
+        default = self.client.post(
+            "/api/v1/timeline/",
+            {
+                "body": "flag on still draft",
+                "organization_id": str(self.org.pk),
+            },
+        )
+        self.assertEqual(default.status_code, 201)
+        post = default.json()["post"]
+        self.assertEqual(post["visibility"], "draft")
+        legacy = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            body="flag on legacy unlisted",
+        )
+        self.client.force_login(self.outsider)
+        listed = self.client.get("/api/v1/timeline/").json()["posts"]
+        self.assertFalse(any(item["id"] == post["id"] for item in listed))
+        self.assertFalse(any(item["id"] == legacy.pk for item in listed))
 
     def test_personal_post_json_stays_compatible_when_public(self):
         response = self._create(self.owner, body="just me public")
@@ -777,7 +1195,6 @@ class OrganizationTimelinePostPublicApiTests(TestCase):
         preview = self.client.get(f"/api/v1/organizations/{draft.slug}/posts/")
         self.assertEqual(preview.status_code, 200)
         preview_data = preview.json()
-        self.assertTrue(preview_data["preview"])
         self.assertTrue(any(item["id"] == created for item in preview_data["posts"]))
         self.client.force_login(self.outsider)
         listed = self.client.get("/api/v1/timeline/").json()["posts"]
@@ -813,7 +1230,6 @@ class OrganizationTimelinePostPublicApiTests(TestCase):
         manager_preview = self.client.get(
             f"/api/v1/organizations/{unlisted.slug}/posts/"
         ).json()
-        self.assertTrue(manager_preview["preview"])
         self.assertTrue(
             any(item["id"] == hidden for item in manager_preview["posts"])
         )

@@ -76,7 +76,7 @@ export type TimelinePost = {
   author: TimelineAuthor;
   actor_type?: "organization" | string | null;
   organization?: TimelineOrganization | null;
-  visibility?: "public" | "organization_preview" | string | null;
+  visibility?: "public" | "draft" | "unlisted" | "organization_preview" | string | null;
   quoted_post: QuotedPost;
   shared_product: SharedProduct | null;
   comments: TimelineComment[];
@@ -176,6 +176,7 @@ export async function createTimelinePost(input: {
   image?: File | null;
   quoted_post_id?: number | null;
   organization_id?: number | null;
+  visibility?: "public" | "draft" | string | null;
 }): Promise<TimelinePost> {
   const form = new FormData();
   form.append("body", input.body);
@@ -189,6 +190,9 @@ export async function createTimelinePost(input: {
     input.organization_id > 0
   ) {
     form.append("organization_id", String(input.organization_id));
+    if (input.visibility === "public" || input.visibility === "draft") {
+      form.append("visibility", input.visibility);
+    }
   }
   const res = await fetch("/api/v1/timeline/", {
     method: "POST",
@@ -208,6 +212,9 @@ export async function createTimelinePost(input: {
       throw new Error(
         "指定された団体が見つかりません。個人名義への切り替えは自動では行いません。"
       );
+    }
+    if (code === "invalid_visibility") {
+      throw new Error("公開範囲を選択してください。");
     }
     throw new Error(
       userFacingMutationError(code, "投稿に失敗しました")
@@ -331,6 +338,37 @@ export async function deletePost(postId: number): Promise<void> {
       )
     );
   }
+}
+
+export async function updateTimelinePostVisibility(
+  postId: number,
+  visibility: "public" | "draft"
+): Promise<TimelinePost> {
+  const res = await fetch(`/api/v1/timeline/${postId}/visibility/`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body: JSON.stringify({ visibility }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok || !data.post) {
+    const code = String(data.error || "visibility_update_failed");
+    throw new Error(
+      userFacingMutationError(
+        code,
+        code === "forbidden"
+          ? "この投稿の公開範囲を変更する権限がありません。"
+          : code === "invalid_visibility"
+            ? "公開範囲を選択してください。"
+            : "公開範囲の更新に失敗しました"
+      )
+    );
+  }
+  return data.post as TimelinePost;
 }
 
 export async function deleteComment(

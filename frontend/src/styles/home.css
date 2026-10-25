@@ -271,6 +271,77 @@
   border: 1px solid #cfd9de;
 }
 
+.spa-compose__visibility {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.spa-compose__visibility legend {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.spa-compose__visibility-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #536471;
+  line-height: 1.4;
+}
+
+.spa-compose__visibility-options {
+  display: grid;
+  gap: 8px;
+}
+
+.spa-compose__visibility-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cfd9de;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.spa-compose__visibility-option.is-selected {
+  border-color: var(--accent);
+  background: #f7edf0;
+}
+
+.spa-compose__visibility-option input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+}
+
+.spa-compose__visibility-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spa-compose__visibility-option strong {
+  font-size: 16px;
+}
+
+.spa-compose__visibility-option small {
+  font-size: 13px;
+  color: #536471;
+}
+
+.spa-compose__visibility:disabled .spa-compose__visibility-option {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .org-compose-notice {
   margin: 0 0 12px;
   padding: 10px 12px;
