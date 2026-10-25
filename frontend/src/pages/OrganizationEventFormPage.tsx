@@ -46,6 +46,7 @@ export function OrganizationEventFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const pageTitle = isEdit ? "イベントを編集" : "イベントを作成";
 
   useLayoutEffect(() => {
     nextRequestId(fetchGen);
@@ -99,7 +100,7 @@ export function OrganizationEventFormPage() {
     : `/app/organizations/${slug}/events/new`;
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="org-edit-page" data-spa-page="イベント編集">
+      <div className="org-edit-page" data-spa-page={pageTitle}>
         <div className="main-inner">
           <p>イベントの作成・編集にはログインが必要です。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
@@ -149,114 +150,150 @@ export function OrganizationEventFormPage() {
   };
 
   return (
-    <div className="org-edit-page" data-spa-page="イベント編集">
+    <div className="org-edit-page" data-spa-page={pageTitle}>
       <div className="main-inner">
         {loading || sessionLoading ? (
-          <FormSkeleton />
+          <FormSkeleton rows={8} />
         ) : error === "not_found" || error === "forbidden" || !showManage ? (
           <p>このページは団体の管理者だけが利用できます。</p>
         ) : (
-          <form className="org-edit-form" onSubmit={onSubmit}>
-            <h1 className="org-recruiting-card__title">
-              {isEdit ? "イベントを編集" : "イベントを作成"}
-            </h1>
-            {error && error !== "invalid_payload" ? (
-              <p className="org-edit-error" role="alert">
-                {organizationEventErrorMessage(error, "保存できませんでした。")}
-              </p>
-            ) : null}
-            <label>
-              イベント名
-              <input
-                value={form.title}
-                onChange={(e) => setField("title", e.target.value)}
-                maxLength={120}
-                required
-              />
-              {fieldErrors.title ? <span className="org-edit-error">{fieldErrors.title}</span> : null}
-            </label>
-            <label>
-              説明
-              <textarea
-                value={form.description}
-                onChange={(e) => setField("description", e.target.value)}
-                rows={5}
-              />
-              {fieldErrors.description ? (
-                <span className="org-edit-error">{fieldErrors.description}</span>
+          <>
+            <p className="form-lead">
+              {isEdit
+                ? "内容を更新します。公開や抽選の操作は詳細画面から行います。"
+                : "まずは下書きを保存します。公開と抽選は作成後に設定できます。"}
+            </p>
+            <form className="form-card org-event-form" onSubmit={onSubmit} noValidate>
+              {error && error !== "invalid_payload" ? (
+                <p className="org-edit-error" role="alert">
+                  {organizationEventErrorMessage(error, "保存できませんでした。入力内容は残しています。")}
+                </p>
               ) : null}
-            </label>
-            <label>
-              開始日時（日本時間）
-              <input
-                type="datetime-local"
-                value={form.starts_at}
-                onChange={(e) => setField("starts_at", e.target.value)}
-                required
-              />
-              {fieldErrors.starts_at ? (
-                <span className="org-edit-error">{fieldErrors.starts_at}</span>
-              ) : null}
-            </label>
-            <label>
-              終了日時（日本時間）
-              <input
-                type="datetime-local"
-                value={form.ends_at}
-                onChange={(e) => setField("ends_at", e.target.value)}
-                required
-              />
-              {fieldErrors.ends_at ? <span className="org-edit-error">{fieldErrors.ends_at}</span> : null}
-            </label>
-            <label>
-              会場
-              <input
-                value={form.venue_name}
-                onChange={(e) => setField("venue_name", e.target.value)}
-                required
-              />
-              {fieldErrors.venue_name ? (
-                <span className="org-edit-error">{fieldErrors.venue_name}</span>
-              ) : null}
-            </label>
-            <label>
-              住所（任意）
-              <input
-                value={form.venue_address}
-                onChange={(e) => setField("venue_address", e.target.value)}
-              />
-            </label>
-            <label>
-              申込締切（任意・日本時間）
-              <input
-                type="datetime-local"
-                value={form.registration_deadline}
-                onChange={(e) => setField("registration_deadline", e.target.value)}
-              />
-              {fieldErrors.registration_deadline ? (
-                <span className="org-edit-error">{fieldErrors.registration_deadline}</span>
-              ) : null}
-            </label>
-            <label className="org-event-check">
-              <input
-                type="checkbox"
-                checked={form.registration_open}
-                disabled={hasLottery}
-                onChange={(e) => setField("registration_open", e.target.checked)}
-              />
-              {hasLottery
-                ? "抽選確定後は申し込みを再開できません"
-                : "申し込みを受け付ける"}
-            </label>
-            <div className="org-recruiting-card__actions">
-              <button type="submit" className="btn btn-primary" disabled={busy}>
-                {busy ? "保存中…" : "保存する"}
-              </button>
-              <Link className="btn btn-secondary" to={organizationEventManagePath(slug)}>
-                キャンセル
-              </Link>
-            </div>
-          </form>
+
+              <div className="form-group">
+                <label htmlFor="event-title">イベント名</label>
+                <input
+                  id="event-title"
+                  value={form.title}
+                  onChange={(e) => setField("title", e.target.value)}
+                  maxLength={120}
+                  autoComplete="off"
+                  required
+                />
+                {fieldErrors.title ? (
+                  <p className="org-edit-field-error">{fieldErrors.title}</p>
+                ) : null}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="event-description">説明</label>
+                <textarea
+                  id="event-description"
+                  value={form.description}
+                  onChange={(e) => setField("description", e.target.value)}
+                  rows={6}
+                />
+                {fieldErrors.description ? (
+                  <p className="org-edit-field-error">{fieldErrors.description}</p>
+                ) : null}
+              </div>
+
+              <div className="org-event-form__when">
+                <div className="form-group">
+                  <label htmlFor="event-starts-at">開始日時（日本時間）</label>
+                  <input
+                    id="event-starts-at"
+                    type="datetime-local"
+                    value={form.starts_at}
+                    onChange={(e) => setField("starts_at", e.target.value)}
+                    required
+                  />
+                  {fieldErrors.starts_at ? (
+                    <p className="org-edit-field-error">{fieldErrors.starts_at}</p>
+                  ) : null}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="event-ends-at">終了日時（日本時間）</label>
+                  <input
+                    id="event-ends-at"
+                    type="datetime-local"
+                    value={form.ends_at}
+                    onChange={(e) => setField("ends_at", e.target.value)}
+                    required
+                  />
+                  {fieldErrors.ends_at ? (
+                    <p className="org-edit-field-error">{fieldErrors.ends_at}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="event-venue-name">会場</label>
+                <input
+                  id="event-venue-name"
+                  value={form.venue_name}
+                  onChange={(e) => setField("venue_name", e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+                {fieldErrors.venue_name ? (
+                  <p className="org-edit-field-error">{fieldErrors.venue_name}</p>
+                ) : null}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="event-venue-address">住所（任意）</label>
+                <input
+                  id="event-venue-address"
+                  value={form.venue_address}
+                  onChange={(e) => setField("venue_address", e.target.value)}
+                  autoComplete="street-address"
+                />
+                {fieldErrors.venue_address ? (
+                  <p className="org-edit-field-error">{fieldErrors.venue_address}</p>
+                ) : null}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="event-registration-deadline">申込締切（任意・日本時間）</label>
+                <input
+                  id="event-registration-deadline"
+                  type="datetime-local"
+                  value={form.registration_deadline}
+                  onChange={(e) => setField("registration_deadline", e.target.value)}
+                />
+                {fieldErrors.registration_deadline ? (
+                  <p className="org-edit-field-error">{fieldErrors.registration_deadline}</p>
+                ) : null}
+              </div>
+
+              <div className="form-group">
+                <label className="org-event-check" htmlFor="event-registration-open">
+                  <input
+                    id="event-registration-open"
+                    type="checkbox"
+                    checked={form.registration_open}
+                    disabled={hasLottery}
+                    onChange={(e) => setField("registration_open", e.target.checked)}
+                  />
+                  <span>
+                    {hasLottery
+                      ? "抽選確定後は申し込みを再開できません"
+                      : "申し込みを受け付ける"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="org-event-form__actions">
+                <button type="submit" className="btn-submit" disabled={busy}>
+                  {busy ? "保存中…" : isEdit ? "変更を保存" : "下書きを保存"}
+                </button>
+                <Link className="org-edit-back" to={organizationEventManagePath(slug)}>
+                  キャンセル
+                </Link>
+              </div>
+            </form>
+          </>
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   defaultLotteryEligibleIds,
   eventCapacityLabel,
   eventFormToPayload,
+  formFromOrganizationEvent,
   eventPageView,
   eventStatusLabel,
   formatTokyoDateTime,
@@ -165,6 +166,29 @@ test("event page view maps 404 to missing and network to error", () => {
   );
 });
 
+test("create form starts empty and edit form hydrates Tokyo datetime-local values", () => {
+  const empty = emptyEventForm();
+  assert.equal(empty.title, "");
+  assert.equal(empty.starts_at, "");
+  assert.equal(empty.registration_deadline, "");
+  assert.equal(empty.registration_open, true);
+  const parsed = parseOrganizationEvent({
+    ...published,
+    starts_at: "2026-04-10T09:00:00Z",
+    ends_at: "2026-04-10T11:00:00Z",
+    registration_deadline: "2026-04-10T08:00:00Z",
+    registration_open: false,
+  });
+  assert.ok(parsed);
+  const hydrated = formFromOrganizationEvent(parsed);
+  assert.equal(hydrated.title, "新歓説明会");
+  assert.equal(hydrated.venue_name, "大隈講堂");
+  assert.equal(hydrated.starts_at, "2026-04-10T18:00");
+  assert.equal(hydrated.ends_at, "2026-04-10T20:00");
+  assert.equal(hydrated.registration_deadline, "2026-04-10T17:00");
+  assert.equal(hydrated.registration_open, false);
+});
+
 test("form validation and Tokyo conversion round-trip", () => {
   const empty = validateEventForm(emptyEventForm());
   assert.ok(empty.title);
@@ -172,12 +196,19 @@ test("form validation and Tokyo conversion round-trip", () => {
   const form = {
     ...emptyEventForm(),
     title: "説明会",
+    description: "紹介文は残す",
     venue_name: "戸山キャンパス",
+    venue_address: "早稲田",
     starts_at: "2026-04-10T18:00",
     ends_at: "2026-04-10T17:00",
+    registration_deadline: "2026-04-10T12:00",
   };
   const errors = validateEventForm(form);
   assert.ok(errors.ends_at);
+  assert.equal(form.title, "説明会");
+  assert.equal(form.description, "紹介文は残す");
+  assert.equal(form.venue_address, "早稲田");
+  assert.equal(form.registration_deadline, "2026-04-10T12:00");
   const iso = tokyoInputToIso("2026-04-10T18:00");
   assert.equal(isoToTokyoInput(iso), "2026-04-10T18:00");
   const payload = eventFormToPayload({
