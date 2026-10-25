@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -7,31 +7,62 @@ import {
   type MessageRequestItem,
 } from "../features/dm/api";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
+import { PeopleListSkeleton } from "../components/skeleton";
+import { listContentPhase, listQueryKey } from "../lib/listContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 export function MessageRequestsPage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
   const [items, setItems] = useState<MessageRequestItem[]>([]);
+  const [appliedKey, setAppliedKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const listKey = listQueryKey([sessionUserId, "message-requests"]);
+
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setItems([]);
+    setAppliedKey("");
+    setLoading(true);
+    setError(null);
+  }, [sessionUserId]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
       if (!me?.authenticated) return;
+      const gen = nextRequestId(fetchGen);
+      const startedUserId = userIdRef.current;
       setLoading(true);
       setError(null);
       try {
         const data = await fetchMessageRequests(signal);
         if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         setItems(data.requests || []);
+        setAppliedKey(listKey);
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        setItems([]);
+        setAppliedKey(listKey);
         setError(err instanceof Error ? err.message : "load_failed");
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (!signal?.aborted && isLatestRequest(fetchGen, gen)) setLoading(false);
       }
     },
-    [me?.authenticated]
+    [me?.authenticated, listKey]
   );
 
   useEffect(() => {
@@ -43,17 +74,15 @@ export function MessageRequestsPage() {
     const ac = new AbortController();
     void load(ac.signal);
     return () => ac.abort();
-  }, [sessionLoading, me?.authenticated, load, navigate]);
+  }, [sessionLoading, me?.authenticated, load, navigate, sessionUserId]);
 
-  if (sessionLoading || !me?.authenticated) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
+  const phase = listContentPhase({
+    browsePreview: false,
+    loading: sessionLoading || loading,
+    error,
+    itemCount: items.length,
+    matchesCurrentQuery: appliedKey === listKey,
+  });
 
   return (
     <div className="dm-page" data-spa-page="メッセージ">
@@ -64,10 +93,19 @@ export function MessageRequestsPage() {
           </p>
         </header>
 
-        {loading ? (
-          <p className="dm-inbox-empty">読み込み中…</p>
-        ) : error ? (
-          <p className="dm-inbox-empty">読み込みに失敗しました（{error}）</p>
+        {phase === "skeleton" ? (
+          <PeopleListSkeleton />
+        ) : phase === "error" ? (
+          <p className="dm-inbox-empty">
+            読み込みに失敗しました（{error}）
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+            >
+              再試行
+            </button>
+          </p>
         ) : items.length === 0 ? (
           <div className="dm-inbox-empty">
             <strong>リクエストはありません</strong>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingManageNav } from "../features/orgs/RecruitingManageNav";
 import {
+  canShowRecruitingManageNav,
   formatRecruitingDate,
   type RecruitingMember,
 } from "../features/orgs/recruitingChat";
@@ -13,6 +14,12 @@ import {
   removeRecruitingMember,
 } from "../features/orgs/recruitingChatApi";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { PeopleListSkeleton } from "../components/skeleton";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof OrganizationRequestError) return err.message;
@@ -24,6 +31,11 @@ export function OrganizationRecruitingChatMembersPage() {
   const { slug } = useParams();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
   const [members, setMembers] = useState<RecruitingMember[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
@@ -32,12 +44,25 @@ export function OrganizationRecruitingChatMembersPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const busyRef = useRef(false);
 
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setMembers([]);
+    setCanManage(false);
+    setPendingCount(undefined);
+    setLoading(true);
+    setError(null);
+  }, [slug, sessionUserId]);
+
   const load = useCallback(async () => {
     if (!slug) return;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const envelope = await fetchRecruitingChat(slug);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       const manage = envelope.can_manage || Boolean(envelope.recruiting_chat?.can_manage);
       setCanManage(manage);
       setPendingCount(envelope.recruiting_chat?.pending_count);
@@ -46,21 +71,28 @@ export function OrganizationRecruitingChatMembersPage() {
         setMembers([]);
         return;
       }
-      setMembers(await fetchRecruitingMembers(slug));
+      const rows = await fetchRecruitingMembers(slug);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      setMembers(rows);
     } catch (err) {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setMembers([]);
+      setCanManage(false);
+      setPendingCount(undefined);
       setError(
         err instanceof OrganizationRequestError ? err.code : "load_failed"
       );
     } finally {
-      setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [slug]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   if (!slug) return <Navigate to="/" replace />;
   const loginNext = `/app/organizations/${slug}/recruiting-chat/members`;
@@ -103,9 +135,14 @@ export function OrganizationRecruitingChatMembersPage() {
     <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット参加者">
       <div className="main-inner">
         <p className="form-lead">新歓チャットの参加者です。除外するとメッセージを読めなくなります。</p>
-        <RecruitingManageNav slug={slug} pendingCount={pendingCount} />
+        {canShowRecruitingManageNav({
+          hydrated: !loading && !sessionLoading,
+          canManage,
+        }) ? (
+          <RecruitingManageNav slug={slug} pendingCount={pendingCount} />
+        ) : null}
         {loading || sessionLoading ? (
-          <p>読み込み中…</p>
+          <PeopleListSkeleton />
         ) : error === "forbidden" || error === "not_found" ? (
           <p>参加者を管理する権限がありません。</p>
         ) : (

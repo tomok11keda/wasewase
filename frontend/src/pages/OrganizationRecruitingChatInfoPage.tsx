@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import {
@@ -20,6 +20,12 @@ import {
   leaveRecruitingChat,
 } from "../features/orgs/recruitingChatApi";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { ChatInfoHeroSkeleton, ListRowSkeleton } from "../components/skeleton";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof OrganizationRequestError) return err.message;
@@ -32,6 +38,11 @@ export function OrganizationRecruitingChatInfoPage() {
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
   const [chat, setChat] = useState<RecruitingChat | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [orgName, setOrgName] = useState("");
@@ -40,12 +51,24 @@ export function OrganizationRecruitingChatInfoPage() {
   const [error, setError] = useState<string | null>(null);
   const [leaveBusy, setLeaveBusy] = useState(false);
 
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setChat(null);
+    setCanManage(false);
+    setOrgName("");
+    setOrgAvatar("");
+    setLoading(true);
+    setError(null);
+  }, [slug, sessionUserId]);
+
   const load = useCallback(async () => {
     if (!slug) {
       setError("not_found");
       setLoading(false);
       return;
     }
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -53,6 +76,8 @@ export function OrganizationRecruitingChatInfoPage() {
         fetchRecruitingChat(slug),
         fetchOrganizationProfile(slug).catch(() => null),
       ]);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setChat(envelope.recruiting_chat);
       setCanManage(
         envelope.can_manage || Boolean(envelope.recruiting_chat?.can_manage)
@@ -62,19 +87,24 @@ export function OrganizationRecruitingChatInfoPage() {
         setOrgAvatar(profile.organization.avatar_url);
       }
     } catch (err) {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setChat(null);
+      setCanManage(false);
+      setOrgName("");
+      setOrgAvatar("");
       setError(
         err instanceof OrganizationRequestError ? err.code : "load_failed"
       );
     } finally {
-      setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [slug]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   if (!slug) return <Navigate to="/" replace />;
   const loginNext = `/app/organizations/${slug}/recruiting-chat/info`;
@@ -120,7 +150,10 @@ export function OrganizationRecruitingChatInfoPage() {
     <div className="dm-page chat-info-page" data-spa-page="新歓チャット詳細">
       <div className="main-inner">
         {loading || sessionLoading ? (
-          <p>読み込み中…</p>
+          <>
+            <ChatInfoHeroSkeleton rounded />
+            <ListRowSkeleton rows={4} />
+          </>
         ) : error === "forbidden" || error === "not_found" ? (
           <p>このチャットを表示する権限がありません。</p>
         ) : error && !chat ? (

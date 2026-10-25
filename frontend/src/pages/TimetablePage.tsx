@@ -37,6 +37,7 @@ import { useSoftTabRefetch } from "../layouts/TabKeepAliveLayout";
 import { TimetableCalendarView } from "../features/calendar/TimetableCalendarView";
 import { analytics } from "../lib/analytics/events";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
+import { TimetableGridSkeleton } from "../components/skeleton";
 
 type TimetableSectionId = "timetable" | "calendar";
 
@@ -629,7 +630,7 @@ export function TimetablePage({
         ) : null}
 
         {(loading || sessionLoading) && !ready ? (
-          <p className="timetable-note">読み込み中…</p>
+          <TimetableGridSkeleton />
         ) : error && !ready ? (
           <p className="timetable-note">
             読み込みに失敗しました（{error}）

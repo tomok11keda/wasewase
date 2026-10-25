@@ -7,6 +7,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
+import { ListRowSkeleton } from "../../components/skeleton";
 import { spaLoginPath } from "../auth/api";
 import {
   TIMETABLE_OD_SLOTS,
@@ -646,7 +647,7 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
           </p>
         ) : null}
 
-        {loading ? <p className="tt-calendar__note">読み込み中…</p> : null}
+        {loading ? <ListRowSkeleton rows={3} /> : null}
         {error ? (
           <p className="tt-calendar__note">読み込みに失敗しました（{error}）</p>
         ) : null}

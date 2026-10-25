@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { ImagePickField } from "../components/ImagePickField";
@@ -21,6 +21,12 @@ import {
 } from "../features/orgs/orgProfile";
 import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { FormSkeleton } from "../components/skeleton";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function statusFromError(err: unknown): string {
   if (err instanceof OrganizationRequestError) return err.code;
@@ -33,6 +39,11 @@ export function OrganizationEditPage() {
   const { me, loading: sessionLoading } = useSession();
   const { refreshOrganizations } = useAccount();
   const browsePreview = isBrowsePreview(me);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
   const [payload, setPayload] = useState<OrganizationProfilePayload | null>(
     null
   );
@@ -57,26 +68,43 @@ export function OrganizationEditPage() {
     };
   }, [previewUrl]);
 
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setPayload(null);
+    setForm(null);
+    setAvatar(null);
+    setLoading(true);
+    setLoadError(null);
+    setError(null);
+    setPermissionLost(false);
+  }, [slug, sessionUserId]);
+
   const load = useCallback(async () => {
     if (!slug) {
       setLoadError("not_found");
       setLoading(false);
       return;
     }
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const data = await fetchOrganizationProfile(slug);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setPayload(data);
       setForm(formFromOrganization(data.organization));
       setAvatar(null);
       setAvatarError(null);
     } catch (err) {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setPayload(null);
       setForm(null);
       setLoadError(statusFromError(err));
     } finally {
-      setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [slug]);
 
@@ -94,7 +122,7 @@ export function OrganizationEditPage() {
       return;
     }
     void load();
-  }, [sessionLoading, browsePreview, me?.authenticated, load, navigate, slug]);
+  }, [sessionLoading, browsePreview, me?.authenticated, load, navigate, slug, sessionUserId]);
 
   useEffect(() => {
     if (payload && !payload.can_manage) {
@@ -130,7 +158,7 @@ export function OrganizationEditPage() {
     return (
       <div className="org-edit-page" data-spa-page="団体を編集">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <FormSkeleton rows={5} />
         </div>
       </div>
     );

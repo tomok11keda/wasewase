@@ -14,6 +14,7 @@ import {
   recruitingChatInfoPath,
   recruitingChatPath,
   shouldConfirmAutoApprove,
+  canShowRecruitingManageNav,
   shouldShowRecruitingSection,
   validateRecruitingChatForm,
 } from "./recruitingChat.ts";
@@ -229,5 +230,28 @@ test("create form validation matches backend name/description limits", () => {
   assert.equal(
     recruitingChatInfoPath("circle"),
     "/organizations/circle/recruiting-chat/info"
+  );
+});
+
+test("recruiting manage nav waits for server-confirmed permission", () => {
+  assert.equal(
+    canShowRecruitingManageNav({ hydrated: false, canManage: true }),
+    false
+  );
+  assert.equal(
+    canShowRecruitingManageNav({ hydrated: true, canManage: false }),
+    false
+  );
+  assert.equal(
+    canShowRecruitingManageNav({
+      hydrated: true,
+      canManage: false,
+      canCreate: true,
+    }),
+    true
+  );
+  assert.equal(
+    canShowRecruitingManageNav({ hydrated: true, canManage: true }),
+    true
   );
 });

@@ -14,6 +14,7 @@ import {
 import { spaLoginPath } from "../features/auth/api";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { analytics } from "../lib/analytics/events";
+import { PeopleListSkeleton } from "../components/skeleton";
 
 export function GroupCreatePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -81,9 +82,14 @@ export function GroupCreatePage() {
   if (sessionLoading) {
     return (
       <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
+        <main className="main-inner" aria-label="グループ作成">
+          <div className="dm-group-header">
+            <p>
+              誰でも招待できます。招待された相手は参加するまでメンバーにはなりません。
+            </p>
+          </div>
+          <PeopleListSkeleton />
+        </main>
       </div>
     );
   }
@@ -118,6 +124,9 @@ export function GroupCreatePage() {
             autoComplete="off"
           />
 
+          {loading && !query.trim() && candidates.length === 0 ? (
+            <PeopleListSkeleton rows={4} />
+          ) : (
           <ul className="dm-user-list">
             {loading ? (
               <li className="dm-user-item" style={{ color: "var(--dm-muted)" }}>
@@ -152,6 +161,7 @@ export function GroupCreatePage() {
               ))
             )}
           </ul>
+          )}
 
           <div className="dm-group-actions">
             <Link className="dm-btn dm-btn-ghost" to="/dm">

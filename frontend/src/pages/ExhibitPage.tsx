@@ -9,6 +9,7 @@ import {
 import { spaLoginPath } from "../features/auth/api";
 import { ImagePickField } from "../components/ImagePickField";
 import { analytics } from "../lib/analytics/events";
+import { FormSkeleton } from "../components/skeleton";
 
 export function ExhibitPage() {
   const { me, loading: sessionLoading } = useSession();
@@ -47,7 +48,7 @@ export function ExhibitPage() {
     return (
       <div className="exhibit-page" data-spa-page="フリマ">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <FormSkeleton rows={5} />
         </div>
       </div>
     );

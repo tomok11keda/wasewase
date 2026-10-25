@@ -346,3 +346,62 @@ body.shell-hide-bottom-nav .boot-skeleton .app-shell {
 .chat-compose-bar .sk-bone--circle {
   margin: 0 4px;
 }
+
+.sk-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sk-people-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--tweet-border, #eff3f4);
+}
+
+.sk-people-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sk-people-row__text .sk-list-row__title {
+  margin-bottom: 6px;
+}
+
+.sk-settings-row {
+  width: 100%;
+  height: 56px;
+  border-radius: 12px;
+  margin-top: 10px;
+}
+
+.sk-form .sk-form-input {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  margin-top: 8px;
+}
+
+.sk-form .sk-bone--btn {
+  margin-top: 8px;
+}
+
+.sk-timetable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 24px;
+}
+
+.sk-timetable-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sk-timetable-cell {
+  height: 44px;
+  border-radius: 8px;
+}

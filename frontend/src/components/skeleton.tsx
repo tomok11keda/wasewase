@@ -179,6 +179,94 @@ export function ThreadDetailSkeleton() {
   );
 }
 
+export function PeopleListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <ul className="sk-people" aria-busy="true" aria-label="読み込み中">
+      {Array.from({ length: rows }, (_, index) => (
+        <li key={index} className="sk-people-row" aria-hidden="true">
+          <SkeletonCircle size={40} />
+          <div className="sk-people-row__text">
+            <SkeletonBone className="sk-list-row__title" />
+            <SkeletonBone className="sk-list-row__meta" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SettingsSkeleton() {
+  return (
+    <section className="settings-card" aria-busy="true" aria-label="読み込み中">
+      <SkeletonBone className="sk-bone--name" />
+      <SkeletonBone className="sk-bone--bio" />
+      <SkeletonBone className="sk-settings-row" />
+      <SkeletonBone className="sk-settings-row" />
+    </section>
+  );
+}
+
+export function CourseDetailSkeleton() {
+  return (
+    <div className="course-detail" aria-busy="true" aria-label="読み込み中">
+      <SkeletonBone className="sk-bone--name" />
+      <SkeletonBone className="sk-list-row__meta" />
+      <SkeletonBone className="sk-list-row__meta" />
+      <SkeletonBone className="sk-bone--btn" />
+      <ListRowSkeleton rows={4} />
+    </div>
+  );
+}
+
+export function ChatInfoHeroSkeleton({
+  rounded = false,
+}: {
+  rounded?: boolean;
+}) {
+  return (
+    <section className="chat-info-hero" aria-busy="true" aria-label="読み込み中">
+      <SkeletonCircle
+        size={72}
+        className={
+          rounded
+            ? "chat-info-hero__avatar chat-info-hero__avatar--rounded"
+            : "chat-info-hero__avatar"
+        }
+      />
+      <SkeletonBone className="sk-bone--name" />
+      <SkeletonBone className="sk-list-row__meta" />
+    </section>
+  );
+}
+
+export function FormSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="form-card sk-form" aria-busy="true" aria-label="読み込み中">
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="form-group" aria-hidden="true">
+          <SkeletonBone className="sk-list-row__meta" />
+          <SkeletonBone className="sk-form-input" />
+        </div>
+      ))}
+      <SkeletonBone className="sk-bone--btn" />
+    </div>
+  );
+}
+
+export function TimetableGridSkeleton() {
+  return (
+    <div className="sk-timetable" aria-busy="true" aria-label="読み込み中">
+      {Array.from({ length: 5 }, (_, row) => (
+        <div key={row} className="sk-timetable-row" aria-hidden="true">
+          {Array.from({ length: 6 }, (__, col) => (
+            <SkeletonBone key={col} className="sk-timetable-cell" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ThreadListSkeleton({ count = 6 }: { count?: number }) {
   return (
     <ul className="thread-list" aria-busy="true" aria-label="読み込み中">

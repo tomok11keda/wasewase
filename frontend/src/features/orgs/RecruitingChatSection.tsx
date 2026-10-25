@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { ListRowSkeleton } from "../../components/skeleton";
 import { OrganizationRequestError } from "./api";
 import {
   joinModeLabel,
@@ -61,7 +62,7 @@ export function RecruitingChatSection({
     return (
       <section className="org-recruiting-card" aria-label="新歓チャット">
         <h2 className="org-recruiting-card__title">新歓チャット</h2>
-        <p className="org-profile-empty">新歓チャットを読み込み中…</p>
+        <ListRowSkeleton rows={3} />
       </section>
     );
   }

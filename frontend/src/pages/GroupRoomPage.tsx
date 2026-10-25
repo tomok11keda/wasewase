@@ -373,7 +373,7 @@ export function GroupRoomPage() {
               このグループに参加しますか？
             </strong>
             <p className="dm-group-invite-banner__hint">
-              参加するまでメッセージは送信できません。内容は確認できます。
+              グループに招待されています。参加するとメッセージを確認できます。
             </p>
             <div className="dm-group-invite-banner__actions">
               <button

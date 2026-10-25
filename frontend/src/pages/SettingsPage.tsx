@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -7,10 +7,22 @@ import {
   updatePrivacy,
 } from "../features/profile/api";
 import { invalidateOwnProfileCacheAfterEdit } from "../features/profile/ownProfileCache";
+import { SettingsSkeleton } from "../components/skeleton";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 export function SettingsPage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [privacyReady, setPrivacyReady] = useState(false);
@@ -18,34 +30,53 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
+  const resetPrivacy = useCallback(() => {
+    nextRequestId(fetchGen);
+    setIsPrivate(false);
+    setPrivacyReady(false);
+    setLoading(true);
+    setError(null);
+    setSavedMsg(null);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    resetPrivacy();
+  }, [sessionUserId, resetPrivacy]);
+
+  const load = useCallback(async () => {
+    if (sessionUserId == null) return;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchProfile(sessionUserId);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      setIsPrivate(Boolean(data.is_private));
+      setPrivacyReady(true);
+      setError(null);
+    } catch (err) {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      setPrivacyReady(false);
+      setIsPrivate(false);
+      setError(err instanceof Error ? err.message : "load_failed");
+    } finally {
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
+    }
+  }, [sessionUserId]);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!me?.authenticated || !me.user) {
       navigate(spaLoginPath("/app/settings"), { replace: true });
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    setPrivacyReady(false);
-    void fetchProfile(me.user.id)
-      .then((data) => {
-        if (cancelled) return;
-        setIsPrivate(Boolean(data.is_private));
-        setPrivacyReady(true);
-        setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setPrivacyReady(false);
-        setError(err instanceof Error ? err.message : "load_failed");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionLoading, me?.authenticated, me?.user, navigate]);
+    void load();
+  }, [sessionLoading, me?.authenticated, sessionUserId, navigate, load]);
 
   const onChangePrivacy = async (next: boolean) => {
     if (!privacyReady || busy || next === isPrivate) return;
@@ -68,69 +99,81 @@ export function SettingsPage() {
     }
   };
 
-  if (sessionLoading || loading) {
-    return (
-      <div className="settings-page" data-spa-page="設定">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
+  const showSkeleton = sessionLoading || (!privacyReady && loading);
 
   return (
     <div className="settings-page" data-spa-page="設定">
       <div className="main-inner">
-        {error ? <p className="settings-flash settings-flash--error">{error}</p> : null}
+        {error ? (
+          <p className="settings-flash settings-flash--error">
+            {error}
+            {!privacyReady ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => void load()}
+                >
+                  再試行
+                </button>
+              </>
+            ) : null}
+          </p>
+        ) : null}
         {savedMsg ? (
           <p className="settings-flash settings-flash--ok">{savedMsg}</p>
         ) : null}
 
-        <section className="settings-card">
-          <h2>アカウントの公開設定</h2>
-          <p className="settings-lead">
-            {!privacyReady
-              ? "公開設定を読み込めませんでした。しばらくしてから再度お試しください。"
-              : isPrivate
-                ? "承認したフォロワーだけがあなたの投稿や出品を見ることができます。"
-                : "すべての早稲田生があなたの投稿や出品を見ることができます。"}
-          </p>
+        {showSkeleton ? (
+          <SettingsSkeleton />
+        ) : (
+          <section className="settings-card">
+            <h2>アカウントの公開設定</h2>
+            <p className="settings-lead">
+              {!privacyReady
+                ? "公開設定を読み込めませんでした。しばらくしてから再度お試しください。"
+                : isPrivate
+                  ? "承認したフォロワーだけがあなたの投稿や出品を見ることができます。"
+                  : "すべての早稲田生があなたの投稿や出品を見ることができます。"}
+            </p>
 
-          <fieldset
-            className="settings-privacy"
-            disabled={!privacyReady || busy}
-          >
-            <legend className="visually-hidden">公開設定</legend>
-            <label className="settings-radio">
-              <input
-                type="radio"
-                name="account_privacy"
-                checked={privacyReady && !isPrivate}
-                disabled={!privacyReady || busy}
-                onChange={() => void onChangePrivacy(false)}
-              />
-              <span>
-                <strong>公開アカウント</strong>
-                <small>誰でもフォローでき、投稿・出品を閲覧できます。</small>
-              </span>
-            </label>
-            <label className="settings-radio">
-              <input
-                type="radio"
-                name="account_privacy"
-                checked={privacyReady && isPrivate}
-                disabled={!privacyReady || busy}
-                onChange={() => void onChangePrivacy(true)}
-              />
-              <span>
-                <strong>非公開アカウント</strong>
-                <small>
-                  フォローにはリクエストが必要で、承認した人だけが投稿・出品を見られます。
-                </small>
-              </span>
-            </label>
-          </fieldset>
-        </section>
+            <fieldset
+              className="settings-privacy"
+              disabled={!privacyReady || busy}
+            >
+              <legend className="visually-hidden">公開設定</legend>
+              <label className="settings-radio">
+                <input
+                  type="radio"
+                  name="account_privacy"
+                  checked={privacyReady && !isPrivate}
+                  disabled={!privacyReady || busy}
+                  onChange={() => void onChangePrivacy(false)}
+                />
+                <span>
+                  <strong>公開アカウント</strong>
+                  <small>誰でもフォローでき、投稿・出品を閲覧できます。</small>
+                </span>
+              </label>
+              <label className="settings-radio">
+                <input
+                  type="radio"
+                  name="account_privacy"
+                  checked={privacyReady && isPrivate}
+                  disabled={!privacyReady || busy}
+                  onChange={() => void onChangePrivacy(true)}
+                />
+                <span>
+                  <strong>非公開アカウント</strong>
+                  <small>
+                    フォローにはリクエストが必要で、承認した人だけが投稿・出品を見られます。
+                  </small>
+                </span>
+              </label>
+            </fieldset>
+          </section>
+        )}
 
         <section className="settings-card">
           <h2>その他の設定</h2>

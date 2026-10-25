@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
@@ -17,6 +17,13 @@ import {
   type ReviewSummary,
 } from "../features/courses/api";
 import { analytics } from "../lib/analytics/events";
+import { CourseDetailSkeleton } from "../components/skeleton";
+import { detailContentPhase } from "../lib/detailContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function formatAbsenceDate(iso: string): string {
   const [, m, d] = iso.split("-").map(Number);
@@ -56,7 +63,12 @@ export function CourseDetailPage() {
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const pk = Number(offeringPk);
-  const [offering, setOffering] = useState<CourseOffering | null>(null);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
+  const [offeringData, setOffering] = useState<CourseOffering | null>(null);
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const [reviews, setReviews] = useState<CourseReview[]>([]);
   const [attendance, setAttendance] = useState<CourseAttendancePayload | null>(
@@ -69,6 +81,7 @@ export function CourseDetailPage() {
     date: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,20 +94,41 @@ export function CourseDetailPage() {
     comment: "",
   });
 
-  const load = async () => {
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setOffering(null);
+    setSummary(null);
+    setReviews([]);
+    setAttendance(null);
+    setShowRecordPicker(false);
+    setAbsenceToast(null);
+    setShowReviewForm(false);
+    setHydrated(false);
+    setLoading(true);
+    setError(null);
+  }, [pk, sessionUserId]);
+
+  const load = useCallback(async () => {
     if (!Number.isFinite(pk)) {
       setError("invalid");
       setLoading(false);
+      setHydrated(true);
       return;
     }
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const detail = await fetchOfferingDetail(pk);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setOffering(detail.offering);
       setSummary(detail.review_summary);
       setAttendance(detail.attendance || null);
       const rev = await fetchReviews(detail.offering.id);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setReviews(rev.reviews);
       setSummary(rev.summary);
       analytics.courseDetailViewed();
@@ -109,12 +143,20 @@ export function CourseDetailPage() {
           comment: own.comment || "",
         });
       }
+      setHydrated(true);
     } catch {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+      setOffering(null);
+      setSummary(null);
+      setReviews([]);
+      setAttendance(null);
       setError("load_failed");
+      setHydrated(true);
     } finally {
-      setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  };
+  }, [pk]);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -122,13 +164,14 @@ export function CourseDetailPage() {
       setOffering(null);
       setReviews([]);
       setSummary(null);
+      setAttendance(null);
       setError(null);
       setLoading(false);
+      setHydrated(true);
       return;
     }
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pk, sessionLoading, browsePreview]);
+  }, [pk, sessionLoading, browsePreview, load, sessionUserId]);
 
   useEffect(() => {
     if (!absenceToast) return;
@@ -144,14 +187,14 @@ export function CourseDetailPage() {
   );
 
   const onRecordAbsence = async (date: string) => {
-    if (!offering) return;
+    if (!offeringData) return;
     setBusy(true);
     try {
-      const result = await createAbsenceRecord(offering.id, date);
+      const result = await createAbsenceRecord(offeringData.id, date);
       setAttendance(result.attendance);
       setShowRecordPicker(false);
       analytics.courseAbsenceRecorded({
-        offering_id: offering.id,
+        offering_id: offeringData.id,
         date,
         source: "course_detail",
       });
@@ -181,7 +224,7 @@ export function CourseDetailPage() {
     date: string,
     source: "course_detail" | "undo"
   ) => {
-    if (!offering) return;
+    if (!offeringData) return;
     setBusy(true);
     try {
       const result = await deleteAbsenceRecord(recordId);
@@ -198,7 +241,7 @@ export function CourseDetailPage() {
         );
       }
       analytics.courseAbsenceRemoved({
-        offering_id: offering.id,
+        offering_id: offeringData.id,
         date,
         source,
       });
@@ -211,11 +254,11 @@ export function CourseDetailPage() {
   };
 
   const onRemove = async () => {
-    if (!offering) return;
+    if (!offeringData) return;
     if (!window.confirm("時間割からこの授業を削除しますか？")) return;
     setBusy(true);
     try {
-      await unenrollOffering(offering.id);
+      await unenrollOffering(offeringData.id);
       analytics.timetableCourseRemoved();
       navigate("/timetable");
     } catch {
@@ -227,10 +270,10 @@ export function CourseDetailPage() {
 
   const onSubmitReview = async (e: FormEvent) => {
     e.preventDefault();
-    if (!offering || !me?.authenticated) return;
+    if (!offeringData || !me?.authenticated) return;
     setBusy(true);
     try {
-      const data = await submitReview(offering.id, draft);
+      const data = await submitReview(offeringData.id, draft);
       setSummary(data.summary);
       setReviews((prev) => {
         const rest = prev.filter((r) => !r.is_own);
@@ -268,25 +311,43 @@ export function CourseDetailPage() {
     );
   }
 
-  if (loading) {
+  const liveOffering = offeringData && offeringData.id === pk ? offeringData : null;
+  const phase = detailContentPhase({
+    browsePreview: false,
+    loading: sessionLoading || loading,
+    error,
+    hasItem: Boolean(liveOffering),
+    hydrated: Boolean(liveOffering) && hydrated,
+  });
+
+  if (phase === "skeleton" || (loading && !liveOffering && !error)) {
     return (
       <div className="course-detail-page" data-spa-page="時間割">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <CourseDetailSkeleton />
         </div>
       </div>
     );
   }
 
-  if (error || !offering) {
+  if (error || !liveOffering) {
     return (
       <div className="course-detail-page" data-spa-page="時間割">
         <div className="main-inner">
           <p>授業が見つかりませんでした。</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void load()}
+          >
+            再試行
+          </button>
         </div>
       </div>
     );
   }
+
+  const offering = liveOffering;
 
   const enrolled = offering.viewer_enrollment === "current";
   const canReview =

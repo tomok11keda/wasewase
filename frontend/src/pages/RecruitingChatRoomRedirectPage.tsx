@@ -5,6 +5,7 @@ import { OrganizationRequestError } from "../features/orgs/api";
 import { recruitingChatPath } from "../features/orgs/recruitingChat";
 import { fetchRecruitingRoom } from "../features/orgs/recruitingChatApi";
 import { useSession } from "../lib/session";
+import { ChatInfoHeroSkeleton } from "../components/skeleton";
 
 export function RecruitingChatRoomRedirectPage() {
   const { roomPk } = useParams();
@@ -50,7 +51,7 @@ export function RecruitingChatRoomRedirectPage() {
     return (
       <div className="dm-page" data-spa-page="新歓チャット">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <ChatInfoHeroSkeleton rounded />
         </div>
       </div>
     );

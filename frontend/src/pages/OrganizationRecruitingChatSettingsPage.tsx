@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
@@ -7,6 +7,7 @@ import {
   RECRUITING_CHAT_DESCRIPTION_MAX,
   RECRUITING_CHAT_NAME_MAX,
   autoApproveConfirmMessage,
+  canShowRecruitingManageNav,
   formFromRecruitingChat,
   recruitingChatPath,
   shouldConfirmAutoApprove,
@@ -20,6 +21,12 @@ import {
   updateRecruitingChat,
 } from "../features/orgs/recruitingChatApi";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { FormSkeleton } from "../components/skeleton";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof OrganizationRequestError) return err.message;
@@ -32,6 +39,11 @@ export function OrganizationRecruitingChatSettingsPage() {
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const fetchGen = useRef(0);
   const [chat, setChat] = useState<RecruitingChat | null>(null);
   const [canCreate, setCanCreate] = useState(false);
   const [canManage, setCanManage] = useState(false);
@@ -43,34 +55,53 @@ export function OrganizationRecruitingChatSettingsPage() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setChat(null);
+    setCanCreate(false);
+    setCanManage(false);
+    setForm(formFromRecruitingChat(null));
+    setLoading(true);
+    setLoadError(null);
+    setError(null);
+  }, [slug, sessionUserId]);
+
   const load = useCallback(async () => {
     if (!slug) {
       setLoadError("not_found");
       setLoading(false);
       return;
     }
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const envelope = await fetchRecruitingChat(slug);
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setChat(envelope.recruiting_chat);
       setCanCreate(envelope.can_create);
       setCanManage(envelope.can_manage || Boolean(envelope.recruiting_chat?.can_manage));
       setForm(formFromRecruitingChat(envelope.recruiting_chat));
     } catch (err) {
+      if (!isLatestRequest(fetchGen, gen)) return;
+      if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setChat(null);
+      setCanCreate(false);
+      setCanManage(false);
       setLoadError(
         err instanceof OrganizationRequestError ? err.code : "load_failed"
       );
     } finally {
-      setLoading(false);
+      if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
   }, [slug]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
     void load();
-  }, [sessionLoading, browsePreview, load]);
+  }, [sessionLoading, browsePreview, load, sessionUserId]);
 
   if (!slug) return <Navigate to="/" replace />;
   const loginNext = `/app/organizations/${slug}/recruiting-chat/settings`;
@@ -90,9 +121,9 @@ export function OrganizationRecruitingChatSettingsPage() {
 
   if (loading || sessionLoading) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット設定">
+      <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット設定">
         <div className="main-inner">
-          <p>読み込み中…</p>
+          <FormSkeleton />
         </div>
       </div>
     );
@@ -192,7 +223,8 @@ export function OrganizationRecruitingChatSettingsPage() {
             ? "団体につき有効な新歓チャットは1件です。作成後、学生が団体プロフィールから参加できます。"
             : "チャット名・説明・参加方式・募集状態を変更できます。"}
         </p>
-        {!isCreate ? (
+        {!isCreate &&
+        canShowRecruitingManageNav({ hydrated: true, canManage }) ? (
           <RecruitingManageNav slug={slug} pendingCount={chat?.pending_count} />
         ) : null}
         <form className="form-card" onSubmit={(e) => void submit(e)}>

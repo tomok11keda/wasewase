@@ -424,3 +424,13 @@ export function shouldShowRecruitingSection(
   if (envelope.can_create || envelope.can_manage) return true;
   return envelope.recruiting_chat != null;
 }
+
+/** Admin chrome stays hidden until the server confirms manage/create. */
+export function canShowRecruitingManageNav(input: {
+  hydrated: boolean;
+  canManage: boolean;
+  canCreate?: boolean;
+}): boolean {
+  if (!input.hydrated) return false;
+  return input.canManage || Boolean(input.canCreate);
+}
