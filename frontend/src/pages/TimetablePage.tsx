@@ -38,6 +38,7 @@ import { TimetableCalendarView } from "../features/calendar/TimetableCalendarVie
 import { analytics } from "../lib/analytics/events";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { TimetableGridSkeleton } from "../components/skeleton";
+import { useTokyoToday } from "../lib/useTokyoToday";
 
 type TimetableSectionId = "timetable" | "calendar";
 
@@ -146,6 +147,7 @@ export function TimetablePage({
   const [draft, setDraft] = useState<SlotEntry>(emptyEntry());
   const [section, setSection] = useState<TimetableSectionId>("timetable");
   const [courseSheet, setCourseSheet] = useState<CourseAddContext | null>(null);
+  const { timetableDayIndex: todayDayIndex } = useTokyoToday();
   const showSectionTabs = !viewingOther;
   const canAddCourses =
     Boolean(me?.authenticated) && !viewingOther && !readOnly;
@@ -681,10 +683,15 @@ export function TimetablePage({
                 <div className="timetable-layout">
                   <div className="timetable-grid" data-timetable-grid>
                     <div className="timetable-corner" aria-hidden="true" />
-                    {TIMETABLE_DAYS.map((day) => (
+                    {TIMETABLE_DAYS.map((day, dayIndex) => (
                       <div
-                        className="timetable-day"
+                        className={`timetable-day${
+                          todayDayIndex === dayIndex ? " is-today" : ""
+                        }`}
                         role="columnheader"
+                        aria-current={
+                          todayDayIndex === dayIndex ? "true" : undefined
+                        }
                         key={day}
                       >
                         {day}
@@ -697,6 +704,7 @@ export function TimetablePage({
                         period={period}
                         getEntry={getEntry}
                         readOnly={readOnly}
+                        todayDayIndex={todayDayIndex}
                         onOpen={openSlot}
                       />
                     ))}
@@ -922,11 +930,13 @@ function PeriodRow({
   period,
   getEntry,
   readOnly,
+  todayDayIndex,
   onOpen,
 }: {
   period: { number: number; label: string; time: string };
   getEntry: (slotKey: string) => SlotEntry;
   readOnly: boolean;
+  todayDayIndex: number | null;
   onOpen: (
     slotKey: string,
     kind: "period" | "od",
@@ -945,7 +955,13 @@ function PeriodRow({
       {TIMETABLE_DAYS.map((dayLabel, dayIndex) => {
         const slotKey = `p${period.number}-d${dayIndex}`;
         return (
-          <div className="timetable-cell" data-slot-wrap={slotKey} key={slotKey}>
+          <div
+            className={`timetable-cell${
+              todayDayIndex === dayIndex ? " is-today" : ""
+            }`}
+            data-slot-wrap={slotKey}
+            key={slotKey}
+          >
             <SlotButton
               slotKey={slotKey}
               kind="period"

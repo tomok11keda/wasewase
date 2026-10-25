@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { fetchFollowList, type FollowListUser } from "../features/profile/api";
 import {
-  fetchFollowList,
-  type FollowListKind,
-  type FollowListUser,
-} from "../features/profile/api";
+  readFollowListCache,
+  writeFollowListCache,
+} from "../features/profile/followListCache";
+import {
+  FOLLOW_LIST_TABS,
+  followListEmptyCopy,
+  followListForbiddenCopy,
+  followListKindFromPath,
+  followListLoadErrorCopy,
+  followListPath,
+  followListTitle,
+} from "../features/profile/followLists";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { PeopleListSkeleton } from "../components/skeleton";
 import { listContentPhase, listQueryKey } from "../lib/listContentPhase";
@@ -16,13 +25,11 @@ import {
   nextRequestId,
 } from "../lib/userScopedResult";
 
-type Props = {
-  kind: FollowListKind;
-};
-
-export function FollowListPage({ kind }: Props) {
+export function FollowListPage() {
   const { userId } = useParams();
+  const location = useLocation();
   const pk = Number(userId);
+  const kind = followListKindFromPath(location.pathname);
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const sessionUserId =
@@ -37,19 +44,29 @@ export function FollowListPage({ kind }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
-  const title = kind === "followers" ? "フォロワー" : "フォロー中";
+  const title = followListTitle(kind);
   const loginNext = `/app/users/${pk}/${kind}`;
   const listKey = listQueryKey([sessionUserId, pk, kind]);
 
   useLayoutEffect(() => {
     nextRequestId(fetchGen);
+    const cached = readFollowListCache(listKey);
+    if (cached) {
+      setUsers(cached.users);
+      setCount(cached.count);
+      setAppliedKey(listKey);
+      setError(cached.error);
+      setForbidden(cached.forbidden);
+      setLoading(false);
+      return;
+    }
     setUsers([]);
     setCount(0);
     setAppliedKey("");
     setLoading(true);
     setError(null);
     setForbidden(false);
-  }, [pk, kind, sessionUserId]);
+  }, [pk, kind, sessionUserId, listKey]);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(pk)) {
@@ -69,6 +86,12 @@ export function FollowListPage({ kind }: Props) {
       setUsers(data.users);
       setCount(data.count);
       setAppliedKey(listKey);
+      writeFollowListCache(listKey, {
+        users: data.users,
+        count: data.count,
+        forbidden: false,
+        error: null,
+      });
     } catch (err: unknown) {
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
@@ -78,11 +101,23 @@ export function FollowListPage({ kind }: Props) {
       setAppliedKey(listKey);
       if (message === "forbidden") {
         setForbidden(true);
+        writeFollowListCache(listKey, {
+          users: [],
+          count: 0,
+          forbidden: true,
+          error: null,
+        });
       } else if (message === "unauthorized") {
         navigate(spaLoginPath(loginNext), { replace: true });
         return;
       } else {
         setError(message);
+        writeFollowListCache(listKey, {
+          users: [],
+          count: 0,
+          forbidden: false,
+          error: message,
+        });
       }
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
@@ -109,18 +144,36 @@ export function FollowListPage({ kind }: Props) {
   return (
     <div className="profile-page" data-spa-page={title}>
       <div className="main-inner">
+        {Number.isFinite(pk) ? (
+          <nav className="profile-tabs follow-list-tabs" aria-label="フォロー一覧">
+            {FOLLOW_LIST_TABS.map((tab) => (
+              <NavLink
+                key={tab.kind}
+                className={({ isActive }) =>
+                  `profile-tab${isActive ? " is-active" : ""}`
+                }
+                to={followListPath(pk, tab.kind)}
+                replace
+                end
+              >
+                {tab.label}
+              </NavLink>
+            ))}
+          </nav>
+        ) : null}
+
         {phase === "skeleton" ? <PeopleListSkeleton /> : null}
 
         {phase === "error" && forbidden ? (
           <div className="profile-empty profile-locked">
             <p className="profile-locked__title">このリストは表示できません</p>
-            <p>フォローするとフォロワーとフォロー中を見られます。</p>
+            <p>{followListForbiddenCopy()}</p>
           </div>
         ) : null}
 
         {phase === "error" && !forbidden ? (
           <p className="profile-empty">
-            {title}を表示できません（{error}）
+            {followListLoadErrorCopy(error)}
             <button
               type="button"
               className="btn btn-secondary"
@@ -132,7 +185,7 @@ export function FollowListPage({ kind }: Props) {
         ) : null}
 
         {phase === "empty" ? (
-          <p className="profile-empty">{title}はまだいません</p>
+          <p className="profile-empty">{followListEmptyCopy(kind)}</p>
         ) : null}
 
         {phase === "ready" ? (

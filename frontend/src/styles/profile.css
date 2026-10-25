@@ -121,6 +121,69 @@
   text-decoration: underline;
 }
 
+.mutual-friends {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 16px;
+  padding: 8px 4px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+
+.mutual-friends:hover,
+.mutual-friends:focus-visible {
+  background: #f7f9f9;
+}
+
+.mutual-friends__avatars {
+  display: flex;
+  align-items: center;
+}
+
+.mutual-friends__avatar {
+  width: 28px;
+  height: 28px;
+  margin-left: -10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e8eef3;
+  box-sizing: border-box;
+}
+
+.mutual-friends__avatar:first-child {
+  margin-left: 0;
+  z-index: 3;
+}
+
+.mutual-friends__avatar:nth-child(2) {
+  z-index: 2;
+}
+
+.mutual-friends__avatar:nth-child(3) {
+  z-index: 1;
+}
+
+.mutual-friends__avatar.is-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #536471;
+}
+
+.mutual-friends__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #536471;
+}
+
 .follow-list {
   list-style: none;
   margin: 0;

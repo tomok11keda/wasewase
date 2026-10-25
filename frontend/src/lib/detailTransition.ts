@@ -6,6 +6,7 @@ import {
   type NavigationType,
 } from "react-router-dom";
 import { matchChromeMode, resolveDetailBack } from "./chrome";
+import { allowUnsavedNavigation } from "./unsavedChangesGuard";
 import {
   DM_INBOX_SCROLL_KEY,
   isDmInboxPath,
@@ -184,6 +185,7 @@ export function requestDetailHeaderBack(
   pathname: string,
   state: unknown
 ): void {
+  if (!allowUnsavedNavigation()) return;
   if (detailBackInFlight) return;
   if (matchChromeMode(pathname) !== "detail") {
     executeDetailBack(navigate, pathname, state);

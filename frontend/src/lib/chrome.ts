@@ -70,17 +70,17 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "history-or-fallback", to: "/timetable" },
     };
   }
-  if (/^\/users\/(\d+)\/followers$/.test(p)) {
+  if (/^\/users\/(\d+)\/(followers|following|mutuals)$/.test(p)) {
     const userPk = p.split("/")[2];
+    const kind = p.split("/")[3];
+    const title =
+      kind === "following"
+        ? "フォロー中"
+        : kind === "mutuals"
+          ? "共通の友達"
+          : "フォロワー";
     return {
-      title: "フォロワー",
-      back: { kind: "fallback", to: `/users/${userPk}/posts` },
-    };
-  }
-  if (/^\/users\/(\d+)\/following$/.test(p)) {
-    const userPk = p.split("/")[2];
-    return {
-      title: "フォロー中",
+      title,
       back: { kind: "fallback", to: `/users/${userPk}/posts` },
     };
   }
@@ -144,8 +144,17 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: "/notifications" },
     };
   }
+  if (p === "/settings/profile") {
+    return {
+      title: "プロフィール設定",
+      back: { kind: "history-or-fallback", to: "/" },
+    };
+  }
   if (p.startsWith("/settings")) {
-    return { title: "設定", back: { kind: "fallback", to: "/" } };
+    return {
+      title: "設定",
+      back: { kind: "history-or-fallback", to: "/" },
+    };
   }
   if (p === "/dm/requests") {
     return { title: "リクエスト", back: { kind: "fallback", to: "/dm" } };

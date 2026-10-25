@@ -20,6 +20,7 @@ import {
   toggleFollow,
   type ProfilePayload,
 } from "../features/profile/api";
+import { clearFollowListCache } from "../features/profile/followListCache";
 import {
   clearOwnProfileCache,
   invalidateOwnProfileCacheAfterEdit,
@@ -42,6 +43,7 @@ import {
   nextRequestId,
 } from "../lib/userScopedResult";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
+import { MutualFriendsRow } from "../features/profile/MutualFriendsRow";
 import { TimetablePage } from "./TimetablePage";
 
 const TABS = [
@@ -281,6 +283,8 @@ export function ProfilePage() {
         setPosts([]);
         setProducts([]);
       }
+      clearFollowListCache();
+      void loadProfile({ silent: true });
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "フォローに失敗しました");
     } finally {
@@ -312,6 +316,8 @@ export function ProfilePage() {
         setPosts([]);
         setProducts([]);
       }
+      clearFollowListCache();
+      void loadProfile({ silent: true });
       setMenuOpen(false);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "ブロックに失敗しました");
@@ -481,6 +487,10 @@ export function ProfilePage() {
             )}
           </div>
 
+          {!profile.is_own && profile.can_view_content && profile.mutuals ? (
+            <MutualFriendsRow userId={pk} preview={profile.mutuals} />
+          ) : null}
+
           <div
             className={`profile-actions${
               profile.is_own
@@ -491,20 +501,9 @@ export function ProfilePage() {
             }`}
           >
             {profile.is_own ? (
-              <a
-                className="btn btn-secondary"
-                href={`/mypage/edit/?next=${encodeURIComponent(
-                  `/app/users/${u.id}/posts`
-                )}`}
-                title="プロフィール編集は従来ページで行います"
-                onClick={() => {
-                  if (viewerId != null) {
-                    invalidateOwnProfileCacheAfterEdit(viewerId);
-                  }
-                }}
-              >
+              <Link className="btn btn-secondary" to="/settings/profile">
                 プロフィールを編集
-              </a>
+              </Link>
             ) : me?.authenticated ? (
               <>
                 {profile.follow_state !== "self" ? (

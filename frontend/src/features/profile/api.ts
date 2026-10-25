@@ -1,6 +1,14 @@
 import { getCsrfToken } from "../timeline/api";
 import type { TimelinePost } from "../timeline/api";
 import type { ProductCard } from "../flea/api";
+import type { FollowListKind, FollowListUser } from "./followLists";
+import {
+  parseMutualFriendsPreview,
+  type MutualFriendsPreview,
+} from "./mutualFriends";
+
+export type { FollowListKind, FollowListUser };
+export type { MutualFriendsPreview };
 
 export type FollowState =
   | "self"
@@ -45,6 +53,7 @@ export type ProfilePayload = {
   can_view_timetable: boolean;
   is_timetable_public: boolean;
   can_view_bookmarks: boolean;
+  mutuals: MutualFriendsPreview | null;
 };
 
 export type SearchTab = "all" | "latest" | "courses" | "users" | "products";
@@ -235,6 +244,9 @@ export async function fetchProfile(pk: number): Promise<ProfilePayload> {
               !payload.is_private ||
               payload.is_following
           ),
+    mutuals: parseMutualFriendsPreview(
+      (data as { mutuals?: unknown }).mutuals
+    ),
   };
 }
 
@@ -257,17 +269,6 @@ export async function fetchProfileProducts(pk: number): Promise<ProductCard[]> {
   if (!res.ok || !data.ok) throw new Error(data.error || "products_failed");
   return data.products as ProductCard[];
 }
-
-export type FollowListKind = "followers" | "following";
-
-export type FollowListUser = {
-  id: number;
-  username: string;
-  display_name: string;
-  avatar_url: string;
-  initial: string;
-  is_operator_verified?: boolean | null;
-};
 
 export type FollowListPayload = {
   ok: boolean;

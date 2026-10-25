@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { AccountMenuContent } from "./AccountMenuContent";
 
 type Props = {
@@ -10,19 +9,9 @@ type Props = {
 /**
  * Mobile account drawer — slides in from the left (X-style profile menu).
  * Desktop keeps the sticky SidebarNav; this panel is for the mobile header avatar.
+ * Open/close is history-backed so Settings can pop back to this menu.
  */
 export function AccountDrawer({ open, onClose }: Props) {
-  const location = useLocation();
-  const locationKey = `${location.pathname}${location.search}`;
-  const prevLocationKey = useRef(locationKey);
-
-  useEffect(() => {
-    if (prevLocationKey.current !== locationKey) {
-      prevLocationKey.current = locationKey;
-      if (open) onClose();
-    }
-  }, [locationKey, open, onClose]);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -65,7 +54,7 @@ export function AccountDrawer({ open, onClose }: Props) {
             ×
           </button>
         </div>
-        <AccountMenuContent onNavigate={onClose} />
+        <AccountMenuContent overlayNavigation />
       </div>
     </div>
   );

@@ -33,7 +33,6 @@ import {
   formatShortDate,
   jsWeekdayToTimetableDayIndex,
   parseDateKey,
-  toDateKey,
   updateCalendarEvent,
   type CalendarEvent,
   type CalendarDot,
@@ -41,6 +40,7 @@ import {
   type CourseCalendarException,
 } from "./api";
 import { analytics } from "../../lib/analytics";
+import { useTokyoToday } from "../../lib/useTokyoToday";
 
 type ClassItem = {
   key: string;
@@ -143,11 +143,12 @@ function skippedKey(offeringId: number, dateKey: string) {
 }
 
 export function TimetableCalendarView({ slots, authenticated }: Props) {
-  const todayKey = useMemo(() => toDateKey(new Date()), []);
-  const [cursor, setCursor] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() + 1 };
-  });
+  const tokyoToday = useTokyoToday();
+  const todayKey = tokyoToday.dateKey;
+  const [cursor, setCursor] = useState(() => ({
+    year: tokyoToday.year,
+    month: tokyoToday.month,
+  }));
   const [selectedKey, setSelectedKey] = useState(todayKey);
   const [dots, setDots] = useState<Record<string, CalendarDot>>({});
   const [byDate, setByDate] = useState<Record<string, CalendarEvent[]>>({});
@@ -298,8 +299,7 @@ export function TimetableCalendarView({ slots, authenticated }: Props) {
   };
 
   const goToday = () => {
-    const now = new Date();
-    setCursor({ year: now.getFullYear(), month: now.getMonth() + 1 });
+    setCursor({ year: tokyoToday.year, month: tokyoToday.month });
     setSelectedKey(todayKey);
   };
 

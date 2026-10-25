@@ -51,6 +51,7 @@ import { HomePage } from "./pages/HomePage";
 import { TimelinePostDetailPage } from "./pages/TimelinePostDetailPage";
 import { MorePage } from "./pages/tabs";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ProfileEditPage } from "./pages/ProfileEditPage";
 import { FollowRequestsPage } from "./pages/FollowRequestsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { FollowListPage } from "./pages/FollowListPage";
@@ -129,17 +130,13 @@ function NestedAppRoutes() {
       <Route path="orgs/:slug/edit" element={<OrganizationEditPage />} />
       <Route path="orgs/:slug" element={<OrganizationProfilePage />} />
       <Route path="users/:userId" element={<ProfilePage />} />
-      <Route
-        path="users/:userId/followers"
-        element={<FollowListPage kind="followers" />}
-      />
-      <Route
-        path="users/:userId/following"
-        element={<FollowListPage kind="following" />}
-      />
+      <Route path="users/:userId/followers" element={<FollowListPage />} />
+      <Route path="users/:userId/following" element={<FollowListPage />} />
+      <Route path="users/:userId/mutuals" element={<FollowListPage />} />
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="settings" element={<SettingsPage />} />
+      <Route path="settings/profile" element={<ProfileEditPage />} />
       <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
       <Route path="dm" element={<DmInboxPage />} />
       <Route path="dm/requests" element={<MessageRequestsPage />} />

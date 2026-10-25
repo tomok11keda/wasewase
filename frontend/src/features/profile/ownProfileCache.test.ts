@@ -44,6 +44,7 @@ function profile(userId: number, isOwn = true): ProfilePayload {
     can_view_timetable: true,
     is_timetable_public: true,
     can_view_bookmarks: isOwn,
+    mutuals: null,
   };
 }
 

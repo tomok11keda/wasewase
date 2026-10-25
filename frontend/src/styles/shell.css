@@ -969,6 +969,13 @@ body.account-drawer-open {
   transform: translateX(0);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .account-drawer__backdrop,
+  .account-drawer__panel {
+    transition: none;
+  }
+}
+
 .account-drawer__header {
   display: flex;
   align-items: center;

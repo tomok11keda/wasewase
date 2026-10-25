@@ -325,10 +325,187 @@ class FollowListApiTests(TestCase):
         self.assertNotIn("flist-a@waseda.jp", blob)
         self.assertNotIn("email", data["users"][0])
 
+    def _follow(self, follower, following):
+        return Follow.objects.create(follower=follower, following=following)
+
+    def test_mutuals_zero_one_two_and_many(self):
+        self.client.force_login(self.alice)
+        empty = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(empty.status_code, 200)
+        self.assertEqual(empty.json()["users"], [])
+        self.assertEqual(empty.json()["count"], 0)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertIsNone(shell.json().get("mutuals"))
+
+        self._follow(self.alice, self.bob)
+        self._follow(self.bob, self.owner)
+        one = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(one.json()["count"], 1)
+        self.assertEqual(self._ids(one.json()), [self.bob.pk])
+        preview = self.client.get(f"/api/v1/profile/{self.owner.pk}/").json()["mutuals"]
+        self.assertEqual(preview["count"], 1)
+        self.assertEqual(len(preview["users"]), 1)
+        self.assertEqual(preview["users"][0]["display_name"], "ボブ")
+
+        self._follow(self.alice, self.dana)
+        self._follow(self.dana, self.owner)
+        two = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(two.json()["count"], 2)
+        self.assertCountEqual(self._ids(two.json()), [self.bob.pk, self.dana.pk])
+
+        extra = User.objects.create_user(
+            email="flist-e@waseda.jp",
+            password="test-pass-12345",
+            username="flisteve",
+        )
+        UserProfile.objects.update_or_create(
+            user=extra, defaults={"name": "イブ", "is_private": False}
+        )
+        self._follow(self.alice, extra)
+        self._follow(extra, self.owner)
+        many = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(many.json()["count"], 3)
+        preview_many = self.client.get(
+            f"/api/v1/profile/{self.owner.pk}/"
+        ).json()["mutuals"]
+        self.assertEqual(preview_many["count"], 3)
+        self.assertEqual(len(preview_many["users"]), 3)
+        blob = str(preview_many)
+        self.assertNotIn("@waseda.jp", blob)
+        self.assertNotIn("email", preview_many["users"][0])
+
+    def test_mutuals_own_profile_is_empty_and_hidden_on_shell(self):
+        self._follow(self.alice, self.owner)
+        self._follow(self.owner, self.alice)
+        self.client.force_login(self.owner)
+        listing = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json()["users"], [])
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertIsNone(shell.json().get("mutuals"))
+
+    def test_pending_follow_request_is_not_a_mutual(self):
+        self._follow(self.alice, self.bob)
+        FollowRequest.objects.create(from_user=self.bob, to_user=self.owner)
+        self.client.force_login(self.alice)
+        listing = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json()["users"], [])
+        self.assertEqual(listing.json()["count"], 0)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertIsNone(shell.json().get("mutuals"))
+
+    def test_unfollow_removes_mutual_and_keeps_followers_listing(self):
+        self._follow(self.alice, self.bob)
+        self._follow(self.bob, self.owner)
+        self._follow(self.alice, self.dana)
+        self._follow(self.dana, self.owner)
+        self.client.force_login(self.alice)
+        before = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(before.json()["count"], 2)
+        Follow.objects.filter(follower=self.alice, following=self.bob).delete()
+        after = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(after.json()["count"], 1)
+        self.assertEqual(self._ids(after.json()), [self.dana.pk])
+        preview = self.client.get(f"/api/v1/profile/{self.owner.pk}/").json()["mutuals"]
+        self.assertEqual(preview["count"], 1)
+        followers = self.client.get(f"/api/v1/profile/{self.owner.pk}/followers/")
+        self.assertEqual(followers.status_code, 200)
+        self.assertCountEqual(
+            self._ids(followers.json()), [self.bob.pk, self.dana.pk]
+        )
+        self.assertNotIn("mutuals", followers.json())
+
+    def test_mutuals_requires_follow_both_ways_and_stable_order(self):
+        self._follow(self.alice, self.bob)
+        self._follow(self.alice, self.dana)
+        self._follow(self.dana, self.owner)
+        self.client.force_login(self.alice)
+        listing = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(self._ids(listing.json()), [self.dana.pk])
+        self._follow(self.bob, self.owner)
+        again = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        ids = self._ids(again.json())
+        self.assertEqual(set(ids), {self.bob.pk, self.dana.pk})
+        repeat = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(self._ids(repeat.json()), ids)
+
+    def test_mutuals_hidden_for_private_unfollowed_and_blocked(self):
+        UserProfile.objects.filter(user=self.owner).update(is_private=True)
+        self._follow(self.alice, self.bob)
+        self._follow(self.bob, self.owner)
+        self.client.force_login(self.alice)
+        denied = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(denied.status_code, 403)
+        shell = self.client.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertFalse(shell.json()["can_view_content"])
+        self.assertIsNone(shell.json().get("mutuals"))
+
+        self._follow(self.alice, self.owner)
+        allowed = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(self._ids(allowed.json()), [self.bob.pk])
+
+        block_user(self.alice, self.bob)
+        after_block = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(after_block.json()["users"], [])
+        preview = self.client.get(f"/api/v1/profile/{self.owner.pk}/").json()
+        self.assertIsNone(preview.get("mutuals"))
+
+        block_user(self.alice, self.owner)
+        forbidden = self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(forbidden.status_code, 403)
+
+    def test_mutuals_anonymous_401_and_query_count_stable(self):
+        guest = Client()
+        res = guest.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"], "unauthorized")
+        shell = guest.get(f"/api/v1/profile/{self.owner.pk}/")
+        self.assertEqual(shell.status_code, 200)
+        self.assertIsNone(shell.json().get("mutuals"))
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        people = []
+        for i in range(6):
+            person = User.objects.create_user(
+                email=f"flist-m{i}@waseda.jp",
+                password="test-pass-12345",
+                username=f"flistm{i}",
+            )
+            UserProfile.objects.update_or_create(
+                user=person, defaults={"name": f"相互{i}", "is_private": False}
+            )
+            self._follow(self.alice, person)
+            self._follow(person, self.owner)
+            people.append(person)
+        self.client.force_login(self.alice)
+        self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        with CaptureQueriesContext(connection) as small:
+            self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        more = User.objects.create_user(
+            email="flist-m9@waseda.jp",
+            password="test-pass-12345",
+            username="flistm9",
+        )
+        UserProfile.objects.update_or_create(
+            user=more, defaults={"name": "相互追加", "is_private": False}
+        )
+        self._follow(self.alice, more)
+        self._follow(more, self.owner)
+        with CaptureQueriesContext(connection) as large:
+            self.client.get(f"/api/v1/profile/{self.owner.pk}/mutuals/")
+        self.assertLessEqual(len(large), len(small) + 2)
+        self.assertLess(len(large), 30)
+
     def test_missing_user_404(self):
         self.client.force_login(self.alice)
         res = self.client.get("/api/v1/profile/999999/followers/")
         self.assertEqual(res.status_code, 404)
+        mutuals = self.client.get("/api/v1/profile/999999/mutuals/")
+        self.assertEqual(mutuals.status_code, 404)
 
     def test_has_more_when_over_cap(self):
         Follow.objects.create(follower=self.alice, following=self.owner)

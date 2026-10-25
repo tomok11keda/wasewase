@@ -354,6 +354,15 @@
   background: var(--tt-surface);
 }
 
+.timetable-page .timetable-day.is-today {
+  color: var(--accent, #891e2b);
+}
+
+.timetable-page .timetable-cell.is-today {
+  background: rgba(137, 30, 43, 0.06);
+  border-radius: 8px;
+}
+
 .timetable-page .timetable-corner {
   position: sticky;
   top: 0;

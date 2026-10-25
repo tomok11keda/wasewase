@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 import { useAccount } from "../lib/accountContext";
 import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
-import { invalidateOwnProfileCacheAfterEdit } from "../features/profile/ownProfileCache";
 import { organizationInitial } from "../features/orgs/orgProfile";
 import { analyticsLogout } from "../lib/analytics/client";
 import type { MeResponse } from "../lib/api";
+import { shouldReplaceAccountMenu } from "../lib/accountMenuState";
 import { WASEDA_OFFICIAL_SERVICE } from "../lib/wasedaOfficialLinks";
 import { AccountAvatar } from "./AccountAvatar";
 import { AccountSwitcher } from "./AccountSwitcher";
@@ -70,6 +70,8 @@ type Props = {
   /** Called after SPA navigation or logout so drawers can close. */
   onNavigate?: () => void;
   showSearchLink?: boolean;
+  /** History-backed drawer: keep the menu under settings-like pages. */
+  overlayNavigation?: boolean;
 };
 
 /**
@@ -79,6 +81,7 @@ type Props = {
 export function AccountMenuContent({
   onNavigate,
   showSearchLink = false,
+  overlayNavigation = false,
 }: Props) {
   const { me, setMeFromAuth, refresh } = useSession();
   const { actor, selectPersonal } = useAccount();
@@ -88,7 +91,6 @@ export function AccountMenuContent({
   const dmUnread = me?.dm_unread_total || 0;
   const orgActor = actor.type === "organization" ? actor.organization : null;
 
-  const spaProfile = user ? `/app/users/${user.id}/posts` : "/app/";
   const identityPath = orgActor
     ? `/orgs/${orgActor.slug}`
     : user
@@ -96,9 +98,15 @@ export function AccountMenuContent({
       : "/";
   const profilePath = identityPath;
 
-  const go = (to: string) => {
+  const overlayReplace = (restoreMenu = false) =>
+    shouldReplaceAccountMenu({
+      overlayNavigation,
+      restoreMenu,
+    });
+
+  const go = (to: string, opts?: { restoreMenu?: boolean }) => {
     onNavigate?.();
-    navigate(to);
+    navigate(to, overlayReplace(opts?.restoreMenu) ? { replace: true } : undefined);
   };
 
   const onLogout = async () => {
@@ -172,6 +180,7 @@ export function AccountMenuContent({
               <Link
                 className="more-link"
                 to={profilePath}
+                replace={overlayReplace()}
                 onClick={() => onNavigate?.()}
               >
                 プロフィール
@@ -182,6 +191,7 @@ export function AccountMenuContent({
                 <Link
                   className="more-link"
                   to={`/orgs/${orgActor.slug}/edit`}
+                  replace={overlayReplace()}
                   onClick={() => onNavigate?.()}
                 >
                   団体プロフィールを編集
@@ -192,26 +202,27 @@ export function AccountMenuContent({
               <Link
                 className="more-link"
                 to={`/users/${user.id}/flea`}
+                replace={overlayReplace()}
                 onClick={() => onNavigate?.()}
               >
                 公開プロフィール（フリマ）
               </Link>
             </li>
             <li>
-              <ClassicLink
-                href={`/mypage/edit/?next=${encodeURIComponent(spaProfile)}`}
-                onNavigate={() => {
-                  if (user?.id) invalidateOwnProfileCacheAfterEdit(user.id);
-                  onNavigate?.();
-                }}
+              <Link
+                className="more-link"
+                to="/settings/profile"
+                replace={overlayReplace(true)}
+                onClick={() => onNavigate?.()}
               >
                 プロフィール設定
-              </ClassicLink>
+              </Link>
             </li>
             <li>
               <Link
                 className="more-link"
                 to="/settings"
+                replace={overlayReplace(true)}
                 onClick={() => onNavigate?.()}
               >
                 アカウント設定
@@ -246,6 +257,7 @@ export function AccountMenuContent({
               <Link
                 className="more-link"
                 to={spaLoginPath("/app/")}
+                replace={overlayReplace()}
                 onClick={() => onNavigate?.()}
               >
                 ログイン
@@ -255,6 +267,7 @@ export function AccountMenuContent({
               <Link
                 className="more-link"
                 to="/signup"
+                replace={overlayReplace()}
                 onClick={() => onNavigate?.()}
               >
                 新規登録
@@ -284,6 +297,7 @@ export function AccountMenuContent({
             <Link
               className="more-link"
               to={`/users/${user.id}/bookmarks`}
+              replace={overlayReplace()}
               onClick={() => onNavigate?.()}
             >
               ブックマーク
@@ -294,6 +308,7 @@ export function AccountMenuContent({
           <Link
             className="more-link"
             to="/notifications"
+            replace={overlayReplace()}
             onClick={() => onNavigate?.()}
           >
             通知
@@ -303,7 +318,12 @@ export function AccountMenuContent({
           </Link>
         </li>
         <li>
-          <Link className="more-link" to="/dm" onClick={() => onNavigate?.()}>
+          <Link
+            className="more-link"
+            to="/dm"
+            replace={overlayReplace()}
+            onClick={() => onNavigate?.()}
+          >
             メッセージ
             {dmUnread > 0 ? (
               <span className="account-menu__badge">{dmUnread}</span>
@@ -315,6 +335,7 @@ export function AccountMenuContent({
             <Link
               className="more-link"
               to="/search"
+              replace={overlayReplace()}
               onClick={() => onNavigate?.()}
             >
               検索

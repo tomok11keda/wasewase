@@ -61,6 +61,26 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
   );
 });
 
+test("follow list chrome keeps profile back and titles per tab", () => {
+  assert.equal(matchDetailChrome("/users/9/followers")?.title, "フォロワー");
+  assert.equal(matchDetailChrome("/users/9/following")?.title, "フォロー中");
+  assert.equal(matchDetailChrome("/users/9/mutuals")?.title, "共通の友達");
+  assert.equal(
+    matchDetailChrome("/users/9/mutuals")?.back.to,
+    "/users/9/posts"
+  );
+});
+
+test("settings header back prefers history so the account menu can reopen", () => {
+  assert.equal(matchDetailChrome("/settings")?.back.kind, "history-or-fallback");
+  assert.equal(matchDetailChrome("/settings")?.back.to, "/");
+  assert.equal(matchDetailChrome("/settings/profile")?.title, "プロフィール設定");
+  assert.equal(
+    matchDetailChrome("/settings/profile")?.back.kind,
+    "history-or-fallback"
+  );
+});
+
 test("existing dm group and course rooms stay conversations", () => {
   assert.equal(isConversationPath("/dm/groups/12"), true);
   assert.equal(isConversationPath("/dm/4"), true);

@@ -6,14 +6,21 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .me_profile_api_services import (
+    MeProfileApiError,
+    parse_own_profile_update_request,
+    serialize_own_profile_payload,
+    update_own_profile,
+)
 from .profile_api_services import (
     build_profile_payload,
     build_search_page_payload,
     list_profile_bookmarks,
     list_profile_followers,
     list_profile_following,
+    list_profile_mutuals,
     list_profile_posts,
     list_profile_products,
     toggle_block_for_api,
@@ -32,6 +39,20 @@ def _json_error(message: str, *, status: int = 400, **extra) -> JsonResponse:
 
 def _viewer(request: HttpRequest):
     return request.user if request.user.is_authenticated else None
+
+
+@require_http_methods(["GET", "PATCH"])
+def api_v1_me_profile(request: HttpRequest) -> JsonResponse:
+    if not request.user.is_authenticated:
+        return _json_error("unauthorized", status=401)
+    if request.method == "GET":
+        return JsonResponse(serialize_own_profile_payload(request.user))
+    try:
+        fields = parse_own_profile_update_request(request)
+        payload = update_own_profile(request.user, fields)
+    except MeProfileApiError as exc:
+        return _json_error(exc.error, status=exc.status, **exc.extra)
+    return JsonResponse(payload)
 
 
 @require_GET
@@ -83,6 +104,18 @@ def api_v1_profile_following(request: HttpRequest, pk: int) -> JsonResponse:
     if not can_view_private_content(request.user, profile_user):
         return _json_error("forbidden", status=403)
     return JsonResponse(list_profile_following(profile_user, request.user))
+
+
+@require_GET
+def api_v1_profile_mutuals(request: HttpRequest, pk: int) -> JsonResponse:
+    if not request.user.is_authenticated:
+        return _json_error("unauthorized", status=401)
+    profile_user = get_object_or_404(
+        User.objects.select_related("profile"), pk=pk
+    )
+    if not can_view_private_content(request.user, profile_user):
+        return _json_error("forbidden", status=403)
+    return JsonResponse(list_profile_mutuals(profile_user, request.user))
 
 
 @login_required

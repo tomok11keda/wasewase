@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useCallback, useEffect } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AccountDrawer } from "../components/AccountDrawer";
 import { AppDetailHeader } from "../components/AppDetailHeader";
 import { BottomNav } from "../components/BottomNav";
@@ -8,6 +8,10 @@ import { MobileShellHeader } from "../components/MobileShellHeader";
 import { SidebarNav } from "../components/SidebarNav";
 import { SidebarWidgets } from "../components/SidebarWidgets";
 import { BootSkeleton } from "../components/BootSkeleton";
+import {
+  isAccountMenuState,
+  withAccountMenuState,
+} from "../lib/accountMenuState";
 import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import { useDetailPushTransition } from "../lib/detailTransition";
 import { useSession } from "../lib/session";
@@ -25,14 +29,34 @@ function titleForMainPath(pathname: string): string {
 export function AppShellLayout() {
   const { loading } = useSession();
   const location = useLocation();
+  const navigate = useNavigate();
   const chromeMode = matchChromeMode(location.pathname);
   useDetailPushTransition();
   const title = titleForMainPath(location.pathname);
   const hideShellTitle = matchMainTab(location.pathname) != null;
   const hideBottomNav = shouldHideBottomNav(location.pathname);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const openMenu = useCallback(() => setMenuOpen(true), []);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuOpen = isAccountMenuState(location.state);
+  const openMenu = useCallback(() => {
+    if (isAccountMenuState(location.state)) return;
+    navigate(
+      {
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+      },
+      { state: withAccountMenuState(location.state) }
+    );
+  }, [
+    location.hash,
+    location.pathname,
+    location.search,
+    location.state,
+    navigate,
+  ]);
+  const closeMenu = useCallback(() => {
+    if (!isAccountMenuState(location.state)) return;
+    navigate(-1);
+  }, [location.state, navigate]);
 
   useEffect(() => {
     applyChromeModeClass(chromeMode, document.documentElement);

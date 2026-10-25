@@ -25,7 +25,7 @@ from .follow_services import (
     visible_follower_qs,
     visible_following_qs,
 )
-from .models import Product, TimelineLike, TimelinePost
+from .models import Follow, Product, TimelineLike, TimelinePost
 from .services import (
     count_followers,
     count_following,
@@ -45,6 +45,7 @@ from .timetable_privacy_services import (
 )
 from .ugc_services import (
     filter_visible_products,
+    get_either_blocked_user_ids,
     is_either_blocked,
     is_user_blocked,
 )
@@ -171,6 +172,9 @@ def build_profile_payload(
         ),
         "is_timetable_public": is_public,
         "can_view_bookmarks": is_own,
+        "mutuals": serialize_mutual_friends_preview(
+            profile_user, viewer_auth, can_view_content=can_view_content, is_own=is_own
+        ),
     }
 
 
@@ -205,6 +209,69 @@ def list_profile_products(
         "products": [serialize_product_card(p) for p in products],
         "can_view_content": True,
     }
+
+
+def visible_mutual_qs(
+    owner: AbstractBaseUser,
+    viewer: AbstractBaseUser,
+):
+    """People the viewer follows who also follow the profile owner."""
+    qs = (
+        Follow.objects.filter(follower=viewer)
+        .exclude(following_id__in=[viewer.pk, owner.pk])
+        .filter(
+            Exists(
+                Follow.objects.filter(
+                    follower_id=OuterRef("following_id"),
+                    following_id=owner.pk,
+                )
+            )
+        )
+        .select_related("following", "following__profile")
+        .order_by("-created_at", "following_id")
+    )
+    blocked_ids = get_either_blocked_user_ids(viewer)
+    if blocked_ids:
+        qs = qs.exclude(following_id__in=blocked_ids)
+    return qs
+
+
+def serialize_mutual_friends_preview(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser | None,
+    *,
+    can_view_content: bool,
+    is_own: bool,
+) -> dict[str, Any] | None:
+    if (
+        viewer is None
+        or not getattr(viewer, "is_authenticated", False)
+        or is_own
+        or not can_view_content
+    ):
+        return None
+    qs = visible_mutual_qs(profile_user, viewer)
+    total = qs.count()
+    if total < 1:
+        return None
+    users = []
+    for row in qs[:3]:
+        payload = serialize_author(row.following)
+        if payload:
+            users.append(payload)
+    return {"count": total, "users": users}
+
+
+def list_profile_mutuals(
+    profile_user: AbstractBaseUser,
+    viewer: AbstractBaseUser,
+) -> dict[str, Any]:
+    if viewer.pk == profile_user.pk:
+        return {"ok": True, "users": [], "count": 0, "has_more": False}
+    return _serialize_follow_list(
+        visible_mutual_qs(profile_user, viewer),
+        user_attr="following",
+    )
 
 
 def list_profile_followers(

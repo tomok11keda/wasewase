@@ -133,6 +133,11 @@ urlpatterns = [
         name="api_v1_me_privacy",
     ),
     path(
+        "api/v1/me/profile/",
+        profile_api_views.api_v1_me_profile,
+        name="api_v1_me_profile",
+    ),
+    path(
         "api/v1/follow-requests/",
         follow_api_views.api_v1_follow_requests,
         name="api_v1_follow_requests",
@@ -331,6 +336,11 @@ urlpatterns = [
         "api/v1/profile/<int:pk>/following/",
         profile_api_views.api_v1_profile_following,
         name="api_v1_profile_following",
+    ),
+    path(
+        "api/v1/profile/<int:pk>/mutuals/",
+        profile_api_views.api_v1_profile_mutuals,
+        name="api_v1_profile_mutuals",
     ),
     path(
         "api/v1/profile/<int:pk>/follow/",
