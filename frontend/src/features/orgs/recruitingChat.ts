@@ -2,15 +2,47 @@
 
 export const RECRUITING_CHAT_NAME_MAX = 120;
 export const RECRUITING_CHAT_DESCRIPTION_MAX = 2000;
+export const MAX_RECRUITING_INVITEES = 20;
+export const RECRUITING_INVITE_QUERY_MIN = 2;
 
 export type RecruitingJoinMode = "open" | "approval";
 export type RecruitingListingStatus = "open" | "closed";
 export type RecruitingMembershipStatus =
   | "not_joined"
   | "pending"
+  | "invited"
   | "joined"
   | "rejected"
   | "closed";
+
+export type RecruitingInviteAuthor = {
+  id: number | null;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  initial: string;
+};
+
+export type RecruitingInvitation = {
+  id: number;
+  status: string;
+  created_at: string;
+  responded_at: string | null;
+  organization_id: number | null;
+  organization_slug: string;
+  organization_name: string;
+  organization_avatar_url: string;
+  chat_name: string;
+  inviter: RecruitingInviteAuthor | null;
+  invitee?: RecruitingInviteAuthor | null;
+};
+
+export type RecruitingInviteCandidate = RecruitingInviteAuthor;
+
+export type RecruitingInviteSkip = {
+  id: number | null;
+  reason: string;
+};
 
 export type RecruitingChat = {
   id: number | null;
@@ -31,9 +63,11 @@ export type RecruitingChat = {
   can_leave: boolean;
   can_withdraw: boolean;
   can_send: boolean;
+  can_invite: boolean;
   room_id: number | null;
   pending_count?: number;
   would_auto_approve_on_open?: boolean;
+  invitation?: RecruitingInvitation | null;
 };
 
 export type RecruitingChatEnvelope = {
@@ -121,6 +155,7 @@ function parseListingStatus(value: unknown): RecruitingListingStatus {
 function parseMembershipStatus(value: unknown): RecruitingMembershipStatus {
   if (
     value === "pending" ||
+    value === "invited" ||
     value === "joined" ||
     value === "rejected" ||
     value === "closed"
@@ -150,6 +185,14 @@ export function recruitingChatMembersPath(slug: string): string {
   return `${recruitingChatPath(slug)}/members`;
 }
 
+export function recruitingChatInvitesPath(slug: string): string {
+  return `${recruitingChatPath(slug)}/invites`;
+}
+
+export function recruitingChatInvitePath(slug: string): string {
+  return `${recruitingChatPath(slug)}/invite`;
+}
+
 /** Inbox spa_path is basename-relative; tolerate a leftover /app prefix. */
 export function inboxSpaHref(spaPath: string): string {
   const raw = (spaPath || "").trim();
@@ -171,6 +214,7 @@ export function membershipStatusLabel(
   status: RecruitingMembershipStatus
 ): string {
   if (status === "pending") return "承認待ち";
+  if (status === "invited") return "招待されています";
   if (status === "joined") return "参加中";
   if (status === "rejected") return "参加が承認されませんでした";
   if (status === "closed") return "現在は新規参加を受け付けていません";
@@ -207,16 +251,95 @@ export function recruitingChatErrorMessage(
     case "already_pending":
       return "すでに参加を申請しています。";
     case "not_pending":
-      return "取り下げられる申請がありません。";
+      return "有効な申請または招待がありません。";
     case "not_member":
       return "このチャットの参加者ではありません。";
     case "confirm_auto_approve_required":
       return "承認待ちの申請があるため、自由参加への切り替えには確認が必要です。";
     case "rate_limited":
       return "短時間に操作が集中しています。少し待ってからもう一度お試しください。";
+    case "busy":
+      return "混み合っています。少し待ってからもう一度お試しください。";
+    case "too_many_invites":
+      return `一度に招待できるのは${MAX_RECRUITING_INVITEES}人までです。`;
+    case "no_invitees":
+      return "招待する学生を選んでください。";
+    case "listing_closed":
+      return "募集停止中のため、新しい招待は送れません。";
+    case "organization_suspended":
+      return "この団体は現在利用停止中です。";
+    case "blocked":
+      return "このユーザーは招待できません。";
+    case "inactive":
+      return "この新歓チャットは現在利用できません。";
     default:
       return fallback;
   }
+}
+
+export function recruitingInviteSkipLabel(reason: string): string {
+  switch (reason) {
+    case "already_member":
+      return "すでに参加しています";
+    case "already_pending":
+      return "招待済みです";
+    case "blocked":
+      return "ブロック関係のため招待できません";
+    case "cooldown":
+      return "辞退後しばらくは再招待できません";
+    case "private":
+      return "非公開アカウントのため招待できません";
+    case "self":
+      return "自分自身は招待できません";
+    case "inactive":
+      return "このアカウントは招待できません";
+    default:
+      return "招待できませんでした";
+  }
+}
+
+export function parseRecruitingInviteAuthor(
+  raw: unknown
+): RecruitingInviteAuthor | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const id = asFiniteNumber(data.id);
+  const displayName = asString(data.display_name);
+  const username = asString(data.username);
+  return {
+    id,
+    username,
+    display_name: displayName,
+    avatar_url: asString(data.avatar_url),
+    initial:
+      asString(data.initial) ||
+      (displayName || username || "?").slice(0, 1),
+  };
+}
+
+export function parseRecruitingInvitation(
+  raw: unknown
+): RecruitingInvitation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const id = asFiniteNumber(data.id);
+  if (id == null) return null;
+  return {
+    id,
+    status: asString(data.status) || "pending",
+    created_at: asString(data.created_at),
+    responded_at:
+      data.responded_at == null || data.responded_at === ""
+        ? null
+        : asString(data.responded_at),
+    organization_id: asFiniteNumber(data.organization_id),
+    organization_slug: asString(data.organization_slug),
+    organization_name: asString(data.organization_name),
+    organization_avatar_url: asString(data.organization_avatar_url),
+    chat_name: asString(data.chat_name),
+    inviter: parseRecruitingInviteAuthor(data.inviter),
+    invitee: parseRecruitingInviteAuthor(data.invitee) || undefined,
+  };
 }
 
 export function parseRecruitingChatSummary(
@@ -267,6 +390,7 @@ export function parseRecruitingChat(raw: unknown): RecruitingChat | null {
     can_leave: asBool(data.can_leave),
     can_withdraw: asBool(data.can_withdraw),
     can_send: asBool(data.can_send),
+    can_invite: asBool(data.can_invite),
     room_id: summary.room_id,
   };
   if ("pending_count" in data) {
@@ -274,6 +398,9 @@ export function parseRecruitingChat(raw: unknown): RecruitingChat | null {
   }
   if ("would_auto_approve_on_open" in data) {
     chat.would_auto_approve_on_open = asBool(data.would_auto_approve_on_open);
+  }
+  if ("invitation" in data) {
+    chat.invitation = parseRecruitingInvitation(data.invitation);
   }
   return chat;
 }

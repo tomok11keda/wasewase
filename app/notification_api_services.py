@@ -54,6 +54,12 @@ _TIMELINE_POST_RE = re.compile(r"^/posts/(\d+)/?$")
 _RECRUITING_CHAT_RE = re.compile(
     r"^/(?:organizations|orgs)/([^/]+)/recruiting-chat/?$"
 )
+_RECRUITING_CHAT_INVITE_RE = re.compile(
+    r"^/(?:organizations|orgs)/([^/]+)/recruiting-chat/invite/?$"
+)
+_RECRUITING_CHAT_INVITES_RE = re.compile(
+    r"^/(?:organizations|orgs)/([^/]+)/recruiting-chat/invites/?$"
+)
 _RECRUITING_CHAT_ROOM_RE = re.compile(r"^/dm/recruiting/(\d+)/?$")
 
 
@@ -148,6 +154,16 @@ def notification_spa_path(link: str) -> str:
     m = _TIMELINE_POST_RE.match(path)
     if m:
         return _with_query_fragment(f"/posts/{m.group(1)}", query, fragment)
+    m = _RECRUITING_CHAT_INVITE_RE.match(path)
+    if m:
+        return _with_query_fragment(
+            f"/organizations/{m.group(1)}/recruiting-chat/invite", query, fragment
+        )
+    m = _RECRUITING_CHAT_INVITES_RE.match(path)
+    if m:
+        return _with_query_fragment(
+            f"/organizations/{m.group(1)}/recruiting-chat/invites", query, fragment
+        )
     m = _RECRUITING_CHAT_RE.match(path)
     if m:
         return _with_query_fragment(

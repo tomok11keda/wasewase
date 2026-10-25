@@ -110,6 +110,7 @@ def _assert_invite_rate_limit(inviter: AbstractBaseUser, batch_size: int) -> Non
     recent = ChatRoomInvitation.objects.filter(
         inviter=inviter,
         created_at__gte=since,
+        room__kind=ChatRoom.Kind.GROUP,
     ).count()
     if recent + batch_size > MAX_PENDING_INVITES_PER_HOUR:
         raise ValueError("rate_limited")
@@ -123,7 +124,10 @@ def create_or_refresh_invitations(
     """
     招待を作成または declined→pending に戻す。
     既にメンバー / pending のユーザーはスキップ。
+    kind=GROUP のみ。新歓チャットの招待は別API。
     """
+    if room.kind != ChatRoom.Kind.GROUP:
+        raise ValueError("not_group")
     selected = {int(x) for x in invitee_ids if int(x) != inviter.id}
     if not selected:
         raise ValueError("no_invitees")
@@ -183,6 +187,8 @@ def create_or_refresh_invitations(
 def accept_group_invitation(
     room: ChatRoom, user: AbstractBaseUser
 ) -> ChatRoomMembership:
+    if room.kind != ChatRoom.Kind.GROUP:
+        raise ValueError("not_group")
     invitation = get_pending_invitation(room, user)
     if invitation is None:
         if is_group_member(room, user):
@@ -208,6 +214,8 @@ def accept_group_invitation(
 
 
 def decline_group_invitation(room: ChatRoom, user: AbstractBaseUser) -> None:
+    if room.kind != ChatRoom.Kind.GROUP:
+        raise ValueError("not_group")
     invitation = get_pending_invitation(room, user)
     if invitation is None:
         raise ValueError("no_invitation")

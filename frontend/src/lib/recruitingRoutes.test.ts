@@ -35,6 +35,14 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
     false
   );
   assert.equal(
+    isConversationPath("/organizations/circle/recruiting-chat/invites"),
+    false
+  );
+  assert.equal(
+    isConversationPath("/organizations/circle/recruiting-chat/invite"),
+    false
+  );
+  assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/info")?.title,
     "チャット詳細"
   );
@@ -49,6 +57,14 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
   assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/applications")?.title,
     "参加申請"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/invites")?.title,
+    "学生を招待"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/invite")?.title,
+    "新歓チャット招待"
   );
   assert.equal(
     matchDetailChrome("/dm/groups/12/info")?.title,

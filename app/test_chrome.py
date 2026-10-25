@@ -73,17 +73,25 @@ class DualHeaderRemovalTests(SimpleTestCase):
     def test_community_thread_keeps_header_while_loading(self):
         src = _read("frontend/src/pages/CommunityThreadPage.tsx")
         self.assertNotIn("community-back", src)
-        self.assertIn("読み込み中…", src)
-        loading = src.split("if (loading)")[1].split("if (error")[0]
+        self.assertIn("ThreadDetailSkeleton", src)
+        loading = src.split('if (phase === "skeleton")')[1].split(
+            'if (phase === "error"'
+        )[0]
         self.assertIn('data-spa-page="コミュニティ"', loading)
         self.assertIn("community-thread-page", loading)
+        self.assertIn("ThreadDetailSkeleton", loading)
+        self.assertNotIn("community-back", loading)
 
     def test_product_detail_keeps_header_while_loading(self):
         src = _read("frontend/src/pages/ProductDetailPage.tsx")
         self.assertNotIn("← フリマへ戻る", src)
-        self.assertIn("読み込み中…", src)
-        loading = src.split("if (loading)")[1].split("if (error")[0]
+        self.assertIn("ProductDetailSkeleton", src)
+        loading = src.split('if (phase === "skeleton")')[1].split(
+            'if (phase === "error"'
+        )[0]
         self.assertIn("product-detail-page", loading)
+        self.assertIn("ProductDetailSkeleton", loading)
+        self.assertNotIn("← フリマへ戻る", loading)
         self.assertIn("seller", src)
         self.assertIn("deleteProduct", src)
         self.assertIn("shareProductToTimeline", src)
@@ -104,14 +112,23 @@ class DualHeaderRemovalTests(SimpleTestCase):
         self.assertNotIn("course-detail__back", course)
 
     def test_conversation_pages_keep_in_page_back(self):
+        header = _read("frontend/src/features/chat/ChatRoomHeader.tsx")
+        self.assertIn("chat-room-header__back", header)
+        self.assertIn("aria-label={backLabel}", header)
+        self.assertIn("requestStackHeaderBack", header)
         dm = _read("frontend/src/pages/DmRoomPage.tsx")
         group = _read("frontend/src/pages/GroupRoomPage.tsx")
         talk = _read("frontend/src/pages/CourseTalkPage.tsx")
         trade = _read("frontend/src/pages/TradeChatPage.tsx")
-        self.assertIn("dm-back-text", dm)
-        self.assertIn("dm-back-text", group)
-        self.assertIn("dm-back-text", talk)
-        self.assertIn("back-link", trade)
+        for src, back_to in (
+            (dm, 'backTo="/dm"'),
+            (group, 'backTo="/dm"'),
+            (talk, 'backTo="/dm?tab=course"'),
+            (trade, 'backTo="/dm"'),
+        ):
+            self.assertIn("ChatRoomHeader", src)
+            self.assertIn(back_to, src)
+            self.assertNotIn("dm-back-text", src)
 
 
 class OffsetAndSafeAreaTests(SimpleTestCase):

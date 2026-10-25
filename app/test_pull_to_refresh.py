@@ -217,19 +217,24 @@ class PullToRefreshPageWiringTests(SimpleTestCase):
         self.assertIn("campus: campus || undefined", page)
         self.assertIn("order: order || undefined", page)
         self.assertIn("setProducts(data.products)", page)
-        self.assertIn('if (mode !== "soft") setLoading(false)', page)
+        self.assertIn('if (mode === "initial" && !sameQuery)', page)
+        self.assertIn("setLoading(true)", page)
+        self.assertIn("if (mode === \"soft\") return false", page)
+        finally_block = page.split("} finally {")[1].split("    },")[0]
+        self.assertIn("setLoading(false)", finally_block)
         self.assertIn('activeTab === "flea"', page)
 
     def test_notifications_ptr_does_not_mark_read(self):
         page = _read("frontend/src/pages/NotificationsPage.tsx")
         api = _read("frontend/src/features/notifications/api.ts")
-        self.assertIn('fetchNotifications(mode === "initial")', page)
+        self.assertIn("fetchNotifications(mode !== \"soft\")", page)
         self.assertIn('load("soft")', page)
         self.assertIn("refresh_failed", page)
-        self.assertIn('if (mode === "initial") setLoading(true)', page)
-        self.assertIn('if (mode === "soft") return false', page)
+        self.assertIn('if (mode === "initial")', page)
+        self.assertIn("setLoading(true)", page)
         self.assertIn("?mark_read=0", api)
         self.assertNotIn("fetchNotifications(true)", page)
+        self.assertIn("if (mode !== \"soft\") void refresh()", page)
 
     def test_dm_inbox_soft_refresh_not_individual_chats(self):
         inbox = _read("frontend/src/pages/DmInboxPage.tsx")
@@ -238,7 +243,10 @@ class PullToRefreshPageWiringTests(SimpleTestCase):
         group = _read("frontend/src/pages/GroupRoomPage.tsx")
         trade = _read("frontend/src/pages/TradeChatPage.tsx")
         course = _read("frontend/src/pages/CourseTalkPage.tsx")
-        self.assertIn('void load("initial", ac.signal)', inbox)
+        self.assertIn(
+            'void load(cached ? "soft" : "initial", ac.signal, userId)',
+            inbox,
+        )
         self.assertIn('load("soft")', inbox)
         self.assertIn("refresh_failed", inbox)
         self.assertIn('if (mode === "initial")', inbox)
@@ -247,7 +255,8 @@ class PullToRefreshPageWiringTests(SimpleTestCase):
             "if (mode === \"initial\" && !signal?.aborted) setLoading(false)",
             inbox,
         )
-        self.assertIn("setItems(data.conversations || [])", inbox)
+        self.assertIn("setItems(entry.items)", inbox)
+        self.assertIn("loadDmInbox(scopedUserId, tab", inbox)
         self.assertIn('path="dm" element={<DmInboxPage />}', app)
         self.assertIn('path="dm/:roomPk" element={<DmRoomPage />}', app)
         for src, label in (

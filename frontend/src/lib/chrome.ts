@@ -112,6 +112,20 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
     };
   }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/invites$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "学生を招待",
+      back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/invite$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "新歓チャット招待",
+      back: { kind: "fallback", to: `/orgs/${orgSlug}` },
+    };
+  }
   if (/^\/dm\/groups\/\d+\/info$/.test(p)) {
     const roomPk = p.split("/")[3];
     return {

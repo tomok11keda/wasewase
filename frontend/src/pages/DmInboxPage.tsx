@@ -37,7 +37,7 @@ function avatarContent(item: InboxItem) {
     return "🛒";
   }
   if (item.kind === "course") return "📚";
-  if (item.kind === "recruiting") {
+  if (item.kind === "recruiting" || item.kind === "recruiting_invite") {
     if (item.thumbnail_url || item.organization_avatar_url) {
       return (
         <img
@@ -254,7 +254,11 @@ export function DmInboxPage() {
                 <Link
                   className={`dm-inbox-item${
                     item.unread_count > 0 ? " has-unread" : ""
-                  }${item.kind === "group_invite" ? " is-invite" : ""}`}
+                  }${
+                    item.kind === "group_invite" || item.kind === "recruiting_invite"
+                      ? " is-invite"
+                      : ""
+                  }`}
                   to={inboxSpaHref(item.spa_path)}
                 >
                   <span
@@ -265,7 +269,8 @@ export function DmInboxPage() {
                           ? " is-trade"
                           : item.kind === "course"
                             ? " is-course"
-                            : item.kind === "recruiting"
+                            : item.kind === "recruiting" ||
+                                item.kind === "recruiting_invite"
                               ? " is-recruiting"
                               : ""
                     }`}
@@ -320,7 +325,8 @@ export function DmInboxPage() {
                         ) : null}
                         <span className="dm-inbox-handle">{item.subtitle}</span>
                       </>
-                    ) : item.kind === "group_invite" ? (
+                    ) : item.kind === "group_invite" ||
+                      item.kind === "recruiting_invite" ? (
                       <>
                         <span className="dm-inbox-status is-invite">
                           {item.status_label || "招待あり"}
@@ -337,7 +343,8 @@ export function DmInboxPage() {
                     ) : (
                       <span className="dm-inbox-handle">{item.subtitle}</span>
                     )}
-                    {item.kind === "group_invite" ? (
+                    {item.kind === "group_invite" ||
+                    item.kind === "recruiting_invite" ? (
                       <p className="dm-inbox-preview">
                         タップして参加するか辞退してください
                       </p>

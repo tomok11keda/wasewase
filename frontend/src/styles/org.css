@@ -471,6 +471,108 @@
   margin: 8px 12px;
 }
 
+.org-recruiting-invite-banner {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.org-recruiting-invite-banner__org {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.org-recruiting-invite-banner__org img,
+.org-recruiting-invite-banner__org span {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #eff3f4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.org-recruiting-invite-banner__lead {
+  margin: 0;
+  font-size: 14px;
+}
+
+.org-recruiting-invite-banner__name {
+  display: block;
+  margin: 4px 0 0;
+}
+
+.org-recruiting-invite-banner__hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.org-recruiting-invite-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.org-recruiting-invite-banner__actions .btn {
+  min-height: 44px;
+}
+
+.org-recruiting-invite-search {
+  margin: 0 0 24px;
+}
+
+.org-recruiting-invite-search label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.org-recruiting-invite-selected {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.org-recruiting-invite-selected button {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #cfd9de;
+  background: #fff;
+}
+
+.org-recruiting-invite-send {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+}
+
+.org-recruiting-invite-feedback {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #166534;
+}
+
+.org-recruiting-person__identity input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+}
+
 @media (max-width: 390px) {
   .org-profile-page .org-profile-header {
     grid-template-columns: 72px minmax(0, 1fr);

@@ -31,6 +31,18 @@ from .organization_recruiting_chat_services import (
     update_recruiting_chat_settings,
     withdraw_recruiting_application,
 )
+from .organization_recruiting_invite_services import (
+    CANDIDATE_QUERY_MIN,
+    accept_recruiting_invitation,
+    cancel_recruiting_invitation,
+    create_recruiting_invitations,
+    decline_recruiting_invitation,
+    get_recruiting_invitation_for_invitee,
+    list_pending_recruiting_invites,
+    list_recruiting_invite_candidates,
+    serialize_recruiting_invitation,
+    viewer_recruiting_invitation_payload,
+)
 from .organization_services import (
     can_manage_organization,
     can_view_organization_profile,
@@ -159,6 +171,15 @@ def _get_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
         chat, viewer, include_manager_fields=can_manage
     )
     if not (can_manage or can_access or discoverable):
+        if payload.get("membership_status") == "invited":
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "recruiting_chat": payload,
+                    "can_create": False,
+                    "can_manage": False,
+                }
+            )
         return JsonResponse(
             {
                 "ok": True,
@@ -563,3 +584,176 @@ def api_v1_recruiting_chat_message_delete(
             "message": serialize_chat_message(message, request.user.pk),
         }
     )
+
+
+def _parse_invitee_ids(data: dict) -> list[int]:
+    raw = data.get("invitee_ids")
+    if not isinstance(raw, list):
+        return []
+    ids: list[int] = []
+    for value in raw:
+        try:
+            ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+@require_GET
+def api_v1_organization_recruiting_invite_candidates(
+    request: HttpRequest, slug: str
+) -> JsonResponse:
+    result = _managed_chat(request, slug)
+    if isinstance(result, JsonResponse):
+        return result
+    _organization, chat = result
+    query = (request.GET.get("q") or "").strip()
+    if query and len(query.lstrip("@")) < CANDIDATE_QUERY_MIN:
+        return JsonResponse({"ok": True, "users": [], "query": query})
+    try:
+        users = list_recruiting_invite_candidates(
+            chat=chat, actor=request.user, query=query
+        )
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    return JsonResponse({"ok": True, "users": users, "query": query})
+
+
+@require_http_methods(["GET", "POST"])
+def api_v1_organization_recruiting_invites(
+    request: HttpRequest, slug: str
+) -> JsonResponse:
+    result = _managed_chat(request, slug)
+    if isinstance(result, JsonResponse):
+        return result
+    _organization, chat = result
+    if request.method == "GET":
+        try:
+            invites = list_pending_recruiting_invites(chat=chat, actor=request.user)
+        except OrganizationRecruitingChatError as exc:
+            return _error_response(exc)
+        return JsonResponse({"ok": True, "invites": invites})
+    limited = _write_allowed(request)
+    if limited:
+        return limited
+    data = _parse_json(request)
+    try:
+        payload = create_recruiting_invitations(
+            chat=chat,
+            actor=request.user,
+            invitee_ids=_parse_invitee_ids(data),
+        )
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    return JsonResponse({"ok": True, **payload}, status=201)
+
+
+@require_POST
+def api_v1_organization_recruiting_invite_cancel(
+    request: HttpRequest, slug: str, invitation_id: int
+) -> JsonResponse:
+    result = _managed_chat(request, slug)
+    if isinstance(result, JsonResponse):
+        return result
+    _organization, chat = result
+    limited = _write_allowed(request)
+    if limited:
+        return limited
+    try:
+        invitation = cancel_recruiting_invitation(
+            chat=chat, actor=request.user, invitation_id=invitation_id
+        )
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    return JsonResponse(
+        {
+            "ok": True,
+            "invitation": serialize_recruiting_invitation(
+                invitation, include_invitee=True
+            ),
+        }
+    )
+
+
+@require_GET
+def api_v1_organization_recruiting_invitation(
+    request: HttpRequest, slug: str
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    organization = _visible_organization(slug, request.user)
+    if isinstance(organization, JsonResponse):
+        return organization
+    chat = get_active_recruiting_chat(organization)
+    if chat is None:
+        return _json_error("not_found", status=404)
+    invitation = viewer_recruiting_invitation_payload(chat, request.user)
+    if invitation is None:
+        return _json_error("not_found", status=404)
+    return JsonResponse(
+        {
+            "ok": True,
+            "invitation": invitation,
+            "recruiting_chat": serialize_recruiting_chat_for_viewer(
+                chat, request.user, include_manager_fields=False
+            ),
+        }
+    )
+
+
+@require_GET
+def api_v1_recruiting_invitation_detail(
+    request: HttpRequest, invitation_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    try:
+        invitation = get_recruiting_invitation_for_invitee(invitation_id, request.user)
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    chat = getattr(invitation.room, "organization_recruiting_chat", None)
+    return JsonResponse(
+        {
+            "ok": True,
+            "invitation": serialize_recruiting_invitation(invitation),
+            "recruiting_chat": (
+                serialize_recruiting_chat_for_viewer(
+                    chat, request.user, include_manager_fields=False
+                )
+                if chat is not None
+                else None
+            ),
+        }
+    )
+
+
+@require_POST
+def api_v1_recruiting_invitation_accept(
+    request: HttpRequest, invitation_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    try:
+        invitation = get_recruiting_invitation_for_invitee(invitation_id, request.user)
+        payload = accept_recruiting_invitation(invitation=invitation, user=request.user)
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    return JsonResponse({"ok": True, **payload})
+
+
+@require_POST
+def api_v1_recruiting_invitation_decline(
+    request: HttpRequest, invitation_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    try:
+        invitation = get_recruiting_invitation_for_invitee(invitation_id, request.user)
+        payload = decline_recruiting_invitation(invitation=invitation, user=request.user)
+    except OrganizationRecruitingChatError as exc:
+        return _error_response(exc)
+    return JsonResponse({"ok": True, **payload})

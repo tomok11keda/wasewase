@@ -1543,17 +1543,19 @@ class ChatRoomMembership(models.Model):
 
 
 class ChatRoomInvitation(models.Model):
-    """
-    グループチャット招待（承認制）。
+    """チャット招待（承認制）。グループDMと新歓チャットで同じ行を使う。
 
     pending の間はメンバーではない。accepted で ChatRoomMembership を作成する。
-    declined 後は同一 (room, invitee) を pending に戻して再招待できる。
+    グループDMは declined 後に同一 (room, invitee) を pending へ戻せる。
+    新歓チャットの辞退はクールダウンをサービス層で扱う。cancelled は管理者取消。
+    操作APIは room.kind で分離し、グループDM用URLから新歓招待は扱わない。
     """
 
     class Status(models.TextChoices):
         PENDING = "pending", "招待中"
         ACCEPTED = "accepted", "参加済み"
         DECLINED = "declined", "辞退"
+        CANCELLED = "cancelled", "取消"
 
     room = models.ForeignKey(
         ChatRoom,

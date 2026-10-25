@@ -23,6 +23,7 @@ PUSH_KIND_FOLLOW = "follow"
 PUSH_KIND_FOLLOW_REQUEST = "follow_request"
 PUSH_KIND_COMMUNITY_REPLY = "community_reply"
 PUSH_KIND_GROUP_INVITE = "group_invite"
+PUSH_KIND_RECRUITING_INVITE = "recruiting_invite"
 PUSH_KIND_FLEA_COMMENT = "flea_comment"
 PUSH_KIND_FLEA_LIKE = "flea_like"
 PUSH_KIND_FLEA_PURCHASE = "flea_purchase"
@@ -57,6 +58,7 @@ def build_privacy_safe_push_body(
         PUSH_KIND_FOLLOW_REQUEST: f"「{name}さんからフォローリクエストが届きました」",
         PUSH_KIND_COMMUNITY_REPLY: "コミュニティの投稿に返信がありました",
         PUSH_KIND_GROUP_INVITE: f"「{name}さんからグループ招待が届きました」",
+        PUSH_KIND_RECRUITING_INVITE: "「新歓チャットへの招待が届きました」",
         PUSH_KIND_FLEA_COMMENT: f"「{name}さんがあなたの商品にコメントしました」",
         PUSH_KIND_FLEA_LIKE: f"「{name}さんがあなたの商品にいいねしました」",
         PUSH_KIND_FLEA_PURCHASE: f"「{name}さんがあなたの商品を購入しました」",

@@ -10,6 +10,7 @@ import {
   joinModeLabel,
   listingStatusLabel,
   recruitingChatApplicationsPath,
+  recruitingChatInvitesPath,
   recruitingChatMembersPath,
   recruitingChatPath,
   recruitingChatSettingsPath,
@@ -219,6 +220,12 @@ export function OrganizationRecruitingChatInfoPage() {
                   <li>
                     <Link to={recruitingChatMembersPath(slug)}>
                       参加者管理
+                      <span aria-hidden="true">›</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to={recruitingChatInvitesPath(slug)}>
+                      学生を招待
                       <span aria-hidden="true">›</span>
                     </Link>
                   </li>

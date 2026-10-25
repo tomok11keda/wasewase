@@ -232,7 +232,8 @@ def build_inbox_payload(user: AbstractBaseUser, tab: str | None) -> dict[str, An
         "dm": sum(
             1
             for i in all_items
-            if i.get("kind") in ("dm", "group", "group_invite", "recruiting")
+            if i.get("kind")
+            in ("dm", "group", "group_invite", "recruiting", "recruiting_invite")
         ),
         "course": sum(1 for i in all_items if i.get("kind") == "course"),
     }

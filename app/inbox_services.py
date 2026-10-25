@@ -21,7 +21,13 @@ INBOX_TAB_TRADE = "trade"
 INBOX_TAB_DM = "dm"
 INBOX_TAB_COURSE = "course"
 INBOX_TABS = (INBOX_TAB_ALL, INBOX_TAB_TRADE, INBOX_TAB_DM, INBOX_TAB_COURSE)
-INBOX_DM_LIKE_KINDS = ("dm", "group", "group_invite", "recruiting")
+INBOX_DM_LIKE_KINDS = (
+    "dm",
+    "group",
+    "group_invite",
+    "recruiting",
+    "recruiting_invite",
+)
 
 
 def normalize_inbox_tab(raw: str | None) -> str:
@@ -216,6 +222,23 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
             )
         except Exception as exc:
             logger.warning("Skipping broken recruiting chat: %s", exc)
+            continue
+
+    try:
+        from .organization_recruiting_invite_services import (
+            build_recruiting_invite_conversations,
+        )
+
+        recruiting_invite_conversations = build_recruiting_invite_conversations(user)
+    except Exception as exc:
+        logger.warning("build_recruiting_invite_conversations failed: %s", exc)
+        recruiting_invite_conversations = []
+
+    for invite in recruiting_invite_conversations:
+        try:
+            items.append(invite)
+        except Exception as exc:
+            logger.warning("Skipping broken recruiting invite: %s", exc)
             continue
 
     try:

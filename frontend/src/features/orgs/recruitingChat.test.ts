@@ -5,18 +5,25 @@ import {
   inboxSpaHref,
   joinModeLabel,
   listingStatusLabel,
+  membershipStatusLabel,
   parseRecruitingApplication,
   parseRecruitingChat,
   parseRecruitingChatEnvelope,
   parseRecruitingChatSummary,
+  parseRecruitingInvitation,
   parseRecruitingMember,
   parseRecruitingRoom,
   recruitingChatInfoPath,
+  recruitingChatInvitePath,
+  recruitingChatInvitesPath,
   recruitingChatPath,
+  recruitingChatErrorMessage,
+  recruitingInviteSkipLabel,
   shouldConfirmAutoApprove,
   canShowRecruitingManageNav,
   shouldShowRecruitingSection,
   validateRecruitingChatForm,
+  MAX_RECRUITING_INVITEES,
 } from "./recruitingChat.ts";
 
 test("parses organization profile recruiting_chat summary from real API fields", () => {
@@ -233,7 +240,64 @@ test("create form validation matches backend name/description limits", () => {
   );
 });
 
-test("recruiting manage nav waits for server-confirmed permission", () => {
+test("parses invited membership and invitation payload without a room id", () => {
+  const chat = parseRecruitingChat({
+    id: 3,
+    name: "2026新歓",
+    join_mode: "approval",
+    listing_status: "open",
+    membership_status: "invited",
+    can_join: false,
+    can_apply: false,
+    can_manage: false,
+    can_invite: false,
+    can_send: false,
+    room_id: null,
+    invitation: {
+      id: 88,
+      status: "pending",
+      organization_name: "テニスサークル",
+      organization_slug: "tennis",
+      organization_avatar_url: "/media/org.png",
+      chat_name: "2026新歓",
+      inviter: { id: 2, username: "owner", display_name: "代表", avatar_url: "" },
+    },
+  });
+  assert.ok(chat);
+  assert.equal(chat?.membership_status, "invited");
+  assert.equal(chat?.can_join, false);
+  assert.equal(chat?.can_send, false);
+  assert.equal(chat?.room_id, null);
+  assert.equal(chat?.invitation?.id, 88);
+  assert.equal(membershipStatusLabel("invited"), "招待されています");
+  assert.equal(recruitingChatInvitesPath("tennis"), "/organizations/tennis/recruiting-chat/invites");
+  assert.equal(recruitingChatInvitePath("tennis"), "/organizations/tennis/recruiting-chat/invite");
+  assert.equal(MAX_RECRUITING_INVITEES, 20);
+  assert.equal(recruitingInviteSkipLabel("cooldown"), "辞退後しばらくは再招待できません");
+  const invitation = parseRecruitingInvitation({
+    id: 88,
+    status: "cancelled",
+    organization_name: "テニスサークル",
+  });
+  assert.equal(invitation?.status, "cancelled");
+});
+
+test("sqlite lock and quota errors stay retryable and are not duplicate copy", () => {
+  assert.equal(
+    recruitingChatErrorMessage("busy", "fallback"),
+    "混み合っています。少し待ってからもう一度お試しください。"
+  );
+  assert.equal(
+    recruitingChatErrorMessage("rate_limited", "fallback"),
+    "短時間に操作が集中しています。少し待ってからもう一度お試しください。"
+  );
+  assert.notEqual(
+    recruitingChatErrorMessage("busy", "fallback"),
+    recruitingChatErrorMessage("already_pending", "fallback")
+  );
+});
+
+test("invite button helper stays hidden until the server confirms manage", () => {
   assert.equal(
     canShowRecruitingManageNav({ hydrated: false, canManage: true }),
     false

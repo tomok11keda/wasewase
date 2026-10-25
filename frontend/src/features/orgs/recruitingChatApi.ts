@@ -10,6 +10,8 @@ import {
   parseRecruitingApplication,
   parseRecruitingChat,
   parseRecruitingChatEnvelope,
+  parseRecruitingInvitation,
+  parseRecruitingInviteAuthor,
   parseRecruitingMember,
   parseRecruitingRoom,
   recruitingChatErrorMessage,
@@ -17,6 +19,9 @@ import {
   type RecruitingChatEnvelope,
   type RecruitingChatForm,
   type RecruitingApplication,
+  type RecruitingInvitation,
+  type RecruitingInviteCandidate,
+  type RecruitingInviteSkip,
   type RecruitingMember,
   type RecruitingRoom,
 } from "./recruitingChat";
@@ -278,6 +283,232 @@ export async function fetchRecruitingMembers(
   return rows
     .map(parseRecruitingMember)
     .filter((row): row is RecruitingMember => row != null);
+}
+
+export async function searchRecruitingInviteCandidates(
+  slug: string,
+  query: string,
+  signal?: AbortSignal
+): Promise<RecruitingInviteCandidate[]> {
+  const qs = query.trim()
+    ? `?q=${encodeURIComponent(query.trim())}`
+    : "";
+  const result = signal
+    ? await fetch(orgChatUrl(slug, `invite-candidates/${qs}`), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal,
+      }).then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        return {
+          ok: Boolean(res.ok && data.ok !== false),
+          status: res.status,
+          data,
+          error:
+            typeof data.error === "string"
+              ? data.error
+              : res.ok
+                ? undefined
+                : `http_${res.status}`,
+        };
+      })
+    : await apiGetJson(orgChatUrl(slug, `invite-candidates/${qs}`));
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "学生を検索できませんでした。"
+    );
+  }
+  const rows = Array.isArray(result.data.users) ? result.data.users : [];
+  return rows
+    .map(parseRecruitingInviteAuthor)
+    .filter((row): row is RecruitingInviteCandidate => row != null && row.id != null);
+}
+
+export async function fetchRecruitingInvites(
+  slug: string
+): Promise<RecruitingInvitation[]> {
+  const result = await apiGetJson(orgChatUrl(slug, "invites/"));
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "招待一覧を読み込めませんでした。"
+    );
+  }
+  const rows = Array.isArray(result.data.invites) ? result.data.invites : [];
+  return rows
+    .map(parseRecruitingInvitation)
+    .filter((row): row is RecruitingInvitation => row != null);
+}
+
+export async function sendRecruitingInvites(
+  slug: string,
+  inviteeIds: number[]
+): Promise<{
+  invited_count: number;
+  invited: RecruitingInvitation[];
+  skipped: RecruitingInviteSkip[];
+  recruiting_chat: RecruitingChat | null;
+}> {
+  const result = await apiPostJson(orgChatUrl(slug, "invites/"), {
+    invitee_ids: inviteeIds,
+  });
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "招待を送信できませんでした。"
+    );
+  }
+  const invitedRows = Array.isArray(result.data.invited)
+    ? result.data.invited
+    : [];
+  const skippedRows = Array.isArray(result.data.skipped)
+    ? result.data.skipped
+    : [];
+  const invited: RecruitingInvitation[] = [];
+  for (const row of invitedRows) {
+    if (!row || typeof row !== "object") continue;
+    const data = row as Record<string, unknown>;
+    const id = Number(data.id);
+    if (!Number.isFinite(id)) continue;
+    invited.push({
+      id,
+      status: "pending",
+      created_at: "",
+      responded_at: null,
+      organization_id: null,
+      organization_slug: "",
+      organization_name: "",
+      organization_avatar_url: "",
+      chat_name: "",
+      inviter: null,
+      invitee: parseRecruitingInviteAuthor(data.invitee) || undefined,
+    });
+  }
+  return {
+    invited_count: Number(result.data.invited_count || 0),
+    invited,
+    skipped: skippedRows
+      .map((row) => {
+        if (!row || typeof row !== "object") return null;
+        const data = row as Record<string, unknown>;
+        return {
+          id: Number.isFinite(Number(data.id)) ? Number(data.id) : null,
+          reason: typeof data.reason === "string" ? data.reason : "invalid",
+        };
+      })
+      .filter((row): row is RecruitingInviteSkip => row != null),
+    recruiting_chat: parseRecruitingChat(result.data.recruiting_chat),
+  };
+}
+
+export async function cancelRecruitingInvite(
+  slug: string,
+  invitationId: number
+): Promise<void> {
+  const result = await apiPostJson(
+    orgChatUrl(slug, `invites/${invitationId}/cancel/`)
+  );
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "招待を取り消せませんでした。"
+    );
+  }
+}
+
+export async function fetchViewerRecruitingInvitation(
+  slug: string,
+  signal?: AbortSignal
+): Promise<{
+  invitation: RecruitingInvitation;
+  recruiting_chat: RecruitingChat | null;
+}> {
+  const result = signal
+    ? await fetch(orgChatUrl(slug, "invitation/"), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal,
+      }).then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        return {
+          ok: Boolean(res.ok && data.ok !== false),
+          status: res.status,
+          data,
+          error:
+            typeof data.error === "string"
+              ? data.error
+              : res.ok
+                ? undefined
+                : `http_${res.status}`,
+        };
+      })
+    : await apiGetJson(orgChatUrl(slug, "invitation/"));
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "招待を読み込めませんでした。"
+    );
+  }
+  const invitation = parseRecruitingInvitation(result.data.invitation);
+  if (!invitation) {
+    throwRecruitingError(
+      result.status,
+      "invalid_payload",
+      result.data,
+      "招待を読み込めませんでした。"
+    );
+  }
+  return {
+    invitation,
+    recruiting_chat: parseRecruitingChat(result.data.recruiting_chat),
+  };
+}
+
+export async function acceptRecruitingInvitation(
+  invitationId: number
+): Promise<RecruitingChat> {
+  const result = await apiPostJson(
+    `/api/v1/recruiting-invitations/${invitationId}/accept/`
+  );
+  return chatFromResult(
+    result.status,
+    result.error,
+    result.data,
+    "参加できませんでした。"
+  );
+}
+
+export async function declineRecruitingInvitation(
+  invitationId: number
+): Promise<void> {
+  const result = await apiPostJson(
+    `/api/v1/recruiting-invitations/${invitationId}/decline/`
+  );
+  if (!result.ok) {
+    throwRecruitingError(
+      result.status,
+      result.error,
+      result.data,
+      "辞退できませんでした。"
+    );
+  }
 }
 
 export async function removeRecruitingMember(

@@ -12,7 +12,14 @@ export type Author = {
 };
 
 export type InboxItem = {
-  kind: "dm" | "group" | "group_invite" | "trade" | "course" | "recruiting";
+  kind:
+    | "dm"
+    | "group"
+    | "group_invite"
+    | "trade"
+    | "course"
+    | "recruiting"
+    | "recruiting_invite";
   room_id: number;
   display_name: string;
   subtitle: string;

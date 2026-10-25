@@ -100,6 +100,18 @@ def recruiting_chat_spa_path(slug: str, room_pk: int) -> str:
     return f"/dm/recruiting/{room_pk}"
 
 
+def recruiting_invite_spa_path(slug: str) -> str:
+    org_slug = (slug or "").strip()
+    return f"/organizations/{org_slug}/recruiting-chat/invite"
+
+
+def recruiting_invite_url(slug: str) -> str:
+    path = recruiting_invite_spa_path(slug)
+    if spa_enabled():
+        return app_absolute(path)
+    return path
+
+
 def recruiting_chat_url(slug: str, room_pk: int) -> str:
     """通知・絶対URL用。inbox の spa_path は recruiting_chat_spa_path を使う。"""
     path = recruiting_chat_spa_path(slug, room_pk)

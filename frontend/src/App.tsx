@@ -32,6 +32,8 @@ import { OrganizationEditPage } from "./pages/OrganizationEditPage";
 import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
 import { OrganizationRecruitingChatApplicationsPage } from "./pages/OrganizationRecruitingChatApplicationsPage";
 import { OrganizationRecruitingChatInfoPage } from "./pages/OrganizationRecruitingChatInfoPage";
+import { OrganizationRecruitingChatInvitePage } from "./pages/OrganizationRecruitingChatInvitePage";
+import { OrganizationRecruitingChatInvitesPage } from "./pages/OrganizationRecruitingChatInvitesPage";
 import { OrganizationRecruitingChatMembersPage } from "./pages/OrganizationRecruitingChatMembersPage";
 import { OrganizationRecruitingChatPage } from "./pages/OrganizationRecruitingChatPage";
 import { OrganizationRecruitingChatSettingsPage } from "./pages/OrganizationRecruitingChatSettingsPage";
@@ -114,6 +116,14 @@ function NestedAppRoutes() {
       <Route
         path="organizations/:slug/recruiting-chat/members"
         element={<OrganizationRecruitingChatMembersPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/invites"
+        element={<OrganizationRecruitingChatInvitesPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/invite"
+        element={<OrganizationRecruitingChatInvitePage />}
       />
       <Route
         path="organizations/:slug/recruiting-chat"

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ListRowSkeleton } from "../../components/skeleton";
 import { OrganizationRequestError } from "./api";
+import { RecruitingInviteBanner } from "./RecruitingInviteBanner";
 import {
   joinModeLabel,
   listingStatusLabel,
   membershipStatusLabel,
   recruitingChatApplicationsPath,
+  recruitingChatInvitesPath,
   recruitingChatMembersPath,
   recruitingChatPath,
   recruitingChatSettingsPath,
@@ -15,6 +17,8 @@ import {
   type RecruitingChatEnvelope,
 } from "./recruitingChat";
 import {
+  acceptRecruitingInvitation,
+  declineRecruitingInvitation,
   joinRecruitingChat,
   leaveRecruitingChat,
   withdrawRecruitingChat,
@@ -46,12 +50,15 @@ export function RecruitingChatSection({
   onReload,
   onUpdated,
 }: Props) {
+  const navigate = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [inviteGone, setInviteGone] = useState(false);
   const busyRef = useRef(false);
 
   useEffect(() => {
     setActionError(null);
+    setInviteGone(false);
   }, [slug, envelope?.recruiting_chat?.id]);
 
   if (loading && !shouldShowRecruitingSection(envelope)) {
@@ -139,9 +146,13 @@ export function RecruitingChatSection({
   }
 
   const status = chat.membership_status;
-  const showJoin = chat.can_join && status === "not_joined";
+  const invitation = chat.invitation;
+  const showInvite = status === "invited" && invitation && !inviteGone;
+  const showJoin = chat.can_join && status === "not_joined" && !showInvite;
   const showApply =
-    chat.can_apply && (status === "not_joined" || status === "rejected");
+    chat.can_apply &&
+    (status === "not_joined" || status === "rejected") &&
+    !showInvite;
   const showOpen = Boolean(chat.room_id) && (status === "joined" || canManage);
 
   return (
@@ -159,7 +170,7 @@ export function RecruitingChatSection({
         ) : null}
         <li>{membershipStatusLabel(status)}</li>
       </ul>
-      {closed && status !== "joined" && !canManage ? (
+      {closed && status !== "joined" && status !== "invited" && !canManage ? (
         <p className="org-recruiting-card__closed" role="status">
           現在は新規参加を受け付けていません。
         </p>
@@ -173,6 +184,27 @@ export function RecruitingChatSection({
         <p className="org-recruiting-card__error" role="alert">
           {actionError}
         </p>
+      ) : null}
+      {showInvite && invitation ? (
+        <RecruitingInviteBanner
+          invitation={invitation}
+          busy={Boolean(busy)}
+          onAccept={() =>
+            void run("accept", async () => {
+              const next = await acceptRecruitingInvitation(invitation.id);
+              navigate(recruitingChatPath(slug));
+              return next;
+            })
+          }
+          onDecline={() => {
+            if (!window.confirm("この招待を辞退しますか？")) return;
+            void run("decline", async () => {
+              await declineRecruitingInvitation(invitation.id);
+              setInviteGone(true);
+              return { ...chat, membership_status: "not_joined", invitation: null };
+            });
+          }}
+        />
       ) : null}
       <div className="org-recruiting-card__actions">
         {showJoin ? (
@@ -245,6 +277,9 @@ export function RecruitingChatSection({
             </Link>
             <Link className="btn btn-secondary" to={recruitingChatMembersPath(slug)}>
               参加者管理
+            </Link>
+            <Link className="btn btn-secondary" to={recruitingChatInvitesPath(slug)}>
+              学生を招待
             </Link>
           </>
         ) : null}

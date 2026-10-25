@@ -146,6 +146,16 @@ class SpaLinkHelperTests(TestCase):
             notification_spa_path("/dm/recruiting/44"),
             "/dm/recruiting/44",
         )
+        self.assertEqual(
+            notification_spa_path(
+                "/app/organizations/circle/recruiting-chat/invite"
+            ),
+            "/organizations/circle/recruiting-chat/invite",
+        )
+        self.assertEqual(
+            notification_spa_path("/organizations/circle/recruiting-chat/invites"),
+            "/organizations/circle/recruiting-chat/invites",
+        )
 
 
 @override_settings(WASE_REACT_SPA=True, BROWSE_MODE_GATE_ENABLED=False)

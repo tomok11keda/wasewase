@@ -26,6 +26,7 @@ from .chat_message_services import (
 from .models import (
     ChatMessage,
     ChatRoom,
+    ChatRoomInvitation,
     ChatRoomMembership,
     Organization,
     OrganizationMember,
@@ -305,6 +306,18 @@ def _approve_pending_applications(
     for application in pending:
         _ensure_membership(chat.room, application.user)
         _mark_application_approved(application, reviewer=reviewer)
+        _mark_pending_invite_accepted(chat.room, application.user)
+        from .organization_recruiting_invite_services import (
+            _resolve_recruiting_invite_notifications,
+            _run_after_commit,
+        )
+
+        invitee = application.user
+        _run_after_commit(
+            lambda invitee=invitee: _resolve_recruiting_invite_notifications(
+                invitee, chat, accepted=True
+            )
+        )
     return len(pending)
 
 
@@ -455,6 +468,14 @@ def _assert_can_join_or_apply(
         raise OrganizationRecruitingChatError("listing_closed", status=403)
 
 
+def _mark_pending_invite_accepted(room: ChatRoom, user: AbstractBaseUser) -> None:
+    ChatRoomInvitation.objects.filter(
+        room=room,
+        invitee=user,
+        status=ChatRoomInvitation.Status.PENDING,
+    ).update(status=ChatRoomInvitation.Status.ACCEPTED, responded_at=timezone.now())
+
+
 def join_or_apply_recruiting_chat(
     *,
     chat: OrganizationRecruitingChat,
@@ -464,27 +485,51 @@ def join_or_apply_recruiting_chat(
     with transaction.atomic():
         locked = _lock_chat(chat.pk)
         _assert_can_join_or_apply(locked, user)
-        if ChatRoomMembership.objects.filter(room=locked.room, user=user).exists():
-            raise OrganizationRecruitingChatError("already_member", status=409)
-        application, created = _get_or_lock_application(locked, user)
-        if locked.join_mode == OrganizationRecruitingChat.JoinMode.OPEN:
-            _ensure_membership(locked.room, user)
-            _mark_application_approved(application, reviewer=None)
-            return application
-        if (
-            not created
-            and application.status
-            == OrganizationRecruitingChatApplication.Status.PENDING
-        ):
-            raise OrganizationRecruitingChatError("already_pending", status=409)
-        if not created:
-            application.status = OrganizationRecruitingChatApplication.Status.PENDING
-            application.reviewed_at = None
-            application.reviewed_by = None
-            application.save(
-                update_fields=["status", "reviewed_at", "reviewed_by", "updated_at"]
+        pending_invite = (
+            ChatRoomInvitation.objects.select_for_update()
+            .filter(
+                room=locked.room,
+                invitee=user,
+                status=ChatRoomInvitation.Status.PENDING,
             )
-        return application
+            .first()
+        )
+        if pending_invite is not None:
+            from .organization_recruiting_invite_services import (
+                _resolve_recruiting_invite_notifications,
+                _run_after_commit,
+                complete_recruiting_invite_acceptance,
+            )
+
+            application = complete_recruiting_invite_acceptance(
+                locked, user, pending_invite, reviewer=pending_invite.inviter
+            )
+            _run_after_commit(
+                lambda: _resolve_recruiting_invite_notifications(
+                    user, chat, accepted=True
+                )
+            )
+        elif ChatRoomMembership.objects.filter(room=locked.room, user=user).exists():
+            raise OrganizationRecruitingChatError("already_member", status=409)
+        else:
+            application, created = _get_or_lock_application(locked, user)
+            if locked.join_mode == OrganizationRecruitingChat.JoinMode.OPEN:
+                _ensure_membership(locked.room, user)
+                _mark_application_approved(application, reviewer=None)
+            elif (
+                not created
+                and application.status
+                == OrganizationRecruitingChatApplication.Status.PENDING
+            ):
+                raise OrganizationRecruitingChatError("already_pending", status=409)
+            elif not created:
+                application.status = OrganizationRecruitingChatApplication.Status.PENDING
+                application.reviewed_at = None
+                application.reviewed_by = None
+                application.save(
+                    update_fields=["status", "reviewed_at", "reviewed_by", "updated_at"]
+                )
+    return application
 
 
 def approve_recruiting_application(
@@ -509,6 +554,18 @@ def approve_recruiting_application(
             raise OrganizationRecruitingChatError("not_pending")
         _ensure_membership(locked.room, application.user)
         _mark_application_approved(application, reviewer=actor)
+        _mark_pending_invite_accepted(locked.room, application.user)
+        from .organization_recruiting_invite_services import (
+            _resolve_recruiting_invite_notifications,
+            _run_after_commit,
+        )
+
+        invitee = application.user
+        _run_after_commit(
+            lambda: _resolve_recruiting_invite_notifications(
+                invitee, locked, accepted=True
+            )
+        )
         return application
 
 
@@ -705,13 +762,27 @@ def viewer_application_status(
     return status or "none"
 
 
+def viewer_has_pending_recruiting_invitation(
+    chat: OrganizationRecruitingChat, user: AbstractBaseUser | None
+) -> bool:
+    if not _authenticated_user(user):
+        return False
+    return ChatRoomInvitation.objects.filter(
+        room=chat.room,
+        invitee=user,
+        status=ChatRoomInvitation.Status.PENDING,
+    ).exists()
+
+
 def public_membership_status(
     chat: OrganizationRecruitingChat, user: AbstractBaseUser | None
 ) -> str:
-    """フロント判別用: not_joined / pending / joined / rejected / closed。"""
+    """フロント判別用: not_joined / pending / invited / joined / rejected / closed。"""
     state = viewer_application_status(chat, user)
     if state == "member":
         return "joined"
+    if viewer_has_pending_recruiting_invitation(chat, user):
+        return "invited"
     if state == "pending":
         return "pending"
     if state == "rejected":
@@ -800,10 +871,18 @@ def serialize_recruiting_chat_for_viewer(
     can_manage = can_manage_organization(viewer, organization)
     can_access = can_access_recruiting_room(chat.room, viewer)
     authenticated = _authenticated_user(viewer)
+    invited = membership_status == "invited"
+    can_invite = bool(
+        can_manage
+        and chat.is_active
+        and organization_allows_recruiting_access(organization)
+        and chat.listing_status == OrganizationRecruitingChat.ListingStatus.OPEN
+    )
+    visible_meta = discoverable or can_manage or can_access or invited
     payload: dict[str, Any] = {
         "id": chat.pk,
         "organization_id": chat.organization_id,
-        "name": chat.name,
+        "name": chat.name if visible_meta else "",
         "description": chat.description if (discoverable or can_manage or can_access) else "",
         "join_mode": chat.join_mode,
         "listing_status": chat.listing_status,
@@ -819,16 +898,19 @@ def serialize_recruiting_chat_for_viewer(
             and discoverable
             and chat.join_mode == OrganizationRecruitingChat.JoinMode.OPEN
             and state != "member"
+            and not invited
         ),
         "can_apply": bool(
             authenticated
             and discoverable
             and chat.join_mode == OrganizationRecruitingChat.JoinMode.APPROVAL
             and state not in {"member", "pending"}
+            and not invited
         ),
         "can_leave": bool(state == "member"),
-        "can_withdraw": bool(state == "pending"),
+        "can_withdraw": bool(state == "pending" and not invited),
         "can_send": can_access,
+        "can_invite": can_invite,
     }
     if can_access:
         payload["room_id"] = chat.room_id
@@ -840,6 +922,28 @@ def serialize_recruiting_chat_for_viewer(
         preview = preview_join_mode_change(chat)
         payload["pending_count"] = preview["pending_count"]
         payload["would_auto_approve_on_open"] = preview["would_auto_approve_on_open"]
+    if invited and _authenticated_user(viewer):
+        pending_invite = (
+            ChatRoomInvitation.objects.filter(
+                room=chat.room,
+                invitee=viewer,
+                status=ChatRoomInvitation.Status.PENDING,
+            )
+            .select_related(
+                "inviter",
+                "inviter__profile",
+                "room",
+                "room__organization_recruiting_chat",
+                "room__organization_recruiting_chat__organization",
+            )
+            .first()
+        )
+        if pending_invite is not None:
+            from .organization_recruiting_invite_services import (
+                serialize_recruiting_invitation,
+            )
+
+            payload["invitation"] = serialize_recruiting_invitation(pending_invite)
     return payload
 
 
@@ -855,7 +959,7 @@ def serialize_recruiting_chat_summary(
     discoverable = can_discover_recruiting_chat(viewer, chat)
     if not (can_manage or can_access or discoverable):
         status = public_membership_status(chat, viewer)
-        if status not in {"pending", "rejected", "closed"}:
+        if status not in {"pending", "rejected", "closed", "invited"}:
             return None
     payload = serialize_recruiting_chat_for_viewer(
         chat, viewer, include_manager_fields=can_manage

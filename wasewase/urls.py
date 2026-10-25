@@ -363,6 +363,41 @@ urlpatterns = [
         name="api_v1_organization_posts",
     ),
     path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/invite-candidates/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_invite_candidates,
+        name="api_v1_organization_recruiting_invite_candidates",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/invites/<int:invitation_id>/cancel/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_invite_cancel,
+        name="api_v1_organization_recruiting_invite_cancel",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/invites/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_invites,
+        name="api_v1_organization_recruiting_invites",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/invitation/",
+        organization_recruiting_chat_api_views.api_v1_organization_recruiting_invitation,
+        name="api_v1_organization_recruiting_invitation",
+    ),
+    path(
+        "api/v1/recruiting-invitations/<int:invitation_id>/accept/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_invitation_accept,
+        name="api_v1_recruiting_invitation_accept",
+    ),
+    path(
+        "api/v1/recruiting-invitations/<int:invitation_id>/decline/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_invitation_decline,
+        name="api_v1_recruiting_invitation_decline",
+    ),
+    path(
+        "api/v1/recruiting-invitations/<int:invitation_id>/",
+        organization_recruiting_chat_api_views.api_v1_recruiting_invitation_detail,
+        name="api_v1_recruiting_invitation_detail",
+    ),
+    path(
         "api/v1/organizations/<slug:slug>/recruiting-chat/applications/<int:application_id>/approve/",
         organization_recruiting_chat_api_views.api_v1_organization_recruiting_chat_approve,
         name="api_v1_organization_recruiting_chat_approve",

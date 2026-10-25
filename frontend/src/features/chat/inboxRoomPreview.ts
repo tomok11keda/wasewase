@@ -39,7 +39,7 @@ export function headerPreviewFromInboxItem(
       avatarInitial: (item.display_name || "授").slice(0, 1),
     };
   }
-  if (item.kind === "recruiting") {
+  if (item.kind === "recruiting" || item.kind === "recruiting_invite") {
     return {
       title: item.display_name,
       subtitle: item.organization_name || item.subtitle || "新歓チャット",
@@ -120,7 +120,9 @@ export function readRecruitingHeaderPreview(
 ): ChatHeaderPreview | null {
   const item = findInboxItemForUser(
     userId,
-    (row) => row.kind === "recruiting" && row.organization_slug === slug
+    (row) =>
+      (row.kind === "recruiting" || row.kind === "recruiting_invite") &&
+      row.organization_slug === slug
   );
   return item ? headerPreviewFromInboxItem(item) : null;
 }

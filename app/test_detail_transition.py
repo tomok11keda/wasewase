@@ -73,10 +73,18 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("window.scrollTo(0, 0)", src)
         self.assertIn("saveScrollPosition(fromKey)", src)
         self.assertIn("mainTabScrollKey", src)
-        no_play = src.split("if (!play)")[1].split("const fromKey")[0]
-        self.assertNotIn("window.scrollTo(0, 0)", no_play)
-        after_play = src.split("if (fromKey) saveScrollPosition(fromKey)")[1]
-        self.assertIn("window.scrollTo(0, 0)", after_play)
+        no_detail = src.split("if (!playDetail)")[1].split("const fromKey")[0]
+        self.assertIn("syncMainTabWindowScroll", no_detail)
+        self.assertNotIn("window.scrollTo(0, 0)", no_detail)
+        after_detail = src.split("if (!playDetail)")[1].split(
+            "if (fromKey) saveScrollPosition(fromKey)"
+        )[1]
+        self.assertIn("window.scrollTo(0, 0)", after_detail)
+        stack_enter = src.split("if (playStack && !samePath)")[1].split(
+            "if (!playDetail)"
+        )[0]
+        self.assertIn("saveScrollPosition(fromKey)", stack_enter)
+        self.assertIn("window.scrollTo(0, 0)", stack_enter)
 
     def test_pop_restores_list_scroll_and_does_not_reset_to_top(self):
         src = _transition_src()
@@ -96,11 +104,13 @@ class DetailPushLogicTests(SimpleTestCase):
         self.assertIn("if (fromKey && fromKey !== toKey)", src)
         hook = _hook_body()
         self.assertIn("syncMainTabWindowScroll(previousPath, location.pathname)", hook)
-        no_play = hook.split("if (!play)")[1].split("const fromKey")[0]
-        self.assertIn("syncMainTabWindowScroll", no_play)
-        self.assertNotIn("window.scrollTo(0, 0)", no_play)
-        after_play = hook.split("if (fromKey) saveScrollPosition(fromKey)")[1]
-        self.assertIn("window.scrollTo(0, 0)", after_play)
+        no_detail = hook.split("if (!playDetail)")[1].split("const fromKey")[0]
+        self.assertIn("syncMainTabWindowScroll", no_detail)
+        self.assertNotIn("window.scrollTo(0, 0)", no_detail)
+        after_detail = hook.split("if (!playDetail)")[1].split(
+            "if (fromKey) saveScrollPosition(fromKey)"
+        )[1]
+        self.assertIn("window.scrollTo(0, 0)", after_detail)
         self.assertNotIn("setTimeout", src.split("export function syncMainTabWindowScroll")[1].split("export function shouldPlayDetailPush")[0])
 
     def test_app_shell_wires_transition_hook(self):
@@ -141,9 +151,14 @@ class DetailPushCssTests(SimpleTestCase):
         )
         self.assertNotIn("margin-left", enter)
         self.assertNotIn("left:", enter)
-        self.assertNotIn(
-            "cubic-bezier(0.22, 1, 0.36, 1)",
-            css.split("@keyframes wase-detail-push-in")[1].split(".spa-placeholder")[0],
+        detail_motion = css.split("@keyframes wase-detail-push-in")[1].split(
+            "/* Message-stack"
+        )[0]
+        self.assertNotIn("cubic-bezier(0.22, 1, 0.36, 1)", detail_motion)
+        self.assertIn("html.wase-stack-push", css)
+        self.assertIn(
+            "transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+            css,
         )
 
     def test_animation_targets_outlet_not_fixed_header_or_tabs(self):
@@ -270,7 +285,8 @@ class DetailHeaderBackExitTests(SimpleTestCase):
         self.assertIn("event.target !== el", wait)
         self.assertIn("event.animationName !== animationName", wait)
         self.assertIn("DETAIL_EXIT_ANIMATION", _header_back_fn())
-        self.assertIn("DETAIL_PUSH_MS + 40", wait)
+        self.assertIn("timeoutMs = DETAIL_PUSH_MS", wait)
+        self.assertIn("timeoutMs + 40", wait)
 
     def test_keep_alive_underlay_only_during_header_back_exit(self):
         keep = _read("frontend/src/layouts/TabKeepAliveLayout.tsx")
