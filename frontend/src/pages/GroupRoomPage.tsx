@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
@@ -23,6 +24,19 @@ import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { ChatDateDivider } from "../features/chat/ChatDateDivider";
 import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  ChatComposeSkeleton,
+  ChatHeaderSkeleton,
+  ChatLoadError,
+  ChatThreadSkeleton,
+} from "../features/chat/ChatRoomSkeleton";
+import { readGroupHeaderPreview } from "../features/chat/inboxRoomPreview";
+import { chatContentPhase, chatRoomMatches } from "../lib/chatContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import {
   ChatReplyPreview,
   type ReplyTarget,
@@ -45,6 +59,12 @@ export function GroupRoomPage() {
   const roomId = Number(roomPk);
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const [room, setRoom] = useState<GroupRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -53,6 +73,7 @@ export function GroupRoomPage() {
   const [body, setBody] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -86,28 +107,56 @@ export function GroupRoomPage() {
     });
   }, []);
 
-  useEffect(() => {
-    if (sessionLoading) return;
-    if (!me?.authenticated) {
-      navigate(spaLoginPath(`/app/dm/groups/${roomPk || ""}`), {
-        replace: true,
-      });
-      return;
-    }
-    if (!Number.isFinite(roomId)) {
-      setError("invalid_id");
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
     setRoom(null);
     setMessages([]);
     setHasMore(false);
     setNextBefore(null);
+    setBody("");
+    setReplyingTo(null);
+    setHighlightId(null);
     latestIdRef.current = 0;
-    void fetchGroupRoom(roomId, ac.signal)
-      .then((data) => {
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [roomId]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    setRoom(null);
+    setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
+    setBody("");
+    setReplyingTo(null);
+    setHighlightId(null);
+    latestIdRef.current = 0;
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [sessionUserId]);
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!Number.isFinite(roomId)) {
+        setError("invalid_id");
+        setLoading(false);
+        setHydrated(true);
+        return;
+      }
+      const gen = nextRequestId(fetchGen);
+      const startedUserId = userIdRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchGroupRoom(roomId, signal);
+        if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (roomIdRef.current !== roomId) return;
         setRoom(data.room);
         setMessages(data.messages || []);
         setHasMore(Boolean(data.has_more));
@@ -116,17 +165,37 @@ export function GroupRoomPage() {
         );
         latestIdRef.current = data.room.latest_id || 0;
         setError(null);
+        setHydrated(true);
         requestAnimationFrame(() => {
           scrollChatToBottom(threadRef.current, "auto");
         });
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name === "AbortError") return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        setRoom(null);
+        setMessages([]);
         setError(err instanceof Error ? err.message : "load_failed");
-      })
-      .finally(() => setLoading(false));
+        setHydrated(true);
+      } finally {
+        if (isLatestRequest(fetchGen, gen)) setLoading(false);
+      }
+    },
+    [roomId]
+  );
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!me?.authenticated) {
+      navigate(spaLoginPath(`/app/dm/groups/${roomPk || ""}`), {
+        replace: true,
+      });
+      return;
+    }
+    const ac = new AbortController();
+    void load(ac.signal);
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate]);
+  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate, load, sessionUserId]);
 
   const isPending = room?.membership_status === "pending_invite";
   const canSend = Boolean(room?.can_send && !isPending);
@@ -186,7 +255,7 @@ export function GroupRoomPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !canSend || busy) return;
+    if (!hydrated || !body.trim() || !canSend || busy) return;
     const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
@@ -243,52 +312,60 @@ export function GroupRoomPage() {
     }
   };
 
-  if (loading || sessionLoading) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !room) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-          <p>グループを表示できません（{error || "not_found"}）</p>
-        </div>
-      </div>
-    );
-  }
-
+  const roomMatches = chatRoomMatches(room, roomId);
+  const liveRoom = roomMatches ? room : null;
+  const phase = chatContentPhase({
+    loading: sessionLoading || loading,
+    error,
+    hasRoom: Boolean(liveRoom),
+    hydrated: Boolean(liveRoom) && hydrated,
+    messageCount: liveRoom ? messages.length : 0,
+  });
+  const headerPreview = readGroupHeaderPreview(sessionUserId, roomId);
   const inviterName =
-    room.invitation?.inviter?.display_name ||
-    room.invitation?.inviter?.username ||
+    liveRoom?.invitation?.inviter?.display_name ||
+    liveRoom?.invitation?.inviter?.username ||
     "ユーザー";
 
   return (
     <div className="dm-page dm-room-page" data-spa-page="メッセージ">
       <main className="main-inner dm-room-main">
-        <ChatRoomHeader
-          backTo="/dm"
-          backLabel="メッセージ一覧"
-          title={room.name}
-          subtitle={`メンバー${room.member_count}人`}
-          avatarInitial={(room.name || "G").slice(0, 1)}
-          detailsTo={`/dm/groups/${room.id}/info`}
-        />
+        {liveRoom ? (
+          <ChatRoomHeader
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            title={liveRoom.name}
+            subtitle={`メンバー${liveRoom.member_count}人`}
+            avatarInitial={(liveRoom.name || "G").slice(0, 1)}
+            detailsTo={`/dm/groups/${liveRoom.id}/info`}
+          />
+        ) : (
+          <ChatHeaderSkeleton
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            preview={headerPreview}
+          />
+        )}
+
+        {phase === "error" || (hydrated && !liveRoom) ? (
+          <ChatLoadError
+            message={`グループを表示できません（${error || "not_found"}）`}
+            onRetry={() => void load()}
+          />
+        ) : phase === "skeleton" || !liveRoom ? (
+          <section className="chat-panel" aria-label="グループチャット">
+            <ChatThreadSkeleton />
+            <ChatComposeSkeleton />
+          </section>
+        ) : (
+          <>
 
         {isPending ? (
           <section className="dm-group-invite-banner" aria-label="グループ招待">
             <p className="dm-group-invite-banner__lead">
               <AccountDisplayName
                 name={inviterName}
-                verified={room.invitation?.inviter?.is_operator_verified}
+                verified={liveRoom.invitation?.inviter?.is_operator_verified}
               />
               さんから招待されています
             </p>
@@ -343,7 +420,7 @@ export function GroupRoomPage() {
                       kind="group"
                       message={entry.message}
                       layout={entry.layout}
-                      canAct
+                      canAct={hydrated}
                       canReply={canSend}
                       highlightedId={highlightId}
                       onReply={setReplyingTo}
@@ -383,6 +460,8 @@ export function GroupRoomPage() {
             </p>
           ) : null}
         </section>
+          </>
+        )}
       </main>
       {toast ? <div className="chat-toast">{toast}</div> : null}
     </div>

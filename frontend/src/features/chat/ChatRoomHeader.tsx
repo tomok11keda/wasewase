@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
+import { SkeletonBone, SkeletonCircle } from "../../components/skeleton";
 import { requestStackHeaderBack } from "../../lib/detailTransition";
 import { isMessageStackPath } from "../../lib/messageStack";
 
@@ -16,6 +17,8 @@ type Props = {
   detailsLabel?: string;
   detailsState?: unknown;
   trailing?: ReactNode;
+  /** Header chrome only — no details link until the room API confirms access. */
+  pending?: boolean;
 };
 
 export function ChatRoomHeader({
@@ -30,12 +33,19 @@ export function ChatRoomHeader({
   detailsLabel = "チャット詳細",
   detailsState,
   trailing,
+  pending = false,
 }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
   const stackBack = isMessageStackPath(location.pathname);
   const initial = (avatarInitial || title || "?").slice(0, 1);
-  const avatar = (
+  const showDetails = Boolean(detailsTo) && !pending;
+  const avatar = pending && !avatarUrl && !avatarInitial ? (
+    <SkeletonCircle
+      size={36}
+      className={`chat-room-header__avatar chat-room-header__avatar--${avatarShape}`}
+    />
+  ) : (
     <span
       className={`chat-room-header__avatar chat-room-header__avatar--${avatarShape}`}
       aria-hidden="true"
@@ -52,9 +62,17 @@ export function ChatRoomHeader({
     <>
       {avatar}
       <span className="chat-room-header__text">
-        <span className="chat-room-header__title">{title}</span>
+        {title ? (
+          <span className="chat-room-header__title">{title}</span>
+        ) : pending ? (
+          <SkeletonBone className="sk-chat-title" />
+        ) : (
+          <span className="chat-room-header__title">{title}</span>
+        )}
         {subtitle ? (
           <span className="chat-room-header__subtitle">{subtitle}</span>
+        ) : pending ? (
+          <SkeletonBone className="sk-chat-subtitle" />
         ) : null}
       </span>
     </>
@@ -79,7 +97,7 @@ export function ChatRoomHeader({
           ‹
         </span>
       </Link>
-      {detailsTo ? (
+      {showDetails && detailsTo ? (
         <Link
           className="chat-room-header__main"
           to={detailsTo}
@@ -93,10 +111,10 @@ export function ChatRoomHeader({
       )}
       <div className="chat-room-header__end">
         {trailing}
-        {detailsTo ? (
+        {showDetails ? (
           <Link
             className="chat-room-header__more"
-            to={detailsTo}
+            to={detailsTo || backTo}
             state={detailsState}
             aria-label={detailsLabel}
           >

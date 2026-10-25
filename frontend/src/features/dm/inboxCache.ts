@@ -33,6 +33,23 @@ export function readInboxCache(
   return hit;
 }
 
+const INBOX_LOOKUP_TABS = ["all", "dm", "course", "trade"] as const;
+
+/** Find a row the current user already saw in the inbox. Never crosses users. */
+export function findInboxItemForUser(
+  userId: number | null | undefined,
+  match: (item: InboxItem) => boolean
+): InboxItem | null {
+  if (userId == null || !isValidUserId(userId)) return null;
+  for (const tab of INBOX_LOOKUP_TABS) {
+    const entry = readInboxCache(userId, tab);
+    if (!entry || entry.userId !== userId) continue;
+    const item = entry.items.find(match);
+    if (item) return item;
+  }
+  return null;
+}
+
 export function isInboxCacheFresh(entry: InboxCacheEntry, now = Date.now()): boolean {
   return now - entry.fetchedAt < INBOX_CACHE_FRESH_MS;
 }

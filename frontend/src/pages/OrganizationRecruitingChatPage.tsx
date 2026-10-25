@@ -1,15 +1,29 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { spaLoginPath } from "../features/auth/api";
 import { ChatDateDivider } from "../features/chat/ChatDateDivider";
 import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  ChatComposeSkeleton,
+  ChatHeaderSkeleton,
+  ChatLoadError,
+  ChatThreadSkeleton,
+} from "../features/chat/ChatRoomSkeleton";
+import { readRecruitingHeaderPreview } from "../features/chat/inboxRoomPreview";
+import { chatContentPhase } from "../lib/chatContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import {
   ChatReplyPreview,
   type ReplyTarget,
@@ -70,6 +84,12 @@ export function OrganizationRecruitingChatPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const browsePreview = isBrowsePreview(me);
   const [envelope, setEnvelope] = useState<RecruitingChatEnvelope | null>(null);
   const [orgName, setOrgName] = useState("");
@@ -82,6 +102,8 @@ export function OrganizationRecruitingChatPage() {
   const [body, setBody] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [accessLost, setAccessLost] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,9 +128,11 @@ export function OrganizationRecruitingChatPage() {
     setMessages([]);
     setHasMore(false);
     setNextBefore(null);
+    setBody("");
     latestIdRef.current = 0;
     roomIdRef.current = null;
     setReplyingTo(null);
+    setHighlightId(null);
     setAccessLost(false);
   }, []);
 
@@ -137,6 +161,30 @@ export function OrganizationRecruitingChatPage() {
     }
   }, []);
 
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setEnvelope(null);
+    setOrgName("");
+    setOrgAvatar("");
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+    clearThread();
+  }, [slug, clearThread]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    setEnvelope(null);
+    setOrgName("");
+    setOrgAvatar("");
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+    clearThread();
+  }, [sessionUserId, clearThread]);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!me?.authenticated) {
@@ -152,7 +200,10 @@ export function OrganizationRecruitingChatPage() {
     }
     const ac = new AbortController();
     const currentSlug = slug;
+    const gen = nextRequestId(fetchGen);
+    const startedUserId = userIdRef.current;
     setLoading(true);
+    setHydrated(false);
     setError(null);
     setEnvelope(null);
     setOrgName("");
@@ -165,6 +216,8 @@ export function OrganizationRecruitingChatPage() {
           fetchOrganizationProfile(currentSlug).catch(() => null),
         ]);
         if (ac.signal.aborted || slugRef.current !== currentSlug) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         applyEnvelope(chatEnvelope);
         if (profile) {
           setOrgName(profile.organization.name);
@@ -173,11 +226,16 @@ export function OrganizationRecruitingChatPage() {
         const roomId = chatEnvelope.recruiting_chat?.room_id;
         const canSend = Boolean(chatEnvelope.recruiting_chat?.can_send);
         if (!roomId || !canSend) {
+          setMessages([]);
+          setRoom(null);
+          setHydrated(true);
           setLoading(false);
           return;
         }
         const data = await fetchRecruitingRoom(roomId, ac.signal);
         if (ac.signal.aborted || slugRef.current !== currentSlug) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         if (roomIdRef.current !== null && roomIdRef.current !== roomId) return;
         roomIdRef.current = data.room.id;
         setRoom(data.room);
@@ -195,11 +253,14 @@ export function OrganizationRecruitingChatPage() {
               chatEnvelope.can_manage || data.recruiting_chat.can_manage,
           });
         }
+        setHydrated(true);
         requestAnimationFrame(() => {
           scrollChatToBottom(threadRef.current, "auto");
         });
       } catch (err) {
         if (isAbort(err) || slugRef.current !== currentSlug) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         clearThread();
         if (isAccessLost(err)) {
           setAccessLost(true);
@@ -209,14 +270,19 @@ export function OrganizationRecruitingChatPage() {
         } else {
           setError(err instanceof Error ? err.message : "load_failed");
         }
+        setHydrated(true);
       } finally {
-        if (!ac.signal.aborted && slugRef.current === currentSlug) {
+        if (
+          !ac.signal.aborted &&
+          slugRef.current === currentSlug &&
+          isLatestRequest(fetchGen, gen)
+        ) {
           setLoading(false);
         }
       }
     })();
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, slug, navigate, clearThread, applyEnvelope]);
+  }, [me?.authenticated, sessionLoading, slug, navigate, clearThread, applyEnvelope, sessionUserId, reloadKey]);
 
   const chat = envelope?.recruiting_chat ?? null;
   const canManage = Boolean(envelope?.can_manage || chat?.can_manage);
@@ -311,7 +377,7 @@ export function OrganizationRecruitingChatPage() {
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     const id = roomIdRef.current;
-    if (!body.trim() || !canSend || id == null || busy) return;
+    if (!hydrated || !body.trim() || !canSend || id == null || busy) return;
     const replyId = replyingTo?.id ?? null;
     const sentBody = body;
     setBusy(true);
@@ -350,31 +416,22 @@ export function OrganizationRecruitingChatPage() {
     );
   }
 
-  if (loading || sessionLoading) {
-    return (
-      <div className="dm-page" data-spa-page="新歓チャット">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
-
-  const displayName = chat?.name || room?.name || "新歓チャット";
+  const displayName = chat?.name || room?.name || "";
   const orgLabel = orgName || room?.organization_name || "";
-
-  if (error === "not_found" && !envelope) {
-    return (
-      <div className="dm-page" data-spa-page="新歓チャット">
-        <div className="main-inner">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-          <p>新歓チャットが見つからないか、表示できません。</p>
-        </div>
-      </div>
-    );
-  }
+  const headerPreview = readRecruitingHeaderPreview(sessionUserId, slug);
+  const canViewThread = Boolean(canSend && room && !accessLost);
+  const phase = chatContentPhase({
+    loading: sessionLoading || loading,
+    error,
+    hasRoom: Boolean(room),
+    hydrated,
+    messageCount: room ? messages.length : 0,
+    gated:
+      hydrated &&
+      !canViewThread &&
+      !loading &&
+      (Boolean(envelope) || accessLost),
+  });
 
   const memberCount = room?.member_count ?? chat?.member_count;
   const subtitle = [
@@ -385,27 +442,56 @@ export function OrganizationRecruitingChatPage() {
     .filter(Boolean)
     .join(" · ");
 
+  const title = displayName || headerPreview?.title || "";
+  const showHeaderData = Boolean(title);
+
   return (
     <div className="dm-page dm-room-page org-recruiting-room" data-spa-page="新歓チャット">
       <main className="main-inner dm-room-main">
-        <ChatRoomHeader
-          backTo="/dm"
-          backLabel="メッセージ一覧"
-          title={displayName}
-          subtitle={subtitle}
-          avatarUrl={orgAvatar || undefined}
-          avatarInitial={organizationInitial(orgLabel || displayName)}
-          avatarShape="rounded"
-          detailsTo={recruitingChatInfoPath(slug)}
-        />
+        {showHeaderData ? (
+          <ChatRoomHeader
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            title={title}
+            subtitle={subtitle || headerPreview?.subtitle}
+            avatarUrl={orgAvatar || headerPreview?.avatarUrl || undefined}
+            avatarInitial={organizationInitial(
+              orgLabel || title || headerPreview?.avatarInitial || ""
+            )}
+            avatarShape="rounded"
+            detailsTo={
+              hydrated && envelope ? recruitingChatInfoPath(slug) : undefined
+            }
+            pending={!hydrated}
+          />
+        ) : (
+          <ChatHeaderSkeleton
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            avatarShape="rounded"
+            preview={headerPreview}
+          />
+        )}
 
-        {accessLost ? (
+        {phase === "skeleton" ? (
+          <section className="chat-panel" aria-label="新歓チャット">
+            <ChatThreadSkeleton />
+            <ChatComposeSkeleton allowMedia={false} />
+          </section>
+        ) : phase === "error" ? (
+          <ChatLoadError
+            message={
+              error === "not_found" || error === "forbidden"
+                ? "新歓チャットが見つからないか、表示できません。"
+                : `新歓チャットを表示できません（${error || "load_failed"}）`
+            }
+            onRetry={() => setReloadKey((key) => key + 1)}
+          />
+        ) : accessLost ? (
           <p className="org-recruiting-card__closed" role="status">
             このチャットを表示する権限がなくなりました。
           </p>
-        ) : null}
-
-        {!showThread ? (
+        ) : !showThread ? (
           <div className="dm-message-area org-recruiting-join">
           <RecruitingChatSection
             slug={slug}
@@ -428,6 +514,8 @@ export function OrganizationRecruitingChatPage() {
               const roomId = next.room_id;
               const currentSlug = slug;
               setLoading(true);
+              setMessages([]);
+              setRoom(null);
               void fetchRecruitingRoom(roomId)
                 .then((data) => {
                   if (slugRef.current !== currentSlug) return;
@@ -440,6 +528,7 @@ export function OrganizationRecruitingChatPage() {
                   );
                   latestIdRef.current = data.room.latest_id || 0;
                   setAccessLost(false);
+                  setHydrated(true);
                 })
                 .catch((err) => {
                   if (slugRef.current !== currentSlug) return;
@@ -477,7 +566,7 @@ export function OrganizationRecruitingChatPage() {
                         kind="recruiting"
                         message={entry.message}
                         layout={entry.layout}
-                        canAct
+                        canAct={hydrated}
                         canReply={canSend}
                         highlightedId={highlightId}
                         onReply={setReplyingTo}

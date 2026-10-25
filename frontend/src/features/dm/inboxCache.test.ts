@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   clearInboxCache,
+  findInboxItemForUser,
   INBOX_CACHE_FRESH_MS,
   isInboxCacheFresh,
   readInboxCache,
@@ -51,6 +52,15 @@ test("inbox cache is keyed by user id and never returns another user's rows", ()
   clearInboxCache(11);
   assert.equal(readInboxCache(11, "all"), null);
   assert.equal(readInboxCache(22, "all")?.userId, 22);
+  clearInboxCache();
+});
+
+test("inbox lookup never returns another user's conversation", () => {
+  clearInboxCache();
+  writeInboxCache(entry(11));
+  assert.equal(findInboxItemForUser(11, (row) => row.room_id === 11)?.display_name, "user-11");
+  assert.equal(findInboxItemForUser(22, (row) => row.room_id === 11), null);
+  assert.equal(findInboxItemForUser(null, (row) => row.room_id === 11), null);
   clearInboxCache();
 });
 

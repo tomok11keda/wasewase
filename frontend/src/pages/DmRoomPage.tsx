@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
@@ -22,6 +23,19 @@ import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { ChatDateDivider } from "../features/chat/ChatDateDivider";
 import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  ChatComposeSkeleton,
+  ChatHeaderSkeleton,
+  ChatLoadError,
+  ChatThreadSkeleton,
+} from "../features/chat/ChatRoomSkeleton";
+import { readDmHeaderPreview } from "../features/chat/inboxRoomPreview";
+import { chatContentPhase, chatRoomMatches } from "../lib/chatContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import {
   buildChatThread,
   chatTimeLabel,
@@ -42,6 +56,12 @@ export function DmRoomPage() {
   const roomId = Number(roomPk);
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const [room, setRoom] = useState<DmRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -49,6 +69,7 @@ export function DmRoomPage() {
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
@@ -75,26 +96,52 @@ export function DmRoomPage() {
     );
   }, []);
 
-  useEffect(() => {
-    if (sessionLoading) return;
-    if (!me?.authenticated) {
-      navigate(spaLoginPath(`/app/dm/${roomPk || ""}`), { replace: true });
-      return;
-    }
-    if (!Number.isFinite(roomId)) {
-      setError("invalid_id");
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
     setRoom(null);
     setMessages([]);
     setHasMore(false);
     setNextBefore(null);
+    setBody("");
     latestIdRef.current = 0;
-    void fetchDmRoom(roomId, ac.signal)
-      .then((data) => {
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [roomId]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    setRoom(null);
+    setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
+    setBody("");
+    latestIdRef.current = 0;
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [sessionUserId]);
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!Number.isFinite(roomId)) {
+        setError("invalid_id");
+        setLoading(false);
+        setHydrated(true);
+        return;
+      }
+      const gen = nextRequestId(fetchGen);
+      const startedUserId = userIdRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchDmRoom(roomId, signal);
+        if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (roomIdRef.current !== roomId) return;
         setRoom(data.room);
         setMessages(data.messages || []);
         setHasMore(Boolean(data.has_more));
@@ -103,17 +150,35 @@ export function DmRoomPage() {
         );
         latestIdRef.current = data.room.latest_id || 0;
         setError(null);
+        setHydrated(true);
         requestAnimationFrame(() => {
           scrollChatToBottom(threadRef.current, "auto");
         });
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name === "AbortError") return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        setRoom(null);
+        setMessages([]);
         setError(err instanceof Error ? err.message : "load_failed");
-      })
-      .finally(() => setLoading(false));
+        setHydrated(true);
+      } finally {
+        if (isLatestRequest(fetchGen, gen)) setLoading(false);
+      }
+    },
+    [roomId]
+  );
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!me?.authenticated) {
+      navigate(spaLoginPath(`/app/dm/${roomPk || ""}`), { replace: true });
+      return;
+    }
+    const ac = new AbortController();
+    void load(ac.signal);
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate]);
+  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate, load, sessionUserId]);
 
   const fetchOlder = useCallback(
     (beforeId: number) => fetchOlderDmMessages(roomIdRef.current, beforeId),
@@ -168,7 +233,7 @@ export function DmRoomPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send || busy) return;
+    if (!hydrated || !body.trim() || !room?.can_send || busy) return;
     setBusy(true);
     try {
       const message = await sendDmMessage(roomId, body.trim());
@@ -215,75 +280,85 @@ export function DmRoomPage() {
     }
   };
 
-  if (loading || sessionLoading) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !room) {
-    return (
-      <div className="dm-page" data-spa-page="メッセージ">
-        <div className="main-inner">
-          <Link className="dm-back-text" to="/dm">
-            ← メッセージ一覧
-          </Link>
-          <p>DMを表示できません（{error || "not_found"}）</p>
-        </div>
-      </div>
-    );
-  }
-
-  const partnerName = room.is_blocked
-    ? "不明なユーザー"
-    : room.partner?.display_name || "DM";
-  const partnerInitial = room.is_blocked
-    ? "?"
-    : room.partner?.initial || partnerName.slice(0, 1);
-
+  const roomMatches = chatRoomMatches(room, roomId);
+  const liveRoom = roomMatches ? room : null;
+  const phase = chatContentPhase({
+    loading: sessionLoading || loading,
+    error,
+    hasRoom: Boolean(liveRoom),
+    hydrated: Boolean(liveRoom) && hydrated,
+    messageCount: liveRoom ? messages.length : 0,
+  });
+  const headerPreview = readDmHeaderPreview(sessionUserId, roomId);
+  const partnerName = liveRoom
+    ? liveRoom.is_blocked
+      ? "不明なユーザー"
+      : liveRoom.partner?.display_name || "DM"
+    : headerPreview?.title || "";
+  const partnerInitial = liveRoom
+    ? liveRoom.is_blocked
+      ? "?"
+      : liveRoom.partner?.initial || partnerName.slice(0, 1)
+    : headerPreview?.avatarInitial;
   const partnerProfileTo =
-    !room.is_blocked && room.partner?.id
-      ? `/users/${room.partner.id}/posts`
+    hydrated && liveRoom && !liveRoom.is_blocked && liveRoom.partner?.id
+      ? `/users/${liveRoom.partner.id}/posts`
       : undefined;
 
   return (
     <div className="dm-page dm-room-page" data-spa-page="メッセージ">
       <main className="main-inner dm-room-main">
-        <ChatRoomHeader
-          backTo="/dm"
-          backLabel="メッセージ一覧"
-          title={partnerName}
-          subtitle={
-            room.is_blocked
-              ? "ブロック中のためプロフィールは表示できません"
-              : undefined
-          }
-          avatarUrl={
-            room.partner?.avatar_url && !room.is_blocked
-              ? room.partner.avatar_url
-              : undefined
-          }
-          avatarInitial={partnerInitial}
-          detailsTo={partnerProfileTo}
-          detailsLabel="プロフィール"
-        />
+        {liveRoom ? (
+          <ChatRoomHeader
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            title={partnerName}
+            subtitle={
+              liveRoom.is_blocked
+                ? "ブロック中のためプロフィールは表示できません"
+                : undefined
+            }
+            avatarUrl={
+              liveRoom.partner?.avatar_url && !liveRoom.is_blocked
+                ? liveRoom.partner.avatar_url
+                : undefined
+            }
+            avatarInitial={partnerInitial}
+            detailsTo={partnerProfileTo}
+            detailsLabel="プロフィール"
+          />
+        ) : (
+          <ChatHeaderSkeleton
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            preview={headerPreview}
+          />
+        )}
 
+        {phase === "error" || (hydrated && !liveRoom) ? (
+          <ChatLoadError
+            message={`DMを表示できません（${error || "not_found"}）`}
+            onRetry={() => void load()}
+          />
+        ) : phase === "skeleton" || !liveRoom ? (
+          <section className="chat-panel" aria-label="ダイレクトメッセージ">
+            <ChatThreadSkeleton />
+            <ChatComposeSkeleton />
+          </section>
+        ) : (
+          <>
         {isPendingRequest ? (
           <section className="dm-group-invite-banner" aria-label="メッセージリクエスト">
             <p className="dm-group-invite-banner__lead">
               <AccountDisplayName
                 name={
-                  room.message_request?.from_user?.display_name ||
-                  room.partner?.display_name ||
+                  liveRoom.message_request?.from_user?.display_name ||
+                  liveRoom.partner?.display_name ||
                   "ユーザー"
                 }
                 verified={
-                  room.message_request?.from_user?.is_operator_verified ??
-                  room.partner?.is_operator_verified
+                  liveRoom.message_request?.from_user?.is_operator_verified ??
+                  liveRoom.partner?.is_operator_verified
                 }
               />
               さんからメッセージリクエストが届いています
@@ -316,9 +391,9 @@ export function DmRoomPage() {
         ) : null}
 
         <section className="chat-panel" aria-label="ダイレクトメッセージ">
-          {!room.can_send || room.is_blocked ? (
+          {!liveRoom.can_send || liveRoom.is_blocked ? (
             <p className="block-banner">
-              {room.is_blocked
+              {liveRoom.is_blocked
                 ? "このユーザーをブロック中です。メッセージの送信はできません。"
                 : "このユーザーとはメッセージの送受信が制限されています。"}
             </p>
@@ -388,16 +463,18 @@ export function DmRoomPage() {
             onChange={setBody}
             onSend={onSend}
             busy={busy}
-            disabled={!room.can_send}
+            disabled={!hydrated || !liveRoom.can_send}
             placeholder={
-              room.is_blocked
+              liveRoom.is_blocked
                 ? "このユーザーはブロック中です"
-                : room.can_send
+                : liveRoom.can_send
                   ? "メッセージを入力..."
                   : "メッセージを送信できません"
             }
           />
         </section>
+          </>
+        )}
       </main>
     </div>
   );

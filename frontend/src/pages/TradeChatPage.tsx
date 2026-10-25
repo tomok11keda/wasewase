@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { productDetailState } from "../features/flea/productNav";
@@ -23,6 +24,19 @@ import {
 import { TRADE_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  ChatComposeSkeleton,
+  ChatHeaderSkeleton,
+  ChatLoadError,
+  ChatThreadSkeleton,
+} from "../features/chat/ChatRoomSkeleton";
+import { readTradeHeaderPreview } from "../features/chat/inboxRoomPreview";
+import { chatContentPhase, chatRoomMatches } from "../lib/chatContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import {
   isChatNearBottom,
@@ -38,7 +52,13 @@ export function TradeChatPage() {
   const { roomPk } = useParams();
   const roomId = Number(roomPk);
   const navigate = useNavigate();
-  const { me } = useSession();
+  const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const [room, setRoom] = useState<ChatRoomDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -46,6 +66,7 @@ export function TradeChatPage() {
   const latestIdRef = useRef(0);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -64,35 +85,64 @@ export function TradeChatPage() {
     setMessages((prev) => mergeUniqueByIdAsc(prev, incoming, "append"));
   }, []);
 
-  useEffect(() => {
-    if (!me?.authenticated) {
-      navigate(spaLoginPath(`/app/flea/chats/${roomPk || ""}`), {
-        replace: true,
-      });
-      return;
-    }
-    if (!Number.isFinite(roomId)) {
-      setError("invalid_id");
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
     setRoom(null);
     setMessages([]);
     setHasMore(false);
     setNextBefore(null);
     setHandoverDone(false);
     setActionError(null);
+    setBody("");
     handoverStartedRef.current = false;
     latestIdRef.current = 0;
-    void (async () => {
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [roomId]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    setRoom(null);
+    setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
+    setHandoverDone(false);
+    setActionError(null);
+    setBody("");
+    handoverStartedRef.current = false;
+    latestIdRef.current = 0;
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [sessionUserId]);
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!Number.isFinite(roomId)) {
+        setError("invalid_id");
+        setLoading(false);
+        setHydrated(true);
+        return;
+      }
+      const gen = nextRequestId(fetchGen);
+      const startedUserId = userIdRef.current;
+      setLoading(true);
+      setError(null);
       try {
         const detail = await fetchChatRoom(roomId);
-        if (ac.signal.aborted) return;
+        if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (roomIdRef.current !== roomId) return;
+        const initial = await fetchChatMessages(roomId, undefined, signal);
+        if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (roomIdRef.current !== roomId) return;
         setRoom(detail);
-        const initial = await fetchChatMessages(roomId, undefined, ac.signal);
-        if (ac.signal.aborted) return;
         setMessages(initial.messages);
         setHasMore(Boolean(initial.has_more));
         setNextBefore(
@@ -100,18 +150,37 @@ export function TradeChatPage() {
         );
         latestIdRef.current = initial.latest_id;
         setError(null);
+        setHydrated(true);
         requestAnimationFrame(() => {
           scrollChatToBottom(threadRef.current, "auto");
         });
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        setRoom(null);
+        setMessages([]);
         setError(err instanceof Error ? err.message : "load_failed");
+        setHydrated(true);
       } finally {
-        if (!ac.signal.aborted) setLoading(false);
+        if (isLatestRequest(fetchGen, gen)) setLoading(false);
       }
-    })();
+    },
+    [roomId]
+  );
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!me?.authenticated) {
+      navigate(spaLoginPath(`/app/flea/chats/${roomPk || ""}`), {
+        replace: true,
+      });
+      return;
+    }
+    const ac = new AbortController();
+    void load(ac.signal);
     return () => ac.abort();
-  }, [me?.authenticated, roomId, roomPk, navigate]);
+  }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate, load, sessionUserId]);
 
   const fetchOlder = useCallback(
     (beforeId: number) => fetchOlderChatMessages(roomIdRef.current, beforeId),
@@ -164,7 +233,7 @@ export function TradeChatPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send_message || busy) return;
+    if (!hydrated || !body.trim() || !room?.can_send_message || busy) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -180,7 +249,7 @@ export function TradeChatPage() {
   };
 
   const onConfirm = async () => {
-    if (busy) return;
+    if (!hydrated || busy) return;
     if (!window.confirm("この交渉を取引開始（pending）にしますか？")) return;
     setBusy(true);
     setActionError(null);
@@ -208,7 +277,7 @@ export function TradeChatPage() {
   };
 
   const onHandover = async () => {
-    if (busy || handoverStartedRef.current || handoverDone) return;
+    if (!hydrated || busy || handoverStartedRef.current || handoverDone) return;
     if (!window.confirm("受け渡し完了として売り切れにしますか？")) return;
     handoverStartedRef.current = true;
     setBusy(true);
@@ -235,24 +304,31 @@ export function TradeChatPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="trade-chat-page" data-spa-page="フリマ">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
+  const roomMatches = chatRoomMatches(room, roomId);
+  const liveRoom = roomMatches ? room : null;
+  const phase = chatContentPhase({
+    loading: sessionLoading || loading,
+    error,
+    hasRoom: Boolean(liveRoom),
+    hydrated: Boolean(liveRoom) && hydrated,
+    messageCount: liveRoom ? messages.length : 0,
+  });
+  const headerPreview = readTradeHeaderPreview(sessionUserId, roomId);
 
-  if (error || !room) {
+  if (error && hydrated && !liveRoom && !handoverDone) {
     return (
-      <div className="trade-chat-page" data-spa-page="フリマ">
-        <div className="main-inner">
-          <Link className="back-link" to="/flea">
-            ← フリマへ戻る
-          </Link>
-          <p>チャットを表示できません（{error || "not_found"}）</p>
+      <div className="trade-chat-page dm-room-page" data-spa-page="フリマ">
+        <div className="main-inner dm-room-main">
+          <ChatHeaderSkeleton
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            avatarShape="rounded"
+            preview={headerPreview}
+          />
+          <ChatLoadError
+            message={`チャットを表示できません（${error || "not_found"}）`}
+            onRetry={() => void load()}
+          />
         </div>
       </div>
     );
@@ -282,22 +358,31 @@ export function TradeChatPage() {
   return (
     <div className="trade-chat-page dm-room-page" data-spa-page="フリマ">
       <div className="main-inner dm-room-main">
-        <ChatRoomHeader
-          backTo="/dm"
-          backLabel="メッセージ一覧"
-          title={room.product.name}
-          subtitle={`${room.trade_status_label}${
-            room.partner
-              ? ` · ${room.partner.display_name || "相手"}`
-              : ""
-          }`}
-          avatarUrl={room.product_thumbnail_url || undefined}
-          avatarInitial="📦"
-          avatarShape="rounded"
-          detailsTo={`/flea/products/${room.product.id}`}
-          detailsState={productDetailState(room.product)}
-          detailsLabel="商品詳細"
-        />
+        {liveRoom ? (
+          <ChatRoomHeader
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            title={liveRoom.product.name}
+            subtitle={`${liveRoom.trade_status_label}${
+              liveRoom.partner
+                ? ` · ${liveRoom.partner.display_name || "相手"}`
+                : ""
+            }`}
+            avatarUrl={liveRoom.product_thumbnail_url || undefined}
+            avatarInitial="📦"
+            avatarShape="rounded"
+            detailsTo={`/flea/products/${liveRoom.product.id}`}
+            detailsState={productDetailState(liveRoom.product)}
+            detailsLabel="商品詳細"
+          />
+        ) : (
+          <ChatHeaderSkeleton
+            backTo="/dm"
+            backLabel="メッセージ一覧"
+            avatarShape="rounded"
+            preview={headerPreview}
+          />
+        )}
 
         {actionError ? (
           <p className="trade-action-error" role="alert">
@@ -305,9 +390,17 @@ export function TradeChatPage() {
           </p>
         ) : null}
 
-        {(room.can_confirm_trade || room.can_complete_handover) && (
+        {phase === "skeleton" || !liveRoom ? (
+          <section className="chat-panel" aria-label="取引チャット">
+            <ChatThreadSkeleton />
+            <ChatComposeSkeleton />
+          </section>
+        ) : (
+          <>
+        {hydrated &&
+        (liveRoom.can_confirm_trade || liveRoom.can_complete_handover) ? (
           <div className="chat-actions">
-            {room.can_confirm_trade ? (
+            {liveRoom.can_confirm_trade ? (
               <button
                 type="button"
                 onClick={() => void onConfirm()}
@@ -316,7 +409,7 @@ export function TradeChatPage() {
                 取引を開始する
               </button>
             ) : null}
-            {room.can_complete_handover ? (
+            {liveRoom.can_complete_handover ? (
               <button
                 type="button"
                 onClick={() => void onHandover()}
@@ -326,7 +419,7 @@ export function TradeChatPage() {
               </button>
             ) : null}
           </div>
-        )}
+        ) : null}
 
         <div className="chat-messages dm-thread" ref={threadRef} aria-live="polite">
           {loadingOlder ? (
@@ -366,15 +459,18 @@ export function TradeChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {room.can_send_message ? (
+        {liveRoom.can_send_message ? (
           <ChatComposeBar
             value={body}
             onChange={setBody}
             onSend={onSend}
             busy={busy}
+            disabled={!hydrated}
           />
         ) : (
           <p className="chat-status">このチャットはメッセージ送信できません。</p>
+        )}
+          </>
         )}
       </div>
     </div>

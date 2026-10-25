@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import {
@@ -24,6 +25,19 @@ import { DM_POLL_MS, useChatPoll } from "../features/dm/useChatPoll";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { ChatDateDivider } from "../features/chat/ChatDateDivider";
 import { ChatRoomHeader } from "../features/chat/ChatRoomHeader";
+import {
+  ChatComposeSkeleton,
+  ChatHeaderSkeleton,
+  ChatLoadError,
+  ChatThreadSkeleton,
+} from "../features/chat/ChatRoomSkeleton";
+import { readCourseHeaderPreview } from "../features/chat/inboxRoomPreview";
+import { chatContentPhase } from "../lib/chatContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import { ChatReplyPreview, type ReplyTarget } from "../features/chat/ChatReplyPreview";
 import { ChatThreadMessage } from "../features/chat/ChatThreadMessage";
 import { buildChatThread } from "../features/chat/chatThread";
@@ -49,6 +63,12 @@ export function CourseTalkPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const fetchGen = useRef(0);
   const [offering, setOffering] = useState<CourseOffering | null>(null);
   const [room, setRoom] = useState<CourseTalkRoom | null>(null);
   const [messages, setMessages] = useState<CourseTalkMessage[]>([]);
@@ -59,6 +79,7 @@ export function CourseTalkPage() {
   const [body, setBody] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaveBusy, setLeaveBusy] = useState(false);
@@ -91,27 +112,59 @@ export function CourseTalkPage() {
     });
   }, []);
 
-  useEffect(() => {
-    if (sessionLoading) return;
-    if (!me?.authenticated) {
-      navigate(spaLoginPath(`/app/courses/${offeringPk || ""}/talk`), {
-        replace: true,
-      });
-      return;
-    }
-    if (!Number.isFinite(offeringId)) {
-      setError("invalid_id");
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
-    setError(null);
+  useLayoutEffect(() => {
+    nextRequestId(fetchGen);
+    setOffering(null);
+    setRoom(null);
+    setMessages([]);
     setHasMore(false);
     setNextBefore(null);
-    void openCourseTalk(offeringId)
-      .then((data) => {
-        if (ac.signal.aborted) return;
+    setBody("");
+    setReplyingTo(null);
+    setHighlightId(null);
+    latestIdRef.current = 0;
+    roomIdRef.current = 0;
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [offeringId]);
+
+  useLayoutEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(fetchGen);
+    setOffering(null);
+    setRoom(null);
+    setMessages([]);
+    setHasMore(false);
+    setNextBefore(null);
+    setBody("");
+    setReplyingTo(null);
+    setHighlightId(null);
+    latestIdRef.current = 0;
+    roomIdRef.current = 0;
+    setLoading(true);
+    setHydrated(false);
+    setError(null);
+  }, [sessionUserId]);
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!Number.isFinite(offeringId)) {
+        setError("invalid_id");
+        setLoading(false);
+        setHydrated(true);
+        return;
+      }
+      const gen = nextRequestId(fetchGen);
+      const startedUserId = userIdRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await openCourseTalk(offeringId);
+        if (signal?.aborted) return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         setOffering(data.offering);
         setRoom(data.room);
         setMessages(data.messages || []);
@@ -121,6 +174,7 @@ export function CourseTalkPage() {
         );
         latestIdRef.current = data.room.latest_id || 0;
         roomIdRef.current = data.room.id;
+        setHydrated(true);
         requestAnimationFrame(() => {
           scrollChatToBottom(threadRef.current, "auto");
         });
@@ -136,16 +190,34 @@ export function CourseTalkPage() {
         } else {
           analytics.courseChatOpenedFromDetail();
         }
-      })
-      .catch((err) => {
-        if (ac.signal.aborted) return;
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name === "AbortError") return;
+        if (!isLatestRequest(fetchGen, gen)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        setOffering(null);
+        setRoom(null);
+        setMessages([]);
         setError(err instanceof Error ? err.message : "load_failed");
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
+        setHydrated(true);
+      } finally {
+        if (isLatestRequest(fetchGen, gen)) setLoading(false);
+      }
+    },
+    [offeringId, fromInbox]
+  );
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!me?.authenticated) {
+      navigate(spaLoginPath(`/app/courses/${offeringPk || ""}/talk`), {
+        replace: true,
       });
+      return;
+    }
+    const ac = new AbortController();
+    void load(ac.signal);
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, offeringId, offeringPk, fromInbox, navigate]);
+  }, [me?.authenticated, sessionLoading, offeringId, offeringPk, navigate, load, sessionUserId]);
 
   const fetchOlder = useCallback(
     (beforeId: number) =>
@@ -204,7 +276,7 @@ export function CourseTalkPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!body.trim() || !room?.can_send || busy) return;
+    if (!hydrated || !body.trim() || !room?.can_send || busy) return;
     const replyId = replyingTo?.id ?? null;
     setBusy(true);
     try {
@@ -229,7 +301,7 @@ export function CourseTalkPage() {
   };
 
   const onLeave = async () => {
-    if (!offering) return;
+    if (!hydrated || !offering) return;
     if (
       !window.confirm(
         "授業掲示板から退出しますか？\n投稿は残ります。再度開くと再参加できます。"
@@ -249,28 +321,17 @@ export function CourseTalkPage() {
     }
   };
 
-  if (loading || sessionLoading) {
-    return (
-      <div className="dm-page course-talk-page" data-spa-page="授業掲示板">
-        <div className="main-inner">
-          <p>読み込み中…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !room || !offering) {
-    return (
-      <div className="dm-page course-talk-page" data-spa-page="授業掲示板">
-        <div className="main-inner">
-          <Link className="dm-back-text" to="/dm?tab=course">
-            ← 授業掲示板一覧
-          </Link>
-          <p>授業掲示板を表示できません（{error || "not_found"}）</p>
-        </div>
-      </div>
-    );
-  }
+  const liveOffering =
+    offering && offering.id === offeringId ? offering : null;
+  const liveRoom = liveOffering ? room : null;
+  const phase = chatContentPhase({
+    loading: sessionLoading || loading,
+    error,
+    hasRoom: Boolean(liveRoom && liveOffering),
+    hydrated: Boolean(liveRoom && liveOffering) && hydrated,
+    messageCount: liveRoom ? messages.length : 0,
+  });
+  const headerPreview = readCourseHeaderPreview(sessionUserId, offeringId);
 
   return (
     <div
@@ -278,25 +339,46 @@ export function CourseTalkPage() {
       data-spa-page="授業掲示板"
     >
       <main className="main-inner dm-room-main">
-        <ChatRoomHeader
-          backTo="/dm?tab=course"
-          backLabel="授業掲示板一覧"
-          title={offering.title}
-          subtitle={`${offering.instructor} · ${offeringScheduleText(offering)}`}
-          avatarInitial={(offering.title || "授").slice(0, 1)}
-          detailsTo={`/courses/${offering.id}`}
-          detailsLabel="授業詳細"
-          trailing={
-            <button
-              type="button"
-              className="chat-room-header__leave"
-              disabled={leaveBusy}
-              onClick={() => void onLeave()}
-            >
-              退出
-            </button>
-          }
-        />
+        {liveOffering && liveRoom ? (
+          <ChatRoomHeader
+            backTo="/dm?tab=course"
+            backLabel="授業掲示板一覧"
+            title={liveOffering.title}
+            subtitle={`${liveOffering.instructor} · ${offeringScheduleText(liveOffering)}`}
+            avatarInitial={(liveOffering.title || "授").slice(0, 1)}
+            detailsTo={`/courses/${liveOffering.id}`}
+            detailsLabel="授業詳細"
+            trailing={
+              <button
+                type="button"
+                className="chat-room-header__leave"
+                disabled={leaveBusy || !hydrated}
+                onClick={() => void onLeave()}
+              >
+                退出
+              </button>
+            }
+          />
+        ) : (
+          <ChatHeaderSkeleton
+            backTo="/dm?tab=course"
+            backLabel="授業掲示板一覧"
+            preview={headerPreview}
+          />
+        )}
+
+        {phase === "error" || (hydrated && (!liveRoom || !liveOffering)) ? (
+          <ChatLoadError
+            message={`授業掲示板を表示できません（${error || "not_found"}）`}
+            onRetry={() => void load()}
+          />
+        ) : phase === "skeleton" || !liveRoom || !liveOffering ? (
+          <section className="chat-panel" aria-label="授業掲示板">
+            <ChatThreadSkeleton />
+            <ChatComposeSkeleton />
+          </section>
+        ) : (
+          <>
 
         <div className="dm-thread course-talk-thread" ref={threadRef}>
           {loadingOlder ? (
@@ -337,13 +419,14 @@ export function CourseTalkPage() {
                     kind="course"
                     message={entry.message}
                     layout={entry.layout}
-                    canAct
-                    canReply={Boolean(room.can_send)}
+                    canAct={hydrated}
+                    canReply={Boolean(liveRoom.can_send)}
                     highlightedId={highlightId}
                     onReply={setReplyingTo}
                     onDelete={async (id) => {
+                      if (!hydrated) return;
                       const updated = await deleteCourseTalkMessage(
-                        room.id,
+                        liveRoom.id,
                         id
                       );
                       upsertMessage(updated);
@@ -369,12 +452,14 @@ export function CourseTalkPage() {
           value={body}
           onChange={setBody}
           onSend={onSend}
-          disabled={!room.can_send}
+          disabled={!hydrated || !liveRoom.can_send}
           busy={busy}
           placeholder={
             replyingTo ? "返信を入力…" : "質問や口コミを投稿…"
           }
         />
+          </>
+        )}
       </main>
       {toast ? <div className="chat-toast">{toast}</div> : null}
     </div>
