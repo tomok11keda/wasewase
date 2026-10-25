@@ -918,15 +918,6 @@ export function TimelinePostCard({
                 </button>
               ) : null}
             </div>
-            <span
-              className="tweet-action tweet-action--view tweet-action--static"
-              aria-label={`閲覧数 ${post.view_count || 0}`}
-            >
-              <SfIcon name="chart_bar" />
-              <span className="tweet-action-count">
-                {formatCount(post.view_count || 0)}
-              </span>
-            </span>
             {variant === "detail" ? (
               <BookmarkButton
                 className="tweet-action tweet-action--bookmark"

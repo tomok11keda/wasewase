@@ -38,7 +38,8 @@ def parse_timeline_sort(raw: str | None) -> str:
     value = (raw or "").strip().lower()
     if value in ("latest", "new", "recent"):
         return TIMELINE_SORT_LATEST
-    # Default: X-style recommended feed
+    # Unspecified callers keep the previous ranking default.
+    # Home SPA sends sort=latest explicitly.
     return TIMELINE_SORT_RECOMMENDED
 
 

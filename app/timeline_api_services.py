@@ -441,7 +441,7 @@ def list_timeline_page(
     - no offset → first page size TIMELINE_INITIAL_SIZE (25)
     - with offset → TIMELINE_LOAD_MORE_SIZE (15)
     - sort=recommended (default) → X-style ranking
-    - sort=latest → chronological
+    - sort=latest → created_at desc, pk desc
     """
     from .feed_ranking import (
         TIMELINE_SORT_LATEST,
@@ -459,8 +459,9 @@ def list_timeline_page(
         page_size = TIMELINE_LOAD_MORE_SIZE
 
     if sort == TIMELINE_SORT_LATEST:
-        total_count = timeline_qs.count()
-        page_posts = list(timeline_qs[start : start + page_size])
+        latest_qs = timeline_qs.order_by("-created_at", "-pk")
+        total_count = latest_qs.count()
+        page_posts = list(latest_qs[start : start + page_size])
     else:
         page_posts, total_count = rank_timeline_page(
             request,

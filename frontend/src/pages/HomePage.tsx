@@ -7,6 +7,7 @@ import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { PostCardSkeleton } from "../components/skeleton";
 import {
+  HOME_TIMELINE_SORT,
   createTimelinePost,
   fetchQuotable,
   fetchTimeline,
@@ -44,13 +45,11 @@ import {
   useSoftTabRefetch,
 } from "../layouts/TabKeepAliveLayout";
 import { ImagePickField } from "../components/ImagePickField";
-import { getImpressedPostIds } from "../features/timeline/impressions";
 import {
   parseTimelinePostHash,
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
-import { MOTION_TAB_MS } from "../lib/motion";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 
 export function HomePage() {
@@ -63,49 +62,21 @@ export function HomePage() {
   const location = useLocation();
   const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
-  const sort = (
-    searchParams.get("sort") === "latest" ? "latest" : "recommended"
-  ) as "recommended" | "latest";
-  const [feedEnter, setFeedEnter] = useState(false);
-  const skipFirstSortMotionRef = useRef(true);
   const faculty = searchParams.get("faculty") || "";
   const qParam = searchParams.get("q") || "";
 
-  const patchParams = useCallback(
-    (patch: Record<string, string>) => {
-      const next = new URLSearchParams(searchParams);
-      Object.entries(patch).forEach(([key, value]) => {
-        if (value) next.set(key, value);
-        else next.delete(key);
-      });
-      // Timeline no longer uses feed=following; drop leftover deep links.
-      next.delete("feed");
-      setSearchParams(next);
-    },
-    [searchParams, setSearchParams]
-  );
-
-  // Clear obsolete feed= query from bookmarks / old links.
+  // Clear obsolete feed=/sort= query from bookmarks / old links.
   useEffect(() => {
-    if (!searchParams.has("feed")) return;
+    if (!searchParams.has("feed") && !searchParams.has("sort")) return;
     const next = new URLSearchParams(searchParams);
     next.delete("feed");
+    next.delete("sort");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     analytics.timelineViewed();
   }, []);
-
-  useEffect(() => {
-    if (skipFirstSortMotionRef.current) {
-      skipFirstSortMotionRef.current = false;
-      return;
-    }
-    setFeedEnter(true);
-    const timer = window.setTimeout(() => setFeedEnter(false), MOTION_TAB_MS);
-    return () => window.clearTimeout(timer);
-  }, [sort]);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [pinnedPost, setPinnedPost] = useState<TimelinePost | null>(null);
@@ -308,10 +279,9 @@ export function HomePage() {
       if (mode !== "soft") setError(null);
       try {
         const data = await fetchTimeline({
-          sort,
+          sort: HOME_TIMELINE_SORT,
           faculty: faculty || undefined,
           q: qParam || undefined,
-          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         });
         setPosts(data.posts);
         setHasMore(data.has_more);
@@ -327,7 +297,7 @@ export function HomePage() {
         if (mode !== "soft") setLoading(false);
       }
     },
-    [sort, faculty, qParam, browsePreview]
+    [faculty, qParam, browsePreview]
   );
 
   useEffect(() => {
@@ -456,11 +426,10 @@ export function HomePage() {
         if (!entries[0]?.isIntersecting) return;
         setLoadingMore(true);
         void fetchTimeline({
-          sort,
+          sort: HOME_TIMELINE_SORT,
           faculty: faculty || undefined,
           q: qParam || undefined,
           offset: nextOffset,
-          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         })
           .then((data: TimelineFeedResponse) => {
             setPosts((prev) => {
@@ -480,7 +449,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [browsePreview, sort, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
+  }, [browsePreview, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -686,28 +655,6 @@ export function HomePage() {
           }
         }}
       />
-      <nav
-        className="home-sort-tabs"
-        aria-label="タイムライン並び順"
-        data-sort={sort}
-      >
-        <button
-          type="button"
-          className={`home-sort-tab${sort === "recommended" ? " is-active" : ""}`}
-          onClick={() => patchParams({ sort: "" })}
-        >
-          おすすめ
-        </button>
-        <button
-          type="button"
-          className={`home-sort-tab${sort === "latest" ? " is-active" : ""}`}
-          onClick={() => patchParams({ sort: "latest" })}
-        >
-          最新
-        </button>
-        <span className="home-sort-indicator" aria-hidden="true" />
-      </nav>
-
       {sessionLoading ? null : authenticated ? (
         <div className="home-compose">
           <button
@@ -801,10 +748,7 @@ export function HomePage() {
             : "まだ投稿がありません。"}
         </p>
       ) : (
-        <div
-          className={`timeline-list home-feed${feedEnter ? " is-enter" : ""}`}
-          id="timeline-list"
-        >
+        <div className="timeline-list home-feed" id="timeline-list">
           {postUnavailable ? (
             <p className="empty-message">この投稿は表示できません</p>
           ) : null}

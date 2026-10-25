@@ -86,7 +86,7 @@ def build_timeline_posts_queryset(request):
         request.user if request.user.is_authenticated else None,
     )
     timeline_posts = annotate_timeline_quote_count(timeline_posts)
-    timeline_posts = timeline_posts.order_by("-created_at")
+    timeline_posts = timeline_posts.order_by("-created_at", "-pk")
     if request.user.is_authenticated:
         timeline_posts = timeline_posts.annotate(
             user_has_liked=Exists(

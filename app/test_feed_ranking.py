@@ -58,6 +58,48 @@ class TimelineRankingApiTests(TestCase):
         ids = [p["id"] for p in data["posts"]]
         self.assertEqual(ids[0], self.fresh.pk)
 
+    def test_latest_same_timestamp_orders_by_id_desc(self):
+        now = timezone.now()
+        first = TimelinePost.objects.create(
+            author=self.author,
+            body="same-time older id",
+        )
+        second = TimelinePost.objects.create(
+            author=self.author,
+            body="same-time newer id",
+        )
+        TimelinePost.objects.filter(pk__in=[first.pk, second.pk]).update(
+            created_at=now
+        )
+        response = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        ids = [p["id"] for p in response.json()["posts"]]
+        self.assertLess(ids.index(second.pk), ids.index(first.pk))
+
+    def test_latest_pagination_does_not_duplicate_or_drop(self):
+        now = timezone.now()
+        created = []
+        for i in range(40):
+            post = TimelinePost.objects.create(
+                author=self.author,
+                body=f"page-post-{i}",
+            )
+            created.append(post.pk)
+        TimelinePost.objects.filter(pk__in=created).update(created_at=now)
+        first = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertEqual(first.status_code, 200)
+        data = first.json()
+        self.assertEqual(data.get("sort"), "latest")
+        self.assertTrue(data["has_more"])
+        first_ids = [p["id"] for p in data["posts"]]
+        more = self.client.get(
+            "/api/v1/timeline/",
+            {"sort": "latest", "offset": data["next_offset"]},
+        )
+        more_ids = [p["id"] for p in more.json()["posts"]]
+        combined = first_ids + more_ids
+        self.assertEqual(len(combined), len(set(combined)))
+        self.assertTrue(set(created).issubset(set(combined)))
+
     def test_recommended_prefers_engagement_over_quiet_old(self):
         # Make hot much older but highly liked; quiet mid-age with no engagement
         now = timezone.now()
@@ -74,7 +116,11 @@ class TimelineRankingApiTests(TestCase):
             created_at=now - timedelta(hours=10),
             like_count=50,
         )
-        response = self.client.get("/api/v1/timeline/")
+        response = self.client.get(
+            "/api/v1/timeline/",
+            {"sort": "recommended"},
+        )
+        self.assertEqual(response.json().get("sort"), "recommended")
         ids = [p["id"] for p in response.json()["posts"]]
         self.assertLess(ids.index(self.hot.pk), ids.index(quiet.pk))
 

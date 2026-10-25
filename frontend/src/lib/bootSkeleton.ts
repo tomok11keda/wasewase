@@ -13,9 +13,9 @@ export function bootShowsBottomNav(pathname: string): boolean {
   return !shouldHideBottomNav(normalizeSpaPath(pathname));
 }
 
-/** Decorative おすすめ/最新 row — home only, never search/flea/community. */
-export function bootShowsHomeSortTabs(pathname: string): boolean {
-  return matchMainTab(normalizeSpaPath(pathname)) === "home";
+/** Home no longer has おすすめ/最新 tabs. Kept so boot chrome tests stay explicit. */
+export function bootShowsHomeSortTabs(_pathname: string): boolean {
+  return false;
 }
 
 /** Route titles only — never a username, org name, or unread count. */

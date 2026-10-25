@@ -45,9 +45,9 @@ test("main tabs hide the center title like the live shell", () => {
   assert.equal(bootHeaderTitle("/search"), null);
 });
 
-test("decorative sort tabs appear only on the home timeline boot", () => {
-  assert.equal(bootShowsHomeSortTabs("/"), true);
-  assert.equal(bootShowsHomeSortTabs("/app/"), true);
+test("decorative sort tabs never appear on the home timeline boot", () => {
+  assert.equal(bootShowsHomeSortTabs("/"), false);
+  assert.equal(bootShowsHomeSortTabs("/app/"), false);
   assert.equal(bootShowsHomeSortTabs("/search"), false);
   assert.equal(bootShowsHomeSortTabs("/flea"), false);
   assert.equal(bootShowsHomeSortTabs("/communities"), false);

@@ -48,7 +48,7 @@ export function hasRecordedImpression(postId: number): boolean {
   return memorySeen.has(postId);
 }
 
-/** Recently impressed post IDs (session) — used to demote repeats in おすすめ. */
+/** Recently impressed post IDs (session). Ranking still uses this when sort=recommended. */
 export function getImpressedPostIds(limit = 80): number[] {
   hydrateSeen();
   const ids = [...memorySeen];

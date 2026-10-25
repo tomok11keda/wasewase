@@ -25,14 +25,13 @@ class HomeTimelineChromeTests(SimpleTestCase):
 
     def test_home_keeps_sort_compose_and_feed_plumbing(self):
         home = _read("frontend/src/pages/HomePage.tsx")
-        self.assertIn("home-sort-tabs", home)
+        self.assertNotIn("home-sort-tabs", home)
+        self.assertNotIn("おすすめ", home)
+        self.assertIn("HOME_TIMELINE_SORT", home)
         self.assertIn("home-compose", home)
         self.assertIn("home-feed", home)
-        self.assertIn("おすすめ", home)
-        self.assertIn("最新", home)
         self.assertIn("いまどうしてる？", home)
         self.assertIn("compose-fab", home)
-        self.assertIn('searchParams.get("sort")', home)
         self.assertIn("fetchTimeline", home)
         self.assertIn("faculty: faculty || undefined", home)
         self.assertIn("q: qParam || undefined", home)
@@ -106,15 +105,30 @@ class HomeMotionPilotTests(SimpleTestCase):
         self.assertIn("MOTION_FAST_MS = 120", motion)
         self.assertIn("MOTION_SHEET_MS = 240", motion)
 
-    def test_home_sort_indicator_slides_instead_of_instant_underline(self):
+    def test_home_has_no_recommended_latest_sort_tabs(self):
         home = _read("frontend/src/pages/HomePage.tsx")
-        css = _read("frontend/src/styles/home.css")
-        self.assertIn("home-sort-indicator", home)
-        self.assertIn("data-sort={sort}", home)
-        self.assertIn("home-feed${feedEnter", home)
-        self.assertIn(".home-sort-indicator", css)
-        self.assertIn("translateX(100%)", css)
-        self.assertNotIn(".home-sort-tab.is-active::after", css)
+        boot = _read("frontend/src/components/BootSkeleton.tsx")
+        self.assertNotIn("home-sort-tabs", home)
+        self.assertNotIn("home-sort-indicator", home)
+        self.assertNotIn("home-sort-tabs", boot)
+        self.assertNotIn("おすすめ", boot)
+        self.assertNotIn("最新", boot)
+        self.assertIn('sort: HOME_TIMELINE_SORT', home)
+
+    def test_general_post_ui_hides_view_count(self):
+        card = _read("frontend/src/features/timeline/TimelinePostCard.tsx")
+        discover = _read("frontend/src/features/search/DiscoverCompactCards.tsx")
+        classic = _read("templates/includes/timeline_post_card.html")
+        self.assertNotIn("tweet-action--view", card)
+        self.assertNotIn("閲覧数", card)
+        self.assertNotIn("tweet-action--view", discover)
+        self.assertNotIn("閲覧数", discover)
+        self.assertNotIn("tweet-action--view", classic)
+        self.assertNotIn("閲覧数", classic)
+        self.assertIn("queueImpression", card)
+        self.assertIn("view_count", card)
+        self.assertIn("like_count", card)
+        self.assertIn("comment_count", card)
 
     def test_home_fab_uses_motion_tokens_and_always_visible_class(self):
         css = _read("frontend/src/styles/home.css")

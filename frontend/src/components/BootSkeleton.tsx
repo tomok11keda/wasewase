@@ -5,7 +5,6 @@ import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import {
   bootHeaderTitle,
   bootShowsBottomNav,
-  bootShowsHomeSortTabs,
   bootSkeletonKind,
 } from "../lib/bootSkeleton";
 import { matchMainTab, normalizeSpaPath, TAB_ROUTES } from "../lib/tabs";
@@ -96,16 +95,6 @@ function BootBottomNav({ pathname }: { pathname: string }) {
   );
 }
 
-function BootHomeSortTabs() {
-  return (
-    <div className="home-sort-tabs" data-sort="recommended" aria-hidden="true">
-      <span className="home-sort-tab is-active">おすすめ</span>
-      <span className="home-sort-tab">最新</span>
-      <span className="home-sort-indicator" />
-    </div>
-  );
-}
-
 function BootSidebar({ pathname }: { pathname: string }) {
   const active = matchMainTab(pathname);
   return (
@@ -137,7 +126,7 @@ export function BootSkeleton({ pathname }: { pathname: string }) {
   const path = normalizeSpaPath(pathname);
   const kind = bootSkeletonKind(path);
   const showBottomNav = bootShowsBottomNav(path);
-  const showHomeSortTabs = bootShowsHomeSortTabs(path);
+  const isHome = matchMainTab(path) === "home";
   const chrome = matchChromeMode(path);
 
   useEffect(() => {
@@ -168,9 +157,8 @@ export function BootSkeleton({ pathname }: { pathname: string }) {
         <div className="main-column">
           <BootHeader pathname={path} />
           <div
-            className={`main-inner${showHomeSortTabs ? " timeline-home" : ""}`}
+            className={`main-inner${isHome ? " timeline-home" : ""}`}
           >
-            {showHomeSortTabs ? <BootHomeSortTabs /> : null}
             <BootSkeletonFeed kind={kind} />
           </div>
         </div>

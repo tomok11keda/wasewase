@@ -110,6 +110,8 @@ export function getCsrfToken(): string {
   return meta?.getAttribute("content") || "";
 }
 
+export { HOME_TIMELINE_SORT } from "./homeFeed";
+
 export type FeedQuery = {
   feed?: "all" | "following";
   sort?: "recommended" | "latest";
@@ -123,7 +125,7 @@ export type FeedQuery = {
 function buildFeedUrl(query: FeedQuery): string {
   const params = new URLSearchParams();
   if (query.feed) params.set("feed", query.feed);
-  if (query.sort && query.sort !== "recommended") {
+  if (query.sort) {
     params.set("sort", query.sort);
   }
   if (query.q) params.set("q", query.q);
