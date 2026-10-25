@@ -118,13 +118,15 @@ export function PostCardSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-export function ProductGridSkeleton({ count = 4 }: { count?: number }) {
+export function ProductGridSkeleton({
+  count = 4,
+  className = "product-grid profile-product-grid",
+}: {
+  count?: number;
+  className?: string;
+}) {
   return (
-    <div
-      className="product-grid profile-product-grid"
-      aria-busy="true"
-      aria-label="読み込み中"
-    >
+    <div className={className} aria-busy="true" aria-label="読み込み中">
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="sk-product">
           <SkeletonBone className="sk-product__media" />
@@ -132,5 +134,23 @@ export function ProductGridSkeleton({ count = 4 }: { count?: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+export function ThreadListSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <ul className="thread-list" aria-busy="true" aria-label="読み込み中">
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index} className="thread-card-row" aria-hidden="true">
+          <div className="thread-card">
+            <SkeletonPrimitive className="sk-bone--name" />
+            <SkeletonPrimitive variant="line" className="sk-thread-meta" />
+            <SkeletonPrimitive className="sk-list-row__title" />
+            <SkeletonPrimitive className="sk-list-row__title is-mid" />
+            <SkeletonPrimitive className="sk-thread-board" />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

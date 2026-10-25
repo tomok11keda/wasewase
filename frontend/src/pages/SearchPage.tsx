@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import {
+  ListRowSkeleton,
+  PostCardSkeleton,
+  ProductGridSkeleton,
+  SkeletonBone,
+} from "../components/skeleton";
+import { listContentPhase, listQueryKey } from "../lib/listContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
 import {
@@ -277,6 +289,35 @@ function renderDiscoverRow(row: SearchResultRow) {
   return null;
 }
 
+function SearchContentSkeleton({
+  variant,
+}: {
+  variant: "discover" | "users" | "results";
+}) {
+  if (variant === "users") {
+    return <ListRowSkeleton rows={6} />;
+  }
+  if (variant === "results") {
+    return <PostCardSkeleton count={4} />;
+  }
+  return (
+    <div className="search-discover" aria-busy="true" aria-label="読み込み中">
+      <section className="search-discover__section" aria-hidden="true">
+        <SkeletonBone className="sk-bone--name" />
+        <PostCardSkeleton count={3} />
+      </section>
+      <section className="search-discover__section" aria-hidden="true">
+        <SkeletonBone className="sk-bone--name" />
+        <ListRowSkeleton rows={3} />
+      </section>
+      <section className="search-discover__section" aria-hidden="true">
+        <SkeletonBone className="sk-bone--name" />
+        <ProductGridSkeleton count={4} />
+      </section>
+    </div>
+  );
+}
+
 function SearchDiscoverView({
   discover,
 }: {
@@ -423,58 +464,109 @@ export function SearchPage() {
   const [results, setResults] = useState<SearchResultRow[]>([]);
   const [users, setUsers] = useState<ProfileUser[]>([]);
   const [discover, setDiscover] = useState<SearchDiscoverPayload | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const requestIdRef = useRef(0);
+  const hasDataRef = useRef(false);
+  const appliedKeyRef = useRef("");
+  const showDiscover = !qParam.trim();
+  const listKey = listQueryKey([
+    sessionUserId ?? "guest",
+    showDiscover ? "discover" : activeTab,
+    qParam,
+  ]);
 
-  const load = useCallback(async () => {
-    if (browsePreview) {
-      setLoading(false);
-      setError(null);
-      setDiscover(null);
-      setResults([]);
-      setUsers([]);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchSearchPage({
-        q: qParam || undefined,
-        tab: qParam ? activeTab : undefined,
-      });
-      if (!qParam.trim()) {
+  const load = useCallback(
+    async (mode: "initial" | "soft" = "initial") => {
+      const requestId = nextRequestId(requestIdRef);
+      const startedUserId = userIdRef.current;
+      const startedKey = listKey;
+      if (browsePreview) {
+        setLoading(false);
+        setError(null);
+        setDiscover(null);
         setResults([]);
         setUsers([]);
-        setDiscover(data.discover || null);
-      } else {
-        setDiscover(null);
-        setResults(data.results || []);
-        setUsers((data.users || []) as ProfileUser[]);
-        const resultCount =
-          typeof data.result_count === "number"
-            ? data.result_count
-            : activeTab === "users"
-              ? (data.users || []).length
-              : (data.results || []).length;
-        analytics.searchPerformed({
-          query: qParam.trim(),
-          tab: activeTab,
-          result_count: resultCount,
-        });
+        hasDataRef.current = false;
+        appliedKeyRef.current = startedKey;
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "search_failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [qParam, activeTab, browsePreview]);
+      const sameQuery = appliedKeyRef.current === startedKey && hasDataRef.current;
+      if (mode === "initial" && !sameQuery) {
+        setLoading(true);
+        setError(null);
+      }
+      try {
+        const data = await fetchSearchPage({
+          q: qParam || undefined,
+          tab: qParam ? activeTab : undefined,
+        });
+        if (!isLatestRequest(requestIdRef, requestId)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (!qParam.trim()) {
+          setResults([]);
+          setUsers([]);
+          setDiscover(data.discover || null);
+        } else {
+          setDiscover(null);
+          setResults(data.results || []);
+          setUsers((data.users || []) as ProfileUser[]);
+          const resultCount =
+            typeof data.result_count === "number"
+              ? data.result_count
+              : activeTab === "users"
+                ? (data.users || []).length
+                : (data.results || []).length;
+          analytics.searchPerformed({
+            query: qParam.trim(),
+            tab: activeTab,
+            result_count: resultCount,
+          });
+        }
+        hasDataRef.current = true;
+        appliedKeyRef.current = startedKey;
+        setError(null);
+      } catch (err) {
+        if (!isLatestRequest(requestIdRef, requestId)) return;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return;
+        if (mode === "soft") return;
+        setError(err instanceof Error ? err.message : "search_failed");
+      } finally {
+        if (isLatestRequest(requestIdRef, requestId)) {
+          setLoading(false);
+        }
+      }
+    },
+    [qParam, activeTab, browsePreview, listKey]
+  );
+
+  useEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(requestIdRef);
+    hasDataRef.current = false;
+    appliedKeyRef.current = "";
+    setResults([]);
+    setUsers([]);
+    setDiscover(null);
+    setError(null);
+  }, [sessionUserId]);
 
   useEffect(() => {
     if (sessionLoading) return;
-    void load();
-  }, [sessionLoading, load]);
+    const soft =
+      hasDataRef.current && appliedKeyRef.current === listKey;
+    void load(soft ? "soft" : "initial");
+  }, [sessionLoading, load, listKey]);
 
-  useSoftTabRefetch("search", () => load());
+  useSoftTabRefetch("search", () => {
+    void load("soft");
+  });
 
   useEffect(() => {
     setQInput(qParam);
@@ -537,7 +629,6 @@ export function SearchPage() {
           ? "該当する授業が見つかりません。"
           : "一致する結果はありません。";
 
-  const showDiscover = !qParam.trim();
   const hasDiscoverContent = Boolean(
     discover &&
       (discover.trending.length > 0 ||
@@ -545,6 +636,25 @@ export function SearchPage() {
         (discover.communities && discover.communities.length > 0) ||
         discover.products.length > 0)
   );
+  const resultCount = showDiscover
+    ? hasDiscoverContent
+      ? 1
+      : 0
+    : activeTab === "users"
+      ? users.length
+      : results.length;
+  const searchPhase = listContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading,
+    error,
+    itemCount: resultCount,
+    matchesCurrentQuery: appliedKeyRef.current === listKey,
+  });
+  const skeletonVariant = showDiscover
+    ? "discover"
+    : activeTab === "users"
+      ? "users"
+      : "results";
 
   return (
     <div className="search-page" data-spa-page="検索">
@@ -586,46 +696,38 @@ export function SearchPage() {
           </p>
         ) : null}
 
-        {browsePreview ? (
+        {searchPhase === "browse" ? (
           <BrowsePreviewNotice nextPath="/app/search">
             検索と話題の投稿はログイン後に表示されます。
           </BrowsePreviewNotice>
-        ) : loading ? (
-          <p className="search-empty">
-            {showDiscover ? "読み込み中…" : "検索中…"}
-          </p>
-        ) : error ? (
+        ) : searchPhase === "skeleton" ? (
+          <SearchContentSkeleton variant={skeletonVariant} />
+        ) : searchPhase === "error" ? (
           <p className="search-empty">
             {showDiscover
               ? `読み込みに失敗しました（${error}）`
               : `検索に失敗しました（${error}）`}
           </p>
-        ) : showDiscover ? (
-          hasDiscoverContent && discover ? (
-            <SearchDiscoverView discover={discover} />
-          ) : (
-            <p className="search-empty">
-              キーワードを入力すると、わせわせ全体を横断検索できます。
-            </p>
-          )
+        ) : searchPhase === "empty" ? (
+          <p className="search-empty">
+            {showDiscover
+              ? "キーワードを入力すると、わせわせ全体を横断検索できます。"
+              : emptyMessage}
+          </p>
+        ) : showDiscover && discover ? (
+          <SearchDiscoverView discover={discover} />
         ) : activeTab === "users" ? (
-          users.length ? (
-            <ul className="search-user-list">
-              {users.map((u) => (
-                <li key={u.id}>
-                  <SearchUserCard user={u} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="search-empty">{emptyMessage}</p>
-          )
-        ) : results.length ? (
+          <ul className="search-user-list">
+            {users.map((u) => (
+              <li key={u.id}>
+                <SearchUserCard user={u} />
+              </li>
+            ))}
+          </ul>
+        ) : (
           <div className="search-mixed-feed">
             {results.map((row) => renderSearchResultRow(row, handlers))}
           </div>
-        ) : (
-          <p className="search-empty">{emptyMessage}</p>
         )}
       </div>
     </div>

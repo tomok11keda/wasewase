@@ -143,6 +143,10 @@
   }
 }
 
+.timeline-home .home-feed--skeleton {
+  overflow: hidden;
+}
+
 .timeline-home .home-feed--skeleton .sk-feed {
   background: #fff;
 }

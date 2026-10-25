@@ -4,6 +4,13 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { ThreadListSkeleton } from "../components/skeleton";
+import { listContentPhase, listQueryKey } from "../lib/listContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import {
   createCommunityThread,
   fetchCommunityThreads,
@@ -52,6 +59,19 @@ export function CommunitiesPage() {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const hasDataRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const appliedKeyRef = useRef("");
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const listKey = listQueryKey([
+    sessionUserId ?? "guest",
+    tag,
+    qParam,
+    sort,
+  ]);
   const composeFormRef = useRef<HTMLFormElement | null>(null);
 
   const [enrolled, setEnrolled] = useState<CourseDiscoverCard[]>([]);
@@ -60,6 +80,7 @@ export function CommunitiesPage() {
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseError, setCourseError] = useState<string | null>(null);
   const hasCourseDataRef = useRef(false);
+  const courseRequestIdRef = useRef(0);
 
   const patchParams = useCallback(
     (patch: Record<string, string>) => {
@@ -82,13 +103,20 @@ export function CommunitiesPage() {
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      const requestId = nextRequestId(requestIdRef);
+      const startedUserId = userIdRef.current;
+      const startedKey = listKey;
       if (browsePreview) {
         setThreads([]);
         setError(null);
         setLoading(false);
+        hasDataRef.current = false;
+        appliedKeyRef.current = startedKey;
         return;
       }
-      if (mode === "initial" && !hasDataRef.current) {
+      const sameQuery =
+        appliedKeyRef.current === startedKey && hasDataRef.current;
+      if (mode === "initial" && !sameQuery) {
         setLoading(true);
       }
       if (mode !== "soft") setError(null);
@@ -98,23 +126,32 @@ export function CommunitiesPage() {
           q: qParam || undefined,
           sort,
         });
+        if (!isLatestRequest(requestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         setThreads(data.threads);
         hasDataRef.current = true;
+        appliedKeyRef.current = startedKey;
         setError(null);
         return true;
       } catch (err) {
+        if (!isLatestRequest(requestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
         return false;
       } finally {
-        if (mode !== "soft") setLoading(false);
+        if (isLatestRequest(requestIdRef, requestId)) {
+          setLoading(false);
+        }
       }
     },
-    [tag, qParam, sort, browsePreview]
+    [tag, qParam, sort, browsePreview, listKey]
   );
 
   const loadCourses = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      const requestId = nextRequestId(courseRequestIdRef);
+      const startedUserId = userIdRef.current;
       if (browsePreview) {
         setEnrolled([]);
         setActive([]);
@@ -129,6 +166,8 @@ export function CommunitiesPage() {
       if (mode !== "soft") setCourseError(null);
       try {
         const data = await fetchCourseDiscover();
+        if (!isLatestRequest(courseRequestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         setEnrolled(data.enrolled);
         setActive(data.active);
         setPopular(data.popular);
@@ -136,22 +175,43 @@ export function CommunitiesPage() {
         setCourseError(null);
         return true;
       } catch (err) {
+        if (!isLatestRequest(courseRequestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         if (mode === "soft") return false;
         setCourseError(err instanceof Error ? err.message : "load_failed");
         return false;
       } finally {
-        if (mode !== "soft") setCourseLoading(false);
+        if (isLatestRequest(courseRequestIdRef, requestId)) {
+          setCourseLoading(false);
+        }
       }
     },
     [browsePreview]
   );
 
   useEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(requestIdRef);
+    nextRequestId(courseRequestIdRef);
+    hasDataRef.current = false;
+    hasCourseDataRef.current = false;
+    appliedKeyRef.current = "";
+    setThreads([]);
+    setEnrolled([]);
+    setActive([]);
+    setPopular([]);
+    setError(null);
+    setCourseError(null);
+  }, [sessionUserId]);
+
+  useEffect(() => {
     if (sessionLoading) return;
     if (hub === "community") {
-      void load(hasDataRef.current ? "soft" : "initial");
+      const soft = hasDataRef.current && appliedKeyRef.current === listKey;
+      void load(soft ? "soft" : "initial");
     }
-  }, [sessionLoading, hub, load]);
+  }, [sessionLoading, hub, load, listKey]);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -183,6 +243,13 @@ export function CommunitiesPage() {
     (activeTab === null && normalizedPath === "/communities");
   const showComposeFab =
     hub === "community" && !composeOpen && onCommunityList;
+  const communityPhase = listContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading,
+    error,
+    itemCount: threads.length,
+    matchesCurrentQuery: appliedKeyRef.current === listKey,
+  });
 
   const openCompose = () => {
     if (!me?.authenticated) {
@@ -369,15 +436,15 @@ export function CommunitiesPage() {
             </form>
           ) : null}
 
-          {loading && threads.length === 0 ? (
-            <p className="empty-message">読み込み中…</p>
-          ) : browsePreview ? (
+          {communityPhase === "browse" ? (
             <BrowsePreviewNotice nextPath="/app/communities">
               コミュニティの投稿はログイン後に表示されます。
             </BrowsePreviewNotice>
-          ) : error && threads.length === 0 ? (
+          ) : communityPhase === "skeleton" ? (
+            <ThreadListSkeleton />
+          ) : communityPhase === "error" ? (
             <p className="empty-message">読み込みに失敗しました（{error}）</p>
-          ) : threads.length === 0 ? (
+          ) : communityPhase === "empty" ? (
             <p className="empty-message">
               {qParam
                 ? "一致するスレッドはありません。"
@@ -404,7 +471,9 @@ export function CommunitiesPage() {
                         返信 {thread.replies_count}
                       </span>
                     </p>
-                    <p className="thread-card__preview">{thread.body_preview}</p>
+                    <p className="thread-card__preview">
+                      {thread.body_preview}
+                    </p>
                     <span
                       className={officialBoardClass(
                         "thread-card__board",

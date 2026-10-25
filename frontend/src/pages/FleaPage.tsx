@@ -10,6 +10,13 @@ import {
 import { FacultyFilterTabs } from "../components/FacultyFilterTabs";
 import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
+import { ProductGridSkeleton } from "../components/skeleton";
+import { listContentPhase, listQueryKey } from "../lib/listContentPhase";
+import {
+  isLatestRequest,
+  isSameUserScope,
+  nextRequestId,
+} from "../lib/userScopedResult";
 import {
   useActiveMainTab,
   useSoftTabRefetch,
@@ -83,6 +90,21 @@ export function FleaPage() {
   const exhibitSuccess = searchParams.get("exhibit_success") === "1";
   const deletedSuccess = searchParams.get("deleted") === "1";
   const hasDataRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const appliedKeyRef = useRef("");
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
+  const userIdRef = useRef(sessionUserId);
+  userIdRef.current = sessionUserId;
+  const prevUserIdRef = useRef(sessionUserId);
+  const listKey = listQueryKey([
+    sessionUserId ?? "guest",
+    feed,
+    qParam,
+    faculty,
+    campus,
+    order,
+  ]);
   const ownFaculty = me?.user?.department || userFaculty || "";
 
   const patchParams = useCallback(
@@ -99,15 +121,22 @@ export function FleaPage() {
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
+      const requestId = nextRequestId(requestIdRef);
+      const startedUserId = userIdRef.current;
+      const startedKey = listKey;
       if (browsePreview) {
         setProducts([]);
         setCampusTabs([]);
         setOrderOptions([]);
         setError(null);
         setLoading(false);
+        hasDataRef.current = false;
+        appliedKeyRef.current = startedKey;
         return;
       }
-      if (mode === "initial" && !hasDataRef.current) {
+      const sameQuery =
+        appliedKeyRef.current === startedKey && hasDataRef.current;
+      if (mode === "initial" && !sameQuery) {
         setLoading(true);
       }
       if (mode !== "soft") setError(null);
@@ -119,6 +148,8 @@ export function FleaPage() {
           campus: campus || undefined,
           order: order || undefined,
         });
+        if (!isLatestRequest(requestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         setProducts(data.products);
         setCampusTabs(data.campus_tabs);
         setOrderOptions(data.order_options);
@@ -126,23 +157,39 @@ export function FleaPage() {
         setCampusLabel(data.campus_label);
         setFollowingUnauth(data.feed_following_unauthenticated);
         hasDataRef.current = true;
+        appliedKeyRef.current = startedKey;
         setError(null);
         return true;
       } catch (err) {
+        if (!isLatestRequest(requestIdRef, requestId)) return false;
+        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
         if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
         return false;
       } finally {
-        if (mode !== "soft") setLoading(false);
+        if (isLatestRequest(requestIdRef, requestId)) {
+          setLoading(false);
+        }
       }
     },
-    [feed, qParam, faculty, campus, order, browsePreview]
+    [feed, qParam, faculty, campus, order, browsePreview, listKey]
   );
 
   useEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    nextRequestId(requestIdRef);
+    hasDataRef.current = false;
+    appliedKeyRef.current = "";
+    setProducts([]);
+    setError(null);
+  }, [sessionUserId]);
+
+  useEffect(() => {
     if (sessionLoading) return;
-    void load(hasDataRef.current ? "soft" : "initial");
-  }, [sessionLoading, load]);
+    const soft = hasDataRef.current && appliedKeyRef.current === listKey;
+    void load(soft ? "soft" : "initial");
+  }, [sessionLoading, load, listKey]);
 
   useEffect(() => {
     analytics.fleaViewed();
@@ -168,6 +215,13 @@ export function FleaPage() {
   const exhibitTo = me?.authenticated
     ? "/flea/exhibit"
     : spaLoginPath("/app/flea/exhibit");
+  const fleaPhase = listContentPhase({
+    browsePreview,
+    loading: sessionLoading || loading,
+    error,
+    itemCount: products.length,
+    matchesCurrentQuery: appliedKeyRef.current === listKey,
+  });
 
   return (
     <div className="flea-page" data-spa-page="フリマ">
@@ -306,21 +360,15 @@ export function FleaPage() {
                     : "商品一覧"}
         </h2>
 
-        {loading && products.length === 0 ? (
-          <p className="empty-message">読み込み中…</p>
-        ) : browsePreview ? (
+        {fleaPhase === "browse" ? (
           <BrowsePreviewNotice nextPath="/app/flea">
             フリマの出品はログイン後に表示されます。
           </BrowsePreviewNotice>
-        ) : error && products.length === 0 ? (
+        ) : fleaPhase === "skeleton" ? (
+          <ProductGridSkeleton count={8} className="product-grid" />
+        ) : fleaPhase === "error" ? (
           <p className="empty-message">読み込みに失敗しました（{error}）</p>
-        ) : products.length ? (
-          <div className="product-grid">
-            {products.map((p) => (
-              <ProductGridCard key={p.id} product={p} />
-            ))}
-          </div>
-        ) : (
+        ) : fleaPhase === "empty" ? (
           <p className="empty-message">
             {qParam
               ? "該当する商品はありません。"
@@ -328,6 +376,12 @@ export function FleaPage() {
                 ? "フォロー中のユーザーの出品はまだありません。"
                 : "出品されている商品はまだありません。"}
           </p>
+        ) : (
+          <div className="product-grid">
+            {products.map((p) => (
+              <ProductGridCard key={p.id} product={p} />
+            ))}
+          </div>
         )}
       </main>
       {showExhibitFab

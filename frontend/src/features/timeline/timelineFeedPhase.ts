@@ -16,8 +16,8 @@ export type TimelineFeedPhaseInput = {
   postCount: number;
 };
 
-/** Card count aligned with the home BootSkeleton feed. */
-export const TIMELINE_FEED_SKELETON_COUNT = 4;
+/** Enough cards to clip at the bottom nav on iPhone-sized viewports. */
+export const TIMELINE_FEED_SKELETON_COUNT = 10;
 
 /**
  * First-paint feed state. Existing posts always win so soft refetch / keep-alive

@@ -58,7 +58,7 @@ test("soft refetch and tab revisit keep already loaded posts", () => {
 });
 
 test("home feed skeleton count stays aligned with the boot timeline", () => {
-  assert.equal(TIMELINE_FEED_SKELETON_COUNT, 4);
+  assert.equal(TIMELINE_FEED_SKELETON_COUNT, 10);
 });
 
 test("empty feed, error, and unavailable stay distinct from first load", () => {
