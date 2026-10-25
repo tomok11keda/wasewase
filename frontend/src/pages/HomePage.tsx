@@ -20,6 +20,7 @@ import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBad
 import { organizationPostDisplay } from "../features/timeline/organizationActor";
 import { ComposeIdentity } from "../features/timeline/ComposeIdentity";
 import {
+  composeActorFromNavOrganization,
   composeActorKey,
   composeActorLabel,
   organizationIdForCompose,
@@ -47,7 +48,7 @@ import { PullToRefresh } from "../lib/usePullToRefresh";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
-  const { actor } = useAccount();
+  const { actor, selectOrganization } = useAccount();
   const browsePreview = isBrowsePreview(me);
   const liveComposeActor = snapshotComposeActor(actor);
   const liveComposeKey = composeActorKey(liveComposeActor);
@@ -180,12 +181,23 @@ export function HomePage() {
 
   // Open compose from Search / Sidebar without full reload
   useEffect(() => {
-    const state = location.state as { openCompose?: boolean } | null;
+    const state = location.state as {
+      openCompose?: boolean;
+      composeOrganization?: unknown;
+    } | null;
     const wantCompose =
       Boolean(state?.openCompose) || searchParams.get("compose") === "1";
     if (!wantCompose) return;
     if (authenticated) {
-      openCompose();
+      const fromHub = composeActorFromNavOrganization(state?.composeOrganization);
+      if (fromHub?.type === "organization") {
+        selectOrganization(fromHub.organization.id);
+        setComposeActor(fromHub);
+        setActorMismatch(false);
+        setComposeOpen(true);
+      } else {
+        openCompose();
+      }
     }
     if (state?.openCompose) {
       navigate(".", { replace: true, state: {} });
@@ -201,6 +213,7 @@ export function HomePage() {
     navigate,
     openCompose,
     searchParams,
+    selectOrganization,
     setSearchParams,
   ]);
 

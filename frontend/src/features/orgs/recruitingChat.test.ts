@@ -18,6 +18,8 @@ import {
   recruitingChatInvitesPath,
   recruitingChatPath,
   recruitingChatErrorMessage,
+  recruitingChatSettingsPath,
+  resolveRecruitingChatDestination,
   recruitingInviteOpenState,
   recruitingInviteSkipLabel,
   shouldConfirmAutoApprove,
@@ -125,6 +127,54 @@ test("parses GET envelope with can_create when chat is missing", () => {
   assert.ok(envelope);
   assert.equal(envelope?.recruiting_chat, null);
   assert.equal(envelope?.can_create, true);
+});
+
+test("org chat picker opens an existing chat or the create screen", () => {
+  const existing = parseRecruitingChatEnvelope({
+    ok: true,
+    recruiting_chat: {
+      id: 9,
+      name: "運営チャット",
+      join_mode: "open",
+      listing_status: "open",
+      is_active: true,
+      membership_status: "joined",
+      can_manage: true,
+      room_id: 44,
+    },
+    can_create: false,
+    can_manage: true,
+  });
+  assert.ok(existing);
+  assert.deepEqual(resolveRecruitingChatDestination(existing, "circle"), {
+    path: recruitingChatPath("circle"),
+    action: "open",
+  });
+
+  const create = parseRecruitingChatEnvelope({
+    ok: true,
+    recruiting_chat: null,
+    can_create: true,
+    can_manage: true,
+  });
+  assert.ok(create);
+  assert.deepEqual(resolveRecruitingChatDestination(create, "circle"), {
+    path: recruitingChatSettingsPath("circle"),
+    action: "create",
+  });
+
+  const forbidden = parseRecruitingChatEnvelope({
+    ok: true,
+    recruiting_chat: null,
+    can_create: false,
+    can_manage: false,
+  });
+  assert.ok(forbidden);
+  assert.equal(resolveRecruitingChatDestination(forbidden, "circle"), null);
+  assert.equal(
+    recruitingChatErrorMessage("organization_suspended", "fallback"),
+    "この団体は現在利用停止中です。"
+  );
 });
 
 test("application parser ignores email even if a backend leak appears", () => {

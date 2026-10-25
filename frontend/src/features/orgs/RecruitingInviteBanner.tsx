@@ -21,7 +21,7 @@ export function RecruitingInviteBanner({
   const initial = (orgName || "団").slice(0, 1);
 
   return (
-    <section className="org-recruiting-invite-banner" aria-label="新歓チャット招待">
+    <section className="org-recruiting-invite-banner" aria-label="団体チャット招待">
       <div className="org-recruiting-invite-banner__org">
         {avatar ? (
           <img src={avatar} alt="" />
@@ -30,7 +30,7 @@ export function RecruitingInviteBanner({
         )}
         <div>
           <p className="org-recruiting-invite-banner__lead">
-            {orgName}から新歓チャットに招待されました
+            {orgName}から団体チャットに招待されました
           </p>
           {invitation.chat_name ? (
             <strong className="org-recruiting-invite-banner__name">

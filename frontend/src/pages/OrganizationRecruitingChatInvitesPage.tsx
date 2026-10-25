@@ -242,7 +242,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     >
       <div className="main-inner">
         <p className="form-lead">
-          団体のowner/adminだけが学生を新歓チャットへ招待できます。承諾されるまでメンバーにはなりません。
+          団体のowner/adminだけが学生を団体チャットへ招待できます。承諾されるまでメンバーにはなりません。
         </p>
         {canShowRecruitingManageNav({
           hydrated: !loading && !sessionLoading,

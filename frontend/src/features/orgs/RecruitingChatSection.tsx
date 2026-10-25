@@ -67,8 +67,8 @@ export function RecruitingChatSection({
 
   if (loading) {
     return (
-      <section className="org-recruiting-card" aria-label="新歓チャット">
-        <h2 className="org-recruiting-card__title">新歓チャット</h2>
+      <section className="org-recruiting-card" aria-label="団体チャット">
+        <h2 className="org-recruiting-card__title">団体チャット</h2>
         <ListRowSkeleton rows={3} />
       </section>
     );
@@ -76,8 +76,8 @@ export function RecruitingChatSection({
 
   if (error) {
     return (
-      <section className="org-recruiting-card" aria-label="新歓チャット">
-        <h2 className="org-recruiting-card__title">新歓チャット</h2>
+      <section className="org-recruiting-card" aria-label="団体チャット">
+        <h2 className="org-recruiting-card__title">団体チャット</h2>
         <p className="org-profile-empty">{error}</p>
         <button type="button" className="btn btn-secondary" onClick={() => void onReload()}>
           再試行
@@ -119,7 +119,7 @@ export function RecruitingChatSection({
   const onLeave = () => {
     if (
       !window.confirm(
-        "新歓チャットから退出しますか？退出するとメッセージを読めなくなります。"
+        "団体チャットから退出しますか？退出するとメッセージを読めなくなります。"
       )
     ) {
       return;
@@ -129,15 +129,15 @@ export function RecruitingChatSection({
 
   if (!chat) {
     return (
-      <section className="org-recruiting-card" aria-label="新歓チャット">
-        <h2 className="org-recruiting-card__title">新歓チャット</h2>
+      <section className="org-recruiting-card" aria-label="団体チャット">
+        <h2 className="org-recruiting-card__title">団体チャット</h2>
         <p className="org-recruiting-card__lead">
-          まだ新歓チャットは作成されていません。
+          まだ団体チャットは作成されていません。
         </p>
         {envelope?.can_create ? (
           <div className="org-recruiting-card__actions">
             <Link className="btn btn-primary" to={recruitingChatSettingsPath(slug)}>
-              新歓チャットを作成
+              団体チャットを作成
             </Link>
           </div>
         ) : null}
@@ -156,8 +156,8 @@ export function RecruitingChatSection({
   const showOpen = Boolean(chat.room_id) && (status === "joined" || canManage);
 
   return (
-    <section className="org-recruiting-card" aria-label="新歓チャット">
-      <h2 className="org-recruiting-card__title">新歓チャット</h2>
+    <section className="org-recruiting-card" aria-label="団体チャット">
+      <h2 className="org-recruiting-card__title">団体チャット</h2>
       {chat.name ? <h3 className="org-recruiting-card__name">{chat.name}</h3> : null}
       {chat.description ? (
         <p className="org-recruiting-card__description">{chat.description}</p>
@@ -214,7 +214,7 @@ export function RecruitingChatSection({
             disabled={Boolean(busy)}
             onClick={onJoin}
           >
-            {busy === "join" ? "参加中…" : "新歓チャットに参加"}
+            {busy === "join" ? "参加中…" : "団体チャットに参加"}
           </button>
         ) : null}
         {showApply ? (

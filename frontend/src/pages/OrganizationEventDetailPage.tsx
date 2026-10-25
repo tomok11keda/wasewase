@@ -231,7 +231,7 @@ export function OrganizationEventDetailPage() {
               ) : null}
               {event.can_register || event.can_cancel_registration ? (
                 <p className="org-event-privacy">
-                  抽選を行う場合、氏名・アバター・除外備考が新歓チャット内で公開されることがあります。健康情報や連絡先など機微な内容は入力しないでください。
+                  抽選を行う場合、氏名・アバター・除外備考が団体チャット内で公開されることがあります。健康情報や連絡先など機微な内容は入力しないでください。
                 </p>
               ) : null}
             </div>

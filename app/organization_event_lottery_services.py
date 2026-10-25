@@ -376,31 +376,31 @@ def _notify_lottery_results(
     for user_id in selected_ids:
         create_notification(
             recipient_id=user_id,
-            message=f"「{org_name}」の新歓イベント「{title}」の抽選に当選しました。",
+            message=f"「{org_name}」のイベント「{title}」の抽選に当選しました。",
             link=link,
             actor=None,
             push_kind=PUSH_KIND_ORG_EVENT_LOTTERY_SELECTED,
-            push_body="新歓イベントの抽選に当選しました",
+            push_body="イベントの抽選に当選しました",
         )
     for user_id in not_selected_ids:
         create_notification(
             recipient_id=user_id,
-            message=f"「{org_name}」の新歓イベント「{title}」の抽選結果が出ました。",
+            message=f"「{org_name}」のイベント「{title}」の抽選結果が出ました。",
             link=link,
             actor=None,
             push_kind=PUSH_KIND_ORG_EVENT_LOTTERY_NOT_SELECTED,
-            push_body="新歓イベントの抽選結果が出ました",
+            push_body="イベントの抽選結果が出ました",
         )
     for user_id in excluded_ids:
         create_notification(
             recipient_id=user_id,
             message=(
-                f"「{org_name}」の新歓イベント「{title}」の抽選対象外になりました。"
+                f"「{org_name}」のイベント「{title}」の抽選対象外になりました。"
             ),
             link=link,
             actor=None,
             push_kind=PUSH_KIND_ORG_EVENT_LOTTERY_EXCLUDED,
-            push_body="新歓イベントの抽選対象外になりました",
+            push_body="イベントの抽選対象外になりました",
         )
 
 

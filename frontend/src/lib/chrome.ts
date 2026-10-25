@@ -148,7 +148,7 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/settings$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {
-      title: "新歓チャット設定",
+      title: "団体チャット設定",
       back: { kind: "fallback", to: `/organizations/${orgSlug}/recruiting-chat/info` },
     };
   }
@@ -176,7 +176,7 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/invite$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {
-      title: "新歓チャット招待",
+      title: "団体チャット招待",
       back: { kind: "fallback", to: `/orgs/${orgSlug}` },
     };
   }
@@ -227,8 +227,29 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
   if (p === "/dm/requests") {
     return { title: "リクエスト", back: { kind: "fallback", to: "/dm" } };
   }
+  if (p === "/dm/new") {
+    return {
+      title: "新しいチャット",
+      back: { kind: "history-or-fallback", to: "/dm" },
+    };
+  }
+  if (p === "/dm/new/direct") {
+    return {
+      title: "個人チャット",
+      back: { kind: "history-or-fallback", to: "/dm/new" },
+    };
+  }
+  if (p === "/dm/new/org-chat") {
+    return {
+      title: "団体チャット",
+      back: { kind: "history-or-fallback", to: "/dm/new" },
+    };
+  }
   if (p === "/dm/groups/new") {
-    return { title: "グループ作成", back: { kind: "fallback", to: "/dm" } };
+    return {
+      title: "グループ作成",
+      back: { kind: "history-or-fallback", to: "/dm/new" },
+    };
   }
   if (p === "/dm") {
     return {

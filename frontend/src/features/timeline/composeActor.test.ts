@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  composeActorFromNavOrganization,
   composeActorKey,
   composeActorLabel,
   composeActorsEqual,
@@ -49,6 +50,23 @@ test("failed organization compose must not fall back to a personal organization_
   const started = snapshotComposeActor(org);
   assert.notEqual(organizationIdForCompose(started), null);
   assert.equal(organizationIdForCompose({ type: "personal" }), null);
+});
+
+test("hub compose navigation carries the viewed organization, not the previous actor", () => {
+  const fromHub = composeActorFromNavOrganization({
+    id: 7,
+    name: "チームわせわせ",
+    slug: "team-wasewase",
+    avatar_url: "https://example.com/org.png",
+    is_verified: true,
+  });
+  assert.equal(organizationIdForCompose(fromHub), 7);
+  assert.equal(composeActorFromNavOrganization({ id: 0 }), null);
+  assert.equal(composeActorFromNavOrganization({ type: "personal" }), null);
+  assert.equal(
+    organizationIdForCompose(snapshotComposeActor({ type: "personal" })),
+    null
+  );
 });
 
 test("403/404 and network failure still use the snapped organization_id", () => {

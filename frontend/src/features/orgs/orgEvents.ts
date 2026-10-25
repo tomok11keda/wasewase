@@ -670,7 +670,7 @@ export function organizationEventErrorMessage(
     case "already_drawn":
       return "このイベントの抽選はすでに確定しています。";
     case "already_shared":
-      return "抽選結果はすでに新歓チャットへ共有されています。";
+      return "抽選結果はすでに団体チャットへ共有されています。";
     case "winner_count_exceeds_eligible":
       return "当選人数は抽選対象者数以下にしてください。";
     case "invalid_excluded":
@@ -680,7 +680,7 @@ export function organizationEventErrorMessage(
     case "not_published":
       return "公開中のイベントだけ抽選できます。";
     case "no_recruiting_chat":
-      return "新歓チャットがないため共有できません。";
+      return "団体チャットがないため共有できません。";
     case "lottery_closed":
       return "抽選が確定しているため、この操作はできません。";
     case "registrants_changed":

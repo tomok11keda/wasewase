@@ -14,8 +14,11 @@ import { NativePushOpenRouter } from "./components/NativePushOpenRouter";
 import { NativePushPermissionPrompt } from "./components/NativePushPermissionPrompt";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
+import { DmComposePage } from "./pages/DmComposePage";
+import { DmDirectCreatePage } from "./pages/DmDirectCreatePage";
 import { DmInboxPage } from "./pages/DmInboxPage";
 import { DmRoomPage } from "./pages/DmRoomPage";
+import { OrgChatPickPage } from "./pages/OrgChatPickPage";
 import { MessageRequestsPage } from "./pages/MessageRequestsPage";
 import { ExhibitPage } from "./pages/ExhibitPage";
 import { GroupCreatePage } from "./pages/GroupCreatePage";
@@ -206,6 +209,9 @@ function NestedAppRoutes() {
       <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
       <Route path="dm" element={<DmInboxPage />} />
       <Route path="dm/requests" element={<MessageRequestsPage />} />
+      <Route path="dm/new" element={<DmComposePage />} />
+      <Route path="dm/new/direct" element={<DmDirectCreatePage />} />
+      <Route path="dm/new/org-chat" element={<OrgChatPickPage />} />
       <Route path="dm/groups/new" element={<GroupCreatePage />} />
       <Route path="dm/groups/:roomPk/info" element={<GroupRoomInfoPage />} />
       <Route path="dm/groups/:roomPk" element={<GroupRoomPage />} />

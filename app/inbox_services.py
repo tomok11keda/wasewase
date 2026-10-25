@@ -195,8 +195,8 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
                     "room": room,
                     "partner": None,
                     "display_name": recruiting.get("display_name")
-                    or f"新歓チャット #{getattr(room, 'pk', '')}",
-                    "subtitle": recruiting.get("subtitle") or "新歓チャット",
+                    or f"団体チャット #{getattr(room, 'pk', '')}",
+                    "subtitle": recruiting.get("subtitle") or "団体チャット",
                     "latest_message": latest,
                     "latest_sender_display_name": user_display_name_safe(
                         getattr(latest, "sender", None)
@@ -206,7 +206,7 @@ def build_inbox_conversations(user: AbstractBaseUser) -> list[dict]:
                     "unread_count": int(recruiting.get("unread_count") or 0),
                     "updated_at": recruiting.get("updated_at") or room.updated_at,
                     "thumbnail_url": recruiting.get("thumbnail_url") or "",
-                    "status_label": recruiting.get("status_label") or "新歓チャット",
+                    "status_label": recruiting.get("status_label") or "団体チャット",
                     "product": None,
                     "organization_id": recruiting.get("organization_id"),
                     "organization_slug": recruiting.get("organization_slug") or "",

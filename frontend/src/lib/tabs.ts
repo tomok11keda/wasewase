@@ -38,6 +38,12 @@ export const TAB_ROUTES = [
 
 export type TabId = (typeof TAB_ROUTES)[number]["id"];
 
+/** Org mode hides the personal timetable tab. Deep links and APIs stay intact. */
+export function visibleTabRoutes(hideTimetable: boolean) {
+  if (!hideTimetable) return TAB_ROUTES;
+  return TAB_ROUTES.filter((tab) => tab.id !== "timetable");
+}
+
 /** BottomNav primary tabs that participate in keep-alive (exact path only). */
 export type MainTabId = TabId;
 
@@ -85,8 +91,9 @@ export function isConversationPath(pathname: string): boolean {
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat$/.test(p)) return true;
   if (/^\/dm\/recruiting\/[^/]+$/.test(p)) return true;
 
-  // Group create keeps bottom nav
+  // Group create and compose pickers keep bottom nav
   if (p === "/dm/groups/new") return false;
+  if (p === "/dm/new" || p.startsWith("/dm/new/")) return false;
 
   // Group chat room
   if (/^\/dm\/groups\/[^/]+$/.test(p)) return true;

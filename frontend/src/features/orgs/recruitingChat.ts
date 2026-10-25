@@ -193,6 +193,20 @@ export function recruitingChatInvitePath(slug: string): string {
   return `${recruitingChatPath(slug)}/invite`;
 }
 
+/** Open the active chat, or fall back to the existing create/settings screen. */
+export function resolveRecruitingChatDestination(
+  envelope: RecruitingChatEnvelope,
+  slug: string
+): { path: string; action: "open" | "create" } | null {
+  if (envelope.recruiting_chat) {
+    return { path: recruitingChatPath(slug), action: "open" };
+  }
+  if (envelope.can_create) {
+    return { path: recruitingChatSettingsPath(slug), action: "create" };
+  }
+  return null;
+}
+
 export type RecruitingInviteOpenState =
   | "pending"
   | "responded"
@@ -267,11 +281,11 @@ export function recruitingChatErrorMessage(
     case "invalid_listing_status":
       return "募集状態が正しくありません。";
     case "already_exists":
-      return "この団体の新歓チャットはすでに作成されています。";
+      return "この団体の団体チャットはすでに作成されています。";
     case "forbidden":
       return "この操作を行う権限がありません。";
     case "not_found":
-      return "新歓チャットが見つからないか、表示できません。";
+      return "団体チャットが見つからないか、表示できません。";
     case "unauthorized":
       return "ログインが必要です。";
     case "not_joinable":
@@ -301,7 +315,7 @@ export function recruitingChatErrorMessage(
     case "blocked":
       return "このユーザーは招待できません。";
     case "inactive":
-      return "この新歓チャットは現在利用できません。";
+      return "この団体チャットは現在利用できません。";
     default:
       return fallback;
   }

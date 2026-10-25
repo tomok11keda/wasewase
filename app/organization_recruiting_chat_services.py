@@ -1004,9 +1004,9 @@ def build_recruiting_conversations(user: AbstractBaseUser) -> list[dict[str, Any
                 "room": room,
                 "display_name": (chat.name if chat else "")
                 or room.name
-                or f"新歓チャット #{room.pk}",
-                "subtitle": getattr(organization, "name", "") or "新歓チャット",
-                "status_label": "新歓チャット",
+                or f"団体チャット #{room.pk}",
+                "subtitle": getattr(organization, "name", "") or "団体チャット",
+                "status_label": "団体チャット",
                 "member_count": member_count,
                 "latest_message": latest,
                 "unread_count": count_unread_group_messages(

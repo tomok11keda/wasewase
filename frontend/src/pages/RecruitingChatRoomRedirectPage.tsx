@@ -49,7 +49,7 @@ export function RecruitingChatRoomRedirectPage() {
 
   if (sessionLoading || !error) {
     return (
-      <div className="dm-page" data-spa-page="新歓チャット">
+      <div className="dm-page" data-spa-page="団体チャット">
         <div className="main-inner">
           <ChatInfoHeroSkeleton rounded />
         </div>
@@ -62,7 +62,7 @@ export function RecruitingChatRoomRedirectPage() {
   }
 
   return (
-    <div className="dm-page" data-spa-page="新歓チャット">
+    <div className="dm-page" data-spa-page="団体チャット">
       <div className="main-inner">
         <Link className="dm-back-text" to="/dm">
           ← メッセージ一覧
@@ -70,7 +70,7 @@ export function RecruitingChatRoomRedirectPage() {
         <p>
           {error === "forbidden" || error === "not_found"
             ? "このチャットを表示する権限がありません。"
-            : "新歓チャットを開けませんでした。"}
+            : "団体チャットを開けませんでした。"}
         </p>
       </div>
     </div>

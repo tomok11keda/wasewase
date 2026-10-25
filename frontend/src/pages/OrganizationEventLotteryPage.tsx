@@ -371,14 +371,14 @@ export function OrganizationEventLotteryPage() {
                     disabled={busy}
                     onClick={() => void shareLottery()}
                   >
-                    {busy ? "送信中…" : "新歓チャットに結果を共有"}
+                    {busy ? "送信中…" : "団体チャットに結果を共有"}
                   </button>
                 ) : lottery.shared ? (
-                  <span>新歓チャットへ共有済みです。</span>
+                  <span>団体チャットへ共有済みです。</span>
                 ) : null}
                 {lottery.shared ? (
                   <Link className="btn btn-secondary" to={recruitingChatPathSafeLocal(slug)}>
-                    新歓チャットを開く
+                    団体チャットを開く
                   </Link>
                 ) : null}
               </p>
@@ -387,11 +387,11 @@ export function OrganizationEventLotteryPage() {
               <ResultLists lottery={lottery} />
             ) : lottery.viewer_entry ? (
               <p className="org-recruiting-card__lead">
-                詳細一覧は新歓チャットの正式メンバーが確認できます。
+                詳細一覧は団体チャットの正式メンバーが確認できます。
               </p>
             ) : (
               <p className="org-recruiting-card__lead">
-                抽選は確定しています。詳細一覧は新歓チャットのメンバーが確認できます。
+                抽選は確定しています。詳細一覧は団体チャットのメンバーが確認できます。
               </p>
             )}
             <p>
@@ -404,7 +404,7 @@ export function OrganizationEventLotteryPage() {
             <p className="org-recruiting-card__lead">
               {event.viewer_lottery_result
                 ? `あなたの結果：${lotteryResultLabel(event.viewer_lottery_result)}`
-                : "抽選は確定しています。詳細一覧は新歓チャットのメンバーが確認できます。"}
+                : "抽選は確定しています。詳細一覧は団体チャットのメンバーが確認できます。"}
             </p>
             <p>
               <Link to={organizationEventPath(slug, event.id)}>イベント詳細へ</Link>
@@ -516,7 +516,7 @@ export function OrganizationEventLotteryPage() {
                   <p className="org-recruiting-card__lead">除外者はいません。</p>
                 )}
                 <p className="org-event-privacy">
-                  この条件で抽選を確定しますか？確定後は結果や除外者の備考を変更できません。除外備考は新歓チャットの正式メンバーに公開されることがあります。健康情報や連絡先など機微な内容は書かないでください。
+                  この条件で抽選を確定しますか？確定後は結果や除外者の備考を変更できません。除外備考は団体チャットの正式メンバーに公開されることがあります。健康情報や連絡先など機微な内容は書かないでください。
                 </p>
                 <p className="org-recruiting-card__actions">
                   <button

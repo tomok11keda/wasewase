@@ -46,7 +46,7 @@ function avatarContent(item: InboxItem) {
         />
       );
     }
-    return (item.display_name || "新").slice(0, 1);
+    return (item.display_name || "団").slice(0, 1);
   }
   if (item.kind === "group" || item.kind === "group_invite") return "👥";
   if (item.is_blocked) return "?";
@@ -64,7 +64,7 @@ function emptyCopy(tab: string) {
   if (tab === "dm") {
     return {
       title: "通常のDMはまだありません",
-      body: "プロフィールやタイムラインの「DM」ボタンから会話を始めるか、右下の＋からグループを作成できます。",
+      body: "プロフィールやタイムラインの「DM」ボタンから会話を始めるか、右下の＋からチャットを作成できます。",
     };
   }
   if (tab === "course") {
@@ -75,7 +75,7 @@ function emptyCopy(tab: string) {
   }
   return {
     title: "まだ会話がありません",
-    body: "通常のDM・グループ、新歓チャット、授業掲示板、またはフリマの取引チャットがここに表示されます。",
+    body: "通常のDM・グループ、団体チャット、授業掲示板、またはフリマの取引チャットがここに表示されます。",
   };
 }
 
@@ -336,7 +336,7 @@ export function DmInboxPage() {
                     ) : item.kind === "recruiting" ? (
                       <>
                         <span className="dm-inbox-status is-recruiting">
-                          {item.status_label || "新歓チャット"}
+                          {item.status_label || "団体チャット"}
                         </span>
                         <span className="dm-inbox-handle">{item.subtitle}</span>
                       </>
@@ -383,8 +383,8 @@ export function DmInboxPage() {
       {userId != null ? (
         <Link
           className="dm-create-fab"
-          to="/dm/groups/new"
-          aria-label="グループを作成"
+          to="/dm/new"
+          aria-label="チャットを作成"
         >
           +
         </Link>

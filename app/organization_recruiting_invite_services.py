@@ -685,7 +685,7 @@ def build_recruiting_invite_conversations(user: AbstractBaseUser) -> list[dict]:
                 "invitation": invitation,
                 "partner": None,
                 "display_name": organization.name,
-                "subtitle": f"{organization.name}から新歓チャットに招待されています",
+                "subtitle": f"{organization.name}から団体チャットに招待されています",
                 "status_label": "招待あり",
                 "latest_message": None,
                 "latest_sender_display_name": "",
@@ -727,11 +727,11 @@ def _notify_recruiting_invite(invitation: ChatRoomInvitation) -> None:
     org_name = organization.name
     create_notification(
         recipient=invitation.invitee,
-        message=f"{org_name}から新歓チャットに招待されました",
+        message=f"{org_name}から団体チャットに招待されました",
         link=link,
         actor=invitation.inviter,
         push_kind=PUSH_KIND_RECRUITING_INVITE,
-        push_body=f"「{org_name}から新歓チャットに招待されました」",
+        push_body=f"「{org_name}から団体チャットに招待されました」",
     )
 
 
@@ -746,16 +746,19 @@ def _resolve_recruiting_invite_notifications(
     slug = getattr(organization, "slug", "") or ""
     org_name = getattr(organization, "name", "") or "団体"
     if cancelled:
-        new_message = f"{org_name}からの新歓チャット招待は取り消されました"
+        new_message = f"{org_name}からの団体チャット招待は取り消されました"
     elif accepted:
-        new_message = f"{org_name}の新歓チャットに参加しました"
+        new_message = f"{org_name}の団体チャットに参加しました"
     else:
-        new_message = f"{org_name}からの新歓チャット招待を辞退しました"
+        new_message = f"{org_name}からの団体チャット招待を辞退しました"
     for note in Notification.objects.filter(recipient=invitee):
         if not _notification_link_matches_recruiting_invite(note.link or "", slug):
             continue
-        if "新歓チャット" not in (note.message or "") and "招待" not in (
-            note.message or ""
+        text = note.message or ""
+        if (
+            "新歓チャット" not in text
+            and "団体チャット" not in text
+            and "招待" not in text
         ):
             continue
         note.message = new_message

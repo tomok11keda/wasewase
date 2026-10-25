@@ -112,7 +112,7 @@ export function OrganizationRecruitingChatInfoPage() {
 
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="dm-page chat-info-page" data-spa-page="新歓チャット詳細">
+      <div className="dm-page chat-info-page" data-spa-page="団体チャット詳細">
         <div className="main-inner">
           <p>チャット詳細はログイン後に利用できます。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
@@ -126,7 +126,7 @@ export function OrganizationRecruitingChatInfoPage() {
   const onLeave = async () => {
     if (
       !window.confirm(
-        "新歓チャットから退出しますか？退出するとメッセージを読めなくなります。"
+        "団体チャットから退出しますか？退出するとメッセージを読めなくなります。"
       )
     ) {
       return;
@@ -143,12 +143,12 @@ export function OrganizationRecruitingChatInfoPage() {
     }
   };
 
-  const title = chat?.name || "新歓チャット";
+  const title = chat?.name || "団体チャット";
   const orgLabel = orgName || "";
   const initial = organizationInitial(orgLabel || title);
 
   return (
-    <div className="dm-page chat-info-page" data-spa-page="新歓チャット詳細">
+    <div className="dm-page chat-info-page" data-spa-page="団体チャット詳細">
       <div className="main-inner">
         {loading || sessionLoading ? (
           <>
@@ -176,7 +176,7 @@ export function OrganizationRecruitingChatInfoPage() {
               <h1>{title}</h1>
               <p>
                 {orgLabel ? `${orgLabel} · ` : ""}
-                新歓チャット
+                団体チャット
                 {typeof chat?.member_count === "number"
                   ? ` · ${chat.member_count}人`
                   : ""}

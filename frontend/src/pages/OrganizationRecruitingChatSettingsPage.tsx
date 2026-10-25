@@ -108,9 +108,9 @@ export function OrganizationRecruitingChatSettingsPage() {
 
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット設定">
+      <div className="org-edit-page" data-spa-page="団体チャット設定">
         <div className="main-inner">
-          <p>新歓チャットの設定にはログインが必要です。</p>
+          <p>団体チャットの設定にはログインが必要です。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
             ログイン
           </Link>
@@ -121,7 +121,7 @@ export function OrganizationRecruitingChatSettingsPage() {
 
   if (loading || sessionLoading) {
     return (
-      <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット設定">
+      <div className="org-edit-page org-recruiting-manage-page" data-spa-page="団体チャット設定">
         <div className="main-inner">
           <FormSkeleton />
         </div>
@@ -135,7 +135,7 @@ export function OrganizationRecruitingChatSettingsPage() {
 
   if (loadError === "not_found") {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット設定">
+      <div className="org-edit-page" data-spa-page="団体チャット設定">
         <div className="main-inner">
           <p>この団体は見つからないか、表示できません。</p>
           <Link to={`/orgs/${slug}`}>団体プロフィールへ戻る</Link>
@@ -146,9 +146,9 @@ export function OrganizationRecruitingChatSettingsPage() {
 
   if (!canManage && !canCreate) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット設定">
+      <div className="org-edit-page" data-spa-page="団体チャット設定">
         <div className="main-inner">
-          <p>新歓チャットを管理する権限がありません。</p>
+          <p>団体チャットを管理する権限がありません。</p>
           <Link to={`/orgs/${slug}`}>団体プロフィールへ戻る</Link>
         </div>
       </div>
@@ -216,11 +216,11 @@ export function OrganizationRecruitingChatSettingsPage() {
   };
 
   return (
-    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット設定">
+    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="団体チャット設定">
       <div className="main-inner">
         <p className="form-lead">
           {isCreate
-            ? "団体につき有効な新歓チャットは1件です。作成後、学生が団体プロフィールから参加できます。"
+            ? "団体につき有効な団体チャットは1件です。作成後、学生が団体プロフィールから参加できます。"
             : "チャット名・説明・参加方式・募集状態を変更できます。"}
         </p>
         {!isCreate &&

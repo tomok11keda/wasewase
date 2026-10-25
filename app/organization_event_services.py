@@ -462,12 +462,12 @@ def _notify_registered(event: OrganizationEvent, user_id: int) -> None:
     create_notification(
         recipient_id=user_id,
         message=(
-            f"「{org_name}」の新歓イベント「{event.title}」に申し込みました。"
+            f"「{org_name}」のイベント「{event.title}」に申し込みました。"
         ),
         link=_event_link(event),
         actor=None,
         push_kind=PUSH_KIND_ORG_EVENT_REGISTERED,
-        push_body="新歓イベントに申し込みました",
+        push_body="イベントに申し込みました",
     )
 
 
@@ -478,12 +478,12 @@ def _notify_event_cancelled(event: OrganizationEvent, user_ids: list[int]) -> No
         create_notification(
             recipient_id=user_id,
             message=(
-                f"「{org_name}」の新歓イベント「{event.title}」が中止になりました。"
+                f"「{org_name}」のイベント「{event.title}」が中止になりました。"
             ),
             link=link,
             actor=None,
             push_kind=PUSH_KIND_ORG_EVENT_CANCELLED,
-            push_body="申し込み中の新歓イベントが中止になりました",
+            push_body="申し込み中のイベントが中止になりました",
         )
 
 
@@ -494,13 +494,13 @@ def _notify_event_updated(event: OrganizationEvent, user_ids: list[int]) -> None
         create_notification(
             recipient_id=user_id,
             message=(
-                f"「{org_name}」の新歓イベント「{event.title}」の日時または会場が"
+                f"「{org_name}」のイベント「{event.title}」の日時または会場が"
                 "変更されました。"
             ),
             link=link,
             actor=None,
             push_kind=PUSH_KIND_ORG_EVENT_UPDATED,
-            push_body="申し込み中の新歓イベントの内容が更新されました",
+            push_body="申し込み中のイベントの内容が更新されました",
         )
 
 

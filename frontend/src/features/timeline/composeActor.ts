@@ -50,6 +50,26 @@ export function composeActorLabel(actor: ComposeActorSnapshot | null | undefined
   return "個人アカウント";
 }
 
+/** Hub / deep-link may pass the intended org so compose does not wait on actor. */
+export function composeActorFromNavOrganization(
+  raw: unknown
+): ComposeActorSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const id = data.id;
+  if (typeof id !== "number" || !Number.isInteger(id) || id <= 0) return null;
+  return snapshotComposeActor({
+    type: "organization",
+    organization: {
+      id,
+      name: typeof data.name === "string" ? data.name : "",
+      slug: typeof data.slug === "string" ? data.slug : "",
+      avatar_url: typeof data.avatar_url === "string" ? data.avatar_url : "",
+      is_verified: data.is_verified === true,
+    },
+  });
+}
+
 /** 個人モードでは organization_id を付けない。失敗時の個人フォールバック禁止。 */
 export function organizationIdForCompose(
   actor: ComposeActorSnapshot | null | undefined

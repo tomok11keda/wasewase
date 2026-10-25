@@ -86,7 +86,7 @@ export function OrganizationRecruitingChatInvitePage() {
 
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット招待">
+      <div className="org-edit-page" data-spa-page="団体チャット招待">
         <div className="main-inner">
           <p>招待の確認にはログインが必要です。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
@@ -140,12 +140,12 @@ export function OrganizationRecruitingChatInvitePage() {
   });
 
   return (
-    <div className="org-edit-page" data-spa-page="新歓チャット招待">
+    <div className="org-edit-page" data-spa-page="団体チャット招待">
       <div className="main-inner">
         {loading || sessionLoading ? (
           <PeopleListSkeleton />
         ) : view === "responded" ? (
-          <section className="org-recruiting-card" aria-label="新歓チャット招待">
+          <section className="org-recruiting-card" aria-label="団体チャット招待">
             <h1 className="org-recruiting-card__title">招待を確認できません</h1>
             <p className="org-recruiting-card__lead">
               この招待は取り消されたか、すでに応答済みです。

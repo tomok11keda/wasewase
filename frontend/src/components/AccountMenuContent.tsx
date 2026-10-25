@@ -183,7 +183,7 @@ export function AccountMenuContent({
                 replace={overlayReplace()}
                 onClick={() => onNavigate?.()}
               >
-                プロフィール
+                {orgActor ? "団体プロフィール" : "プロフィール"}
               </Link>
             </li>
             {orgActor ? (

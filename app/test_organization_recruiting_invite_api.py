@@ -416,7 +416,7 @@ class OrganizationRecruitingInviteApiTests(TestCase):
         notes = Notification.objects.filter(recipient=self.student)
         self.assertEqual(notes.count(), 1)
         note = notes.get()
-        self.assertIn("招待サークルから新歓チャットに招待されました", note.message)
+        self.assertIn("招待サークルから団体チャットに招待されました", note.message)
         self.assertIn("/recruiting-chat/invite", note.link)
         self._invite(self.student)
         self.assertEqual(Notification.objects.filter(recipient=self.student).count(), 1)
@@ -477,7 +477,7 @@ class OrganizationRecruitingInviteApiTests(TestCase):
         note = next(
             row
             for row in notes.json()["notifications"]
-            if "新歓チャットに招待" in row["message"]
+            if "団体チャットに招待" in row["message"]
         )
         self.assertEqual(
             notification_spa_path(note["link"]).split("?")[0],

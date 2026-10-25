@@ -99,7 +99,7 @@ export function OrganizationRecruitingChatMembersPage() {
 
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット参加者">
+      <div className="org-edit-page" data-spa-page="団体チャット参加者">
         <div className="main-inner">
           <p>参加者管理にはログインが必要です。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
@@ -113,7 +113,7 @@ export function OrganizationRecruitingChatMembersPage() {
   const onRemove = (member: RecruitingMember) => {
     if (member.user_id == null) return;
     const name = member.display_name || member.username || "この参加者";
-    if (!window.confirm(`${name}さんを新歓チャットから除外しますか？`)) return;
+    if (!window.confirm(`${name}さんを団体チャットから除外しますか？`)) return;
     if (busyRef.current) return;
     busyRef.current = true;
     setBusyId(member.user_id);
@@ -132,9 +132,9 @@ export function OrganizationRecruitingChatMembersPage() {
   };
 
   return (
-    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット参加者">
+    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="団体チャット参加者">
       <div className="main-inner">
-        <p className="form-lead">新歓チャットの参加者です。除外するとメッセージを読めなくなります。</p>
+        <p className="form-lead">団体チャットの参加者です。除外するとメッセージを読めなくなります。</p>
         {canShowRecruitingManageNav({
           hydrated: !loading && !sessionLoading,
           canManage,

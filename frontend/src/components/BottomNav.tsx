@@ -1,13 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { TAB_ROUTES } from "../lib/tabs";
+import { useAccount } from "../lib/accountContext";
+import { visibleTabRoutes } from "../lib/tabs";
 import { useSpaNavDiag, withSpaNavDiagSearch } from "../lib/spaNavDiag";
 
 export function BottomNav() {
   const diag = useSpaNavDiag();
+  const { actor } = useAccount();
+  const tabs = visibleTabRoutes(actor.type === "organization");
 
   return (
     <nav className="bottom-nav" aria-label="メイン">
-      {TAB_ROUTES.map((tab) => (
+      {tabs.map((tab) => (
         <NavLink
           key={tab.id}
           to={withSpaNavDiagSearch(tab.path, diag)}

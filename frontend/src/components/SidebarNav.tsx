@@ -5,7 +5,7 @@ import { useSession } from "../lib/session";
 import { logoutRequest, performSpaLogout, spaLoginPath } from "../features/auth/api";
 import { organizationInitial } from "../features/orgs/orgProfile";
 import { analyticsLogout } from "../lib/analytics/client";
-import { TAB_ROUTES } from "../lib/tabs";
+import { visibleTabRoutes } from "../lib/tabs";
 import type { MeResponse } from "../lib/api";
 import { AccountAvatar } from "./AccountAvatar";
 import { AccountSwitcher } from "./AccountSwitcher";
@@ -30,6 +30,7 @@ export function SidebarNav() {
   const dmUnread = me?.dm_unread_total || 0;
   const user = me?.user;
   const orgActor = actor.type === "organization" ? actor.organization : null;
+  const tabs = visibleTabRoutes(orgActor != null);
   const identityPath = orgActor
     ? `/orgs/${orgActor.slug}`
     : user
@@ -74,7 +75,7 @@ export function SidebarNav() {
       </NavLink>
 
       <ul className="sidebar-nav">
-        {TAB_ROUTES.map((tab) => (
+        {tabs.map((tab) => (
           <li key={tab.id}>
             <NavLink
               to={tab.path}
@@ -205,7 +206,7 @@ export function SidebarNav() {
                   )}
                 </span>
                 <span className="sidebar-user__handle">
-                  {orgActor ? "学生団体" : `@${user.username}`}
+                  {orgActor ? "団体プロフィール" : `@${user.username}`}
                 </span>
               </span>
             </Link>

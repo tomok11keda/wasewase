@@ -20,6 +20,9 @@ test("message stack includes inbox, personal, group, and recruiting rooms", () =
 test("message stack excludes info, create, course, trade, and other details", () => {
   assert.equal(isMessageStackPath("/dm/groups/12/info"), false);
   assert.equal(isMessageStackPath("/dm/groups/new"), false);
+  assert.equal(isMessageStackPath("/dm/new"), false);
+  assert.equal(isMessageStackPath("/dm/new/direct"), false);
+  assert.equal(isMessageStackPath("/dm/new/org-chat"), false);
   assert.equal(isMessageStackPath("/dm/requests"), false);
   assert.equal(isMessageStackPath("/courses/8/talk"), false);
   assert.equal(isMessageStackPath("/flea/chats/3"), false);

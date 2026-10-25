@@ -42,10 +42,10 @@ export function headerPreviewFromInboxItem(
   if (item.kind === "recruiting" || item.kind === "recruiting_invite") {
     return {
       title: item.display_name,
-      subtitle: item.organization_name || item.subtitle || "新歓チャット",
+      subtitle: item.organization_name || item.subtitle || "団体チャット",
       avatarUrl:
         item.organization_avatar_url || item.thumbnail_url || undefined,
-      avatarInitial: (item.display_name || "新").slice(0, 1),
+      avatarInitial: (item.display_name || "団").slice(0, 1),
       avatarShape: "rounded",
     };
   }

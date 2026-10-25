@@ -100,7 +100,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
 
   if (browsePreview || (!sessionLoading && !me?.authenticated)) {
     return (
-      <div className="org-edit-page" data-spa-page="新歓チャット申請">
+      <div className="org-edit-page" data-spa-page="団体チャット申請">
         <div className="main-inner">
           <p>申請管理にはログインが必要です。</p>
           <Link className="btn btn-primary" to={spaLoginPath(loginNext)}>
@@ -133,7 +133,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
   };
 
   return (
-    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="新歓チャット申請">
+    <div className="org-edit-page org-recruiting-manage-page" data-spa-page="団体チャット申請">
       <div className="main-inner">
         <p className="form-lead">承認待ちの参加申請です。メールアドレスは表示しません。</p>
         {canShowRecruitingManageNav({

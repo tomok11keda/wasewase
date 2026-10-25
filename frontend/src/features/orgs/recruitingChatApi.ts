@@ -112,7 +112,7 @@ export async function fetchRecruitingChat(
       result.status,
       "not_found",
       result.data,
-      "新歓チャットが見つからないか、表示できません。"
+      "団体チャットが見つからないか、表示できません。"
     );
   }
   if (!result.ok) {
@@ -120,7 +120,7 @@ export async function fetchRecruitingChat(
       result.status,
       result.error,
       result.data,
-      "新歓チャットを読み込めませんでした。"
+      "団体チャットを読み込めませんでした。"
     );
   }
   const envelope = parseRecruitingChatEnvelope(result.data);
@@ -129,7 +129,7 @@ export async function fetchRecruitingChat(
       result.status,
       "invalid_payload",
       result.data,
-      "新歓チャットを読み込めませんでした。"
+      "団体チャットを読み込めませんでした。"
     );
   }
   return envelope;
@@ -150,14 +150,14 @@ export async function createRecruitingChat(
       result.status,
       result.error,
       result.data,
-      "新歓チャットを作成できませんでした。"
+      "団体チャットを作成できませんでした。"
     );
   }
   throwRecruitingError(
     result.status,
     result.error,
     result.data,
-    "新歓チャットを作成できませんでした。"
+    "団体チャットを作成できませんでした。"
   );
 }
 

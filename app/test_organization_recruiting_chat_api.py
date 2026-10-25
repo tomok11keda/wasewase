@@ -335,7 +335,7 @@ class OrganizationRecruitingChatApiTests(TestCase):
         self.assertEqual(item["organization_name"], self.org.name)
         self.assertEqual(item["viewer_role"], "member")
         self.assertEqual(item["latest_body"], "inbox本文")
-        self.assertEqual(item["status_label"], "新歓チャット")
+        self.assertEqual(item["status_label"], "団体チャット")
         self.assertEqual(
             item["spa_path"],
             f"/organizations/{self.org.slug}/recruiting-chat",

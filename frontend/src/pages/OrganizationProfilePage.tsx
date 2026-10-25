@@ -11,6 +11,7 @@ import {
   type OrganizationPostsPayload,
 } from "../features/orgs/api";
 import { OrganizationEventSection } from "../features/orgs/OrganizationEventSection";
+import { OrganizationManageHub } from "../features/orgs/OrganizationManageHub";
 import { RecruitingChatSection } from "../features/orgs/RecruitingChatSection";
 import {
   fetchOrganizationEvents,
@@ -29,6 +30,7 @@ import {
 import { fetchRecruitingChat } from "../features/orgs/recruitingChatApi";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import type { TimelinePost } from "../features/timeline/api";
+import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
   isLatestRequest,
@@ -48,6 +50,7 @@ export function OrganizationProfilePage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
+  const { selectOrganization } = useAccount();
   const browsePreview = isBrowsePreview(me);
   const viewerId = me?.authenticated ? me.user?.id ?? null : null;
   const [payload, setPayload] = useState<OrganizationProfilePayload | null>(
@@ -247,7 +250,7 @@ export function OrganizationProfilePage() {
         can_create: payload.can_manage && summary == null,
         can_manage: payload.can_manage,
       });
-      setRecruitingError("新歓チャットの最新情報を取得できませんでした。");
+      setRecruitingError("団体チャットの最新情報を取得できませんでした。");
     } finally {
       if (
         isLatestRequest(recruitingGenRef, requestId) &&
@@ -451,14 +454,28 @@ export function OrganizationProfilePage() {
             </div>
           ) : null}
 
-          {payload.can_manage ? (
-            <div className="profile-actions profile-actions--own">
-              <Link className="btn btn-secondary" to={`/orgs/${org.slug}/edit`}>
-                プロフィールを編集
-              </Link>
-            </div>
-          ) : null}
         </section>
+
+        <OrganizationManageHub
+          slug={org.slug}
+          canManage={payload.can_manage}
+          recruiting={recruiting}
+          onComposeAsOrg={() => {
+            selectOrganization(org.id);
+            navigate("/", {
+              state: {
+                openCompose: true,
+                composeOrganization: {
+                  id: org.id,
+                  name: org.name,
+                  slug: org.slug,
+                  avatar_url: org.avatar_url,
+                  is_verified: org.is_verified,
+                },
+              },
+            });
+          }}
+        />
 
         <RecruitingChatSection
           slug={org.slug}

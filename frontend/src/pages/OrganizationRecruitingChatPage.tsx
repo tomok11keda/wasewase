@@ -408,9 +408,9 @@ export function OrganizationRecruitingChatPage() {
 
   if (browsePreview) {
     return (
-      <div className="dm-page" data-spa-page="新歓チャット">
+      <div className="dm-page" data-spa-page="団体チャット">
         <div className="main-inner">
-          <p>新歓チャットはログイン後に利用できます。</p>
+          <p>団体チャットはログイン後に利用できます。</p>
         </div>
       </div>
     );
@@ -436,7 +436,7 @@ export function OrganizationRecruitingChatPage() {
   const memberCount = room?.member_count ?? chat?.member_count;
   const subtitle = [
     orgLabel || null,
-    "新歓チャット",
+    "団体チャット",
     typeof memberCount === "number" ? `${memberCount}人` : null,
   ]
     .filter(Boolean)
@@ -446,7 +446,7 @@ export function OrganizationRecruitingChatPage() {
   const showHeaderData = Boolean(title);
 
   return (
-    <div className="dm-page dm-room-page org-recruiting-room" data-spa-page="新歓チャット">
+    <div className="dm-page dm-room-page org-recruiting-room" data-spa-page="団体チャット">
       <main className="main-inner dm-room-main">
         {showHeaderData ? (
           <ChatRoomHeader
@@ -474,7 +474,7 @@ export function OrganizationRecruitingChatPage() {
         )}
 
         {phase === "skeleton" ? (
-          <section className="chat-panel" aria-label="新歓チャット">
+          <section className="chat-panel" aria-label="団体チャット">
             <ChatThreadSkeleton />
             <ChatComposeSkeleton allowMedia={false} />
           </section>
@@ -482,8 +482,8 @@ export function OrganizationRecruitingChatPage() {
           <ChatLoadError
             message={
               error === "not_found" || error === "forbidden"
-                ? "新歓チャットが見つからないか、表示できません。"
-                : `新歓チャットを表示できません（${error || "load_failed"}）`
+                ? "団体チャットが見つからないか、表示できません。"
+                : `団体チャットを表示できません（${error || "load_failed"}）`
             }
             onRetry={() => setReloadKey((key) => key + 1)}
           />
@@ -542,7 +542,7 @@ export function OrganizationRecruitingChatPage() {
           />
           </div>
         ) : (
-          <section className="chat-panel" aria-label="新歓チャット">
+          <section className="chat-panel" aria-label="団体チャット">
             <div className="dm-message-area" ref={threadRef}>
               {loadingOlder ? (
                 <p className="chat-hint" style={{ textAlign: "center" }}>

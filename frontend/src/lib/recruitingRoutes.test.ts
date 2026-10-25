@@ -86,7 +86,7 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
   );
   assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/settings")?.title,
-    "新歓チャット設定"
+    "団体チャット設定"
   );
   assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/applications")?.title,
@@ -98,7 +98,7 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
   );
   assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/invite")?.title,
-    "新歓チャット招待"
+    "団体チャット招待"
   );
   assert.equal(
     matchDetailChrome("/dm/groups/12/info")?.title,
@@ -139,4 +139,22 @@ test("existing dm group and course rooms stay conversations", () => {
   assert.equal(isConversationPath("/dm"), false);
   assert.equal(matchChromeMode("/dm/groups/12/info"), "detail");
   assert.equal(matchChromeMode("/organizations/circle/recruiting-chat/info"), "detail");
+});
+
+test("inbox compose picker uses detail chrome and keeps personal/group/org paths", () => {
+  assert.equal(isConversationPath("/dm/new"), false);
+  assert.equal(matchChromeMode("/dm/new"), "detail");
+  assert.equal(matchDetailChrome("/dm/new")?.title, "新しいチャット");
+  assert.equal(matchDetailChrome("/dm/new/direct")?.title, "個人チャット");
+  assert.equal(matchDetailChrome("/dm/new/org-chat")?.title, "団体チャット");
+  assert.equal(matchDetailChrome("/dm/groups/new")?.title, "グループ作成");
+  assert.equal(matchDetailChrome("/dm/groups/new")?.back.to, "/dm/new");
+  assert.equal(
+    matchDetailChrome("/dm/new")?.back.kind,
+    "history-or-fallback"
+  );
+  assert.equal(
+    matchDetailChrome("/dm/new/org-chat")?.back.kind,
+    "history-or-fallback"
+  );
 });

@@ -25,7 +25,7 @@ export function LotteryShareCard({
   return (
     <Link className="share-card share-card--lottery" to={to}>
       <p className="share-card__brand">抽選結果</p>
-      <p className="share-card__title">{content.title || "新歓イベント"}</p>
+      <p className="share-card__title">{content.title || "イベント"}</p>
       <p className="share-card__body">
         応募 {content.applicant_count}人 · 対象 {content.eligible_count}人
       </p>

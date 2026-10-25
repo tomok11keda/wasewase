@@ -15,7 +15,7 @@ type Props = {
 
 export function RecruitingManageNav({ slug, pendingCount }: Props) {
   return (
-    <nav className="org-recruiting-manage-nav" aria-label="新歓チャット管理">
+    <nav className="org-recruiting-manage-nav" aria-label="団体チャット管理">
       <NavLink to={recruitingChatPath(slug)} end>
         チャット
       </NavLink>
