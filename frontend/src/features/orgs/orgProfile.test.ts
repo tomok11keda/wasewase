@@ -38,6 +38,7 @@ test("form validation rejects empty name and bad urls", () => {
     category: "faculty",
     instagram_url: "not-a-url",
     website_url: "javascript:alert(1)",
+    links: [],
   });
   assert.ok(errors.name);
   assert.ok(errors.category);
@@ -52,6 +53,7 @@ test("form validation accepts a complete public profile", () => {
     category: "circle",
     instagram_url: "",
     website_url: "https://example.com",
+    links: [],
   });
   assert.deepEqual(errors, {});
 });
@@ -125,6 +127,49 @@ test("payload parser reads recruiting_chat summary without emails", () => {
   assert.equal(parsed?.recruiting_chat?.room_id, null);
 });
 
+test("payload parser does not resurrect leftover columns when links is empty", () => {
+  const parsed = parseOrganizationProfilePayload({
+    ok: true,
+    organization: {
+      id: 3,
+      name: "公開サークル",
+      slug: "listed-circle",
+      description: "紹介",
+      avatar_url: "",
+      category: "circle",
+      instagram_url: "https://instagram.com/stale",
+      website_url: "https://stale.example",
+      is_verified: true,
+      links: [],
+    },
+    can_manage: true,
+    my_role: "owner",
+  });
+  assert.deepEqual(parsed?.organization.links, []);
+});
+
+test("payload parser seeds legacy urls only when links key is missing", () => {
+  const parsed = parseOrganizationProfilePayload({
+    ok: true,
+    organization: {
+      id: 3,
+      name: "公開サークル",
+      slug: "listed-circle",
+      description: "紹介",
+      avatar_url: "",
+      category: "circle",
+      instagram_url: "https://instagram.com/legacy",
+      website_url: "https://legacy.example",
+      is_verified: true,
+    },
+    can_manage: true,
+    my_role: "owner",
+  });
+  assert.equal(parsed?.organization.links.length, 2);
+  assert.equal(parsed?.organization.links[0].url, "https://instagram.com/legacy");
+  assert.equal(parsed?.organization.links[1].url, "https://legacy.example");
+});
+
 test("edit form snapshot does not include slug or status", () => {
   const form = formFromOrganization({
     id: 1,
@@ -136,6 +181,7 @@ test("edit form snapshot does not include slug or status", () => {
     instagram_url: "",
     website_url: "",
     is_verified: true,
+    links: [],
   });
   assert.equal("slug" in form, false);
   assert.equal("status" in form, false);

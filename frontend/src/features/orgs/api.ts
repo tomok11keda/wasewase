@@ -9,6 +9,7 @@ import {
   parseManagedOrganizationsPayload,
   type ManagedOrganization,
 } from "./managedOrganizations";
+import { legacyUrlsFromLinks, serializeLinksForApi } from "../profileLinks/profileLinks";
 import {
   firstFieldError,
   parseOrganizationProfilePayload,
@@ -102,12 +103,15 @@ export async function updateOrganizationProfile(
   form: OrganizationProfileForm,
   avatar: File | null
 ): Promise<OrganizationProfilePayload> {
+  const links = serializeLinksForApi(form.links || []);
+  const legacy = legacyUrlsFromLinks(form.links || []);
   const fields = {
     name: form.name.trim(),
     description: form.description.trim(),
     category: form.category,
-    instagram_url: form.instagram_url.trim(),
-    website_url: form.website_url.trim(),
+    instagram_url: legacy.instagram_url,
+    website_url: legacy.website_url,
+    links,
   };
   const result = avatar
     ? await apiPatchForm(
@@ -119,6 +123,7 @@ export async function updateOrganizationProfile(
           body.set("category", fields.category);
           body.set("instagram_url", fields.instagram_url);
           body.set("website_url", fields.website_url);
+          body.set("links", JSON.stringify(fields.links));
           body.set("avatar", avatar);
           return body;
         })()

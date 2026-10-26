@@ -83,6 +83,8 @@ class OrganizationProfileApiTests(TestCase):
         self.assertEqual(body["instagram_url"], org.instagram_url)
         self.assertEqual(body["website_url"], org.website_url)
         self.assertEqual(body["is_verified"], org.is_verified)
+        self.assertIn("links", body)
+        self.assertIsInstance(body["links"], list)
         self.assertIn("avatar_url", body)
         blob = json.dumps(data)
         self.assertNotIn("@waseda.jp", blob)

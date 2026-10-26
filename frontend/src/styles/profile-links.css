@@ -1,0 +1,236 @@
+.profile-links-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 40px;
+  margin: 0 0 12px;
+  padding: 0 14px;
+  border: 1px solid #cfd9de;
+  border-radius: 999px;
+  background: #fff;
+  color: #222;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.profile-links-chip .sf-icon {
+  flex: 0 0 auto;
+}
+
+.profile-links-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-links-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.profile-links-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.profile-links-modal__card {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: min(400px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.profile-links-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  padding: 14px 16px 10px;
+  background: #fff;
+}
+
+.profile-links-modal__header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.profile-links-modal__close {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: #536471;
+  cursor: pointer;
+}
+
+.profile-links-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 12px;
+}
+
+.profile-links-modal__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-links-modal__item:hover,
+.profile-links-modal__item:focus-visible {
+  background: #f7f9fa;
+}
+
+.profile-links-modal__text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-links-modal__title,
+.profile-links-modal__host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-links-modal__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.profile-links-modal__host {
+  font-size: 13px;
+  color: #536471;
+}
+
+@media (max-width: 360px) {
+  .profile-links-modal {
+    padding: 8px;
+  }
+
+  .profile-links-modal__card {
+    width: 100%;
+    max-height: min(90vh, 560px);
+    border-radius: 14px;
+  }
+
+  .profile-links-modal__header {
+    padding: 12px 12px 8px;
+  }
+
+  .profile-links-modal__title,
+  .profile-links-modal__host {
+    word-break: break-all;
+    white-space: normal;
+  }
+}
+
+.profile-links-editor {
+  margin: 0 0 16px;
+}
+
+.profile-links-editor__head label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.profile-links-editor__list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.profile-links-editor__row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e6ecf0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.profile-links-editor__fields {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-links-editor__label {
+  font-size: 12px;
+  color: #536471;
+}
+
+.profile-links-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-links-editor__move,
+.profile-links-editor__remove,
+.profile-links-editor__add {
+  min-height: 44px;
+}
+
+.profile-links-editor__move,
+.profile-links-editor__remove {
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid #cfd9de;
+  border-radius: 10px;
+  background: #fff;
+  color: #222;
+  font-weight: 700;
+}
+
+.profile-links-editor__add {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .profile-links-editor__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .profile-links-editor__actions {
+    flex-direction: column;
+  }
+}

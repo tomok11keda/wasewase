@@ -21,8 +21,9 @@ from .profile_api_services import serialize_profile_user
 from .timetable_privacy_services import get_or_create_profile
 
 EDITABLE_FIELDS = frozenset(
-    {"name", "bio", "avatar", "department", "grade", "user_id", "username"}
+    {"name", "bio", "avatar", "department", "grade", "user_id", "username", "links"}
 )
+_LINKS_UNSET = object()
 FORBIDDEN_FIELDS = frozenset(
     {
         "id",
@@ -64,11 +65,14 @@ def _choice_options(choices, *, include_blank: bool) -> list[dict[str, str]]:
 
 
 def serialize_own_profile_payload(user: AbstractBaseUser) -> dict[str, Any]:
+    from .profile_link_services import serialize_user_links
+
     profile = get_or_create_profile(user)
     user.refresh_from_db()
     payload_user = serialize_profile_user(user, profile)
     payload_user["name"] = getattr(profile, "name", None) or ""
     payload_user["username"] = public_username(user)
+    payload_user["links"] = serialize_user_links(user)
     return {
         "ok": True,
         "profile": payload_user,
@@ -132,7 +136,7 @@ def _parse_multipart_update(request: HttpRequest) -> dict[str, Any]:
     keys = set(post.keys()) | set(files.keys())
     _assert_allowed_keys(keys)
     fields: dict[str, Any] = {}
-    for key in ("name", "bio", "department", "grade", "user_id", "username"):
+    for key in ("name", "bio", "department", "grade", "user_id", "username", "links"):
         if key in post:
             fields[key] = post.get(key)
     avatar = files.get("avatar")
@@ -177,15 +181,25 @@ def _assert_allowed_keys(keys) -> None:
 
 
 def _normalize_patch_fields(fields: dict[str, Any]) -> dict[str, Any]:
+    from .profile_link_services import ProfileLinkError, coerce_links_field
+
     normalized = dict(fields)
     if "username" in normalized and "user_id" not in normalized:
         normalized["user_id"] = normalized.pop("username")
     elif "username" in normalized:
         normalized.pop("username")
+    if "links" in normalized:
+        try:
+            normalized["links"] = coerce_links_field(normalized["links"])
+        except ProfileLinkError as exc:
+            raise MeProfileApiError(exc.error, status=exc.status, **exc.extra) from exc
     return normalized
 
 
 def update_own_profile(user: AbstractBaseUser, fields: dict[str, Any]) -> dict[str, Any]:
+    from .profile_link_services import ProfileLinkError, replace_user_profile_links
+
+    links = fields.pop("links", _LINKS_UNSET)
     profile = get_or_create_profile(user)
     data = _instance_form_data(profile, user)
     files = None
@@ -205,6 +219,13 @@ def update_own_profile(user: AbstractBaseUser, fields: dict[str, Any]) -> dict[s
     try:
         with transaction.atomic():
             form.save()
+            if links is not _LINKS_UNSET:
+                try:
+                    replace_user_profile_links(user, links)
+                except ProfileLinkError as exc:
+                    raise MeProfileApiError(
+                        exc.error, status=exc.status, **exc.extra
+                    ) from exc
     except ValidationError as exc:
         messages = [str(message) for message in exc.messages]
         raise MeProfileApiError(

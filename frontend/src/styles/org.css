@@ -99,28 +99,6 @@
   text-align: center;
 }
 
-.org-profile-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 16px;
-}
-
-.org-profile-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid #cfd9de;
-  color: #222;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 700;
-  max-width: 100%;
-}
-
 .org-verified-badge {
   display: inline-flex;
   align-items: center;

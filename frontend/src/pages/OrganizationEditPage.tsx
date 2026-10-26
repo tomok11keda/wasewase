@@ -21,6 +21,7 @@ import {
 } from "../features/orgs/orgProfile";
 import { useAccount } from "../lib/accountContext";
 import { isBrowsePreview, useSession } from "../lib/session";
+import { ProfileLinksEditor } from "../features/profileLinks/ProfileLinksEditor";
 import { FormSkeleton } from "../components/skeleton";
 import {
   isLatestRequest,
@@ -389,43 +390,12 @@ export function OrganizationEditPage() {
             ) : null}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="org-instagram">Instagram URL</label>
-            <input
-              id="org-instagram"
-              type="url"
-              inputMode="url"
-              value={form.instagram_url}
-              disabled={busy || permissionLost}
-              placeholder="https://instagram.com/..."
-              onChange={(event) =>
-                setForm({ ...form, instagram_url: event.target.value })
-              }
-            />
-            {fieldError("instagram_url") ? (
-              <p className="org-edit-field-error">
-                {fieldError("instagram_url")}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="org-website">Webサイト URL</label>
-            <input
-              id="org-website"
-              type="url"
-              inputMode="url"
-              value={form.website_url}
-              disabled={busy || permissionLost}
-              placeholder="https://"
-              onChange={(event) =>
-                setForm({ ...form, website_url: event.target.value })
-              }
-            />
-            {fieldError("website_url") ? (
-              <p className="org-edit-field-error">{fieldError("website_url")}</p>
-            ) : null}
-          </div>
+          <ProfileLinksEditor
+            drafts={form.links || []}
+            disabled={busy || permissionLost}
+            errors={fieldErrors}
+            onChange={(links) => setForm({ ...form, links })}
+          />
 
           <button
             className="btn-submit"

@@ -58,7 +58,8 @@ def api_v1_me_profile(request: HttpRequest) -> JsonResponse:
 @require_GET
 def api_v1_profile_detail(request: HttpRequest, pk: int) -> JsonResponse:
     profile_user = get_object_or_404(
-        User.objects.select_related("profile"), pk=pk
+        User.objects.select_related("profile").prefetch_related("profile_links"),
+        pk=pk,
     )
     return JsonResponse(build_profile_payload(profile_user, _viewer(request)))
 

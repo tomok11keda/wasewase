@@ -27,6 +27,7 @@ import {
   OwnProfileRequestError,
   updateOwnProfile,
 } from "../features/profile/meProfileApi";
+import { ProfileLinksEditor } from "../features/profileLinks/ProfileLinksEditor";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
   isLatestRequest,
@@ -414,6 +415,13 @@ export function ProfileEditPage() {
               <p className="org-edit-field-error">{fieldError("bio")}</p>
             ) : null}
           </div>
+
+          <ProfileLinksEditor
+            drafts={form.links || []}
+            disabled={busy}
+            errors={fieldErrors}
+            onChange={(links) => setForm({ ...form, links })}
+          />
 
           <div className="form-group">
             <label htmlFor="own-department">学部</label>

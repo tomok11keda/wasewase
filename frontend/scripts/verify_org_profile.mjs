@@ -18,6 +18,14 @@ const listedOrg = {
     instagram_url: "https://instagram.com/example",
     website_url: "javascript:alert(1)",
     is_verified: true,
+    links: [
+      {
+        id: 1,
+        title: "Instagram",
+        url: "https://instagram.com/example",
+        position: 0,
+      },
+    ],
   },
   can_manage: false,
   my_role: null,
@@ -33,6 +41,20 @@ const managedOrg = {
     name: "管理サークル",
     website_url: "https://example.com",
     is_verified: false,
+    links: [
+      {
+        id: 1,
+        title: "Instagram",
+        url: "https://instagram.com/example",
+        position: 0,
+      },
+      {
+        id: 2,
+        title: "公式Webサイト",
+        url: "https://example.com",
+        position: 1,
+      },
+    ],
   },
 };
 
@@ -141,8 +163,21 @@ try {
   if (!listedText.includes("Instagram")) throw new Error("instagram link missing");
   if (listedText.includes("javascript:alert")) throw new Error("unsafe website leaked");
   if (listedText.includes("プロフィールを編集")) throw new Error("edit shown without can_manage");
-  const href = await listed.locator("a.org-profile-link", { hasText: "Instagram" }).getAttribute("href");
+  const chip = listed.locator("a.profile-links-chip");
+  if ((await chip.count()) !== 1) throw new Error("expected one profile link chip");
+  if ((await listed.locator("a.org-profile-link").count()) !== 0) {
+    throw new Error("legacy org-profile-link should not render");
+  }
+  const href = await chip.getAttribute("href");
   if (href !== "https://instagram.com/example") throw new Error("instagram href mismatch");
+  const target = await chip.getAttribute("target");
+  if (target !== "_blank") throw new Error("profile link target missing");
+  const rel = await chip.getAttribute("rel") || "";
+  if (!rel.includes("noopener") || !rel.includes("noreferrer")) {
+    throw new Error("profile link rel missing");
+  }
+  const label = await chip.locator(".profile-links-chip__label").innerText();
+  if (label.trim() !== "Instagram") throw new Error("profile link label mismatch");
   console.log("ok listed profile");
 
   const missing = await openPage(browser, {

@@ -147,7 +147,7 @@ def build_profile_payload(
         room = find_dm_room(viewer_auth, profile_user)
         dm_room_id = room.pk if room else None
 
-    return {
+    payload = {
         "ok": True,
         "user": serialize_profile_user(profile_user, profile),
         "stats": {
@@ -176,6 +176,14 @@ def build_profile_payload(
             profile_user, viewer_auth, can_view_content=can_view_content, is_own=is_own
         ),
     }
+    from .profile_link_services import serialize_user_links
+
+    payload["user"]["links"] = (
+        serialize_user_links(profile_user)
+        if is_own or can_view_content
+        else []
+    )
+    return payload
 
 
 def list_profile_posts(

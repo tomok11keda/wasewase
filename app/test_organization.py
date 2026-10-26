@@ -19,7 +19,14 @@ from .admin import (
     OrganizationMemberInline,
     UserAdmin,
 )
-from .models import Community, Organization, OrganizationMember, User, UserProfile
+from .models import (
+    Community,
+    Organization,
+    OrganizationMember,
+    ProfileLink,
+    User,
+    UserProfile,
+)
 from .organization_services import (
     LastOrganizationOwnerError,
     OrganizationMembershipError,
@@ -678,7 +685,7 @@ def _org_staff(email: str) -> User:
         password="test-pass-12345",
         is_staff=True,
     )
-    _grant_model_perms(user, Organization, OrganizationMember)
+    _grant_model_perms(user, Organization, OrganizationMember, ProfileLink)
     return user
 
 
@@ -704,6 +711,10 @@ def _org_admin_payload(org: Organization | None = None, **overrides) -> dict[str
         "memberships-INITIAL_FORMS": "0",
         "memberships-MIN_NUM_FORMS": "0",
         "memberships-MAX_NUM_FORMS": "1000",
+        "profile_links-TOTAL_FORMS": "0",
+        "profile_links-INITIAL_FORMS": "0",
+        "profile_links-MIN_NUM_FORMS": "0",
+        "profile_links-MAX_NUM_FORMS": "5",
         "_save": "保存",
     }
     if org is not None:

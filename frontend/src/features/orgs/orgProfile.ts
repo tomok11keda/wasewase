@@ -1,3 +1,11 @@
+import {
+  draftsFromLinks,
+  parseProfileLinks,
+  seedLinksFromLegacyUrls,
+  type ProfileLinkDraft,
+  type ProfileLinkItem,
+  validateProfileLinkDrafts,
+} from "../profileLinks/profileLinks.ts";
 import type { RecruitingChatSummary } from "./recruitingChat.ts";
 import { parseRecruitingChatSummary } from "./recruitingChat.ts";
 
@@ -40,6 +48,7 @@ export type OrganizationProfile = {
   instagram_url: string;
   website_url: string;
   is_verified: boolean;
+  links: ProfileLinkItem[];
 };
 
 export type OrganizationProfilePayload = {
@@ -56,6 +65,7 @@ export type OrganizationProfileForm = {
   category: string;
   instagram_url: string;
   website_url: string;
+  links: ProfileLinkDraft[];
 };
 
 export function organizationCategoryLabel(category: string): string {
@@ -142,6 +152,7 @@ export function validateOrganizationProfileForm(
       errors.website_url = "Webサイト URLの形式が正しくありません。";
     }
   }
+  Object.assign(errors, validateProfileLinkDrafts(form.links || []));
   return errors;
 }
 
@@ -172,6 +183,12 @@ export function parseOrganizationProfilePayload(
       instagram_url: asString(org.instagram_url),
       website_url: asString(org.website_url),
       is_verified: org.is_verified === true,
+      links: Array.isArray(org.links)
+        ? parseProfileLinks(org.links)
+        : seedLinksFromLegacyUrls(
+            asString(org.instagram_url),
+            asString(org.website_url)
+          ),
     },
     can_manage: data.can_manage === true,
     my_role: typeof role === "string" && role ? role : null,
@@ -190,6 +207,7 @@ export function formFromOrganization(
       : "other",
     instagram_url: organization.instagram_url,
     website_url: organization.website_url,
+    links: draftsFromLinks(organization.links || []),
   };
 }
 

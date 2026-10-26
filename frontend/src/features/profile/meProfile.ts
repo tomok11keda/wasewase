@@ -1,3 +1,11 @@
+import {
+  draftsFromLinks,
+  linksSignature,
+  parseProfileLinks,
+  type ProfileLinkDraft,
+  validateProfileLinkDrafts,
+} from "../profileLinks/profileLinks.ts";
+
 export const OWN_PROFILE_NAME_MAX = 80;
 export const OWN_PROFILE_HANDLE_MIN = 3;
 export const OWN_PROFILE_HANDLE_MAX = 30;
@@ -26,6 +34,7 @@ export type OwnProfileFields = {
   department: string;
   grade: string;
   department_grade: string;
+  links: ProfileLinkDraft[];
 };
 
 export type OwnProfilePayload = {
@@ -43,6 +52,7 @@ export type OwnProfileForm = {
   user_id: string;
   department: string;
   grade: string;
+  links: ProfileLinkDraft[];
 };
 
 export function formFromOwnProfile(profile: OwnProfileFields): OwnProfileForm {
@@ -52,6 +62,7 @@ export function formFromOwnProfile(profile: OwnProfileFields): OwnProfileForm {
     user_id: profile.username || "",
     department: profile.department || "",
     grade: profile.grade || "",
+    links: (profile.links || []).map((draft) => ({ ...draft })),
   };
 }
 
@@ -79,6 +90,7 @@ export function parseOwnProfilePayload(raw: unknown): OwnProfilePayload | null {
       grade: typeof row.grade === "string" ? row.grade : "",
       department_grade:
         typeof row.department_grade === "string" ? row.department_grade : "",
+      links: draftsFromLinks(parseProfileLinks(row.links)),
     },
     choices: {
       department: parseChoices(
@@ -136,6 +148,7 @@ export function validateOwnProfileForm(
     errors.user_id =
       "ユーザー名は英数字とアンダースコア（_）のみ、3〜30文字で入力してください。";
   }
+  Object.assign(errors, validateProfileLinkDrafts(form.links));
   return errors;
 }
 
@@ -150,7 +163,8 @@ export function isOwnProfileFormDirty(
     current.bio !== original.bio ||
     current.user_id !== original.user_id ||
     current.department !== original.department ||
-    current.grade !== original.grade
+    current.grade !== original.grade ||
+    linksSignature(current.links) !== linksSignature(original.links)
   );
 }
 

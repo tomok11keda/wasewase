@@ -6,6 +6,10 @@ import {
   parseMutualFriendsPreview,
   type MutualFriendsPreview,
 } from "./mutualFriends";
+import {
+  parseProfileLinks,
+  type ProfileLinkItem,
+} from "../profileLinks/profileLinks";
 
 export type { FollowListKind, FollowListUser };
 export type { MutualFriendsPreview };
@@ -28,6 +32,7 @@ export type ProfileUser = {
   grade: string;
   department_grade: string;
   is_operator_verified?: boolean | null;
+  links?: ProfileLinkItem[];
 };
 
 export type ProfilePayload = {
@@ -247,6 +252,12 @@ export async function fetchProfile(pk: number): Promise<ProfilePayload> {
     mutuals: parseMutualFriendsPreview(
       (data as { mutuals?: unknown }).mutuals
     ),
+    user: {
+      ...payload.user,
+      links: parseProfileLinks(
+        (data as { user?: { links?: unknown } }).user?.links
+      ),
+    },
   };
 }
 

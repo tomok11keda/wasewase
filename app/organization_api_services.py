@@ -52,8 +52,10 @@ EDITABLE_FIELDS = frozenset(
         "category",
         "instagram_url",
         "website_url",
+        "links",
     }
 )
+_LINKS_UNSET = object()
 FORBIDDEN_FIELDS = frozenset(
     {
         "id",
@@ -158,6 +160,7 @@ def serialize_organization_profile(
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
     from .organization_recruiting_chat_services import serialize_recruiting_chat_summary
+    from .profile_link_services import serialize_organization_links
 
     return {
         "ok": True,
@@ -171,6 +174,7 @@ def serialize_organization_profile(
             "instagram_url": organization.instagram_url or "",
             "website_url": organization.website_url or "",
             "is_verified": bool(organization.is_verified),
+            "links": serialize_organization_links(organization),
         },
         "can_manage": can_manage_organization(viewer, organization),
         "my_role": get_organization_membership_role(viewer, organization),
@@ -197,17 +201,61 @@ def update_organization_profile(
     if not can_manage_organization(actor, organization):
         raise OrganizationApiError("forbidden", status=403)
 
+    from .profile_link_services import (
+        LEGACY_URL_UNSET,
+        ProfileLinkError,
+        apply_legacy_organization_urls,
+        coerce_links_field,
+        replace_organization_profile_links,
+    )
+
+    raw_links = fields.pop("links", _LINKS_UNSET)
+    if raw_links is not _LINKS_UNSET:
+        try:
+            raw_links = coerce_links_field(raw_links)
+        except ProfileLinkError as exc:
+            raise OrganizationApiError(exc.error, status=exc.status, **exc.extra) from exc
+
     validated = _validate_update_fields(fields)
-    if not validated:
+    instagram_in_patch = "instagram_url" in validated
+    website_in_patch = "website_url" in validated
+    instagram_value = validated.pop("instagram_url", None) if instagram_in_patch else None
+    website_value = validated.pop("website_url", None) if website_in_patch else None
+    if (
+        not validated
+        and raw_links is _LINKS_UNSET
+        and not instagram_in_patch
+        and not website_in_patch
+    ):
         return serialize_organization_profile(organization, actor)
 
     with transaction.atomic():
         locked = Organization.objects.select_for_update().get(pk=organization.pk)
         if not can_manage_organization(actor, locked):
             raise OrganizationApiError("forbidden", status=403)
-        for key, value in validated.items():
-            setattr(locked, key, value)
-        locked.save(update_fields=[*validated.keys(), "updated_at"])
+        previous_instagram = locked.instagram_url or ""
+        previous_website = locked.website_url or ""
+        if validated:
+            for key, value in validated.items():
+                setattr(locked, key, value)
+            locked.save(update_fields=[*validated.keys(), "updated_at"])
+        try:
+            if raw_links is not _LINKS_UNSET:
+                replace_organization_profile_links(locked, raw_links)
+            elif instagram_in_patch or website_in_patch:
+                apply_legacy_organization_urls(
+                    locked,
+                    instagram_url=(
+                        instagram_value if instagram_in_patch else LEGACY_URL_UNSET
+                    ),
+                    website_url=website_value if website_in_patch else LEGACY_URL_UNSET,
+                    previous_instagram=previous_instagram,
+                    previous_website=previous_website,
+                )
+        except ProfileLinkError as exc:
+            raise OrganizationApiError(
+                exc.error, status=exc.status, **exc.extra
+            ) from exc
 
     locked.refresh_from_db()
     return serialize_organization_profile(locked, actor)

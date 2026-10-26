@@ -44,6 +44,7 @@ import {
 } from "../lib/userScopedResult";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { MutualFriendsRow } from "../features/profile/MutualFriendsRow";
+import { ProfileLinksChip } from "../features/profileLinks/ProfileLinksChip";
 import { TimetablePage } from "./TimetablePage";
 
 const TABS = [
@@ -448,6 +449,9 @@ export function ProfilePage() {
           </div>
 
           {u.bio ? <p className="profile-bio">{u.bio}</p> : null}
+          {profile.is_own || profile.can_view_content ? (
+            <ProfileLinksChip links={u.links || []} />
+          ) : null}
           {u.department_grade ? (
             <p className="profile-meta">{u.department_grade}</p>
           ) : null}

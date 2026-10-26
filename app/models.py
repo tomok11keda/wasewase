@@ -2429,6 +2429,60 @@ class OrganizationMember(models.Model):
         return super().delete(*args, **kwargs)
 
 
+class ProfileLink(models.Model):
+    """個人・団体プロフィールの外部リンク。owner は user か organization のどちらか一方。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_links",
+        verbose_name="ユーザー",
+        null=True,
+        blank=True,
+    )
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="profile_links",
+        verbose_name="団体",
+        null=True,
+        blank=True,
+    )
+    title = models.CharField("表示名", max_length=40, blank=True, default="")
+    url = models.URLField("URL", max_length=200)
+    position = models.PositiveSmallIntegerField("表示順", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "プロフィールリンク"
+        verbose_name_plural = "プロフィールリンク"
+        ordering = ["position", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(user_id__isnull=False, organization_id__isnull=True)
+                    | models.Q(user_id__isnull=True, organization_id__isnull=False)
+                ),
+                name="app_profilelink_owner_xor",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "position"],
+                condition=models.Q(user_id__isnull=False),
+                name="app_profilelink_user_pos_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "position"],
+                condition=models.Q(organization_id__isnull=False),
+                name="app_profilelink_org_pos_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        owner = self.user_id or self.organization_id
+        return f"{self.title or self.url} ({owner})"
+
+
 class OrganizationRecruitingChat(models.Model):
     """学生団体の新歓チャット設定。実体の会話は ChatRoom(kind=recruiting) を再利用する。
 

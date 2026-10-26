@@ -17,6 +17,7 @@ import "./styles/flea.css";
 import "./styles/timetable.css";
 import "./styles/courses.css";
 import "./styles/profile.css";
+import "./styles/profile-links.css";
 import "./styles/skeleton.css";
 import "./styles/org.css";
 import "./styles/dm.css";

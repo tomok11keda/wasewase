@@ -19,10 +19,10 @@ import {
 import type { OrganizationEvent } from "../features/orgs/orgEvents";
 import {
   organizationCategoryLabel,
-  organizationExternalHref,
   organizationInitial,
   type OrganizationProfilePayload,
 } from "../features/orgs/orgProfile";
+import { ProfileLinksChip } from "../features/profileLinks/ProfileLinksChip";
 import {
   parseRecruitingChat,
   type RecruitingChatEnvelope,
@@ -402,8 +402,6 @@ export function OrganizationProfilePage() {
   }
 
   const org = payload.organization;
-  const instagram = organizationExternalHref(org.instagram_url);
-  const website = organizationExternalHref(org.website_url);
 
   return (
     <div className="profile-page org-profile-page" data-spa-page="団体">
@@ -439,30 +437,7 @@ export function OrganizationProfilePage() {
             <p className="org-profile-empty">紹介文はまだありません。</p>
           )}
 
-          {instagram || website ? (
-            <div className="org-profile-links">
-              {instagram ? (
-                <a
-                  className="org-profile-link"
-                  href={instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Instagram
-                </a>
-              ) : null}
-              {website ? (
-                <a
-                  className="org-profile-link"
-                  href={website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Webサイト
-                </a>
-              ) : null}
-            </div>
-          ) : null}
+          <ProfileLinksChip links={org.links || []} />
 
         </section>
 

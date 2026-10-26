@@ -41,6 +41,7 @@ from .models import (
     Notification,
     Organization,
     OrganizationMember,
+    ProfileLink,
     OrganizationEvent,
     OrganizationEventLottery,
     OrganizationEventLotteryEntry,
@@ -69,6 +70,10 @@ from .organization_services import (
     assert_queryset_delete_keeps_owner,
     save_organization_member_formset,
 )
+from .profile_link_services import (
+    copy_legacy_profile_urls_for_organization,
+    sync_organization_legacy_columns,
+)
 
 
 @admin.action(description="運営削除（フィードから非表示）")
@@ -87,6 +92,26 @@ def restore_removed(modeladmin, request, queryset):
         removed_at=None,
         removed_by=None,
     )
+
+
+class UserProfileLinkInline(admin.TabularInline):
+    model = ProfileLink
+    fk_name = "user"
+    extra = 0
+    max_num = 5
+    exclude = ("organization",)
+    ordering = ("position", "pk")
+
+
+class OrganizationProfileLinkInline(admin.TabularInline):
+    model = ProfileLink
+    fk_name = "organization"
+    extra = 1
+    max_num = 5
+    exclude = ("user",)
+    ordering = ("position", "pk")
+    verbose_name = "プロフィールリンク"
+    verbose_name_plural = "プロフィールリンク"
 
 
 _SUPERUSER_ADMIN_DELETE_DENIED = (
@@ -184,6 +209,8 @@ class UserAdmin(DjangoUserAdmin):
             )
             return
         super().delete_queryset(request, queryset)
+
+    inlines = [UserProfileLinkInline]
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -298,8 +325,8 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_filter = ("status", "is_listed", "is_verified", "category")
     search_fields = ("name", "slug", "description")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = [OrganizationMemberInline]
-    readonly_fields = ("created_at", "updated_at")
+    inlines = [OrganizationMemberInline, OrganizationProfileLinkInline]
+    readonly_fields = ("created_at", "updated_at", "instagram_url", "website_url")
     fieldsets = (
         (
             None,
@@ -310,9 +337,19 @@ class OrganizationAdmin(admin.ModelAdmin):
                     "description",
                     "avatar",
                     "category",
-                    "instagram_url",
-                    "website_url",
                 )
+            },
+        ),
+        (
+            "公開リンク（互換）",
+            {
+                "fields": ("instagram_url", "website_url"),
+                "description": (
+                    "Instagram URL と Webサイト URL は旧API互換用です。"
+                    "編集は下の「プロフィールリンク」から行い、"
+                    "保存時に ProfileLink から自動同期されます。"
+                    "ここを直接書き換えても保存内容には反映されません。"
+                ),
             },
         ),
         (
@@ -339,8 +376,16 @@ class OrganizationAdmin(admin.ModelAdmin):
         ("日時", {"fields": ("created_at", "updated_at")}),
     )
 
+    def get_prepopulated_fields(self, request, obj=None):
+        if obj is not None:
+            return {}
+        return super().get_prepopulated_fields(request, obj)
+
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
+        for field in ("instagram_url", "website_url"):
+            if field not in readonly:
+                readonly.append(field)
         if obj is not None and "slug" not in readonly:
             readonly.append("slug")
         return readonly
@@ -350,7 +395,23 @@ class OrganizationAdmin(admin.ModelAdmin):
         return obj.memberships.filter(role=OrganizationMember.Role.OWNER).count()
 
     def save_related(self, request, form, formsets, change):
+        link_formset = next(
+            (formset for formset in formsets if formset.model is ProfileLink),
+            None,
+        )
+        initial_forms = 0
+        if link_formset is not None:
+            try:
+                initial_forms = int(
+                    link_formset.management_form.cleaned_data.get("INITIAL_FORMS") or 0
+                )
+            except (AttributeError, TypeError, ValueError):
+                initial_forms = 0
         super().save_related(request, form, formsets, change)
+        organization = form.instance
+        if initial_forms == 0:
+            copy_legacy_profile_urls_for_organization(organization)
+        sync_organization_legacy_columns(organization)
         if apply_organization_visibility_guard(form.instance):
             self.message_user(
                 request,

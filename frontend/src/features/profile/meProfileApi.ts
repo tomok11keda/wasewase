@@ -3,6 +3,7 @@ import {
   apiPatchForm,
   apiPatchJson,
 } from "../../lib/http";
+import { serializeLinksForApi } from "../profileLinks/profileLinks";
 import {
   firstFieldError,
   parseOwnProfilePayload,
@@ -82,6 +83,7 @@ export async function updateOwnProfile(
     user_id: form.user_id.trim().replace(/^@/, ""),
     department: form.department,
     grade: form.grade,
+    links: serializeLinksForApi(form.links),
   };
   const result = avatar
     ? await apiPatchForm(
@@ -93,6 +95,7 @@ export async function updateOwnProfile(
           body.set("user_id", fields.user_id);
           body.set("department", fields.department);
           body.set("grade", fields.grade);
+          body.set("links", JSON.stringify(fields.links));
           body.set("avatar", avatar);
           return body;
         })()
