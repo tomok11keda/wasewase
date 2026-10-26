@@ -14,6 +14,7 @@ import {
 } from "../lib/accountMenuState";
 import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import { useDetailPushTransition } from "../lib/detailTransition";
+import { ChatKeyboardDiagPanel } from "../features/chat/ChatKeyboardDiagPanel";
 import { useSession } from "../lib/session";
 import { matchMainTab, shouldHideBottomNav, TAB_ROUTES } from "../lib/tabs";
 
@@ -111,6 +112,7 @@ export function AppShellLayout() {
       ) : null}
 
       <AccountDrawer open={menuOpen} onClose={closeMenu} />
+      <ChatKeyboardDiagPanel />
     </>
   );
 }

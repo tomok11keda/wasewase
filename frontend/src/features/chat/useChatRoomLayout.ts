@@ -7,13 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  collectChatKeyboardDiagRects,
-  isChatKeyboardDiagEnabled,
-  readChatKeyboardDiagSnapshot,
-} from "./chatKeyboardDiag";
-import {
   bindChatVisibleFrame,
-  type ChatVisibleFrame,
   type ChatVisibleFrameHost,
 } from "./chatVisibleFrame";
 
@@ -55,28 +49,7 @@ export function useChatVisibleFrameHeight(enabled: boolean): void {
         window.removeEventListener(type, listener);
       },
     };
-    const diag =
-      typeof window !== "undefined" &&
-      isChatKeyboardDiagEnabled(window.location.search);
-    let lastDiagAt = 0;
-    const onFrame = diag
-      ? (frame: ChatVisibleFrame) => {
-          const now = Date.now();
-          if (now - lastDiagAt < 400) return;
-          lastDiagAt = now;
-          const snap = readChatKeyboardDiagSnapshot({
-            innerHeight: window.innerHeight,
-            scrollY: window.scrollY || document.documentElement.scrollTop || 0,
-            visualViewport: window.visualViewport,
-            frame,
-            rects: collectChatKeyboardDiagRects(document),
-          });
-          console.info("[wase chat kb diag]", snap);
-        }
-      : undefined;
-    return bindChatVisibleFrame(host, document.documentElement.style, {
-      onFrame,
-    });
+    return bindChatVisibleFrame(host, document.documentElement.style);
   }, [enabled]);
 }
 

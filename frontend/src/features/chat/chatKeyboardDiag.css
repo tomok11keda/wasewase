@@ -1,0 +1,38 @@
+/* Temporary developer overlay. Must not affect .dm-room-page layout. */
+
+.chat-kb-diag {
+  position: fixed;
+  left: 6px;
+  right: auto;
+  z-index: 5000;
+  max-width: min(92vw, 360px);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chat-kb-diag__card {
+  display: block;
+  margin: 0;
+  padding: 5px 7px;
+  background: rgba(0, 0, 0, 0.84);
+  border: 1px solid #7dff7d;
+  border-radius: 6px;
+  color: #d8ffd8;
+  font: 10px/1.22 ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  letter-spacing: 0;
+  white-space: pre;
+  text-shadow: 0 0 2px #000;
+}
+
+.chat-kb-diag__sai {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}

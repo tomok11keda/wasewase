@@ -191,11 +191,26 @@ export function SettingsPage() {
               </a>
             </li>
             {me?.is_staff || me?.is_superuser ? (
-              <li>
-                <Link className="more-link" to="/internal/push-diag">
-                  内部: プッシュ診断
-                </Link>
-              </li>
+              <>
+                <li>
+                  <Link className="more-link" to="/internal/push-diag">
+                    内部: プッシュ診断
+                  </Link>
+                </li>
+                <li>
+                  <Link className="more-link" to="/dm?chat_kb_diag=1">
+                    内部: チャットKB診断
+                    <small className="more-link-note">
+                      会話画面の上部に座標を表示
+                    </small>
+                  </Link>
+                </li>
+                <li>
+                  <Link className="more-link" to="/settings?chat_kb_diag=0">
+                    内部: チャットKB診断をオフ
+                  </Link>
+                </li>
+              </>
             ) : null}
           </ul>
         </section>
