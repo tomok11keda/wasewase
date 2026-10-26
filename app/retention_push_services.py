@@ -39,7 +39,7 @@ RETENTION_QUERY_PARAM = "rp"
 INACTIVE_HOURS = 72
 LEGACY_INACTIVE_JOINED_DAYS = 7
 FREQUENCY_CAP_HOURS = 72
-CANDIDATE_MIN_AGE_HOURS = 24
+CANDIDATE_MIN_AGE_HOURS = 2
 CANDIDATE_MAX_AGE_HOURS = 72
 MIN_ENGAGEMENT = 1
 CANDIDATE_POOL_LIMIT = 80
@@ -87,7 +87,7 @@ def _score_post(post: TimelinePost, now) -> float:
 
 
 def load_popular_post_candidates(*, now=None) -> list[TimelinePost]:
-    """Public timeline posts from 24–72 hours ago with some engagement."""
+    """Public timeline posts from 2–72 hours ago with some engagement."""
     when = now or timezone.now()
     newest = when - timedelta(hours=CANDIDATE_MIN_AGE_HOURS)
     oldest = when - timedelta(hours=CANDIDATE_MAX_AGE_HOURS)

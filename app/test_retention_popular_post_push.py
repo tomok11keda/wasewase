@@ -386,14 +386,21 @@ class RetentionPopularPostPushTests(TestCase):
         )
         self.assertGreaterEqual(result["counts"]["skipped_cap"], 1)
 
-    def test_posts_outside_24_to_72h_window_are_excluded(self):
+    def test_posts_outside_2_to_72h_window_are_excluded(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(
-            created_at=self.now - timedelta(hours=10)
+            created_at=self.now - timedelta(hours=1)
         )
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
             too_new = execute_popular_post_retention(send=True, now=self.now)
         mock_deliver.assert_not_called()
         self.assertEqual(too_new["preview"]["popular_candidates"], 0)
+
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=6)
+        )
+        six_hours = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(six_hours["preview"]["popular_candidates"], 1)
+        self.assertGreaterEqual(six_hours["preview"]["planned_sends"], 1)
 
         TimelinePost.objects.filter(pk=self.post.pk).update(
             created_at=self.now - timedelta(hours=50)
@@ -411,7 +418,10 @@ class RetentionPopularPostPushTests(TestCase):
         self.assertEqual(too_old["preview"]["popular_candidates"], 0)
 
     def test_zero_engagement_is_not_sent(self):
-        TimelinePost.objects.filter(pk=self.post.pk).update(like_count=0)
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            like_count=0,
+            created_at=self.now - timedelta(hours=6),
+        )
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
             result = execute_popular_post_retention(send=True, now=self.now)
         mock_deliver.assert_not_called()
@@ -680,7 +690,7 @@ class RetentionPushSourceTests(SimpleTestCase):
         self.assertIn("last_seen_at", src)
         self.assertIn("date_joined", src)
         self.assertIn("LEGACY_INACTIVE_JOINED_DAYS = 7", src)
-        self.assertIn("CANDIDATE_MIN_AGE_HOURS = 24", src)
+        self.assertIn("CANDIDATE_MIN_AGE_HOURS = 2", src)
         self.assertIn("CANDIDATE_MAX_AGE_HOURS = 72", src)
         self.assertIn("deliver_push_to_user", src)
         self.assertNotIn("create_notification(", src)
