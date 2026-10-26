@@ -67,6 +67,8 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { FollowListPage } from "./pages/FollowListPage";
 import { InternalPushDiagPage } from "./pages/InternalPushDiagPage";
 import { OnboardingGate } from "./features/onboarding/OnboardingGate";
+import { matchChromeMode } from "./lib/chrome";
+import { useIosConversationAccessoryBar } from "./lib/iosKeyboardAccessory";
 import { useSpaNavDiag } from "./lib/spaNavDiag";
 
 const BASENAME = "/app";
@@ -93,6 +95,14 @@ function OrganizationEventAlias() {
   );
 }
 
+function IosConversationAccessoryBarSync() {
+  const location = useLocation();
+  useIosConversationAccessoryBar(
+    matchChromeMode(location.pathname) === "conversation"
+  );
+  return null;
+}
+
 function SpaRuntimeHooks() {
   return (
     <>
@@ -102,6 +112,7 @@ function SpaRuntimeHooks() {
       <NativePushPermissionPrompt />
       <UnauthorizedRedirect />
       <NativeSpaBridge />
+      <IosConversationAccessoryBarSync />
     </>
   );
 }

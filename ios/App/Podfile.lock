@@ -19,6 +19,8 @@ PODS:
   - CapacitorFirebaseMessaging (7.5.0):
     - Capacitor
     - FirebaseMessaging (~> 11.7.0)
+  - CapacitorKeyboard (7.0.6):
+    - Capacitor
   - CapacitorSplashScreen (7.0.5):
     - Capacitor
   - FirebaseAnalytics/WithoutAdIdSupport (11.7.0):
@@ -104,6 +106,7 @@ DEPENDENCIES:
   - "CapacitorFirebaseAnalytics (from `../../node_modules/@capacitor-firebase/analytics`)"
   - "CapacitorFirebaseAnalytics/AnalyticsWithoutAdIdSupport (from `../../node_modules/@capacitor-firebase/analytics`)"
   - "CapacitorFirebaseMessaging (from `../../node_modules/@capacitor-firebase/messaging`)"
+  - "CapacitorKeyboard (from `../../node_modules/@capacitor/keyboard`)"
   - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
 
 SPEC REPOS:
@@ -134,6 +137,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor-firebase/analytics"
   CapacitorFirebaseMessaging:
     :path: "../../node_modules/@capacitor-firebase/messaging"
+  CapacitorKeyboard:
+    :path: "../../node_modules/@capacitor/keyboard"
   CapacitorSplashScreen:
     :path: "../../node_modules/@capacitor/splash-screen"
 
@@ -144,6 +149,7 @@ SPEC CHECKSUMS:
   CapacitorCordova: 139e2ed3d91c54b5aeae7941135c9f9aefc6da1d
   CapacitorFirebaseAnalytics: 27ad621b8f41c2cd2b2169f2db6f476cdac49011
   CapacitorFirebaseMessaging: 1ac12c0dab16d1e4edcf9cb878620507ac868a4e
+  CapacitorKeyboard: a2e0869edd229490ce36aed2549c0d6b95e27ee8
   CapacitorSplashScreen: 409eeaaeac603d264f209c0fcb718aa22fe1f7bb
   FirebaseAnalytics: bc9e565af9044ba8d6c6e4157e4edca8e5fdf7ec
   FirebaseCore: 3227e35f4197a924206fbcdc0349325baf4f5de4
@@ -158,6 +164,6 @@ SPEC CHECKSUMS:
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
 
-PODFILE CHECKSUM: d80a7e5b9f255614cb42ee91353900d2788e8bcb
+PODFILE CHECKSUM: 6768c24018af4677a984861830f6aaeb1e8c759e
 
 COCOAPODS: 1.17.0

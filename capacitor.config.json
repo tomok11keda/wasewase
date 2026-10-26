@@ -38,6 +38,9 @@
     },
     "Camera": {
       "permissions": ["camera", "photos"]
+    },
+    "Keyboard": {
+      "resize": "native"
     }
   }
 }
