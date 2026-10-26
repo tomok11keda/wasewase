@@ -18,6 +18,7 @@ from .last_seen_services import maybe_touch_last_seen
 from .models import (
     DevicePushToken,
     Notification,
+    Organization,
     RetentionPushSend,
     TimelinePost,
     UserProfile,
@@ -32,6 +33,7 @@ from .retention_push_services import (
     RETENTION_PUSH_BODY,
     RETENTION_PUSH_TITLE,
     execute_popular_post_retention,
+    load_popular_post_candidates,
     popular_post_push_link,
 )
 
@@ -412,10 +414,78 @@ class RetentionPopularPostPushTests(TestCase):
         TimelinePost.objects.filter(pk=self.post.pk).update(
             created_at=self.now - timedelta(hours=80)
         )
+        fallback = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(fallback["preview"]["popular_candidates"], 1)
+
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=200)
+        )
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
             too_old = execute_popular_post_retention(send=True, now=self.now)
         mock_deliver.assert_not_called()
         self.assertEqual(too_old["preview"]["popular_candidates"], 0)
+
+    def test_organization_post_in_primary_window_is_a_candidate(self):
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=200)
+        )
+        org = Organization.objects.create(
+            name="Retention Org",
+            slug="retention-org-primary",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        org_post = TimelinePost.objects.create(
+            author=self.author,
+            organization=org,
+            organization_visibility=TimelinePost.OrganizationVisibility.PUBLIC,
+            body="org popular body",
+            like_count=8,
+        )
+        TimelinePost.objects.filter(pk=org_post.pk).update(
+            created_at=self.now - timedelta(hours=10)
+        )
+        candidates = load_popular_post_candidates(now=self.now)
+        self.assertEqual([post.pk for post in candidates], [org_post.pk])
+        result = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(result["preview"]["popular_candidates"], 1)
+        self.assertEqual(result["deliveries"][0]["post_id"], org_post.pk)
+
+    def test_personal_post_in_primary_window_is_a_candidate(self):
+        candidates = load_popular_post_candidates(now=self.now)
+        self.assertEqual([post.pk for post in candidates], [self.post.pk])
+
+    def test_primary_candidates_do_not_mix_fallback_posts(self):
+        fallback_post = TimelinePost.objects.create(
+            author=self.author,
+            body="fallback popular",
+            like_count=20,
+        )
+        TimelinePost.objects.filter(pk=fallback_post.pk).update(
+            created_at=self.now - timedelta(hours=100)
+        )
+        candidates = load_popular_post_candidates(now=self.now)
+        ids = [post.pk for post in candidates]
+        self.assertIn(self.post.pk, ids)
+        self.assertNotIn(fallback_post.pk, ids)
+
+    def test_fallback_window_used_when_primary_is_empty(self):
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=100)
+        )
+        candidates = load_popular_post_candidates(now=self.now)
+        self.assertEqual([post.pk for post in candidates], [self.post.pk])
+        result = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(result["preview"]["popular_candidates"], 1)
+        self.assertEqual(result["deliveries"][0]["post_id"], self.post.pk)
+
+    def test_posts_older_than_seven_days_are_excluded(self):
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            created_at=self.now - timedelta(hours=200)
+        )
+        self.assertEqual(load_popular_post_candidates(now=self.now), [])
+        result = execute_popular_post_retention(send=False, now=self.now)
+        self.assertEqual(result["preview"]["popular_candidates"], 0)
 
     def test_zero_engagement_is_not_sent(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(
@@ -423,15 +493,31 @@ class RetentionPopularPostPushTests(TestCase):
             created_at=self.now - timedelta(hours=6),
         )
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
-            result = execute_popular_post_retention(send=True, now=self.now)
+            primary = execute_popular_post_retention(send=True, now=self.now)
         mock_deliver.assert_not_called()
-        self.assertEqual(result["preview"]["popular_candidates"], 0)
+        self.assertEqual(primary["preview"]["popular_candidates"], 0)
+
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            like_count=0,
+            created_at=self.now - timedelta(hours=100),
+        )
+        with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
+            fallback = execute_popular_post_retention(send=True, now=self.now)
+        mock_deliver.assert_not_called()
+        self.assertEqual(fallback["preview"]["popular_candidates"], 0)
 
     def test_removed_post_is_excluded(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(is_removed=True)
         with patch("app.retention_push_services.deliver_push_to_user") as mock_deliver:
             execute_popular_post_retention(send=True, now=self.now)
         mock_deliver.assert_not_called()
+        self.assertEqual(load_popular_post_candidates(now=self.now), [])
+
+        TimelinePost.objects.filter(pk=self.post.pk).update(
+            is_removed=True,
+            created_at=self.now - timedelta(hours=100),
+        )
+        self.assertEqual(load_popular_post_candidates(now=self.now), [])
 
     def test_staff_and_test_accounts_are_excluded(self):
         staff = User.objects.create_user(
@@ -692,6 +778,8 @@ class RetentionPushSourceTests(SimpleTestCase):
         self.assertIn("LEGACY_INACTIVE_JOINED_DAYS = 7", src)
         self.assertIn("CANDIDATE_MIN_AGE_HOURS = 2", src)
         self.assertIn("CANDIDATE_MAX_AGE_HOURS = 72", src)
+        self.assertIn("CANDIDATE_FALLBACK_MAX_AGE_HOURS = 168", src)
+        self.assertNotIn("organization_id__isnull=True", src)
         self.assertIn("deliver_push_to_user", src)
         self.assertNotIn("create_notification(", src)
         self.assertNotIn("notify_user_push(", src)

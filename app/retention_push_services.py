@@ -41,6 +41,7 @@ LEGACY_INACTIVE_JOINED_DAYS = 7
 FREQUENCY_CAP_HOURS = 72
 CANDIDATE_MIN_AGE_HOURS = 2
 CANDIDATE_MAX_AGE_HOURS = 72
+CANDIDATE_FALLBACK_MAX_AGE_HOURS = 168
 MIN_ENGAGEMENT = 1
 CANDIDATE_POOL_LIMIT = 80
 INACTIVE_BUCKET_72H = "inactive_72h"
@@ -86,28 +87,57 @@ def _score_post(post: TimelinePost, now) -> float:
     )
 
 
-def load_popular_post_candidates(*, now=None) -> list[TimelinePost]:
-    """Public timeline posts from 2–72 hours ago with some engagement."""
-    when = now or timezone.now()
-    newest = when - timedelta(hours=CANDIDATE_MIN_AGE_HOURS)
-    oldest = when - timedelta(hours=CANDIDATE_MAX_AGE_HOURS)
+def _candidate_window_qs(
+    *, oldest, newest, newest_inclusive: bool = True
+) -> QuerySet[TimelinePost]:
+    """Personal and organization posts. Keep removal, privacy, and age bounds."""
+    created = {"created_at__gte": oldest}
+    if newest_inclusive:
+        created["created_at__lte"] = newest
+    else:
+        created["created_at__lt"] = newest
     qs: QuerySet[TimelinePost] = TimelinePost.objects.filter(
         is_removed=False,
-        organization_id__isnull=True,
-        created_at__gte=oldest,
-        created_at__lte=newest,
+        **created,
     ).filter(
         Q(author__profile__is_private=False) | Q(author__profile__isnull=True)
     )
     qs = annotate_timeline_quote_count(_annotate_timeline_for_ranking(qs))
-    qs = qs.select_related("author", "author__profile")
+    return qs.select_related("author", "author__profile")
+
+
+def _rank_engaged_candidates(
+    qs: QuerySet[TimelinePost], *, now
+) -> list[TimelinePost]:
     scored: list[tuple[float, TimelinePost]] = []
     for post in qs:
         if _engagement_count(post) < MIN_ENGAGEMENT:
             continue
-        scored.append((_score_post(post, when), post))
+        scored.append((_score_post(post, now), post))
     scored.sort(key=lambda item: (-item[0], -int(item[1].pk)))
     return [post for _score, post in scored[:CANDIDATE_POOL_LIMIT]]
+
+
+def load_popular_post_candidates(*, now=None) -> list[TimelinePost]:
+    """Public posts with engagement: 2–72h first, else 72–168h fallback."""
+    when = now or timezone.now()
+    primary_newest = when - timedelta(hours=CANDIDATE_MIN_AGE_HOURS)
+    primary_oldest = when - timedelta(hours=CANDIDATE_MAX_AGE_HOURS)
+    primary = _rank_engaged_candidates(
+        _candidate_window_qs(oldest=primary_oldest, newest=primary_newest),
+        now=when,
+    )
+    if primary:
+        return primary
+    fallback_oldest = when - timedelta(hours=CANDIDATE_FALLBACK_MAX_AGE_HOURS)
+    return _rank_engaged_candidates(
+        _candidate_window_qs(
+            oldest=fallback_oldest,
+            newest=primary_oldest,
+            newest_inclusive=False,
+        ),
+        now=when,
+    )
 
 
 def _recent_retention_cutoff(*, now=None):
