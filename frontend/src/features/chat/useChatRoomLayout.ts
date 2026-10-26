@@ -6,42 +6,49 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
+import {
+  bindChatVisibleFrame,
+  type ChatVisibleFrameHost,
+} from "./chatVisibleFrame";
 
 const NEAR_BOTTOM_PX = 96;
 const NEAR_TOP_PX = 72;
 
 /**
- * Track the *visible* frame height for chat rooms.
+ * Track the visible chat frame (height + visualViewport.offsetTop).
  *
- * Uses visualViewport.height (fallback: innerHeight) only — never subtracts
- * keyboard height separately. That avoids double-counting when Capacitor /
- * WKWebView already resized the webview for the keyboard.
+ * Never subtracts keyboard height separately. That avoids double-counting when
+ * Capacitor / WKWebView already resized the webview. offsetTop is applied as
+ * CSS `top` on mobile conversation frames (same coordinate space as the home
+ * compose modal) — not as an extra translateY.
  */
 export function useChatVisibleFrameHeight(enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return;
-    const root = document.documentElement;
-
-    const sync = () => {
-      const vv = window.visualViewport;
-      const h = Math.round(vv?.height ?? window.innerHeight);
-      if (h > 0) {
-        root.style.setProperty("--chat-visible-h", `${h}px`);
-      }
+    const host: ChatVisibleFrameHost = {
+      get innerHeight() {
+        return window.innerHeight;
+      },
+      get scrollX() {
+        return window.scrollX;
+      },
+      get scrollY() {
+        return window.scrollY || document.documentElement.scrollTop || 0;
+      },
+      scrollTo(x, y) {
+        window.scrollTo(x, y);
+      },
+      get visualViewport() {
+        return window.visualViewport;
+      },
+      addEventListener(type, listener) {
+        window.addEventListener(type, listener);
+      },
+      removeEventListener(type, listener) {
+        window.removeEventListener(type, listener);
+      },
     };
-
-    sync();
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", sync);
-    vv?.addEventListener("scroll", sync);
-    window.addEventListener("resize", sync);
-
-    return () => {
-      vv?.removeEventListener("resize", sync);
-      vv?.removeEventListener("scroll", sync);
-      window.removeEventListener("resize", sync);
-      root.style.removeProperty("--chat-visible-h");
-    };
+    return bindChatVisibleFrame(host, document.documentElement.style);
   }, [enabled]);
 }
 

@@ -228,6 +228,23 @@ html.chrome-conversation {
     min-height: 100dvh;
   }
 
+  html.is-native-capacitor.chrome-conversation,
+  html.is-native-capacitor.chrome-conversation body,
+  html.is-native-capacitor.chrome-conversation body.shell-desktop {
+    overflow: hidden;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  html.is-native-capacitor.chrome-conversation #root,
+  html.is-native-capacitor.chrome-conversation.shell-hide-bottom-nav #root,
+  html.is-native-capacitor body.chrome-conversation.shell-hide-bottom-nav #root {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
   html.is-native-capacitor .app-shell,
   html.is-native-capacitor .main-column,
   html.is-native-capacitor .tab-keep-alive-stack,

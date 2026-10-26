@@ -31,10 +31,15 @@
 }
 
 /*
- * Chat room frame: fill the visible viewport below the shell header.
- * --chat-visible-h is set by useChatVisibleFrameHeight (visualViewport /
- * innerHeight). Do not also subtract keyboard height — Capacitor may already
- * have resized the webview.
+ * Chat room frame.
+ * --chat-visible-h / --chat-vv-offset come from useChatVisibleFrameHeight
+ * (visualViewport height + offsetTop). Do not also subtract keyboard height —
+ * Capacitor may already have resized the webview.
+ *
+ * Desktop: in-flow column, chrome subtracted from height.
+ * Mobile conversation: pin to the visual viewport (same top/height pair as
+ * the home compose modal). Notch padding is sat minus offsetTop so it is not
+ * double-counted after the visual viewport pans.
  */
 .dm-room-page {
   height: calc(
@@ -50,6 +55,25 @@
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
+}
+
+@media (max-width: 1023px) {
+  html.chrome-conversation .dm-room-page {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    top: var(--chat-vv-offset, 0px);
+    height: var(--chat-visible-h, 100dvh);
+    max-height: var(--chat-visible-h, 100dvh);
+    padding-top: max(
+      0px,
+      calc(
+        var(--wase-chrome-offset, var(--wase-header-h, 0px)) -
+          var(--chat-vv-offset, 0px)
+      )
+    );
+  }
 }
 
 .dm-room-page .dm-room-main,

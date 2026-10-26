@@ -15,6 +15,13 @@
     min-height: 100vh;
     min-height: 100dvh;
   }
+
+  html.chrome-conversation .app-shell,
+  html.chrome-conversation.shell-hide-bottom-nav .app-shell,
+  body.shell-hide-bottom-nav.chrome-conversation .app-shell {
+    min-height: 0;
+    height: 100%;
+  }
 }
 
 .sidebar-left,

@@ -65,6 +65,12 @@ body.shell-desktop.shell-hide-bottom-nav {
   body.shell-desktop.shell-hide-bottom-nav {
     overflow: hidden;
   }
+
+  html.chrome-conversation,
+  html.chrome-conversation body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 }
 
 /* Belt-and-suspenders: never show bottom tabs on conversation screens. */
@@ -94,6 +100,15 @@ body.shell-hide-bottom-nav .shell-hide-on-desktop:has(.bottom-nav) {
   html.shell-hide-bottom-nav #root {
     min-height: 100vh;
     min-height: 100dvh;
+  }
+
+  html.chrome-conversation #root,
+  html.chrome-conversation.shell-hide-bottom-nav #root,
+  body.chrome-conversation.shell-hide-bottom-nav #root {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
   }
 }
 
