@@ -48,11 +48,30 @@ test("keyboard shrinks height without subtracting keyboard again", () => {
 test("offsetTop greater than zero is rounded and kept", () => {
   assert.deepEqual(
     readChatVisibleFrame({
-      visualViewport: { height: 508.4, offsetTop: 336.6 },
+      visualViewport: { height: 508.4, offsetTop: 336.4 },
       innerHeight: 844,
     }),
-    { height: 508, offsetTop: 337 }
+    { height: 508, offsetTop: 336 }
   );
+});
+
+test("Capacitor pan without shrinking height keeps the compose bar in the window", () => {
+  const frame = readChatVisibleFrame({
+    visualViewport: { height: 844, offsetTop: 336 },
+    innerHeight: 844,
+  });
+  assert.deepEqual(frame, { height: 508, offsetTop: 336 });
+  assert.equal(frame.offsetTop + frame.height, 844);
+});
+
+test("clipped frame never extends past innerHeight", () => {
+  const frame = readChatVisibleFrame({
+    visualViewport: { height: 900, offsetTop: 400 },
+    innerHeight: 844,
+  });
+  assert.equal(frame.offsetTop, 400);
+  assert.equal(frame.height, 444);
+  assert.equal(frame.offsetTop + frame.height <= 844, true);
 });
 
 test("keyboard hide restores the full frame", () => {
@@ -255,4 +274,45 @@ test("bind resets document scroll once per offset and does not loop", () => {
   for (const listener of vvListeners.get("scroll") ?? []) listener();
   assert.equal(scrollCalls, 2);
   unbind();
+});
+
+test("focusin resyncs the frame without calling scrollTo", () => {
+  const style = styleStore();
+  const docListeners = new Map<string, Set<() => void>>();
+  let scrollCalls = 0;
+  const host: ChatVisibleFrameHost = {
+    innerHeight: 844,
+    scrollX: 0,
+    scrollY: 0,
+    scrollTo() {
+      scrollCalls += 1;
+    },
+    visualViewport: {
+      height: 844,
+      offsetTop: 0,
+      addEventListener() {},
+      removeEventListener() {},
+    },
+    document: {
+      addEventListener(type, listener) {
+        const set = docListeners.get(type) ?? new Set();
+        set.add(listener);
+        docListeners.set(type, set);
+      },
+      removeEventListener(type, listener) {
+        docListeners.get(type)?.delete(listener);
+      },
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const unbind = bindChatVisibleFrame(host, style);
+  host.visualViewport!.height = 844;
+  host.visualViewport!.offsetTop = 336;
+  for (const listener of docListeners.get("focusin") ?? []) listener();
+  assert.equal(style.props.get("--chat-visible-h"), "508px");
+  assert.equal(style.props.get("--chat-vv-offset"), "336px");
+  assert.equal(scrollCalls, 0);
+  unbind();
+  assert.equal(docListeners.get("focusin")?.size, 0);
 });

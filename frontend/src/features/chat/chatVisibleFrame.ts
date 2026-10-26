@@ -27,31 +27,39 @@ export type ChatVisibleFrameHost = ListenerTarget & {
     height: number;
     offsetTop: number;
   }) | null;
+  document?: ListenerTarget;
+};
+
+export type BindChatVisibleFrameOptions = {
+  onFrame?: (frame: ChatVisibleFrame) => void;
 };
 
 /**
  * Visible chat frame in CSS pixels.
  *
- * Height follows visualViewport.height (fallback: innerHeight). Never subtract
- * keyboard height separately — Capacitor / WKWebView may already have resized.
- * offsetTop is the visual viewport's shift inside the layout viewport. Home
- * compose uses the same pair for position:fixed, so we do not also translateY.
+ * Capacitor WKWebView often pans visualViewport.offsetTop without shrinking
+ * visualViewport.height. Using that unclipped height with top: offsetTop puts
+ * the compose bar below the keyboard. Clip so offsetTop + height <= innerHeight.
+ * Never subtract keyboard height as a separate term.
  */
 export function readChatVisibleFrame(input: {
   visualViewport?: VisualViewportLike;
   innerHeight: number;
 }): ChatVisibleFrame {
-  const fallback = Math.max(0, Math.round(input.innerHeight || 0));
+  const inner = Math.max(0, Math.round(input.innerHeight || 0));
   const rawHeight = input.visualViewport?.height;
-  const height =
+  const reportedHeight =
     rawHeight != null && Number.isFinite(rawHeight) && rawHeight > 0
       ? Math.round(rawHeight)
-      : fallback;
+      : inner;
   const rawOffset = input.visualViewport?.offsetTop;
   const offsetTop =
     rawOffset != null && Number.isFinite(rawOffset) && rawOffset > 0
       ? Math.round(rawOffset)
       : 0;
+  const maxHeight = Math.max(0, inner - offsetTop);
+  const height =
+    maxHeight > 0 ? Math.min(reportedHeight, maxHeight) : reportedHeight;
   return { height, offsetTop };
 }
 
@@ -110,20 +118,27 @@ export function syncChatVisibleFrame(
 /** Subscribe to visualViewport resize/scroll + window resize. Returns unbind. */
 export function bindChatVisibleFrame(
   host: ChatVisibleFrameHost,
-  style: StyleProps
+  style: StyleProps,
+  options?: BindChatVisibleFrameOptions
 ): () => void {
   let active = true;
   let resetting = false;
   let lastResetX = 0;
   let lastResetY = 0;
 
-  const sync = () => {
-    if (!active || resetting) return;
+  const applyFrame = () => {
     const frame = readChatVisibleFrame({
       visualViewport: host.visualViewport,
       innerHeight: host.innerHeight,
     });
     applyChatVisibleFrame(style, frame);
+    options?.onFrame?.(frame);
+    return frame;
+  };
+
+  const sync = () => {
+    if (!active || resetting) return;
+    applyFrame();
     const x = host.scrollX || 0;
     const y = host.scrollY || 0;
     if (!shouldResetDocumentScroll(x, y)) {
@@ -142,17 +157,24 @@ export function bindChatVisibleFrame(
     }
   };
 
+  const onFocusIn = () => {
+    if (!active) return;
+    applyFrame();
+  };
+
   sync();
   const vv = host.visualViewport;
   vv?.addEventListener("resize", sync);
   vv?.addEventListener("scroll", sync);
   host.addEventListener("resize", sync);
+  host.document?.addEventListener("focusin", onFocusIn);
 
   return () => {
     active = false;
     vv?.removeEventListener("resize", sync);
     vv?.removeEventListener("scroll", sync);
     host.removeEventListener("resize", sync);
+    host.document?.removeEventListener("focusin", onFocusIn);
     clearChatVisibleFrame(style);
   };
 }
