@@ -66,6 +66,7 @@ SEARCH_TAB_CHOICES = (
 )
 SEARCH_RESULT_LIMIT = 40
 SEARCH_USER_LIMIT = 50
+SEARCH_ORG_LIMIT = 50
 DISCOVER_CANDIDATE_LIMIT = 80
 DISCOVER_TRENDING_LIMIT = 12
 DISCOVER_COMMUNITY_LIMIT = 8
@@ -664,6 +665,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     from .global_search_services import (
         combine_recommend_score,
         offering_relevance,
+        organization_relevance,
         post_relevance,
         product_relevance,
         search_course_offerings_global,
@@ -671,6 +673,8 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         thread_relevance,
         user_relevance,
     )
+    from .organization_api_services import get_organization_avatar_url
+    from .organization_services import search_organizations
 
     query = request.GET.get("q", "").strip()
     tab = (request.GET.get("tab") or SEARCH_TAB_ALL).strip().lower()
@@ -681,6 +685,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
     posts_payload: list[dict[str, Any]] = []
     threads_payload: list[dict[str, Any]] = []
     users_payload: list[dict[str, Any]] = []
+    organizations_payload: list[dict[str, Any]] = []
     products_payload: list[dict[str, Any]] = []
     offerings_payload: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
@@ -694,11 +699,13 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             "posts": [],
             "threads": [],
             "users": [],
+            "organizations": [],
             "products": [],
             "offerings": [],
             "post_count": 0,
             "thread_count": 0,
             "user_count": 0,
+            "organization_count": 0,
             "product_count": 0,
             "offering_count": 0,
             "result_count": 0,
@@ -769,6 +776,23 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         nonlocal users_payload
         for user in list(search_users(query, viewer=viewer)[:SEARCH_USER_LIMIT]):
             users_payload.append(_serialize_search_user(user))
+
+    def _serialize_search_organization(organization) -> dict[str, Any]:
+        created = getattr(organization, "created_at", None)
+        return {
+            "id": organization.pk,
+            "name": organization.name or "",
+            "slug": organization.slug or "",
+            "avatar_url": get_organization_avatar_url(organization),
+            "category": organization.category or "",
+            "is_verified": bool(organization.is_verified),
+            "created_at": created.isoformat() if created else "",
+        }
+
+    def _load_organizations() -> None:
+        nonlocal organizations_payload
+        for organization in list(search_organizations(query)[:SEARCH_ORG_LIMIT]):
+            organizations_payload.append(_serialize_search_organization(organization))
 
     def _load_offerings() -> None:
         nonlocal offerings_payload
@@ -862,6 +886,22 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                     "user": user,
                 }
             )
+        for organization in organizations_payload:
+            relevance = organization_relevance(query, organization)
+            engagement = 0
+            results.append(
+                {
+                    "kind": "organization",
+                    "created_at": organization.get("created_at") or "",
+                    "relevance": relevance,
+                    "score": (
+                        combine_recommend_score(relevance, engagement)
+                        if recommended
+                        else engagement
+                    ),
+                    "organization": organization,
+                }
+            )
         for offering in offerings_payload:
             relevance = int(offering.pop("_relevance", 0) or 0)
             engagement = (
@@ -891,6 +931,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             _load_threads()
             _load_products()
             _load_users()
+            _load_organizations()
             _load_offerings()
             _append_mixed_rows(recommended=True)
             results.sort(
@@ -903,7 +944,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             )
         elif tab == SEARCH_TAB_LATEST:
             # 最新: 日時が意味を持つコンテンツのみ（post / thread / product）
-            # User / CourseOffering は含めない
+            # User / Organization / CourseOffering は含めない
             _load_posts()
             _load_threads()
             _load_products()
@@ -940,6 +981,17 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             )
         elif tab == SEARCH_TAB_USERS:
             _load_users()
+            _load_organizations()
+            _append_mixed_rows(recommended=True)
+            results.sort(
+                key=lambda row: (
+                    int(row.get("score") or 0),
+                    int(row.get("relevance") or 0),
+                    row.get("created_at") or "",
+                    str(row.get("kind") or ""),
+                ),
+                reverse=True,
+            )
         elif tab == SEARCH_TAB_PRODUCTS:
             _load_products()
             for product in products_payload:
@@ -968,10 +1020,7 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                 reverse=True,
             )
 
-    if tab == SEARCH_TAB_USERS:
-        result_count = len(users_payload)
-    else:
-        result_count = len(results)
+    result_count = len(results)
 
     return {
         "ok": True,
@@ -981,11 +1030,13 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
         "posts": posts_payload,
         "threads": threads_payload,
         "users": users_payload,
+        "organizations": organizations_payload,
         "products": products_payload,
         "offerings": offerings_payload,
         "post_count": len(posts_payload),
         "thread_count": len(threads_payload),
         "user_count": len(users_payload),
+        "organization_count": len(organizations_payload),
         "product_count": len(products_payload),
         "offering_count": len(offerings_payload),
         "result_count": result_count,

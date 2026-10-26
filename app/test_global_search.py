@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 
 from app.course_services import create_offering, enroll_user_in_offering, upsert_review
-from app.models import Product, TimelinePost, UserProfile
+from app.models import Organization, Product, TimelinePost, UserProfile
 
 User = get_user_model()
 
@@ -169,6 +169,7 @@ class GlobalSearchExpansionTests(TestCase):
         kinds = {r["kind"] for r in data["results"]}
         self.assertNotIn("user", kinds)
         self.assertNotIn("offering", kinds)
+        self.assertNotIn("organization", kinds)
         self.assertFalse(
             any(
                 r["kind"] == "post" and "無関係" in (r["post"].get("body") or "")
@@ -200,6 +201,9 @@ class GlobalSearchExpansionTests(TestCase):
         user_latest = self._search("佐藤太郎", "latest")
         self.assertFalse(
             any(r["kind"] == "user" for r in user_latest.json()["results"])
+        )
+        self.assertFalse(
+            any(r["kind"] == "organization" for r in user_latest.json()["results"])
         )
 
     def test_existing_product_and_user_tabs(self):
@@ -313,3 +317,176 @@ class GlobalSearchBlockFilterTests(TestCase):
         data = res.json()
         self.assertIn(self.carol.pk, self._user_ids(data))
         self.assertGreaterEqual(data["user_count"], 1)
+
+
+def _make_search_org(**kwargs) -> Organization:
+    kwargs.setdefault("status", Organization.Status.ACTIVE)
+    kwargs.setdefault("is_listed", True)
+    kwargs.setdefault("is_verified", False)
+    kwargs.setdefault("category", Organization.Category.CIRCLE)
+    return Organization.objects.create(**kwargs)
+
+
+class OrganizationSearchTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="org-search@ex.com",
+            password="pass12345",
+            username="org_search_user",
+        )
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.name = "検索ユーザー"
+        profile.save(update_fields=["name"])
+        self.client.force_login(self.user)
+
+        self.exact = _make_search_org(
+            name="わせわせサークル",
+            slug="wase-circle",
+            is_verified=True,
+        )
+        self.partial = _make_search_org(
+            name="わせわせ研究会",
+            slug="wase-kenkyukai",
+        )
+        self.contained = _make_search_org(
+            name="公認わせわせサークル",
+            slug="official-wase-circle",
+        )
+        self.english = _make_search_org(
+            name="Waseda Festival",
+            slug="waseda-festival",
+        )
+        self.unlisted = _make_search_org(
+            name="わせわせサークル下書き掲載なし",
+            slug="wase-unlisted",
+            is_listed=False,
+        )
+        self.draft = _make_search_org(
+            name="わせわせサークル下書き",
+            slug="wase-draft",
+            status=Organization.Status.DRAFT,
+            is_listed=True,
+        )
+        self.suspended = _make_search_org(
+            name="わせわせサークル停止",
+            slug="wase-suspended",
+            status=Organization.Status.SUSPENDED,
+            is_listed=True,
+        )
+        self.unverified = _make_search_org(
+            name="未確認サークルABC",
+            slug="unverified-abc",
+            is_verified=False,
+        )
+
+    def _search(self, q: str, tab: str):
+        return self.client.get("/api/v1/search/", {"q": q, "tab": tab})
+
+    def _org_ids(self, payload):
+        return [row["id"] for row in payload.get("organizations") or []]
+
+    def _mixed_org_ids(self, payload):
+        ids = []
+        for row in payload.get("results") or []:
+            if row.get("kind") == "organization":
+                ids.append((row.get("organization") or {}).get("id"))
+        return ids
+
+    def test_empty_query_includes_organization_keys(self):
+        data = self._search("", "all").json()
+        self.assertEqual(data["organizations"], [])
+        self.assertEqual(data["organization_count"], 0)
+
+    def test_exact_name_match_ranks_above_partial(self):
+        data = self._search("わせわせサークル", "users").json()
+        ids = self._org_ids(data)
+        self.assertIn(self.exact.pk, ids)
+        self.assertIn(self.contained.pk, ids)
+        self.assertLess(ids.index(self.exact.pk), ids.index(self.contained.pk))
+        mixed = self._mixed_org_ids(data)
+        self.assertEqual(mixed[0], self.exact.pk)
+        self.assertGreaterEqual(data["results"][0]["relevance"], 1_000_000)
+
+    def test_prefix_match_beats_other_partial(self):
+        prefix_org = _make_search_org(name="Wase Dance", slug="wase-dance")
+        other = _make_search_org(name="Club Wase", slug="club-wase")
+        data = self._search("Wase", "users").json()
+        ids = self._org_ids(data)
+        self.assertLess(ids.index(prefix_org.pk), ids.index(other.pk))
+
+    def test_japanese_partial_match(self):
+        data = self._search("わせわせ", "all").json()
+        self.assertIn(self.exact.pk, self._org_ids(data))
+        self.assertIn(self.partial.pk, self._org_ids(data))
+        self.assertIn(self.exact.pk, self._mixed_org_ids(data))
+
+    def test_english_name_and_case_insensitive_slug(self):
+        by_name = self._search("Waseda Festival", "users").json()
+        self.assertIn(self.english.pk, self._org_ids(by_name))
+        by_partial = self._search("festival", "users").json()
+        self.assertIn(self.english.pk, self._org_ids(by_partial))
+        by_slug = self._search("WASE-CIRCLE", "users").json()
+        self.assertIn(self.exact.pk, self._org_ids(by_slug))
+
+    def test_zero_results(self):
+        data = self._search("存在しない団体XYZ999", "users").json()
+        self.assertEqual(data["organizations"], [])
+        self.assertEqual(data["organization_count"], 0)
+        self.assertFalse(any(r["kind"] == "organization" for r in data["results"]))
+
+    def test_unlisted_draft_and_suspended_are_excluded(self):
+        data = self._search("わせわせサークル", "users").json()
+        ids = self._org_ids(data)
+        self.assertNotIn(self.unlisted.pk, ids)
+        self.assertNotIn(self.draft.pk, ids)
+        self.assertNotIn(self.suspended.pk, ids)
+
+    def test_unverified_listed_org_is_included_without_requiring_badge(self):
+        data = self._search("未確認サークルABC", "users").json()
+        self.assertIn(self.unverified.pk, self._org_ids(data))
+        row = next(
+            item
+            for item in data["organizations"]
+            if item["id"] == self.unverified.pk
+        )
+        self.assertFalse(row["is_verified"])
+        self.assertEqual(row["slug"], "unverified-abc")
+
+    def test_verified_org_payload_includes_badge_flag(self):
+        data = self._search("わせわせサークル", "users").json()
+        row = next(item for item in data["organizations"] if item["id"] == self.exact.pk)
+        self.assertTrue(row["is_verified"])
+        self.assertEqual(row["name"], "わせわせサークル")
+        self.assertEqual(row["slug"], "wase-circle")
+
+    def test_users_tab_keeps_personal_users_and_adds_orgs(self):
+        data = self._search("検索ユーザー", "users").json()
+        self.assertGreaterEqual(data["user_count"], 1)
+        self.assertTrue(any(u["display_name"] == "検索ユーザー" for u in data["users"]))
+        org_data = self._search("わせわせサークル", "users").json()
+        kinds = {r["kind"] for r in org_data["results"]}
+        self.assertIn("organization", kinds)
+        self.assertNotIn("post", kinds)
+
+    def test_all_tab_mixes_organizations_latest_does_not(self):
+        all_data = self._search("わせわせサークル", "all").json()
+        self.assertIn(self.exact.pk, self._mixed_org_ids(all_data))
+        self.assertGreaterEqual(all_data["organization_count"], 1)
+        latest = self._search("わせわせサークル", "latest").json()
+        self.assertEqual(latest.get("organizations") or [], [])
+        self.assertEqual(latest.get("organization_count") or 0, 0)
+        self.assertNotIn("organization", {r["kind"] for r in latest["results"]})
+
+    def test_existing_product_and_course_search_still_work(self):
+        Product.objects.create(
+            seller=self.user,
+            name="団体検索回帰教科書",
+            description="回帰",
+            price=500,
+            category="教科書",
+        )
+        products = self._search("団体検索回帰教科書", "products").json()
+        self.assertGreaterEqual(products["product_count"], 1)
+        users = self._search("org_search_user", "users").json()
+        self.assertGreaterEqual(users["user_count"], 1)

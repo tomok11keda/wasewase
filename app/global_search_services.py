@@ -288,6 +288,14 @@ def product_relevance(query: str, product: dict[str, Any]) -> int:
     )
 
 
+def organization_relevance(query: str, organization: dict[str, Any]) -> int:
+    return text_relevance(
+        query,
+        organization.get("name") or "",
+        organization.get("slug") or "",
+    )
+
+
 def user_relevance(query: str, user_payload: dict[str, Any]) -> int:
     primary = text_relevance(
         query,

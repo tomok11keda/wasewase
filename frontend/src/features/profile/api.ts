@@ -141,6 +141,16 @@ export type SearchOfferingResult = {
   updated_at?: string;
 };
 
+export type SearchOrganizationResult = {
+  id: number;
+  name: string;
+  slug: string;
+  avatar_url: string;
+  category: string;
+  is_verified: boolean;
+  created_at?: string;
+};
+
 export type SearchResultRow =
   | {
       kind: "post";
@@ -176,6 +186,13 @@ export type SearchResultRow =
       score: number;
       relevance?: number;
       offering: SearchOfferingResult;
+    }
+  | {
+      kind: "organization";
+      created_at: string;
+      score: number;
+      relevance?: number;
+      organization: SearchOrganizationResult;
     };
 
 export type SearchPageResponse = {
@@ -186,11 +203,13 @@ export type SearchPageResponse = {
   posts: TimelinePost[];
   threads: SearchThreadResult[];
   users: ProfileUser[];
+  organizations?: SearchOrganizationResult[];
   products?: SearchProductResult[];
   offerings?: SearchOfferingResult[];
   post_count: number;
   thread_count: number;
   user_count: number;
+  organization_count?: number;
   product_count?: number;
   offering_count?: number;
   result_count: number;
@@ -440,6 +459,7 @@ export async function fetchSearchPage(query: {
     posts: Array.isArray(data.posts) ? data.posts : [],
     threads: Array.isArray(data.threads) ? data.threads : [],
     users: Array.isArray(data.users) ? data.users : [],
+    organizations: Array.isArray(data.organizations) ? data.organizations : [],
     products: Array.isArray(data.products) ? data.products : [],
     offerings: Array.isArray(data.offerings) ? data.offerings : [],
     discover: data.discover

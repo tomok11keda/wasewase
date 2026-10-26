@@ -22,11 +22,19 @@ import {
   type ProfileUser,
   type SearchDiscoverPayload,
   type SearchOfferingResult,
+  type SearchOrganizationResult,
   type SearchProductResult,
   type SearchResultRow,
   type SearchTab,
   type SearchThreadResult,
 } from "../features/profile/api";
+import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
+import { organizationInitial } from "../features/orgs/orgProfile";
+import {
+  SEARCH_USERS_TAB_LABEL,
+  isHandledSearchResultKind,
+  organizationSearchHref,
+} from "../features/search/searchAccounts";
 import {
   DiscoverPostCard,
   DiscoverThreadCard,
@@ -58,7 +66,7 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "おすすめ" },
   { key: "latest", label: "最新" },
   { key: "courses", label: "授業" },
-  { key: "users", label: "ユーザー" },
+  { key: "users", label: SEARCH_USERS_TAB_LABEL },
   { key: "products", label: "商品" },
 ];
 
@@ -188,6 +196,42 @@ function SearchUserCard({ user }: { user: ProfileUser }) {
   );
 }
 
+function SearchOrganizationCard({
+  organization,
+}: {
+  organization: SearchOrganizationResult;
+}) {
+  const href = organizationSearchHref(organization.slug);
+  if (!href) return null;
+  return (
+    <Link className="search-org-card" to={href}>
+      {organization.avatar_url ? (
+        <img
+          className="search-org-card__avatar"
+          src={organization.avatar_url}
+          alt=""
+        />
+      ) : (
+        <span className="search-org-card__avatar is-initial">
+          {organizationInitial(organization.name)}
+        </span>
+      )}
+      <span className="search-org-card__text">
+        <span className="search-org-card__name">
+          <strong>{organization.name}</strong>
+          <VerifiedOrganizationBadge
+            verified={organization.is_verified}
+            compact
+          />
+        </span>
+        <span className="search-org-card__meta">
+          <span className="search-org-card__badge">学生団体</span>
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 function SearchOfferingCard({ offering }: { offering: SearchOfferingResult }) {
   const schedule =
     offering.schedule_label ||
@@ -236,6 +280,9 @@ type ResultHandlers = {
 };
 
 function renderSearchResultRow(row: SearchResultRow, handlers: ResultHandlers) {
+  if (!isHandledSearchResultKind((row as { kind?: string }).kind)) {
+    return null;
+  }
   if (row.kind === "post") {
     return (
       <TimelinePostCard
@@ -269,12 +316,25 @@ function renderSearchResultRow(row: SearchResultRow, handlers: ResultHandlers) {
       />
     );
   }
-  return (
-    <SearchProductCard
-      key={`product-${row.product.id}`}
-      product={row.product}
-    />
-  );
+  if (row.kind === "product") {
+    return (
+      <SearchProductCard
+        key={`product-${row.product.id}`}
+        product={row.product}
+      />
+    );
+  }
+  if (row.kind === "organization") {
+    return (
+      <div
+        key={`organization-${row.organization.id}`}
+        className="search-mixed-org"
+      >
+        <SearchOrganizationCard organization={row.organization} />
+      </div>
+    );
+  }
+  return null;
 }
 
 function renderDiscoverRow(row: SearchResultRow) {
@@ -622,7 +682,7 @@ export function SearchPage() {
 
   const emptyMessage =
     activeTab === "users"
-      ? "一致するユーザーはいません。"
+      ? "一致するアカウントはいません。"
       : activeTab === "products"
         ? "一致する商品はありません。"
         : activeTab === "courses"
@@ -641,7 +701,7 @@ export function SearchPage() {
       ? 1
       : 0
     : activeTab === "users"
-      ? users.length
+      ? Math.max(results.length, users.length)
       : results.length;
   const searchPhase = listContentPhase({
     browsePreview,
@@ -716,7 +776,7 @@ export function SearchPage() {
           </p>
         ) : showDiscover && discover ? (
           <SearchDiscoverView discover={discover} />
-        ) : activeTab === "users" ? (
+        ) : activeTab === "users" && results.length === 0 ? (
           <ul className="search-user-list">
             {users.map((u) => (
               <li key={u.id}>

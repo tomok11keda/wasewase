@@ -5,10 +5,10 @@ import {
   HOME_POST_SEARCH_PLACEHOLDER,
 } from "./homeSearchEntry.ts";
 
-test("home search bar uses the existing latest post-search tab", () => {
+test("home search bar uses the mixed all-search tab", () => {
   const url = new URL(HOME_POST_SEARCH_HREF, "https://wasewase.local");
   assert.equal(url.pathname, "/search");
-  assert.equal(url.searchParams.get("tab"), "latest");
+  assert.equal(url.searchParams.get("tab"), "all");
   assert.equal(url.searchParams.has("q"), false);
 });
 

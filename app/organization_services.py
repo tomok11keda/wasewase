@@ -12,7 +12,7 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Case, IntegerField, Q, QuerySet, Value, When
 from django.db.models.signals import post_delete, pre_delete
 from django.dispatch import receiver
 
@@ -162,6 +162,35 @@ def can_list_organization(
     return (
         organization.status == Organization.Status.ACTIVE
         and bool(organization.is_listed)
+    )
+
+
+def search_organizations(query: str) -> QuerySet[Organization]:
+    """掲載中の学生団体を名前・slug で部分一致検索。
+
+    並び: 完全一致 > 前方一致 > 部分一致 > 名前 > pk。
+    is_verified は必須にしない。can_list_organization と同じ掲載条件。
+    """
+    q = (query or "").strip()
+    if not q:
+        return Organization.objects.none()
+    return (
+        Organization.objects.filter(
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        .filter(Q(name__icontains=q) | Q(slug__icontains=q))
+        .annotate(
+            search_match_rank=Case(
+                When(name__iexact=q, then=Value(0)),
+                When(slug__iexact=q, then=Value(0)),
+                When(name__istartswith=q, then=Value(1)),
+                When(slug__istartswith=q, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("search_match_rank", "name", "pk")
     )
 
 
