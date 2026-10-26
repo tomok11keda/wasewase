@@ -11,7 +11,8 @@ from app.retention_push_services import (
 
 class Command(BaseCommand):
     help = (
-        "72時間以上アプリを開いていない学生へ、直近の人気タイムライン投稿を"
+        "72時間以上アプリを開いていない学生、および last_seen 未記録で"
+        " 登録から7日以上の学生へ、直近の人気タイムライン投稿を"
         " プッシュする。デフォルトは dry-run（送信しない）。"
         " 実送信は --send。gunicorn からは呼ばない。"
         " in-app Notification は作成しない。"
@@ -98,6 +99,8 @@ class Command(BaseCommand):
         self.stdout.write(f"title={result['title']}")
         self.stdout.write(f"body={result['body']}")
         self.stdout.write(
+            "inactive_72h_users={inactive_72h_users} "
+            "legacy_inactive_users={legacy_inactive_users} "
             "inactive_eligible_users={inactive_eligible_users} "
             "popular_candidates={popular_candidates} "
             "planned_sends={planned_sends} "

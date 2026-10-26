@@ -37,11 +37,14 @@ RETENTION_PUSH_BODY = "わせわせで話題の投稿があります"
 RETENTION_QUERY_PARAM = "rp"
 
 INACTIVE_HOURS = 72
+LEGACY_INACTIVE_JOINED_DAYS = 7
 FREQUENCY_CAP_HOURS = 72
 CANDIDATE_MIN_AGE_HOURS = 24
 CANDIDATE_MAX_AGE_HOURS = 72
 MIN_ENGAGEMENT = 1
 CANDIDATE_POOL_LIMIT = 80
+INACTIVE_BUCKET_72H = "inactive_72h"
+INACTIVE_BUCKET_LEGACY = "legacy_inactive"
 
 _CAP_STATUSES = (
     RetentionPushSend.Status.SENDING,
@@ -153,17 +156,65 @@ def pick_popular_post_for_user(
     return None
 
 
+def _inactive_cutoffs(*, now=None) -> tuple[Any, Any]:
+    when = now or timezone.now()
+    return (
+        when - timedelta(hours=INACTIVE_HOURS),
+        when - timedelta(days=LEGACY_INACTIVE_JOINED_DAYS),
+    )
+
+
+def _inactive_retention_q(*, now=None) -> Q:
+    seen_cutoff, joined_cutoff = _inactive_cutoffs(now=now)
+    return Q(
+        profile__last_seen_at__isnull=False,
+        profile__last_seen_at__lte=seen_cutoff,
+    ) | Q(
+        profile__last_seen_at__isnull=True,
+        date_joined__lte=joined_cutoff,
+    )
+
+
+def _profile_for_user(user):
+    try:
+        profile = user.profile
+    except (AttributeError, UserProfile.DoesNotExist):
+        profile = None
+    if profile is not None:
+        return profile
+    if not getattr(user, "pk", None):
+        return None
+    return UserProfile.objects.filter(user_id=user.pk).first()
+
+
+def inactive_bucket_for_user(user, *, now=None) -> str | None:
+    """Classify an inactive user. Recent last_seen and new null-seen users are None."""
+    if user is None or not getattr(user, "pk", None):
+        return None
+    when = now or timezone.now()
+    seen_cutoff, joined_cutoff = _inactive_cutoffs(now=when)
+    last_seen = getattr(_profile_for_user(user), "last_seen_at", None)
+    if last_seen is not None:
+        if last_seen <= seen_cutoff:
+            return INACTIVE_BUCKET_72H
+        return None
+    date_joined = getattr(user, "date_joined", None)
+    if date_joined is None:
+        return None
+    if date_joined <= joined_cutoff:
+        return INACTIVE_BUCKET_LEGACY
+    return None
+
+
 def load_inactive_retention_users(*, now=None) -> list[Any]:
     when = now or timezone.now()
-    cutoff = when - timedelta(hours=INACTIVE_HOURS)
     candidates = list(
-        verified_university_student_qs().filter(
-            profile__last_seen_at__isnull=False,
-            profile__last_seen_at__lte=cutoff,
-        )
+        verified_university_student_qs().filter(_inactive_retention_q(now=when))
     )
     filtered = []
     for user in candidates:
+        if inactive_bucket_for_user(user, now=when) is None:
+            continue
         email = getattr(user, "email", "") or ""
         if not is_waseda_student_email(email) or is_likely_test_account_email(email):
             continue
@@ -203,13 +254,23 @@ def resolve_retention_test_user(*, email: str = "", user_id: int | None = None):
 
 
 def _user_is_inactive(user, *, now=None) -> bool:
-    when = now or timezone.now()
-    cutoff = when - timedelta(hours=INACTIVE_HOURS)
-    profile = UserProfile.objects.filter(user_id=user.pk).first()
-    last_seen = getattr(profile, "last_seen_at", None)
-    if last_seen is None:
-        return False
-    return last_seen <= cutoff
+    return inactive_bucket_for_user(user, now=now) is not None
+
+
+def _inactive_audience_counts(users, *, now=None) -> dict[str, int]:
+    inactive_72h = 0
+    legacy_inactive = 0
+    for user in users:
+        bucket = inactive_bucket_for_user(user, now=now)
+        if bucket == INACTIVE_BUCKET_72H:
+            inactive_72h += 1
+        elif bucket == INACTIVE_BUCKET_LEGACY:
+            legacy_inactive += 1
+    return {
+        "inactive_72h_users": inactive_72h,
+        "legacy_inactive_users": legacy_inactive,
+        "inactive_eligible_users": inactive_72h + legacy_inactive,
+    }
 
 
 def load_test_retention_users(
@@ -267,8 +328,9 @@ def preview_popular_post_retention(
             skipped_no_post += 1
             continue
         planned += 1
+    counts = _inactive_audience_counts(users, now=when)
     return {
-        "inactive_eligible_users": len(users),
+        **counts,
         "popular_candidates": len(posts),
         "planned_sends": planned,
         "skipped_frequency_cap": skipped_cap,

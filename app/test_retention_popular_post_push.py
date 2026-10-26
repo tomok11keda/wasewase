@@ -134,6 +134,20 @@ class RetentionPopularPostPushTests(TestCase):
             _ios(user, kwargs.get("token_value", "fcm-recent-ios"))
         return user
 
+    def _legacy_unseen_user(self, **kwargs):
+        user = User.objects.create_user(
+            email=kwargs.get("email", "legacy-unseen@waseda.jp"),
+            password="test-pass-12345",
+        )
+        _profile(user, department="商学部", last_seen_at=None)
+        User.objects.filter(pk=user.pk).update(
+            date_joined=kwargs.get("date_joined", self.now - timedelta(days=10))
+        )
+        user.refresh_from_db()
+        if kwargs.get("token", True):
+            _ios(user, kwargs.get("token_value", "fcm-legacy-ios"))
+        return user
+
     def test_inactive_under_72h_is_not_selected(self):
         recent = self._recent_user()
         sent = PushDeliveryResult(PushDeliveryOutcome.SENT, success_count=1, reason="ok")
@@ -154,6 +168,10 @@ class RetentionPopularPostPushTests(TestCase):
         self.assertTrue(
             any(row["user_id"] == self.inactive.pk for row in result["deliveries"])
         )
+        preview = result["preview"]
+        self.assertEqual(preview["inactive_72h_users"], 1)
+        self.assertEqual(preview["legacy_inactive_users"], 0)
+        self.assertEqual(preview["inactive_eligible_users"], 1)
 
     def test_no_token_is_not_selected(self):
         DevicePushToken.objects.filter(user=self.inactive).delete()
@@ -254,7 +272,11 @@ class RetentionPopularPostPushTests(TestCase):
         self.assertEqual(Notification.objects.count(), 0)
         out = StringIO()
         call_command("send_retention_popular_post_push", stdout=out)
-        self.assertIn("dry-run", out.getvalue())
+        text = out.getvalue()
+        self.assertIn("dry-run", text)
+        self.assertIn("inactive_72h_users=", text)
+        self.assertIn("legacy_inactive_users=", text)
+        self.assertIn("inactive_eligible_users=", text)
         self.assertEqual(RetentionPushSend.objects.count(), 0)
 
     @override_settings(PUSH_NOTIFICATIONS_ENABLED=True)
@@ -299,15 +321,70 @@ class RetentionPopularPostPushTests(TestCase):
         self.assertNotIn(recent.pk, ids)
         self.assertIn(self.inactive.pk, ids)
 
-    def test_null_last_seen_is_not_selected(self):
-        unseen = User.objects.create_user(
-            email="unseen@waseda.jp", password="test-pass-12345"
+    def test_null_last_seen_joined_under_7d_is_not_selected(self):
+        unseen = self._legacy_unseen_user(
+            email="unseen-new@waseda.jp",
+            date_joined=self.now - timedelta(days=6),
+            token_value="fcm-unseen-new-ios",
         )
-        _profile(unseen, department="商学部", last_seen_at=None)
-        _ios(unseen, "fcm-unseen-ios")
         result = execute_popular_post_retention(send=False, now=self.now)
         ids = [row["user_id"] for row in result["deliveries"]]
         self.assertNotIn(unseen.pk, ids)
+        self.assertEqual(result["preview"]["legacy_inactive_users"], 0)
+
+    def test_null_last_seen_joined_7d_or_more_is_selected(self):
+        unseen = self._legacy_unseen_user(
+            email="unseen-old@waseda.jp",
+            date_joined=self.now - timedelta(days=7),
+            token_value="fcm-unseen-old-ios",
+        )
+        result = execute_popular_post_retention(send=False, now=self.now)
+        ids = [row["user_id"] for row in result["deliveries"]]
+        self.assertIn(unseen.pk, ids)
+        self.assertIn(self.inactive.pk, ids)
+        preview = result["preview"]
+        self.assertEqual(preview["inactive_72h_users"], 1)
+        self.assertEqual(preview["legacy_inactive_users"], 1)
+        self.assertEqual(preview["inactive_eligible_users"], 2)
+
+    def test_legacy_inactive_without_token_is_not_selected(self):
+        unseen = self._legacy_unseen_user(
+            email="legacy-notoken@waseda.jp",
+            date_joined=self.now - timedelta(days=10),
+            token=False,
+        )
+        result = execute_popular_post_retention(send=False, now=self.now)
+        ids = [row["user_id"] for row in result["deliveries"]]
+        self.assertNotIn(unseen.pk, ids)
+        self.assertEqual(result["preview"]["legacy_inactive_users"], 0)
+
+    def test_legacy_inactive_respects_frequency_cap(self):
+        unseen = self._legacy_unseen_user(
+            email="legacy-cap@waseda.jp",
+            date_joined=self.now - timedelta(days=10),
+            token_value="fcm-legacy-cap-ios",
+        )
+        prior = RetentionPushSend.objects.create(
+            user=unseen,
+            kind=RETENTION_KIND_POPULAR_POST,
+            object_id=str(self.post.pk),
+            status=RetentionPushSend.Status.SENT,
+            local_date=self.now.date(),
+            sent_at=self.now - timedelta(hours=5),
+        )
+        RetentionPushSend.objects.filter(pk=prior.pk).update(
+            created_at=self.now - timedelta(hours=5),
+            sent_at=self.now - timedelta(hours=5),
+        )
+        sent = PushDeliveryResult(PushDeliveryOutcome.SENT, success_count=1, reason="ok")
+        with patch(
+            "app.retention_push_services.deliver_push_to_user", return_value=sent
+        ) as mock_deliver:
+            result = execute_popular_post_retention(send=True, now=self.now)
+        self.assertFalse(
+            any(call.args[0].pk == unseen.pk for call in mock_deliver.call_args_list)
+        )
+        self.assertGreaterEqual(result["counts"]["skipped_cap"], 1)
 
     def test_posts_outside_24_to_72h_window_are_excluded(self):
         TimelinePost.objects.filter(pk=self.post.pk).update(
@@ -546,6 +623,24 @@ class RetentionTestUserPushTests(TestCase):
         self.assertEqual(result["deliveries"], [])
         self.assertNotIn(self.inactive.pk, [row["user_id"] for row in result["deliveries"]])
 
+    def test_legacy_test_user_is_inactive_without_ignore_flag(self):
+        User.objects.filter(pk=self.target.pk).update(
+            date_joined=self.now - timedelta(days=10)
+        )
+        _profile(self.target, last_seen_at=None)
+        self.target = User.objects.select_related("profile").get(pk=self.target.pk)
+        with patch(
+            "app.retention_push_services.deliver_push_to_user", return_value=self.sent
+        ) as mock_deliver:
+            result = execute_popular_post_retention(
+                send=True, now=self.now, test_user=self.target
+            )
+        mock_deliver.assert_called_once()
+        self.assertEqual(result["deliveries"][0]["user_id"], self.target.pk)
+        self.assertEqual(result["preview"]["legacy_inactive_users"], 1)
+        self.assertEqual(result["preview"]["inactive_72h_users"], 0)
+        self.assertEqual(result["preview"]["inactive_eligible_users"], 1)
+
     def test_production_send_without_test_user_still_targets_inactive(self):
         with patch(
             "app.retention_push_services.deliver_push_to_user", return_value=self.sent
@@ -583,6 +678,8 @@ class RetentionPushSourceTests(SimpleTestCase):
         src = _read("app/retention_push_services.py")
         self.assertNotIn("last_login", src)
         self.assertIn("last_seen_at", src)
+        self.assertIn("date_joined", src)
+        self.assertIn("LEGACY_INACTIVE_JOINED_DAYS = 7", src)
         self.assertIn("CANDIDATE_MIN_AGE_HOURS = 24", src)
         self.assertIn("CANDIDATE_MAX_AGE_HOURS = 72", src)
         self.assertIn("deliver_push_to_user", src)
