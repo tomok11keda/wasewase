@@ -67,6 +67,9 @@
     top: var(--chat-vv-offset, 0px);
     height: var(--chat-visible-h, 100dvh);
     max-height: var(--chat-visible-h, 100dvh);
+    /* Override .dm-page { min-height: 100% } so the frame cannot stay at
+       the layout-viewport height after --chat-visible-h shrinks. */
+    min-height: 0;
     padding-top: max(
       0px,
       calc(
@@ -74,6 +77,29 @@
           var(--chat-vv-offset, 0px)
       )
     );
+  }
+
+  /*
+   * Capacitor iPhone: innerHeight/visualViewport shrink (874 → 470) and
+   * .dm-room-page follows, but the message list + compose bar kept laying
+   * out at 874px (compose bottom 874, below the visible 470). Cause: inner
+   * `height: 100%` / `flex-basis: auto` sized to content / layout viewport
+   * instead of the flex frame. Header + compose stay intrinsic; the thread
+   * takes the leftover height.
+   */
+  html.chrome-conversation .dm-room-page .dm-room-main,
+  html.chrome-conversation .dm-room-page > .main-inner {
+    flex: 1 1 0%;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+  }
+
+  html.chrome-conversation .dm-room-page .chat-panel,
+  html.chrome-conversation .dm-room-page .dm-thread,
+  html.chrome-conversation .dm-room-page .dm-message-area {
+    flex: 1 1 0%;
+    min-height: 0;
   }
 }
 
