@@ -51,6 +51,10 @@ import {
 } from "../features/timeline/postAnchor";
 import { analytics } from "../lib/analytics/events";
 import { PullToRefresh } from "../lib/usePullToRefresh";
+import {
+  HOME_POST_SEARCH_HREF,
+  HOME_POST_SEARCH_PLACEHOLDER,
+} from "../features/search/homeSearchEntry";
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
@@ -704,6 +708,30 @@ export function HomePage() {
           してください。
         </p>
       )}
+      <div className="home-search">
+        <Link
+          to={HOME_POST_SEARCH_HREF}
+          className="home-search-bar"
+          aria-label={HOME_POST_SEARCH_PLACEHOLDER}
+        >
+          <svg
+            className="home-search-bar__icon"
+            viewBox="0 0 24 24"
+            width={18}
+            height={18}
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              fill="currentColor"
+              d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+            />
+          </svg>
+          <span className="home-search-bar__placeholder">
+            {HOME_POST_SEARCH_PLACEHOLDER}
+          </span>
+        </Link>
+      </div>
       {composeNotice ? (
         <p className="org-compose-notice" role="status">
           {composeNotice}
