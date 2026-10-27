@@ -251,6 +251,14 @@ test("inbox spa paths stay basename-relative and match recruiting route", () => 
   );
   assert.equal(inboxSpaHref("/dm/3"), "/dm/3");
   assert.equal(recruitingChatPath("circle"), "/organizations/circle/recruiting-chat");
+  assert.equal(
+    recruitingChatPath("circle", 9),
+    "/organizations/circle/recruiting-chat?chat=9"
+  );
+  assert.equal(
+    recruitingChatInvitePath("circle", 9),
+    "/organizations/circle/recruiting-chat/invite?chat=9"
+  );
 });
 
 test("pending and closed viewers never receive a room_id in parsed JSON", () => {

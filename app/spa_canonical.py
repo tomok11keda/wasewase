@@ -105,13 +105,16 @@ def recruiting_chat_spa_path(
     return f"/dm/recruiting/{room_pk}"
 
 
-def recruiting_invite_spa_path(slug: str) -> str:
+def recruiting_invite_spa_path(slug: str, chat_id: int | None = None) -> str:
     org_slug = (slug or "").strip()
-    return f"/organizations/{org_slug}/recruiting-chat/invite"
+    path = f"/organizations/{org_slug}/recruiting-chat/invite"
+    if chat_id:
+        return f"{path}?chat={int(chat_id)}"
+    return path
 
 
-def recruiting_invite_url(slug: str) -> str:
-    path = recruiting_invite_spa_path(slug)
+def recruiting_invite_url(slug: str, chat_id: int | None = None) -> str:
+    path = recruiting_invite_spa_path(slug, chat_id)
     if spa_enabled():
         return app_absolute(path)
     return path

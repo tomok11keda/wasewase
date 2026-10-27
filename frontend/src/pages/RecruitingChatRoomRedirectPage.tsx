@@ -31,7 +31,10 @@ export function RecruitingChatRoomRedirectPage() {
       .then((data) => {
         const slug = data.room.organization_slug;
         if (slug) {
-          navigate(recruitingChatPath(slug), { replace: true });
+          navigate(
+            recruitingChatPath(slug, data.recruiting_chat?.id),
+            { replace: true }
+          );
           return;
         }
         setError("not_found");

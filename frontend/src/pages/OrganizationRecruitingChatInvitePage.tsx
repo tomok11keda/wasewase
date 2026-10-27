@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingInviteBanner } from "../features/orgs/RecruitingInviteBanner";
 import {
+  parseRecruitingChatIdFromSearch,
   recruitingChatErrorMessage,
   recruitingChatPath,
   recruitingInviteOpenState,
@@ -30,6 +31,8 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatInvitePage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
@@ -49,7 +52,7 @@ export function OrganizationRecruitingChatInvitePage() {
     setInvitation(null);
     setError(null);
     setLoading(true);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -58,11 +61,14 @@ export function OrganizationRecruitingChatInvitePage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchViewerRecruitingInvitation(slug);
+      const data = await fetchViewerRecruitingInvitation(slug, undefined, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
-      if (data.recruiting_chat?.room_id && data.recruiting_chat.can_send) {
-        navigate(recruitingChatPath(slug), { replace: true });
+      if (data.recruiting_chat?.room_id) {
+        navigate(
+          recruitingChatPath(slug, data.recruiting_chat.id),
+          { replace: true }
+        );
         return;
       }
       setInvitation(data.invitation);
@@ -74,7 +80,7 @@ export function OrganizationRecruitingChatInvitePage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [navigate, slug]);
+  }, [chatId, navigate, slug]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -117,7 +123,7 @@ export function OrganizationRecruitingChatInvitePage() {
     void run(async () => {
       const chat = await acceptRecruitingInvitation(invitation.id);
       if (chat.room_id) {
-        navigate(recruitingChatPath(slug), { replace: true });
+        navigate(recruitingChatPath(slug, chat.id), { replace: true });
         return;
       }
       navigate(`/orgs/${slug}`, { replace: true });

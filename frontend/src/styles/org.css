@@ -263,6 +263,7 @@
 
 .org-recruiting-list {
   margin: 20px 0 0;
+  max-width: 100%;
 }
 
 .org-recruiting-list > .org-recruiting-card {
@@ -271,6 +272,7 @@
 
 .org-chat-share-picker {
   margin-top: 12px;
+  max-width: 100%;
 }
 
 .org-chat-share-picker label {
@@ -285,6 +287,8 @@
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .org-recruiting-card__title {
@@ -333,6 +337,8 @@
 .org-recruiting-card__actions a.btn {
   min-height: 44px;
   flex: 1 1 140px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .org-recruiting-card__pending {

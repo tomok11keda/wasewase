@@ -2146,13 +2146,14 @@ html.chrome-detail .dm-group-header {
 
 .share-card {
   display: block;
-  max-width: 260px;
+  max-width: min(260px, 100%);
   padding: 12px;
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(20, 28, 36, 0.12);
   color: inherit;
   text-decoration: none;
+  box-sizing: border-box;
 }
 
 .share-card__brand {
@@ -2206,6 +2207,7 @@ html.chrome-detail .dm-group-header {
   margin: 0 0 8px;
   font-size: 14px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .share-card__price {

@@ -244,8 +244,11 @@ export function recruitingChatInvitesPath(
   return withChatQuery(`${recruitingChatPath(slug)}/invites`, chatId);
 }
 
-export function recruitingChatInvitePath(slug: string): string {
-  return `${recruitingChatPath(slug)}/invite`;
+export function recruitingChatInvitePath(
+  slug: string,
+  chatId?: number | null
+): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/invite`, chatId);
 }
 
 export function envelopeChats(envelope: RecruitingChatEnvelope | null): RecruitingChat[] {

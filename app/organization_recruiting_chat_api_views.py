@@ -47,8 +47,8 @@ from .organization_recruiting_invite_services import (
     get_recruiting_invitation_for_invitee,
     list_pending_recruiting_invites,
     list_recruiting_invite_candidates,
+    resolve_viewer_recruiting_invitation_for_org,
     serialize_recruiting_invitation,
-    viewer_recruiting_invitation_payload,
 )
 from .organization_services import (
     can_manage_organization,
@@ -158,6 +158,25 @@ def _managed_chat(request: HttpRequest, slug: str, data: dict | None = None):
     if chat == "many":
         return _json_error("chat_id_required", status=409)
     if chat is None:
+        return _json_error("not_found", status=404)
+    return organization, chat
+
+
+def _viewer_chat(request: HttpRequest, slug: str):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    organization = _visible_organization(slug, request.user)
+    if isinstance(organization, JsonResponse):
+        return organization
+    chat = _resolve_chat(
+        organization, _chat_id_from_request(request), required_if_many=True
+    )
+    if chat == "many":
+        return _json_error("chat_id_required", status=409)
+    if chat is None:
+        return _json_error("not_found", status=404)
+    if not can_see_recruiting_chat(request.user, chat):
         return _json_error("not_found", status=404)
     return organization, chat
 
@@ -545,15 +564,10 @@ def api_v1_organization_recruiting_chat_reject(
 def api_v1_organization_recruiting_chat_members(
     request: HttpRequest, slug: str
 ) -> JsonResponse:
-    auth_error = _require_auth(request)
-    if auth_error:
-        return auth_error
-    organization = _visible_organization(slug, request.user)
-    if isinstance(organization, JsonResponse):
-        return organization
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        return _json_error("not_found", status=404)
+    result = _viewer_chat(request, slug)
+    if isinstance(result, JsonResponse):
+        return result
+    _organization, chat = result
     try:
         members = list_recruiting_participants(chat=chat, viewer=request.user)
     except OrganizationRecruitingChatError as exc:
@@ -784,8 +798,11 @@ def api_v1_organization_recruiting_invitation(
     organization = get_organization_by_slug(slug)
     if organization is None:
         return _json_error("not_found", status=404)
-    chat = get_active_recruiting_chat(organization)
-    invitation = viewer_recruiting_invitation_payload(chat, request.user)
+    chat, invitation = resolve_viewer_recruiting_invitation_for_org(
+        organization,
+        request.user,
+        chat_id=_chat_id_from_request(request),
+    )
     if invitation is None or chat is None:
         return _json_error("not_found", status=404)
     return JsonResponse(

@@ -644,6 +644,47 @@ def viewer_recruiting_invitation_payload(
     return serialize_recruiting_invitation(row)
 
 
+def resolve_viewer_recruiting_invitation_for_org(
+    organization,
+    user: AbstractBaseUser | None,
+    *,
+    chat_id: int | None = None,
+) -> tuple[OrganizationRecruitingChat | None, dict[str, Any] | None]:
+    """chat_id 指定時はそのチャット。未指定なら未応答招待を優先する。"""
+    from .organization_recruiting_chat_services import (
+        get_active_recruiting_chat,
+        get_organization_chat,
+    )
+
+    if not organization or not _authenticated_user(user):
+        return None, None
+    if chat_id:
+        chat = get_organization_chat(organization, chat_id)
+        return chat, viewer_recruiting_invitation_payload(chat, user)
+    pending = (
+        ChatRoomInvitation.objects.filter(
+            invitee=user,
+            status=ChatRoomInvitation.Status.PENDING,
+            room__kind=ChatRoom.Kind.RECRUITING,
+            room__organization_recruiting_chat__organization=organization,
+        )
+        .select_related(
+            "inviter",
+            "inviter__profile",
+            "room",
+            "room__organization_recruiting_chat",
+            "room__organization_recruiting_chat__organization",
+        )
+        .order_by("-updated_at", "-pk")
+        .first()
+    )
+    if pending is not None:
+        chat = getattr(pending.room, "organization_recruiting_chat", None)
+        return chat, serialize_recruiting_invitation(pending)
+    chat = get_active_recruiting_chat(organization)
+    return chat, viewer_recruiting_invitation_payload(chat, user)
+
+
 def list_pending_recruiting_invitations_for_user(
     user: AbstractBaseUser,
 ) -> list[ChatRoomInvitation]:
@@ -698,7 +739,9 @@ def build_recruiting_invite_conversations(user: AbstractBaseUser) -> list[dict]:
                 "organization_avatar_url": get_organization_avatar_url(organization),
                 "member_count": 0,
                 "viewer_role": "invited",
-                "spa_path": recruiting_invite_spa_path(slug),
+                "spa_path": recruiting_invite_spa_path(
+                    slug, getattr(chat, "pk", None)
+                ),
             }
         )
     return conversations
@@ -717,7 +760,7 @@ def _notify_recruiting_invite(invitation: ChatRoomInvitation) -> None:
     if is_either_blocked(invitation.invitee, invitation.inviter):
         return
     slug = organization.slug or ""
-    link = recruiting_invite_url(slug)
+    link = recruiting_invite_url(slug, getattr(chat, "pk", None))
     if Notification.objects.filter(
         recipient=invitation.invitee, link=link, is_read=False
     ).exists():

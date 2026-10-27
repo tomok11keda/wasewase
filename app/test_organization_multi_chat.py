@@ -11,11 +11,15 @@ from django.utils import timezone
 from .chat_message_services import create_chat_message
 from .models import (
     ChatMessage,
+    ChatRoom,
+    ChatRoomInvitation,
     ChatRoomMembership,
+    Follow,
     Organization,
     OrganizationChatShare,
     OrganizationMember,
     OrganizationRecruitingChat,
+    OrganizationRecruitingChatApplication,
     User,
     UserProfile,
 )
@@ -221,6 +225,18 @@ class OrganizationMultiChatTests(TestCase):
         listed = self.client.get(self._url())
         ids = {row["id"] for row in listed.json()["recruiting_chats"]}
         self.assertIn(second.pk, ids)
+        self.client.force_login(self.student)
+        history = self.client.get(f"/api/v1/recruiting-chats/{first.room_id}/messages/")
+        self.assertEqual(history.status_code, 200)
+        blocked_send = self._json(
+            "post",
+            f"/api/v1/recruiting-chats/{first.room_id}/messages/send/",
+            body="アーカイブ後は送れない",
+        )
+        self.assertEqual(blocked_send.status_code, 403)
+        self.client.force_login(self.stranger)
+        blocked_join = self._json("post", self._url("join/", chat_id=first.pk))
+        self.assertEqual(blocked_join.status_code, 404)
 
     def test_admins_only_posting_blocks_regular_member(self):
         chat = self._create_chat(
@@ -359,3 +375,146 @@ class OrganizationMultiChatTests(TestCase):
         self.assertEqual(names, {"公開一覧"})
         owner_view = serialize_recruiting_chat_for_viewer(public, self.owner)
         self.assertEqual(owner_view["visibility"], "public")
+
+    def test_private_chat_id_does_not_leak_members_or_messages(self):
+        public = self._create_chat(name="公開")
+        private = self._create_chat(
+            name="非公開",
+            visibility=OrganizationRecruitingChat.Visibility.PRIVATE,
+        )
+        join_or_apply_recruiting_chat(chat=public, user=self.student)
+        send_recruiting_chat_message(private.room, self.owner, "幹部だけ")
+        self.client.force_login(self.student)
+        public_members = self.client.get(self._url("members/", chat_id=public.pk))
+        self.assertEqual(public_members.status_code, 200)
+        missing = self.client.get(self._url("members/"))
+        self.assertEqual(missing.status_code, 409)
+        self.assertEqual(missing.json()["error"], "chat_id_required")
+        hidden_members = self.client.get(self._url("members/", chat_id=private.pk))
+        self.assertEqual(hidden_members.status_code, 404)
+        hidden_messages = self.client.get(
+            f"/api/v1/recruiting-chats/{private.room_id}/messages/"
+        )
+        self.assertIn(hidden_messages.status_code, {403, 404})
+        hidden_room = self.client.get(f"/api/v1/recruiting-chats/{private.room_id}/")
+        self.assertIn(hidden_room.status_code, {403, 404})
+        hidden_chat = self.client.get(self._url(chat_id=private.pk))
+        self.assertEqual(hidden_chat.status_code, 404)
+        self.client.force_login(self.stranger)
+        stranger_members = self.client.get(self._url("members/", chat_id=private.pk))
+        self.assertEqual(stranger_members.status_code, 404)
+
+    def test_invitation_without_chat_id_finds_non_first_chat(self):
+        self._create_chat(name="先に作った公開")
+        private = self._create_chat(
+            name="招待先",
+            visibility=OrganizationRecruitingChat.Visibility.PRIVATE,
+        )
+        self.client.force_login(self.owner)
+        invited = self._json(
+            "post",
+            self._url("invites/", chat_id=private.pk),
+            invitee_ids=[self.student.pk],
+        )
+        self.assertEqual(invited.status_code, 201, invited.content)
+        self.client.force_login(self.student)
+        by_slug = self.client.get(self._url("invitation/"))
+        self.assertEqual(by_slug.status_code, 200, by_slug.content)
+        self.assertEqual(by_slug.json()["recruiting_chat"]["id"], private.pk)
+        self.assertIsNone(by_slug.json()["recruiting_chat"]["room_id"])
+
+    def test_migration_0077_grant_is_idempotent_and_keeps_existing_rows(self):
+        import importlib
+
+        from django.apps import apps as django_apps
+
+        grant_manager_memberships = importlib.import_module(
+            "app.migrations.0077_organization_multi_chat"
+        ).grant_manager_memberships
+
+        chat = self._create_chat(name="既存")
+        join_or_apply_recruiting_chat(chat=chat, user=self.student)
+        send_recruiting_chat_message(chat.room, self.student, "残す本文")
+        ChatRoomInvitation.objects.create(
+            room=chat.room,
+            inviter=self.owner,
+            invitee=self.stranger,
+            status=ChatRoomInvitation.Status.PENDING,
+        )
+        OrganizationRecruitingChatApplication.objects.create(
+            recruiting_chat=chat,
+            user=self.stranger,
+            status=OrganizationRecruitingChatApplication.Status.PENDING,
+        )
+        self.assertFalse(
+            ChatRoomMembership.objects.filter(room=chat.room, user=self.admin).exists()
+        )
+        grant_manager_memberships(django_apps, None)
+        grant_manager_memberships(django_apps, None)
+        self.assertTrue(
+            ChatRoomMembership.objects.filter(room=chat.room, user=self.admin).exists()
+        )
+        self.assertEqual(
+            ChatRoomMembership.objects.filter(room=chat.room, user=self.admin).count(),
+            1,
+        )
+        self.assertTrue(
+            ChatRoomMembership.objects.filter(room=chat.room, user=self.student).exists()
+        )
+        self.assertTrue(
+            ChatMessage.objects.filter(room=chat.room, body="残す本文").exists()
+        )
+        self.assertTrue(
+            ChatRoomInvitation.objects.filter(
+                room=chat.room, invitee=self.stranger
+            ).exists()
+        )
+        self.assertTrue(
+            OrganizationRecruitingChatApplication.objects.filter(
+                recruiting_chat=chat, user=self.stranger
+            ).exists()
+        )
+
+    def test_inbox_opens_existing_chat_and_personal_dm_stays_separate(self):
+        chat = self._create_chat(name="既存チャット")
+        join_or_apply_recruiting_chat(chat=chat, user=self.student)
+        send_recruiting_chat_message(chat.room, self.student, "一覧から開く")
+        Follow.objects.create(follower=self.student, following=self.stranger)
+        self.client.force_login(self.student)
+        dm = self._json("post", "/api/v1/dm/start/", user_id=self.stranger.pk)
+        self.assertEqual(dm.status_code, 200, dm.content)
+        dm_id = dm.json()["room_id"]
+        sent_dm = self._json(
+            "post",
+            f"/api/v1/dm/rooms/{dm_id}/messages/send/",
+            body="個人DM",
+        )
+        self.assertEqual(sent_dm.status_code, 201, sent_dm.content)
+        group = self._json(
+            "post",
+            "/api/v1/dm/groups/",
+            name="通常グループ",
+            member_ids=[self.stranger.pk],
+        )
+        self.assertEqual(group.status_code, 201, group.content)
+        group_id = group.json()["room_id"]
+        sent_group = self._json(
+            "post",
+            f"/api/v1/dm/groups/{group_id}/messages/send/",
+            body="グループ",
+        )
+        self.assertEqual(sent_group.status_code, 201, sent_group.content)
+        inbox = self.client.get("/api/v1/dm/inbox/").json()
+        kinds = {row["kind"] for row in inbox["conversations"]}
+        self.assertIn("recruiting", kinds)
+        self.assertIn("dm", kinds)
+        self.assertIn("group", kinds)
+        recruiting = next(
+            row for row in inbox["conversations"] if row["kind"] == "recruiting"
+        )
+        self.assertIn(f"chat={chat.pk}", recruiting["spa_path"])
+        self.assertEqual(
+            ChatRoom.objects.get(pk=group_id).kind, ChatRoom.Kind.GROUP
+        )
+        hijack = self.client.get(f"/api/v1/dm/groups/{chat.room_id}/")
+        self.assertEqual(hijack.status_code, 404)

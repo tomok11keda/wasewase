@@ -159,7 +159,7 @@ export function OrganizationRecruitingChatPage() {
   const applyEnvelope = useCallback((next: RecruitingChatEnvelope) => {
     setEnvelope(next);
     const chat = next.recruiting_chat;
-    if (!chat?.room_id || !chat.can_send) {
+    if (!chat?.room_id) {
       setRoom(null);
       setMessages([]);
       roomIdRef.current = null;
@@ -247,8 +247,7 @@ export function OrganizationRecruitingChatPage() {
           return;
         }
         const roomId = chatEnvelope.recruiting_chat?.room_id;
-        const canSend = Boolean(chatEnvelope.recruiting_chat?.can_send);
-        if (!roomId || !canSend) {
+        if (!roomId) {
           setMessages([]);
           setRoom(null);
           setHydrated(true);
@@ -312,7 +311,7 @@ export function OrganizationRecruitingChatPage() {
   const canSend = Boolean(
     chat?.can_send && chat.room_id && room?.can_send && !accessLost
   );
-  const showThread = Boolean(canSend && room && !accessLost);
+  const showThread = Boolean(room && !accessLost);
 
   const fetchOlder = useCallback((beforeId: number) => {
     const id = roomIdRef.current;
@@ -445,7 +444,7 @@ export function OrganizationRecruitingChatPage() {
     : chat?.name || room?.name || "";
   const orgLabel = orgName || room?.organization_name || "";
   const headerPreview = readRecruitingHeaderPreview(sessionUserId, slug);
-  const canViewThread = Boolean(!showHub && canSend && room && !accessLost);
+  const canViewThread = Boolean(!showHub && room && !accessLost);
   const phase = chatContentPhase({
     loading: sessionLoading || loading,
     error,
@@ -542,7 +541,7 @@ export function OrganizationRecruitingChatPage() {
                 can_create: Boolean(envelope?.can_create),
                 can_manage: canManage || next.can_manage,
               });
-              if (!next.room_id || !next.can_send) return;
+              if (!next.room_id) return;
               const roomId = next.room_id;
               const currentSlug = slug;
               setLoading(true);
