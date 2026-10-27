@@ -1,0 +1,173 @@
+/* Linked-account create — vertical form inside AppShell */
+
+.linked-account-page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+
+.linked-account-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--shell-border, #eff3f4);
+  border-radius: var(--radius, 12px);
+  padding: 20px 18px 22px;
+  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.04);
+}
+
+.linked-account-header {
+  margin-bottom: 14px;
+}
+
+.linked-account-header h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--text, #0f1419);
+}
+
+.linked-account-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted, #536471);
+}
+
+.linked-account-points {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f7f9f9;
+  border: 1px solid var(--shell-border, #eff3f4);
+}
+
+.linked-account-points li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, #0f1419);
+}
+
+.linked-account-points li + li {
+  margin-top: 8px;
+}
+
+.linked-account-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent, #891e2b);
+}
+
+.linked-account-page .errors {
+  margin: 0 0 14px;
+  color: #c62828;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.linked-account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.linked-account-form .form-group {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.linked-account-form label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #0f1419);
+}
+
+.linked-account-form input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cfd9de;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text, #0f1419);
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.linked-account-form input::placeholder {
+  color: #8b98a5;
+}
+
+.linked-account-form input:focus {
+  outline: none;
+  border-color: var(--accent, #891e2b);
+  box-shadow: 0 0 0 3px rgba(137, 30, 43, 0.12);
+}
+
+.linked-account-form input:disabled {
+  background: #f7f9f9;
+  color: var(--muted, #536471);
+}
+
+.linked-account-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent, #891e2b);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.linked-account-submit:hover:not(:disabled) {
+  background: var(--accent-dark, #6f1722);
+}
+
+.linked-account-submit:disabled {
+  background: #c9a0a6;
+  cursor: not-allowed;
+}
+
+.linked-account-footnote {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #536471);
+}
+
+@media (max-width: 390px) {
+  .linked-account-page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .linked-account-card {
+    padding: 18px 14px 20px;
+  }
+
+  .linked-account-header h1 {
+    font-size: 18px;
+  }
+}

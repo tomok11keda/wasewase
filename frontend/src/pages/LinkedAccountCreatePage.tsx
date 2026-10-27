@@ -15,6 +15,7 @@ export function LinkedAccountCreatePage() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const maxProfiles = linkedProfileMax(me);
 
   useEffect(() => {
     if (loading) return;
@@ -50,38 +51,68 @@ export function LinkedAccountCreatePage() {
   };
 
   return (
-    <main className="main-inner" data-spa-page="アカウントを追加">
-      <div className="form-card">
-        <h1>アカウントを追加</h1>
-        <p className="form-lead">
-          大学メールの再認証と新しいパスワードは不要です。1人あたり
-          {linkedProfileMax(me)}つまで作れます。
-          アイコンは追加後のプロフィール設定から変更できます。
-        </p>
+    <main className="main-inner linked-account-page" data-spa-page="アカウントを追加">
+      <div className="form-card linked-account-card">
+        <header className="linked-account-header">
+          <h1>アカウントを追加</h1>
+          <p className="linked-account-sub">サブアカウントを作成できます</p>
+        </header>
+
+        <ul className="linked-account-points">
+          <li>大学メールの再認証は不要です</li>
+          <li>新しいパスワードの設定も不要です</li>
+          <li>1人{maxProfiles}アカウントまで作成できます</li>
+        </ul>
+
         {error ? <p className="errors">{error}</p> : null}
-        <form onSubmit={(event) => void onSubmit(event)}>
-          <label htmlFor="linked-username">ユーザー名</label>
-          <input
-            id="linked-username"
-            type="text"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
-          <label htmlFor="linked-display-name">表示名</label>
-          <input
-            id="linked-display-name"
-            type="text"
-            autoComplete="nickname"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            required
-          />
-          <button type="submit" className="btn" disabled={busy}>
-            追加して切り替える
+
+        <form
+          className="linked-account-form"
+          onSubmit={(event) => void onSubmit(event)}
+        >
+          <div className="form-group">
+            <label htmlFor="linked-username">ユーザー名</label>
+            <input
+              id="linked-username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="例）wase_sub"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+              disabled={busy}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="linked-display-name">表示名</label>
+            <input
+              id="linked-display-name"
+              type="text"
+              autoComplete="nickname"
+              placeholder="例）わせわせサブ"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              required
+              disabled={busy}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn linked-account-submit"
+            disabled={busy}
+          >
+            {busy ? "追加中…" : "アカウントを追加して切り替える"}
           </button>
         </form>
+
+        <p className="linked-account-footnote">
+          アイコンは追加後にプロフィール設定から変更できます。
+        </p>
       </div>
     </main>
   );

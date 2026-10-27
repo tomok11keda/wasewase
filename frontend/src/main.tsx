@@ -22,6 +22,7 @@ import "./styles/skeleton.css";
 import "./styles/org.css";
 import "./styles/dm.css";
 import "./styles/notifications-auth.css";
+import "./styles/linked-account.css";
 import "./styles/onboarding.css";
 import "./styles/push-preperm.css";
 import "./styles/ios-form-zoom.css";
