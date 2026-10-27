@@ -1,3 +1,13 @@
+export type LinkedProfileSummary = {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  initial: string;
+  is_current: boolean;
+  is_credential: boolean;
+};
+
 export type MeResponse = {
   authenticated: boolean;
   is_browse_mode: boolean;
@@ -19,6 +29,9 @@ export type MeResponse = {
   onboarding_required?: boolean;
   onboarding_step?: string | null;
   onboarding_completed?: boolean;
+  linked_profiles?: LinkedProfileSummary[];
+  can_add_linked_profile?: boolean;
+  linked_profile_max?: number;
 };
 
 export async function fetchMe(): Promise<MeResponse> {

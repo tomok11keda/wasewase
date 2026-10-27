@@ -94,12 +94,12 @@ export function LoginPage() {
         <h1>ログイン</h1>
         {error ? <p className="errors">{error}</p> : null}
         <form onSubmit={(e) => void onSubmit(e)}>
-          <label htmlFor="login-email">メールアドレス</label>
+          <label htmlFor="login-email">メールアドレスまたはユーザー名</label>
           <input
             id="login-email"
-            type="email"
-            autoComplete="email"
-            placeholder="example@waseda.jp"
+            type="text"
+            autoComplete="username"
+            placeholder="example@waseda.jp または ユーザー名"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

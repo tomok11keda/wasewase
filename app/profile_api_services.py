@@ -340,7 +340,9 @@ def toggle_follow_for_api(
 def toggle_block_for_api(
     actor: AbstractBaseUser, target: AbstractBaseUser
 ) -> dict[str, Any]:
-    if actor.pk == target.pk:
+    from .account_identity_services import same_person
+
+    if same_person(actor, target):
         raise ValueError("own_user")
     from .ugc_services import block_user, unblock_user
 

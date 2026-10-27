@@ -23,7 +23,6 @@ from django.urls import reverse
 from .account_deletion_services import (
     SUPERUSER_DELETION_DENIED_MESSAGE,
     SuperuserDeletionDenied,
-    delete_user_account,
     user_is_superuser,
 )
 from .report_notification_services import notify_moderation_team_of_report
@@ -1085,7 +1084,18 @@ def mypage_edit(request):
 
 @login_required
 def account_settings(request):
-    return render(request, "settings.html")
+    from .account_identity_services import serialize_linked_profiles_payload
+
+    payload = serialize_linked_profiles_payload(request.user)
+    return render(
+        request,
+        "settings.html",
+        {
+            "linked_profiles": payload["profiles"],
+            "has_linked_sibling": len(payload["profiles"]) > 1,
+            "current_username": getattr(request.user, "username", "") or "",
+        },
+    )
 
 
 @login_required
@@ -1136,7 +1146,9 @@ def toggle_follow(request, pk):
 @require_POST
 def toggle_block(request, pk):
     profile_user = get_object_or_404(User, pk=pk)
-    if profile_user == request.user:
+    from .account_identity_services import same_person
+
+    if same_person(request.user, profile_user):
         messages.error(request, "自分自身をブロックすることはできません。")
         return redirect(reverse("user_profile", kwargs={"pk": pk}))
 
@@ -1183,6 +1195,8 @@ def delete_account(request):
 
     user = request.user
     user_id = user.pk
+    username = getattr(user, "username", "") or ""
+    entire = bool(request.POST.get("entire_identity"))
     deletion_logger = logging.getLogger(__name__)
 
     if user_is_superuser(user):
@@ -1198,8 +1212,17 @@ def delete_account(request):
         flush=True,
     )
 
+    from .account_identity_services import (
+        delete_current_linked_profile,
+        delete_entire_identity,
+    )
+
+    remaining = None
     try:
-        delete_user_account(user)
+        if entire:
+            delete_entire_identity(request)
+        else:
+            remaining = delete_current_linked_profile(request)
     except SuperuserDeletionDenied:
         messages.error(request, SUPERUSER_DELETION_DENIED_MESSAGE)
         return redirect(reverse("account_settings"))
@@ -1222,6 +1245,13 @@ def delete_account(request):
         messages.error(
             request,
             "アカウントの削除に失敗しました。しばらくしてからもう一度お試しください。",
+        )
+        return redirect(reverse("account_settings"))
+
+    if remaining is not None:
+        messages.success(
+            request,
+            f"@{username} を削除しました。残りのアカウントでログインしています。",
         )
         return redirect(reverse("account_settings"))
 
@@ -2492,6 +2522,16 @@ def board_timeline_like(request, pk):
     post = get_visible_timeline_post_or_404(request.user, pk)
     if not allow_timeline_like(request.user):
         messages.error(request, RATE_LIMIT_USER_MESSAGE)
+        return _board_redirect(request, tag=post.course_name)
+    from .account_identity_services import same_person
+
+    author = getattr(post, "author", None)
+    if (
+        author is not None
+        and request.user.pk != author.pk
+        and same_person(request.user, author)
+    ):
+        messages.error(request, "自分の投稿にはいいねできません。")
         return _board_redirect(request, tag=post.course_name)
     like, created = TimelineLike.objects.get_or_create(
         timeline_post=post,

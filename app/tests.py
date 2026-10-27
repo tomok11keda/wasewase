@@ -3906,7 +3906,10 @@ class AccountDeletionTests(TestCase):
         self.assertFalse(ChatRoom.objects.filter(pk=buyer_room.pk).exists())
         self.assertFalse(DevicePushToken.objects.filter(user_id=self.user.pk).exists())
 
-    @patch("app.views.delete_user_account", side_effect=RuntimeError("db error"))
+    @patch(
+        "app.account_deletion_services.delete_user_account",
+        side_effect=RuntimeError("db error"),
+    )
     def test_delete_account_shows_error_when_deletion_fails(self, _mock_delete):
         self.client.force_login(self.user)
         response = self.client.post(

@@ -105,6 +105,9 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         "onboarding_required": False,
         "onboarding_step": None,
         "onboarding_completed": True,
+        "linked_profiles": [],
+        "can_add_linked_profile": False,
+        "linked_profile_max": 0,
     }
     if authenticated:
         from .onboarding_services import (
@@ -135,6 +138,17 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         payload["onboarding_required"] = required
         payload["onboarding_step"] = status["step"]
         payload["onboarding_completed"] = not required
+        from .account_identity_services import (
+            credential_user,
+            serialize_linked_profiles_payload,
+        )
+
+        cred = credential_user(user)
+        payload["user"]["email"] = cred.email or ""
+        linked = serialize_linked_profiles_payload(user)
+        payload["linked_profiles"] = linked["profiles"]
+        payload["can_add_linked_profile"] = linked["can_add"]
+        payload["linked_profile_max"] = linked["max"]
         payload["unread_notifications"] = get_unread_notification_count(user)
         try:
             payload["dm_unread_total"] = int(
@@ -143,8 +157,11 @@ def serialize_me(request: HttpRequest) -> dict[str, Any]:
         except Exception:
             payload["dm_unread_total"] = 0
     else:
+        from .account_identity_services import MAX_LINKED_PROFILES
+
         payload["unread_notifications"] = 0
         payload["dm_unread_total"] = 0
+        payload["linked_profile_max"] = MAX_LINKED_PROFILES
     return payload
 
 
@@ -222,25 +239,42 @@ def login_with_form(request: HttpRequest, data: dict) -> tuple[dict, int]:
     email = data.get("email") or data.get("username") or ""
     if not allow_login_rate_limit(request, email):
         return _rate_limited()
-    form = EmailAuthenticationForm(
-        request,
-        data={
-            "username": data.get("email") or data.get("username") or "",
-            "password": data.get("password") or "",
-        },
-    )
-    if not form.is_valid():
-        return (
-            {
-                "ok": False,
-                "error": "invalid_credentials",
-                "errors": form_field_errors(form),
-                "message": "メールアドレスまたはパスワードが正しくありません。",
+    identifier = (email or "").strip()
+    password = data.get("password") or ""
+    if identifier and "@" not in identifier:
+        from .account_identity_services import AUTH_BACKEND, authenticate_identifier
+
+        user = authenticate_identifier(identifier, password)
+        if user is None:
+            return (
+                {
+                    "ok": False,
+                    "error": "invalid_credentials",
+                    "message": "メールアドレスまたはパスワードが正しくありません。",
+                },
+                400,
+            )
+        login(request, user, backend=AUTH_BACKEND)
+    else:
+        form = EmailAuthenticationForm(
+            request,
+            data={
+                "username": identifier.lower(),
+                "password": password,
             },
-            400,
         )
-    user = form.get_user()
-    login(request, user)
+        if not form.is_valid():
+            return (
+                {
+                    "ok": False,
+                    "error": "invalid_credentials",
+                    "errors": form_field_errors(form),
+                    "message": "メールアドレスまたはパスワードが正しくありません。",
+                },
+                400,
+            )
+        user = form.get_user()
+        login(request, user)
     clear_browse_mode(request)
     return (
         {

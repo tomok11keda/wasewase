@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { clearInboxCache } from "../features/dm/inboxCache";
 import { clearNotificationsCache } from "../features/notifications/notificationsCache";
 import { clearFollowListCache } from "../features/profile/followListCache";
 import { clearOwnProfileCache } from "../features/profile/ownProfileCache";
@@ -77,11 +78,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (previousUserId != null && previousUserId !== sessionUserId) {
       clearNotificationsCache(previousUserId);
       clearOwnProfileCache(previousUserId);
+      clearInboxCache(previousUserId);
       clearFollowListCache();
     }
     if (previousUserId != null && sessionUserId == null) {
       clearNotificationsCache();
       clearOwnProfileCache();
+      clearInboxCache();
       clearFollowListCache();
     }
     prevUserIdRef.current = sessionUserId;

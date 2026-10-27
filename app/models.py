@@ -36,8 +36,33 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 
+class AccountIdentity(models.Model):
+    """Same natural person across at most two User profiles.
+
+    Password and university email stay on the credential User. This row only
+    links profiles so staff can see they are the same person.
+    """
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "アカウント同一性"
+        verbose_name_plural = "アカウント同一性"
+
+    def __str__(self) -> str:
+        return f"identity:{self.pk}"
+
+
 class User(AbstractUser):
-    email = models.EmailField("メールアドレス", unique=True)
+    email = models.EmailField("メールアドレス", unique=True, null=True, blank=True)
+    identity = models.ForeignKey(
+        "AccountIdentity",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
+        verbose_name="アカウント同一性",
+    )
     stripe_connect_account_id = models.CharField(
         max_length=255,
         blank=True,
@@ -67,6 +92,10 @@ class User(AbstractUser):
         ]
 
     def save(self, *args, **kwargs):
+        if self.email == "":
+            self.email = None
+        elif self.email:
+            self.email = type(self).objects.normalize_email(self.email).lower()
         assign_handle_after_insert = False
         if not self.username:
             self.username = self._generate_unique_username_without_pk()

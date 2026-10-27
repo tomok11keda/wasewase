@@ -1244,6 +1244,21 @@ body.account-drawer-open {
   font-family: inherit;
 }
 
+.account-switcher__add {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 10px 16px 14px;
+  border: none;
+  background: transparent;
+  color: var(--accent, #891e2b);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .sidebar-user .account-switcher {
   border-bottom: none;
   padding: 0 0 8px;

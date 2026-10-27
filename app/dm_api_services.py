@@ -407,7 +407,9 @@ def send_dm_message(
 def start_dm(
     actor: AbstractBaseUser, partner: AbstractBaseUser
 ) -> tuple[UserDirectMessageRoom, bool]:
-    if actor.pk == partner.pk:
+    from .account_identity_services import same_person
+
+    if same_person(actor, partner):
         raise ValueError("own_user")
     if is_either_blocked(actor, partner):
         raise ValueError("blocked")

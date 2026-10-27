@@ -61,6 +61,7 @@ import { HomePage } from "./pages/HomePage";
 import { TimelinePostDetailPage } from "./pages/TimelinePostDetailPage";
 import { MorePage } from "./pages/tabs";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LinkedAccountCreatePage } from "./pages/LinkedAccountCreatePage";
 import { ProfileEditPage } from "./pages/ProfileEditPage";
 import { FollowRequestsPage } from "./pages/FollowRequestsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -216,6 +217,7 @@ function NestedAppRoutes() {
       <Route path="users/:userId/:tab" element={<ProfilePage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="settings" element={<SettingsPage />} />
+      <Route path="settings/linked-account" element={<LinkedAccountCreatePage />} />
       <Route path="settings/profile" element={<ProfileEditPage />} />
       <Route path="settings/follow-requests" element={<FollowRequestsPage />} />
       <Route path="dm" element={<DmInboxPage />} />

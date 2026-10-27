@@ -11,6 +11,7 @@ from django.utils.html import format_html
 from .admin_growth import install_growth_dashboard
 
 from .models import (
+    AccountIdentity,
     User,
     ChatMessage,
     ChatMessageModerationAppeal,
@@ -159,6 +160,7 @@ class UserAdmin(DjangoUserAdmin):
     list_display = (
         "email",
         "username",
+        "identity",
         "date_joined",
         "last_login",
         "is_staff",
@@ -176,7 +178,22 @@ class UserAdmin(DjangoUserAdmin):
     ordering = ("-date_joined",)
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("profile")
+        return super().get_queryset(request).select_related("profile", "identity")
+
+    readonly_fields = ("last_login", "date_joined", "identity", "linked_usernames")
+
+    @admin.display(description="同一人物のプロフィール")
+    def linked_usernames(self, obj):
+        if not obj or not getattr(obj, "identity_id", None):
+            return "—"
+        rows = (
+            User.objects.filter(identity_id=obj.identity_id)
+            .order_by("pk")
+            .values_list("username", "email")
+        )
+        return ", ".join(
+            f"@{username} ({email or 'メールなし'})" for username, email in rows
+        )
 
     def get_search_results(self, request, queryset, search_term):
         queryset, use_distinct = super().get_search_results(
@@ -238,7 +255,16 @@ class UserAdmin(DjangoUserAdmin):
         (None, {"fields": ("email", "password")}),
         (
             "プロフィール",
-            {"fields": ("username", "first_name", "last_name", "stripe_connect_account_id")},
+            {
+                "fields": (
+                    "username",
+                    "first_name",
+                    "last_name",
+                    "stripe_connect_account_id",
+                    "identity",
+                    "linked_usernames",
+                )
+            },
         ),
         (
             "運営認証",
@@ -280,6 +306,33 @@ def _admin_autocomplete_view(request):
 
 
 admin.site.autocomplete_view = _admin_autocomplete_view
+
+
+class AccountIdentityUserInline(admin.TabularInline):
+    model = User
+    extra = 0
+    can_delete = False
+    fields = ("username", "email", "is_active")
+    readonly_fields = ("username", "email", "is_active")
+    show_change_link = True
+
+
+@admin.register(AccountIdentity)
+class AccountIdentityAdmin(admin.ModelAdmin):
+    list_display = ("id", "created_at", "linked_usernames")
+    readonly_fields = ("created_at", "linked_usernames")
+    inlines = [AccountIdentityUserInline]
+
+    @admin.display(description="プロフィール")
+    def linked_usernames(self, obj):
+        rows = (
+            User.objects.filter(identity_id=obj.pk)
+            .order_by("pk")
+            .values_list("username", "email")
+        )
+        return ", ".join(
+            f"@{username} ({email or 'メールなし'})" for username, email in rows
+        ) or "—"
 
 
 class OrganizationMemberInline(admin.TabularInline):

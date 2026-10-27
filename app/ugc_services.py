@@ -26,32 +26,44 @@ def get_blocked_user_ids(viewer: AbstractBaseUser | None) -> set[int]:
     """視聴者がブロックしているユーザー ID（一方向）。設定画面用。"""
     if viewer is None or not viewer.is_authenticated:
         return set()
-    return set(
-        UserBlock.objects.filter(blocker_id=viewer.pk).values_list(
+    from .account_identity_services import expand_user_ids, linked_user_ids
+
+    viewer_ids = linked_user_ids(viewer)
+    blocked = set(
+        UserBlock.objects.filter(blocker_id__in=viewer_ids).values_list(
             "blocked_id", flat=True
         )
     )
+    return expand_user_ids(blocked) - viewer_ids
 
 
 def get_either_blocked_user_ids(viewer: AbstractBaseUser | None) -> set[int]:
     """双方向ブロック関係にある相手のユーザー ID。フィード可視性用。"""
     if viewer is None or not viewer.is_authenticated:
         return set()
-    ids: set[int] = set()
+    from .account_identity_services import expand_user_ids, linked_user_ids
+
+    viewer_ids = linked_user_ids(viewer)
+    counterparts: set[int] = set()
     for blocker_id, blocked_id in UserBlock.objects.filter(
-        Q(blocker_id=viewer.pk) | Q(blocked_id=viewer.pk)
+        Q(blocker_id__in=viewer_ids) | Q(blocked_id__in=viewer_ids)
     ).values_list("blocker_id", "blocked_id"):
-        if blocker_id != viewer.pk:
-            ids.add(blocker_id)
-        if blocked_id != viewer.pk:
-            ids.add(blocked_id)
-    return ids
+        if blocker_id not in viewer_ids:
+            counterparts.add(blocker_id)
+        if blocked_id not in viewer_ids:
+            counterparts.add(blocked_id)
+    return expand_user_ids(counterparts) - viewer_ids
 
 
 def is_user_blocked(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> bool:
-    if not blocker.is_authenticated or blocker.pk == blocked.pk:
+    from .account_identity_services import linked_user_ids, same_person
+
+    if not blocker.is_authenticated or same_person(blocker, blocked):
         return False
-    return UserBlock.objects.filter(blocker=blocker, blocked=blocked).exists()
+    return UserBlock.objects.filter(
+        blocker_id__in=linked_user_ids(blocker),
+        blocked_id__in=linked_user_ids(blocked),
+    ).exists()
 
 
 def is_either_blocked(
@@ -59,30 +71,39 @@ def is_either_blocked(
     user_b: AbstractBaseUser | None,
 ) -> bool:
     """双方向のいずれかでブロックされていれば True。"""
+    from .account_identity_services import linked_user_ids, same_person
+
     if (
         user_a is None
         or user_b is None
         or not getattr(user_a, "is_authenticated", False)
         or not getattr(user_b, "is_authenticated", False)
-        or user_a.pk == user_b.pk
+        or same_person(user_a, user_b)
     ):
         return False
+    a_ids = linked_user_ids(user_a)
+    b_ids = linked_user_ids(user_b)
     return UserBlock.objects.filter(
-        Q(blocker=user_a, blocked=user_b) | Q(blocker=user_b, blocked=user_a)
+        Q(blocker_id__in=a_ids, blocked_id__in=b_ids)
+        | Q(blocker_id__in=b_ids, blocked_id__in=a_ids)
     ).exists()
 
 
 def block_user(blocker: AbstractBaseUser, blocked: AbstractBaseUser) -> UserBlock:
-    if blocker.pk == blocked.pk:
+    from .account_identity_services import linked_user_ids, same_person
+
+    if same_person(blocker, blocked):
         raise ValueError("cannot block self")
     block, _created = UserBlock.objects.get_or_create(
         blocker=blocker,
         blocked=blocked,
     )
-    Follow.objects.filter(follower=blocker, following=blocked).delete()
-    Follow.objects.filter(follower=blocked, following=blocker).delete()
-    FollowRequest.objects.filter(from_user=blocker, to_user=blocked).delete()
-    FollowRequest.objects.filter(from_user=blocked, to_user=blocker).delete()
+    a_ids = linked_user_ids(blocker)
+    b_ids = linked_user_ids(blocked)
+    Follow.objects.filter(follower_id__in=a_ids, following_id__in=b_ids).delete()
+    Follow.objects.filter(follower_id__in=b_ids, following_id__in=a_ids).delete()
+    FollowRequest.objects.filter(from_user_id__in=a_ids, to_user_id__in=b_ids).delete()
+    FollowRequest.objects.filter(from_user_id__in=b_ids, to_user_id__in=a_ids).delete()
     return block
 
 

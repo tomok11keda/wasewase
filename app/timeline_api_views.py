@@ -253,6 +253,20 @@ def api_v1_timeline_like(request: HttpRequest, pk: int) -> JsonResponse:
     if isinstance(post_or_err, JsonResponse):
         return post_or_err
     post = post_or_err
+    from .account_identity_services import same_person
+
+    author = getattr(post, "author", None)
+    if (
+        author is not None
+        and request.user.pk != author.pk
+        and same_person(request.user, author)
+    ):
+        liked = TimelineLike.objects.filter(
+            timeline_post=post, user=request.user
+        ).exists()
+        return JsonResponse(
+            {"ok": True, "liked": liked, "like_count": post.like_count}
+        )
     like, created = TimelineLike.objects.get_or_create(
         timeline_post=post,
         user=request.user,

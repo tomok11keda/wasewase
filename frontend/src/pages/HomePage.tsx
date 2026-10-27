@@ -58,6 +58,8 @@ import {
 
 export function HomePage() {
   const { me, loading: sessionLoading } = useSession();
+  const sessionUserId =
+    me?.authenticated && me.user?.id != null ? me.user.id : null;
   const { actor, selectOrganization } = useAccount();
   const browsePreview = isBrowsePreview(me);
   const liveComposeActor = snapshotComposeActor(actor);
@@ -116,6 +118,7 @@ export function HomePage() {
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const composeBusyRef = useRef(false);
   const hasDataRef = useRef(false);
+  const prevUserIdRef = useRef(sessionUserId);
   const ensurePostReqRef = useRef(0);
   const authenticated = Boolean(me?.authenticated);
   // Keep-alive panes use transform, so fixed FAB / modal must portal to body.
@@ -305,9 +308,21 @@ export function HomePage() {
   );
 
   useEffect(() => {
+    if (prevUserIdRef.current === sessionUserId) return;
+    prevUserIdRef.current = sessionUserId;
+    hasDataRef.current = false;
+    setPosts([]);
+    setPinnedPost(null);
+    setHasMore(false);
+    setNextOffset(0);
+    setError(null);
+    setLoading(true);
+  }, [sessionUserId]);
+
+  useEffect(() => {
     if (sessionLoading) return;
     void loadInitial(hasDataRef.current ? "soft" : "initial");
-  }, [sessionLoading, loadInitial]);
+  }, [sessionLoading, loadInitial, sessionUserId]);
 
   useSoftTabRefetch("home", () => {
     void loadInitial("soft");

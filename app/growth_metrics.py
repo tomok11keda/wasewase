@@ -64,8 +64,16 @@ SIMULATOR_DEFAULT_ORGANIC_PER_DAY = 0.0
 
 
 def verified_users_qs() -> QuerySet:
-    """Same condition as Admin User list_filter is_active=True (「有効」)."""
-    return User.objects.filter(is_active=True)
+    """Same condition as Admin User list_filter is_active=True (「有効」).
+
+    Linked sub-profiles have no university email, so they are excluded to
+    avoid counting one person twice.
+    """
+    return (
+        User.objects.filter(is_active=True)
+        .exclude(email__isnull=True)
+        .exclude(email="")
+    )
 
 
 def university_verified_users_qs() -> QuerySet:

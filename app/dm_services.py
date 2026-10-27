@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 def ordered_user_pair(
     user1: AbstractBaseUser, user2: AbstractBaseUser
 ) -> tuple[AbstractBaseUser, AbstractBaseUser]:
-    if user1.pk == user2.pk:
+    from .account_identity_services import same_person
+
+    if same_person(user1, user2):
         raise ValueError("自分自身との DM ルームは作成できません。")
     if user1.pk < user2.pk:
         return user1, user2

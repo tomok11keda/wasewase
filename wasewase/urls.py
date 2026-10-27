@@ -19,6 +19,7 @@ from app import course_attendance_api_views
 from app import course_chat_api_views
 from app import chat_moderation_api_views
 from app import notification_api_views
+from app import account_identity_api_views
 from app import auth_api_views
 from app import follow_api_views
 from app import onboarding_api_views
@@ -142,6 +143,26 @@ urlpatterns = [
         "api/v1/me/profile/",
         profile_api_views.api_v1_me_profile,
         name="api_v1_me_profile",
+    ),
+    path(
+        "api/v1/me/linked-profiles/",
+        account_identity_api_views.api_v1_me_linked_profiles,
+        name="api_v1_me_linked_profiles",
+    ),
+    path(
+        "api/v1/me/linked-profiles/create/",
+        account_identity_api_views.api_v1_me_linked_profiles_create,
+        name="api_v1_me_linked_profiles_create",
+    ),
+    path(
+        "api/v1/me/linked-profiles/switch/",
+        account_identity_api_views.api_v1_me_linked_profiles_switch,
+        name="api_v1_me_linked_profiles_switch",
+    ),
+    path(
+        "api/v1/me/linked-profiles/delete/",
+        account_identity_api_views.api_v1_me_linked_profiles_delete,
+        name="api_v1_me_linked_profiles_delete",
     ),
     path(
         "api/v1/follow-requests/",

@@ -218,6 +218,12 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "history-or-fallback", to: "/" },
     };
   }
+  if (p === "/settings/linked-account") {
+    return {
+      title: "アカウントを追加",
+      back: { kind: "history-or-fallback", to: "/more" },
+    };
+  }
   if (p.startsWith("/settings")) {
     return {
       title: "設定",

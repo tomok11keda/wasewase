@@ -60,10 +60,12 @@ def can_view_private_content(
     """Whether viewer may see owner's posts / products / private-gated content."""
     if owner is None:
         return True
+    from .account_identity_services import same_person
+
     if (
         viewer is not None
         and getattr(viewer, "is_authenticated", False)
-        and viewer.pk == owner.pk
+        and same_person(viewer, owner)
     ):
         return True
     if is_either_blocked(viewer, owner):
@@ -81,9 +83,11 @@ def get_follow_state(
 ) -> FollowState:
     if owner is None:
         return "none"
+    from .account_identity_services import same_person
+
     if viewer is None or not getattr(viewer, "is_authenticated", False):
         return "none"
-    if viewer.pk == owner.pk:
+    if same_person(viewer, owner):
         return "self"
     if is_either_blocked(viewer, owner):
         return "blocked"
@@ -127,10 +131,12 @@ def can_view_timetable_for(
     is_timetable_public: bool,
 ) -> bool:
     """本人、または（時間割公開 AND 非公開コンテンツ閲覧可）。"""
+    from .account_identity_services import same_person
+
     if (
         viewer is not None
         and getattr(viewer, "is_authenticated", False)
-        and viewer.pk == owner.pk
+        and same_person(viewer, owner)
     ):
         return True
     if not is_timetable_public:
@@ -165,7 +171,9 @@ def toggle_follow_relationship(
     target: AbstractBaseUser,
 ) -> dict[str, Any]:
     """Public follow / private request toggle. Raises ValueError or FollowForbidden."""
-    if actor.pk == target.pk:
+    from .account_identity_services import same_person
+
+    if same_person(actor, target):
         raise ValueError("own_user")
     if is_either_blocked(actor, target):
         raise FollowForbidden("blocked")

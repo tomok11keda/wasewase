@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { deleteLinkedProfile } from "../features/linkedProfiles/api";
+import { linkedProfilesFromMe } from "../features/linkedProfiles/linkedProfiles";
 import {
   fetchProfile,
   updatePrivacy,
@@ -15,7 +17,7 @@ import {
 } from "../lib/userScopedResult";
 
 export function SettingsPage() {
-  const { me, loading: sessionLoading } = useSession();
+  const { me, loading: sessionLoading, setMeFromAuth } = useSession();
   const navigate = useNavigate();
   const sessionUserId =
     me?.authenticated && me.user?.id != null ? me.user.id : null;
@@ -29,6 +31,10 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const profiles = linkedProfilesFromMe(me);
+  const hasSibling = profiles.length > 1;
+  const currentHandle = me?.user?.username || "";
 
   const resetPrivacy = useCallback(() => {
     nextRequestId(fetchGen);
@@ -100,6 +106,41 @@ export function SettingsPage() {
   };
 
   const showSkeleton = sessionLoading || (!privacyReady && loading);
+
+  const runDelete = async (entireIdentity: boolean) => {
+    if (deleteBusy) return;
+    const confirmed = window.confirm(
+      entireIdentity
+        ? "WaseWaseから完全退会しますか？紐づくすべてのプロフィールが削除されます。"
+        : hasSibling
+          ? `@${currentHandle} を削除しますか？もう一方のプロフィールは残ります。`
+          : `@${currentHandle} を削除して WaseWase を退会しますか？この操作は取り消せません。`
+    );
+    if (!confirmed) return;
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      const { res, data } = await deleteLinkedProfile({ entireIdentity });
+      if (!res.ok || !data.ok) {
+        setError(data.message || "削除できませんでした。");
+        return;
+      }
+      if (data.me) setMeFromAuth(data.me);
+      if (!data.me?.authenticated) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setSavedMsg(
+        entireIdentity
+          ? "退会が完了しました。"
+          : `@${currentHandle} を削除しました。`
+      );
+    } catch {
+      setError("削除できませんでした。");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="settings-page" data-spa-page="設定">
@@ -185,8 +226,32 @@ export function SettingsPage() {
               </a>
             </li>
             <li>
+              <button
+                type="button"
+                className="more-link more-link-button"
+                disabled={deleteBusy}
+                onClick={() => void runDelete(false)}
+              >
+                {hasSibling
+                  ? `@${currentHandle} を削除`
+                  : "アカウントを削除"}
+              </button>
+            </li>
+            {hasSibling ? (
+              <li>
+                <button
+                  type="button"
+                  className="more-link more-link-button"
+                  disabled={deleteBusy}
+                  onClick={() => void runDelete(true)}
+                >
+                  WaseWaseから完全退会
+                </button>
+              </li>
+            ) : null}
+            <li>
               <a className="more-link" href="/mypage/settings/">
-                退会など
+                退会など（従来ページ）
                 <small className="more-link-note">（従来ページ）</small>
               </a>
             </li>
