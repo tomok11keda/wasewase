@@ -250,12 +250,13 @@ def delete_current_linked_profile(request: HttpRequest) -> User | None:
     remaining = others[0] if others else None
     identity_id = actor.identity_id
     with transaction.atomic():
-        assert_users_can_be_deleted_without_orphaning_organizations([actor.pk])
-        if remaining is not None and (actor.email or "").strip() and not (
-            remaining.email or ""
-        ).strip():
-            _move_credentials(actor, remaining)
-        delete_user_account(actor)
+        if remaining is None:
+            delete_user_account(actor, allow_orphaning_organizations=True)
+        else:
+            assert_users_can_be_deleted_without_orphaning_organizations([actor.pk])
+            if (actor.email or "").strip() and not (remaining.email or "").strip():
+                _move_credentials(actor, remaining)
+            delete_user_account(actor)
         if remaining is None and identity_id:
             AccountIdentity.objects.filter(pk=identity_id).delete()
     if remaining is not None:
@@ -274,19 +275,17 @@ def delete_entire_identity(request: HttpRequest) -> None:
     members = linked_users(actor)
     if any(getattr(item, "is_superuser", False) for item in members):
         raise SuperuserDeletionDenied()
-    assert_users_can_be_deleted_without_orphaning_organizations(
-        item.pk for item in members
-    )
     identity = actor.identity
     # Delete non-credential profiles first so login email survives until the last row.
     ordered = sorted(
         members,
         key=lambda item: (1 if (item.email or "").strip() else 0, item.pk),
     )
-    for item in ordered:
-        delete_user_account(item)
-    if identity is not None:
-        AccountIdentity.objects.filter(pk=identity.pk).delete()
+    with transaction.atomic():
+        for item in ordered:
+            delete_user_account(item, allow_orphaning_organizations=True)
+        if identity is not None:
+            AccountIdentity.objects.filter(pk=identity.pk).delete()
 
 
 def authenticate_identifier(identifier: str, password: str) -> User | None:

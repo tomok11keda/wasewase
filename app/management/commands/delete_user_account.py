@@ -3,7 +3,10 @@ from django.core.management.base import BaseCommand, CommandError
 
 from app.account_deletion_services import delete_user_account, user_is_superuser
 from app.chat_schema_services import ensure_chatroom_group_chat_schema
-from app.organization_services import LastOrganizationOwnerError
+from app.organization_services import (
+    LastOrganizationOwnerError,
+    organizations_left_without_owner_if_users_deleted,
+)
 
 
 class Command(BaseCommand):
@@ -23,6 +26,11 @@ class Command(BaseCommand):
             "--dry-run",
             action="store_true",
             help="削除せず、対象ユーザーとスキーマ修復のみ確認する",
+        )
+        parser.add_argument(
+            "--allow-unpublished-organizations",
+            action="store_true",
+            help="最後の代表管理者でも、団体を非公開にして削除する",
         )
 
     def handle(self, *args, **options):
@@ -56,12 +64,32 @@ class Command(BaseCommand):
         ensure_chatroom_group_chat_schema()
         self.stdout.write(self.style.SUCCESS("スキーマ修復完了"))
 
+        orphaned = organizations_left_without_owner_if_users_deleted([user.pk])
+        allow_unpublish = bool(options.get("allow_unpublished_organizations"))
+        if orphaned:
+            names = "、".join(
+                (organization.name or organization.slug) for organization in orphaned
+            )
+            self.stdout.write(
+                self.style.WARNING(
+                    f"最後の代表管理者です。削除すると次の団体は非公開になります: {names}"
+                )
+            )
+            if not allow_unpublish:
+                raise CommandError(
+                    "団体を非公開にして削除する場合は "
+                    "--allow-unpublished-organizations を指定してください。"
+                )
+
         if dry_run:
             self.stdout.write(self.style.WARNING("dry-run のため削除は実行しません。"))
             return
 
         try:
-            delete_user_account(user)
+            delete_user_account(
+                user,
+                allow_orphaning_organizations=allow_unpublish,
+            )
         except LastOrganizationOwnerError as exc:
             raise CommandError(str(exc)) from exc
 

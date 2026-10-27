@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { MeResponse } from "../../lib/api.ts";
 import {
+  accountDeletionConfirmMessage,
   canAddLinkedProfile,
+  FULL_WITHDRAWAL_ORG_WARNING,
+  LAST_OWNER_PROFILE_DELETE_HINT,
   linkedProfileMax,
   linkedProfilesFromMe,
   shouldOpenOwnProfileAfterSwitch,
@@ -75,4 +78,26 @@ test("own-profile path follows the newly selected user after a switch", () => {
   assert.equal(shouldOpenOwnProfileAfterSwitch("/users/11", 11, 22), true);
   assert.equal(shouldOpenOwnProfileAfterSwitch("/", 11, 22), false);
   assert.equal(shouldOpenOwnProfileAfterSwitch("/users/99/posts", 11, 22), false);
+});
+
+test("full withdrawal confirm warns that managed orgs may be unpublished", () => {
+  const entire = accountDeletionConfirmMessage({
+    entireIdentity: true,
+    hasSibling: true,
+    currentHandle: "alpha",
+  });
+  const lastProfile = accountDeletionConfirmMessage({
+    entireIdentity: false,
+    hasSibling: false,
+    currentHandle: "alpha",
+  });
+  const profileOnly = accountDeletionConfirmMessage({
+    entireIdentity: false,
+    hasSibling: true,
+    currentHandle: "alpha",
+  });
+  assert.equal(entire.includes(FULL_WITHDRAWAL_ORG_WARNING), true);
+  assert.equal(lastProfile.includes(FULL_WITHDRAWAL_ORG_WARNING), true);
+  assert.equal(profileOnly.includes(LAST_OWNER_PROFILE_DELETE_HINT), true);
+  assert.equal(profileOnly.includes(FULL_WITHDRAWAL_ORG_WARNING), false);
 });

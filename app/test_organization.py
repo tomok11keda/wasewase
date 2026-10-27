@@ -760,7 +760,7 @@ class OrganizationAccountDeletionGuardTests(TestCase):
             [],
         )
 
-    def test_classic_delete_account_view_refuses_last_owner(self):
+    def test_classic_single_profile_withdrawal_unpublishes_last_owner_org(self):
         org = _make_org(
             slug="guard-classic",
             name="従来退会団体",
@@ -768,7 +768,9 @@ class OrganizationAccountDeletionGuardTests(TestCase):
             is_listed=True,
         )
         owner = _make_user("guard-classic-owner@waseda.jp")
+        leftover = _make_user("guard-classic-admin@waseda.jp")
         add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        add_organization_member(org, leftover, role=OrganizationMember.Role.ADMIN)
         client = Client()
         client.force_login(owner)
         response = client.post(
@@ -777,13 +779,34 @@ class OrganizationAccountDeletionGuardTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertRedirects(response, reverse("account_settings"))
-        self.assertContains(response, "従来退会団体")
-        self.assertContains(response, "権限を移してください")
-        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        self.assertRedirects(response, reverse("login"))
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
         org.refresh_from_db()
-        self.assertEqual(org.status, Organization.Status.ACTIVE)
-        self.assertTrue(org.is_listed)
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        self.assertTrue(
+            OrganizationMember.objects.filter(organization=org, user=leftover).exists()
+        )
+        self.assertTrue(can_manage_organization(leftover, org))
+
+    def test_full_withdrawal_allows_last_owner_and_keeps_remaining_members(self):
+        org = _make_org(
+            slug="guard-withdraw",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-withdraw-owner@waseda.jp")
+        leftover = _make_user("guard-withdraw-admin@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        add_organization_member(org, leftover, role=OrganizationMember.Role.MEMBER)
+        delete_user_account(owner, allow_orphaning_organizations=True)
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        self.assertTrue(
+            OrganizationMember.objects.filter(organization=org, user=leftover).exists()
+        )
 
     def test_management_command_refuses_last_owner(self):
         org = _make_org(slug="guard-command", name="コマンド団体")
@@ -791,8 +814,110 @@ class OrganizationAccountDeletionGuardTests(TestCase):
         add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
         with self.assertRaises(CommandError) as raised:
             call_command("delete_user_account", "--user-id", str(owner.pk))
-        self.assertIn("コマンド団体", str(raised.exception))
+        self.assertIn("--allow-unpublished-organizations", str(raised.exception))
         self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertTrue(organization_has_owner(org))
+
+    def test_management_command_allows_last_owner_with_flag(self):
+        org = _make_org(
+            slug="guard-command-allow",
+            name="コマンド許可団体",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-command-allow@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        call_command(
+            "delete_user_account",
+            "--user-id",
+            str(owner.pk),
+            "--allow-unpublished-organizations",
+        )
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+
+
+class OrganizationAdminUserDeletionWarningTests(TestCase):
+    def setUp(self):
+        self.actor = User.objects.create_superuser(
+            email="org-admin-actor@waseda.jp",
+            password="pass12345",
+        )
+        self.client = Client()
+        self.client.force_login(self.actor)
+
+    def test_delete_page_warns_and_requires_checkbox_for_last_owner(self):
+        org = _make_org(
+            slug="admin-warn-org",
+            name="Admin警告団体",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("admin-warn-owner@waseda.jp")
+        leftover = _make_user("admin-warn-member@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        add_organization_member(org, leftover, role=OrganizationMember.Role.ADMIN)
+        url = reverse("admin:app_user_delete", args=[owner.pk])
+        shown = self.client.get(url)
+        self.assertEqual(shown.status_code, 200)
+        self.assertContains(shown, "Admin警告団体")
+        self.assertContains(shown, "非公開になります")
+        self.assertContains(shown, "confirm_unpublish_organizations")
+        refused = self.client.post(url, {"post": "yes"})
+        self.assertEqual(refused.status_code, 200)
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        confirmed = self.client.post(
+            url,
+            {"post": "yes", "confirm_unpublish_organizations": "yes"},
+        )
+        self.assertEqual(confirmed.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        self.assertTrue(
+            OrganizationMember.objects.filter(organization=org, user=leftover).exists()
+        )
+
+    def test_bulk_delete_without_checkbox_keeps_last_owner(self):
+        org = _make_org(
+            slug="admin-bulk-org",
+            name="一括警告団体",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("admin-bulk-owner@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        changelist = reverse("admin:app_user_changelist")
+        confirm = self.client.post(
+            changelist,
+            {
+                "action": "delete_selected",
+                "_selected_action": [str(owner.pk)],
+            },
+        )
+        self.assertEqual(confirm.status_code, 200)
+        self.assertContains(confirm, "一括警告団体")
+        self.assertContains(confirm, "非公開になります")
+        refused = self.client.post(
+            changelist,
+            {
+                "action": "delete_selected",
+                "post": "yes",
+                "_selected_action": [str(owner.pk)],
+            },
+            follow=True,
+        )
+        self.assertEqual(refused.status_code, 200)
+        self.assertContains(refused, "一括削除を中止")
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
 
 
 def _grant_model_perms(user: User, *models) -> None:

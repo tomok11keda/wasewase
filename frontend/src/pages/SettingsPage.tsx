@@ -3,7 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
 import { deleteLinkedProfile } from "../features/linkedProfiles/api";
-import { linkedProfilesFromMe } from "../features/linkedProfiles/linkedProfiles";
+import {
+  accountDeletionConfirmMessage,
+  FULL_WITHDRAWAL_ORG_WARNING,
+  LAST_OWNER_PROFILE_DELETE_HINT,
+  linkedProfilesFromMe,
+} from "../features/linkedProfiles/linkedProfiles";
 import {
   fetchProfile,
   updatePrivacy,
@@ -110,11 +115,11 @@ export function SettingsPage() {
   const runDelete = async (entireIdentity: boolean) => {
     if (deleteBusy) return;
     const confirmed = window.confirm(
-      entireIdentity
-        ? "WaseWaseから完全退会しますか？紐づくすべてのプロフィールが削除されます。"
-        : hasSibling
-          ? `@${currentHandle} を削除しますか？もう一方のプロフィールは残ります。`
-          : `@${currentHandle} を削除して WaseWase を退会しますか？この操作は取り消せません。`
+      accountDeletionConfirmMessage({
+        entireIdentity,
+        hasSibling,
+        currentHandle,
+      })
     );
     if (!confirmed) return;
     setDeleteBusy(true);
@@ -219,7 +224,8 @@ export function SettingsPage() {
         <section className="settings-card">
           <h2>その他の設定</h2>
           <p className="settings-lead">
-            団体の最後の代表管理者のままでは、プロフィール削除も完全退会もできません。先に団体のメンバー管理から別の代表管理者へ権限を移してください。
+            {LAST_OWNER_PROFILE_DELETE_HINT}
+            {FULL_WITHDRAWAL_ORG_WARNING}
           </p>
           <ul className="more-list settings-classic-list">
             <li>

@@ -1,8 +1,12 @@
+import copy
+
 from django.contrib import admin, messages
 from django.contrib.admin.actions import delete_selected as django_delete_selected
+from django.contrib.admin.utils import unquote
 from django.contrib.admin.views.autocomplete import AutocompleteJsonView
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.core.exceptions import PermissionDenied
+from django.http import QueryDict
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
@@ -69,6 +73,7 @@ from .organization_services import (
     apply_organization_visibility_guard,
     assert_formset_preserves_last_owner,
     assert_queryset_delete_keeps_owner,
+    organizations_left_without_owner_if_users_deleted,
     save_organization_member_formset,
 )
 from .profile_link_services import (
@@ -122,6 +127,15 @@ _SUPERUSER_ADMIN_DELETE_DENIED = (
 _SUPERUSER_BULK_DELETE_DENIED = (
     "管理者アカウント（スーパーユーザー）が含まれているため、"
     "一括削除を中止しました。先に管理者権限を解除してください。"
+)
+_LAST_OWNER_ADMIN_UNPUBLISH_REQUIRED = (
+    "このユーザーは団体の最後の代表管理者です。"
+    "削除すると該当団体は非公開になります。"
+    "確認チェックを入れてから削除してください。"
+)
+_LAST_OWNER_ADMIN_BULK_UNPUBLISH_REQUIRED = (
+    "最後の代表管理者が含まれているため、一括削除を中止しました。"
+    "団体が非公開になることを確認してから、もう一度削除してください。"
 )
 
 
@@ -207,10 +221,38 @@ class UserAdmin(DjangoUserAdmin):
         )
         return queryset, True
 
+    delete_confirmation_template = "admin/app/user/delete_confirmation.html"
+    delete_selected_confirmation_template = (
+        "admin/app/user/delete_selected_confirmation.html"
+    )
+
     def has_delete_permission(self, request, obj=None):
         if obj is not None and getattr(obj, "is_superuser", False):
             return False
         return super().has_delete_permission(request, obj)
+
+    def _delete_view(self, request, object_id, extra_context=None):
+        extra_context = dict(extra_context or {})
+        obj = self.get_object(request, unquote(object_id))
+        orgs = (
+            organizations_left_without_owner_if_users_deleted([obj.pk]) if obj else []
+        )
+        extra_context["last_owner_organizations"] = orgs
+        if (
+            request.method == "POST"
+            and orgs
+            and request.POST.get("confirm_unpublish_organizations") != "yes"
+        ):
+            extra_context["last_owner_confirmation_missing"] = True
+            self.message_user(
+                request,
+                _LAST_OWNER_ADMIN_UNPUBLISH_REQUIRED,
+                level=messages.ERROR,
+            )
+            request = copy.copy(request)
+            request.method = "GET"
+            request.POST = QueryDict()
+        return super()._delete_view(request, object_id, extra_context)
 
     def delete_model(self, request, obj):
         if getattr(obj, "is_superuser", False):
@@ -250,7 +292,24 @@ class UserAdmin(DjangoUserAdmin):
                 level=messages.ERROR,
             )
             return None
-        return django_delete_selected(self, request, queryset)
+        last_owner_orgs = organizations_left_without_owner_if_users_deleted(
+            queryset.values_list("pk", flat=True)
+        )
+        if (
+            last_owner_orgs
+            and request.POST.get("post")
+            and request.POST.get("confirm_unpublish_organizations") != "yes"
+        ):
+            self.message_user(
+                request,
+                _LAST_OWNER_ADMIN_BULK_UNPUBLISH_REQUIRED,
+                level=messages.ERROR,
+            )
+            return None
+        response = django_delete_selected(self, request, queryset)
+        if response is not None:
+            response.context_data["last_owner_organizations"] = last_owner_orgs
+        return response
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (

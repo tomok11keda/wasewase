@@ -224,18 +224,20 @@
     <section class="settings-card settings-card--danger">
       <h2>アカウント削除</h2>
       <p>
-        団体の最後の代表管理者のままでは、プロフィール削除も完全退会もできません。
+        プロフィールだけを削除する場合、団体の最後の代表管理者のままだと削除できません。
         先に団体のメンバー管理から別の代表管理者へ権限を移してください。
+        WaseWaseから完全退会する場合は、他に代表管理者がいない団体は非公開になります。
+        団体そのものと残っているメンバーは削除されません。
       </p>
       {% if last_owner_organizations_current %}
       <p>
-        このプロフィールは次の団体の最後の代表管理者です。
+        このプロフィールは次の団体の最後の代表管理者です。プロフィール削除の前に権限を移してください。
         {% for org in last_owner_organizations_current %}「{{ org.name }}」{% if not forloop.last %}、{% endif %}{% endfor %}
       </p>
       {% endif %}
-      {% if has_linked_sibling and last_owner_organizations_entire %}
+      {% if last_owner_organizations_entire %}
       <p>
-        完全退会すると、次の団体の管理者がいなくなります。
+        完全退会すると、次の団体は非公開になります。
         {% for org in last_owner_organizations_entire %}「{{ org.name }}」{% if not forloop.last %}、{% endif %}{% endfor %}
       </p>
       {% endif %}
@@ -276,7 +278,7 @@
     <div class="delete-modal__backdrop" data-delete-modal-close></div>
     <div class="delete-modal__panel" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
       <h3 id="delete-modal-title">{% if has_linked_sibling %}@{{ current_username }} を削除しますか？この操作は取り消せません。{% else %}アカウントを削除しますか？この操作は取り消せません。{% endif %}</h3>
-      <p>{% if has_linked_sibling %}「はい」を選ぶと、このプロフィールだけが削除されます。もう一方のプロフィールでログインしたままになります。{% else %}「はい」を選ぶと削除処理を開始し、ログアウトしてログイン画面へ移動します。アカウントは復元できません。一部の情報が残る場合があることは、上記およびプライバシーポリシーのとおりです。{% endif %}</p>
+      <p>{% if has_linked_sibling %}「はい」を選ぶと、このプロフィールだけが削除されます。もう一方のプロフィールでログインしたままになります。このプロフィールが団体の最後の代表管理者の場合は削除できません。{% else %}「はい」を選ぶと削除処理を開始し、ログアウトしてログイン画面へ移動します。代表管理者のまま退会すると、他に代表管理者がいない団体は非公開になります。団体そのものと残っているメンバーは削除されません。{% endif %}</p>
       <form method="post" action="{% url 'delete_account' %}" id="delete-account-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_delete" value="DELETE">
@@ -293,7 +295,7 @@
     <div class="delete-modal__backdrop" data-entire-delete-modal-close></div>
     <div class="delete-modal__panel" role="dialog" aria-modal="true" aria-labelledby="entire-delete-modal-title">
       <h3 id="entire-delete-modal-title">WaseWaseから完全退会しますか？この操作は取り消せません。</h3>
-      <p>紐づくすべてのプロフィールと関連データの多くが削除されます。ログアウトしてログイン画面へ移動します。</p>
+      <p>紐づくすべてのプロフィールと関連データの多くが削除されます。代表管理者のまま退会すると、他に代表管理者がいない団体は非公開になります。団体そのものと残っているメンバーは削除されません。ログアウトしてログイン画面へ移動します。</p>
       <form method="post" action="{% url 'delete_account' %}" id="entire-delete-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_delete" value="DELETE">

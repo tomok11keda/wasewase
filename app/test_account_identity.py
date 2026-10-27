@@ -448,20 +448,19 @@ class AccountIdentityApiTests(TestCase):
         self.assertEqual(org.status, Organization.Status.ACTIVE)
         self.assertTrue(org.is_listed)
 
-        refused = self.client.post(
+        withdrawn = self.client.post(
             "/api/v1/me/linked-profiles/delete/",
             **_json({}),
         )
-        self.assertEqual(refused.status_code, 409)
-        self.assertEqual(refused.json()["error"], "last_organization_owner")
-        self.assertIn("権限確認団体", refused.json()["message"])
-        self.assertTrue(User.objects.filter(pk=self.main.pk).exists())
+        self.assertEqual(withdrawn.status_code, 200)
+        self.assertFalse(withdrawn.json()["me"]["authenticated"])
+        self.assertFalse(User.objects.filter(pk=self.main.pk).exists())
         org.refresh_from_db()
-        self.assertTrue(organization_has_owner(org))
-        self.assertEqual(org.status, Organization.Status.ACTIVE)
-        self.assertTrue(org.is_listed)
+        self.assertFalse(organization_has_owner(org))
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
 
-    def test_last_owner_profile_and_entire_identity_delete_are_refused(self):
+    def test_last_owner_profile_delete_is_refused_but_entire_identity_unpublishes(self):
         org = Organization.objects.create(
             name="最終代表の団体",
             slug="linked-last-owner",
@@ -471,19 +470,14 @@ class AccountIdentityApiTests(TestCase):
         add_organization_member(
             org, self.main, role=OrganizationMember.Role.OWNER
         )
+        remaining_admin = _make_user(
+            "linked-org-admin@waseda.jp", "linkedorgadmin"
+        )
+        add_organization_member(
+            org, remaining_admin, role=OrganizationMember.Role.ADMIN
+        )
         self._login_main()
         alt_id = self._create_alt().json()["me"]["user"]["id"]
-        entire = self.client.post(
-            "/api/v1/me/linked-profiles/delete/",
-            **_json({"entire_identity": True}),
-        )
-        self.assertEqual(entire.status_code, 409)
-        self.assertEqual(entire.json()["error"], "last_organization_owner")
-        self.assertEqual(
-            User.objects.filter(pk__in=[self.main.pk, alt_id]).count(),
-            2,
-        )
-
         self.client.post(
             "/api/v1/me/linked-profiles/switch/",
             **_json({"user_id": self.main.pk}),
@@ -498,10 +492,40 @@ class AccountIdentityApiTests(TestCase):
         self.assertEqual(org.status, Organization.Status.ACTIVE)
         self.assertTrue(org.is_listed)
 
+        entire = self.client.post(
+            "/api/v1/me/linked-profiles/delete/",
+            **_json({"entire_identity": True}),
+        )
+        self.assertEqual(entire.status_code, 200)
+        self.assertFalse(entire.json()["me"]["authenticated"])
+        self.assertFalse(User.objects.filter(pk__in=[self.main.pk, alt_id]).exists())
+        org.refresh_from_db()
+        self.assertFalse(organization_has_owner(org))
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        self.assertTrue(
+            OrganizationMember.objects.filter(
+                organization=org, user=remaining_admin
+            ).exists()
+        )
+        self.assertTrue(can_manage_organization(remaining_admin, org))
+
+    def test_entire_identity_keeps_org_public_when_another_owner_remains(self):
+        org = Organization.objects.create(
+            name="共同代表の団体",
+            slug="linked-shared-owner",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
         extra = _make_user("linked-owner-extra@waseda.jp", "linkedownerextra")
+        add_organization_member(
+            org, self.main, role=OrganizationMember.Role.OWNER
+        )
         add_organization_member(
             org, extra, role=OrganizationMember.Role.OWNER
         )
+        self._login_main()
+        alt_id = self._create_alt().json()["me"]["user"]["id"]
         transferred = self.client.post(
             "/api/v1/me/linked-profiles/delete/",
             **_json({"entire_identity": True}),
@@ -520,7 +544,7 @@ class AccountIdentityApiTests(TestCase):
         self.assertEqual(org.status, Organization.Status.ACTIVE)
         self.assertTrue(org.is_listed)
 
-    def test_classic_entire_identity_delete_refuses_last_owner(self):
+    def test_classic_entire_identity_delete_unpublishes_last_owner_org(self):
         org = Organization.objects.create(
             name="従来完全退会団体",
             slug="linked-classic-entire",
@@ -537,24 +561,26 @@ class AccountIdentityApiTests(TestCase):
             {"confirm_delete": "DELETE", "entire_identity": "1"},
             follow=True,
         )
-        self.assertRedirects(response, reverse("account_settings"))
-        self.assertContains(response, "従来完全退会団体")
-        self.assertEqual(
-            User.objects.filter(pk__in=[self.main.pk, alt_id]).count(),
-            2,
-        )
+        self.assertRedirects(response, reverse("login"))
+        self.assertFalse(User.objects.filter(pk__in=[self.main.pk, alt_id]).exists())
         org.refresh_from_db()
-        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
 
-    def test_settings_copy_guides_last_owner_transfer(self):
+    def test_settings_copy_guides_last_owner_transfer_and_unpublish(self):
         root = Path(__file__).resolve().parents[1]
         spa = (root / "frontend/src/pages/SettingsPage.tsx").read_text(
             encoding="utf-8"
         )
+        helper = (
+            root / "frontend/src/features/linkedProfiles/linkedProfiles.ts"
+        ).read_text(encoding="utf-8")
         classic = (root / "templates/settings.html").read_text(encoding="utf-8")
-        guide = "別の代表管理者へ権限を移してください"
-        self.assertIn(guide, spa)
-        self.assertIn(guide, classic)
+        self.assertIn("accountDeletionConfirmMessage", spa)
+        self.assertIn("別の代表管理者へ権限を移してください", helper)
+        self.assertIn("別の代表管理者へ権限を移してください", classic)
+        self.assertIn("団体は非公開になります", helper)
+        self.assertIn("団体は非公開になります", classic)
 
     def test_session_user_changes_on_switch_logout_and_relogin(self):
         self._login_main()

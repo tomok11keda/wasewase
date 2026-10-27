@@ -40,3 +40,23 @@ export function shouldOpenOwnProfileAfterSwitch(
   if (!previousUserId || previousUserId === nextUserId) return false;
   return pathname.startsWith(`/users/${previousUserId}`);
 }
+
+export const FULL_WITHDRAWAL_ORG_WARNING =
+  "代表管理者のまま退会すると、他に代表管理者がいない団体は非公開になります。団体そのものと残っているメンバーは削除されません。";
+
+export const LAST_OWNER_PROFILE_DELETE_HINT =
+  "このプロフィールが団体の最後の代表管理者の場合、プロフィール削除はできません。先に別の代表管理者へ権限を移してください。";
+
+export function accountDeletionConfirmMessage(input: {
+  entireIdentity: boolean;
+  hasSibling: boolean;
+  currentHandle: string;
+}): string {
+  if (input.entireIdentity) {
+    return `WaseWaseから完全退会しますか？紐づくすべてのプロフィールが削除されます。${FULL_WITHDRAWAL_ORG_WARNING}`;
+  }
+  if (input.hasSibling) {
+    return `@${input.currentHandle} を削除しますか？もう一方のプロフィールは残ります。${LAST_OWNER_PROFILE_DELETE_HINT}`;
+  }
+  return `@${input.currentHandle} を削除して WaseWase を退会しますか？この操作は取り消せません。${FULL_WITHDRAWAL_ORG_WARNING}`;
+}

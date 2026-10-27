@@ -41,6 +41,7 @@ from .models import (
 )
 from .organization_services import (
     assert_users_can_be_deleted_without_orphaning_organizations,
+    organizations_left_without_owner_if_users_deleted,
 )
 
 logger = logging.getLogger(__name__)
@@ -293,8 +294,12 @@ def _delete_user_firestore_bookmarks_best_effort(user_id: int) -> None:
         )
 
 
-def delete_user_account(user) -> None:
-    """退会処理: ユーザーと関連データをデータベースから物理削除する。"""
+def delete_user_account(user, *, allow_orphaning_organizations: bool = False) -> None:
+    """退会処理: ユーザーと関連データをデータベースから物理削除する。
+
+    通常のプロフィール削除は最後の代表管理者を拒否する。完全退会では
+    allow_orphaning_organizations=True で団体を非公開にして削除する。
+    """
     if user_is_superuser(user):
         logger.warning(
             "Refusing to delete superuser user_id=%s",
@@ -303,7 +308,16 @@ def delete_user_account(user) -> None:
         raise SuperuserDeletionDenied()
     user_id = getattr(user, "pk", None)
     if user_id:
-        assert_users_can_be_deleted_without_orphaning_organizations([user_id])
+        if allow_orphaning_organizations:
+            orphaned = organizations_left_without_owner_if_users_deleted([user_id])
+            if orphaned:
+                logger.warning(
+                    "Account deletion will unpublish organizations user_id=%s slugs=%s",
+                    user_id,
+                    [organization.slug for organization in orphaned],
+                )
+        else:
+            assert_users_can_be_deleted_without_orphaning_organizations([user_id])
     _ensure_deletion_schema()
     logger.info("Account deletion started for user_id=%s", user_id)
 
