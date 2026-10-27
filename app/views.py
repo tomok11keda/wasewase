@@ -1084,7 +1084,11 @@ def mypage_edit(request):
 
 @login_required
 def account_settings(request):
-    from .account_identity_services import serialize_linked_profiles_payload
+    from .account_identity_services import (
+        linked_user_ids,
+        serialize_linked_profiles_payload,
+    )
+    from .organization_services import organizations_left_without_owner_if_users_deleted
 
     payload = serialize_linked_profiles_payload(request.user)
     return render(
@@ -1094,6 +1098,14 @@ def account_settings(request):
             "linked_profiles": payload["profiles"],
             "has_linked_sibling": len(payload["profiles"]) > 1,
             "current_username": getattr(request.user, "username", "") or "",
+            "last_owner_organizations_current": (
+                organizations_left_without_owner_if_users_deleted([request.user.pk])
+            ),
+            "last_owner_organizations_entire": (
+                organizations_left_without_owner_if_users_deleted(
+                    linked_user_ids(request.user)
+                )
+            ),
         },
     )
 
@@ -1216,6 +1228,7 @@ def delete_account(request):
         delete_current_linked_profile,
         delete_entire_identity,
     )
+    from .organization_services import LastOrganizationOwnerError
 
     remaining = None
     try:
@@ -1225,6 +1238,9 @@ def delete_account(request):
             remaining = delete_current_linked_profile(request)
     except SuperuserDeletionDenied:
         messages.error(request, SUPERUSER_DELETION_DENIED_MESSAGE)
+        return redirect(reverse("account_settings"))
+    except LastOrganizationOwnerError as exc:
+        messages.error(request, str(exc))
         return redirect(reverse("account_settings"))
     except Exception as exc:
         print(

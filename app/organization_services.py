@@ -9,6 +9,8 @@ add / remove / set_role は権限を検査しないプリミティブ。
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
@@ -23,11 +25,25 @@ _MANAGING_ROLES = (
     OrganizationMember.Role.ADMIN,
 )
 
+_LAST_OWNER_DELETE_MESSAGE = (
+    "最後の代表管理者は削除できません。先に別の代表管理者を追加してください。"
+)
+_LAST_OWNER_DEMOTE_MESSAGE = (
+    "最後の代表管理者は降格できません。先に別の代表管理者を追加してください。"
+)
+_LAST_OWNER_ACCOUNT_DELETION_GUIDE = (
+    "退会する前に、団体のメンバー管理から別の代表管理者へ権限を移してください。"
+)
+
 
 class LastOrganizationOwnerError(ValueError):
     """最後の代表管理者を削除・降格しようとした。"""
 
     code = "last_organization_owner"
+
+    def __init__(self, message: str = "", *, organizations=None):
+        self.organizations = list(organizations or [])
+        super().__init__(message or _LAST_OWNER_DELETE_MESSAGE)
 
 
 class OrganizationMembershipError(ValueError):
@@ -36,14 +52,6 @@ class OrganizationMembershipError(ValueError):
     def __init__(self, code: str, message: str = ""):
         self.code = code
         super().__init__(message or code)
-
-
-_LAST_OWNER_DELETE_MESSAGE = (
-    "最後の代表管理者は削除できません。先に別の代表管理者を追加してください。"
-)
-_LAST_OWNER_DEMOTE_MESSAGE = (
-    "最後の代表管理者は降格できません。先に別の代表管理者を追加してください。"
-)
 
 
 def is_site_operator(user: AbstractBaseUser | None) -> bool:
@@ -201,6 +209,97 @@ def organization_has_owner(organization: Organization | None) -> bool:
         organization_id=organization.pk,
         role=OrganizationMember.Role.OWNER,
     ).exists()
+
+
+def organizations_left_without_owner_if_users_deleted(
+    user_ids: Iterable[int],
+) -> list[Organization]:
+    """Deleting these users would leave these organizations with no owner."""
+    ids = {int(pk) for pk in user_ids if pk}
+    if not ids:
+        return []
+    owned_org_ids = list(
+        OrganizationMember.objects.filter(
+            user_id__in=ids,
+            role=OrganizationMember.Role.OWNER,
+        )
+        .values_list("organization_id", flat=True)
+        .distinct()
+    )
+    if not owned_org_ids:
+        return []
+    still_owned = set(
+        OrganizationMember.objects.filter(
+            organization_id__in=owned_org_ids,
+            role=OrganizationMember.Role.OWNER,
+        )
+        .exclude(user_id__in=ids)
+        .values_list("organization_id", flat=True)
+    )
+    orphan_ids = [org_id for org_id in owned_org_ids if org_id not in still_owned]
+    if not orphan_ids:
+        return []
+    return list(Organization.objects.filter(pk__in=orphan_ids).order_by("name", "pk"))
+
+
+def account_deletion_last_owner_message(organizations: list[Organization]) -> str:
+    names = [
+        ((organization.name or "").strip() or organization.slug or "団体")
+        for organization in organizations
+    ]
+    if not names:
+        return (
+            "最後の代表管理者のため、このアカウントは削除できません。"
+            + _LAST_OWNER_ACCOUNT_DELETION_GUIDE
+        )
+    if len(names) == 1:
+        labeled = f"「{names[0]}」"
+    else:
+        labeled = "、".join(f"「{name}」" for name in names)
+    return (
+        f"{labeled}の最後の代表管理者のため、このアカウントは削除できません。"
+        + _LAST_OWNER_ACCOUNT_DELETION_GUIDE
+    )
+
+
+def serialize_last_owner_organizations(
+    organizations: Iterable[Organization],
+) -> list[dict[str, object]]:
+    payload = []
+    for organization in organizations:
+        payload.append(
+            {
+                "id": organization.pk,
+                "name": organization.name,
+                "slug": organization.slug,
+            }
+        )
+    return payload
+
+
+def assert_users_can_be_deleted_without_orphaning_organizations(
+    user_ids: Iterable[int],
+) -> None:
+    ids = {int(pk) for pk in user_ids if pk}
+    if not ids:
+        return
+    with transaction.atomic():
+        owned_org_ids = list(
+            OrganizationMember.objects.filter(
+                user_id__in=ids,
+                role=OrganizationMember.Role.OWNER,
+            )
+            .values_list("organization_id", flat=True)
+            .distinct()
+        )
+        for org_id in owned_org_ids:
+            _lock_organization_memberships(org_id)
+        organizations = organizations_left_without_owner_if_users_deleted(ids)
+        if organizations:
+            raise LastOrganizationOwnerError(
+                account_deletion_last_owner_message(organizations),
+                organizations=organizations,
+            )
 
 
 def count_organization_owners(

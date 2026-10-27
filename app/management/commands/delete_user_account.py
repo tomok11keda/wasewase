@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from app.account_deletion_services import delete_user_account, user_is_superuser
 from app.chat_schema_services import ensure_chatroom_group_chat_schema
+from app.organization_services import LastOrganizationOwnerError
 
 
 class Command(BaseCommand):
@@ -59,7 +60,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("dry-run のため削除は実行しません。"))
             return
 
-        delete_user_account(user)
+        try:
+            delete_user_account(user)
+        except LastOrganizationOwnerError as exc:
+            raise CommandError(str(exc)) from exc
 
         if User.objects.filter(pk=user.pk).exists():
             raise CommandError(f"削除後も user_id={user.pk} が残っています。")

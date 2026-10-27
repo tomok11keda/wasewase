@@ -218,6 +218,9 @@ export function SettingsPage() {
 
         <section className="settings-card">
           <h2>その他の設定</h2>
+          <p className="settings-lead">
+            団体の最後の代表管理者のままでは、プロフィール削除も完全退会もできません。先に団体のメンバー管理から別の代表管理者へ権限を移してください。
+          </p>
           <ul className="more-list settings-classic-list">
             <li>
               <a className="more-link" href="/mypage/settings/blocked/">

@@ -11,6 +11,12 @@ export type LinkedProfile = {
   is_credential: boolean;
 };
 
+export type LinkedProfileOrganization = {
+  id?: number;
+  name?: string;
+  slug?: string;
+};
+
 export type LinkedProfilesPayload = {
   ok: boolean;
   profiles?: LinkedProfile[];
@@ -20,6 +26,7 @@ export type LinkedProfilesPayload = {
   deleted?: boolean;
   error?: string;
   message?: string;
+  organizations?: LinkedProfileOrganization[];
 };
 
 async function postJson(

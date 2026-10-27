@@ -13,6 +13,9 @@ from django.utils import timezone
 
 from .handle_services import clean_unique_handle, public_username
 from .models import AccountIdentity, User, UserProfile
+from .organization_services import (
+    assert_users_can_be_deleted_without_orphaning_organizations,
+)
 from .timetable_privacy_services import get_or_create_profile
 
 # Raise this to allow more personal profiles per person. Create/switch APIs,
@@ -247,6 +250,7 @@ def delete_current_linked_profile(request: HttpRequest) -> User | None:
     remaining = others[0] if others else None
     identity_id = actor.identity_id
     with transaction.atomic():
+        assert_users_can_be_deleted_without_orphaning_organizations([actor.pk])
         if remaining is not None and (actor.email or "").strip() and not (
             remaining.email or ""
         ).strip():
@@ -270,6 +274,9 @@ def delete_entire_identity(request: HttpRequest) -> None:
     members = linked_users(actor)
     if any(getattr(item, "is_superuser", False) for item in members):
         raise SuperuserDeletionDenied()
+    assert_users_can_be_deleted_without_orphaning_organizations(
+        item.pk for item in members
+    )
     identity = actor.identity
     # Delete non-credential profiles first so login email survives until the last row.
     ordered = sorted(

@@ -39,6 +39,9 @@ from .models import (
     UserDirectMessageRoom,
     UserProfile,
 )
+from .organization_services import (
+    assert_users_can_be_deleted_without_orphaning_organizations,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -298,8 +301,10 @@ def delete_user_account(user) -> None:
             getattr(user, "pk", None),
         )
         raise SuperuserDeletionDenied()
+    user_id = getattr(user, "pk", None)
+    if user_id:
+        assert_users_can_be_deleted_without_orphaning_organizations([user_id])
     _ensure_deletion_schema()
-    user_id = user.pk
     logger.info("Account deletion started for user_id=%s", user_id)
 
     try:

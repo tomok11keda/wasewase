@@ -223,6 +223,22 @@
 
     <section class="settings-card settings-card--danger">
       <h2>アカウント削除</h2>
+      <p>
+        団体の最後の代表管理者のままでは、プロフィール削除も完全退会もできません。
+        先に団体のメンバー管理から別の代表管理者へ権限を移してください。
+      </p>
+      {% if last_owner_organizations_current %}
+      <p>
+        このプロフィールは次の団体の最後の代表管理者です。
+        {% for org in last_owner_organizations_current %}「{{ org.name }}」{% if not forloop.last %}、{% endif %}{% endfor %}
+      </p>
+      {% endif %}
+      {% if has_linked_sibling and last_owner_organizations_entire %}
+      <p>
+        完全退会すると、次の団体の管理者がいなくなります。
+        {% for org in last_owner_organizations_entire %}「{{ org.name }}」{% if not forloop.last %}、{% endif %}{% endfor %}
+      </p>
+      {% endif %}
       {% if has_linked_sibling %}
       <p>
         いま選択中のプロフィール <strong>@{{ current_username }}</strong> だけを削除します。

@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from django.contrib.admin.sites import site
 from django.contrib.auth.models import AnonymousUser, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.forms.models import inlineformset_factory
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
+from .account_deletion_services import delete_user_account
 from .admin import (
     OrganizationAdmin,
     OrganizationMemberAdmin,
@@ -32,6 +36,7 @@ from .organization_services import (
     OrganizationMembershipError,
     add_organization_member,
     apply_organization_visibility_guard,
+    assert_users_can_be_deleted_without_orphaning_organizations,
     can_list_organization,
     can_manage_organization,
     can_view_organization_profile,
@@ -40,6 +45,7 @@ from .organization_services import (
     is_organization_owner,
     is_site_operator,
     organization_has_owner,
+    organizations_left_without_owner_if_users_deleted,
     remove_organization_member,
     save_organization_member_formset,
     set_organization_member_role,
@@ -665,6 +671,128 @@ class OrganizationUserDeletionVisibilityTests(TestCase):
         self.assertEqual(org.status, Organization.Status.ACTIVE)
         self.assertTrue(org.is_listed)
         self.assertTrue(is_organization_owner(owner, org))
+
+
+class OrganizationAccountDeletionGuardTests(TestCase):
+    def setUp(self):
+        self._firestore_patcher = patch(
+            "app.bookmark_services.get_firestore_client",
+            return_value=None,
+        )
+        self._firestore_patcher.start()
+        self.addCleanup(self._firestore_patcher.stop)
+
+    def test_last_owner_account_deletion_is_refused(self):
+        org = _make_org(
+            slug="guard-public",
+            name="公開を守る団体",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-owner@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        with self.assertRaises(LastOrganizationOwnerError) as raised:
+            delete_user_account(owner)
+        self.assertIn("公開を守る団体", str(raised.exception))
+        self.assertIn("権限を移してください", str(raised.exception))
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertTrue(organization_has_owner(org))
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+
+    def test_last_owner_account_deletion_refused_when_only_admin_remains(self):
+        org = _make_org(
+            slug="guard-admin-only",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-admin-owner@waseda.jp")
+        admin = _make_user("guard-admin-remain@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        add_organization_member(org, admin, role=OrganizationMember.Role.ADMIN)
+        with self.assertRaises(LastOrganizationOwnerError):
+            delete_user_account(owner)
+        org.refresh_from_db()
+        self.assertTrue(is_organization_owner(owner, org))
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+
+    def test_account_deletion_allowed_when_another_owner_remains(self):
+        org = _make_org(
+            slug="guard-two-owners",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-two-owner@waseda.jp")
+        extra = _make_user("guard-two-extra@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        add_organization_member(org, extra, role=OrganizationMember.Role.OWNER)
+        delete_user_account(owner)
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertTrue(is_organization_owner(extra, org))
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+
+    def test_entire_identity_users_are_checked_as_a_set(self):
+        org = _make_org(slug="guard-set", name="セット確認")
+        owner = _make_user("guard-set-owner@waseda.jp")
+        sibling = _make_user("guard-set-sib@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        blocked = organizations_left_without_owner_if_users_deleted(
+            [owner.pk, sibling.pk]
+        )
+        self.assertEqual([item.pk for item in blocked], [org.pk])
+        with self.assertRaises(LastOrganizationOwnerError):
+            assert_users_can_be_deleted_without_orphaning_organizations(
+                [owner.pk, sibling.pk]
+            )
+        add_organization_member(org, sibling, role=OrganizationMember.Role.OWNER)
+        self.assertEqual(
+            organizations_left_without_owner_if_users_deleted([owner.pk, sibling.pk]),
+            [org],
+        )
+        extra = _make_user("guard-set-extra@waseda.jp")
+        add_organization_member(org, extra, role=OrganizationMember.Role.OWNER)
+        self.assertEqual(
+            organizations_left_without_owner_if_users_deleted([owner.pk, sibling.pk]),
+            [],
+        )
+
+    def test_classic_delete_account_view_refuses_last_owner(self):
+        org = _make_org(
+            slug="guard-classic",
+            name="従来退会団体",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        owner = _make_user("guard-classic-owner@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        client = Client()
+        client.force_login(owner)
+        response = client.post(
+            reverse("delete_account"),
+            {"confirm_delete": "DELETE"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("account_settings"))
+        self.assertContains(response, "従来退会団体")
+        self.assertContains(response, "権限を移してください")
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+
+    def test_management_command_refuses_last_owner(self):
+        org = _make_org(slug="guard-command", name="コマンド団体")
+        owner = _make_user("guard-command-owner@waseda.jp")
+        add_organization_member(org, owner, role=OrganizationMember.Role.OWNER)
+        with self.assertRaises(CommandError) as raised:
+            call_command("delete_user_account", "--user-id", str(owner.pk))
+        self.assertIn("コマンド団体", str(raised.exception))
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
 
 
 def _grant_model_perms(user: User, *models) -> None:

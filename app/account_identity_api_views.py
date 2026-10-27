@@ -19,6 +19,10 @@ from .account_identity_services import (
     switch_linked_profile,
 )
 from .auth_api_services import serialize_me
+from .organization_services import (
+    LastOrganizationOwnerError,
+    serialize_last_owner_organizations,
+)
 
 
 def _json_error(error: str, *, status: int = 400, **extra) -> JsonResponse:
@@ -91,6 +95,13 @@ def api_v1_me_linked_profiles_delete(request: HttpRequest) -> JsonResponse:
             remaining = delete_current_linked_profile(request)
     except SuperuserDeletionDenied:
         return _json_error("superuser", status=403, message="管理者は削除できません。")
+    except LastOrganizationOwnerError as exc:
+        return _json_error(
+            LastOrganizationOwnerError.code,
+            status=409,
+            message=str(exc),
+            organizations=serialize_last_owner_organizations(exc.organizations),
+        )
     except AccountIdentityError as exc:
         return _error_response(exc)
     if remaining is None:
