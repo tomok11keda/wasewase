@@ -57,6 +57,7 @@ export type OrganizationProfilePayload = {
   can_manage: boolean;
   my_role: string | null;
   recruiting_chat: RecruitingChatSummary | null;
+  recruiting_chats: RecruitingChatSummary[];
 };
 
 export type OrganizationProfileForm = {
@@ -193,6 +194,11 @@ export function parseOrganizationProfilePayload(
     can_manage: data.can_manage === true,
     my_role: typeof role === "string" && role ? role : null,
     recruiting_chat: parseRecruitingChatSummary(data.recruiting_chat),
+    recruiting_chats: Array.isArray(data.recruiting_chats)
+      ? data.recruiting_chats
+          .map(parseRecruitingChatSummary)
+          .filter((row): row is RecruitingChatSummary => row != null)
+      : [],
   };
 }
 

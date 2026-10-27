@@ -17,13 +17,20 @@ from .organization_recruiting_chat_services import (
     build_recruiting_room_payload,
     can_access_recruiting_room,
     can_discover_recruiting_chat,
+    can_see_recruiting_chat,
+    count_active_organization_chats,
     create_recruiting_chat,
+    deactivate_recruiting_chat,
     get_accessible_recruiting_room,
     get_active_recruiting_chat,
+    get_organization_chat,
     join_or_apply_recruiting_chat,
     leave_recruiting_chat,
     list_recruiting_applications,
     list_recruiting_participants,
+    list_visible_organization_chats,
+    max_active_organization_chats,
+    pin_recruiting_message,
     reject_recruiting_application,
     remove_recruiting_participant,
     send_recruiting_chat_message,
@@ -110,11 +117,46 @@ def _managed_organization(request: HttpRequest, slug: str) -> Organization | Jso
     return organization
 
 
-def _managed_chat(request: HttpRequest, slug: str):
+def _chat_id_from_request(request: HttpRequest, data: dict | None = None) -> int | None:
+    raw = request.GET.get("chat") or request.GET.get("chat_id")
+    if raw in (None, "") and data:
+        raw = data.get("chat") if data.get("chat") is not None else data.get("chat_id")
+    if raw in (None, ""):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _resolve_chat(organization, chat_id: int | None, *, required_if_many: bool = False):
+    if chat_id:
+        chat = get_organization_chat(organization, chat_id)
+        if chat is None:
+            return None
+        return chat
+    chats = list(
+        organization.recruiting_chats.filter(is_active=True).order_by("pk")
+        if hasattr(organization, "recruiting_chats")
+        else []
+    )
+    if not chats:
+        chat = get_active_recruiting_chat(organization)
+        return chat
+    if required_if_many and len(chats) > 1:
+        return "many"
+    return chats[0]
+
+
+def _managed_chat(request: HttpRequest, slug: str, data: dict | None = None):
     organization = _managed_organization(request, slug)
     if isinstance(organization, JsonResponse):
         return organization
-    chat = get_active_recruiting_chat(organization)
+    chat_id = _chat_id_from_request(request, data)
+    chat = _resolve_chat(organization, chat_id, required_if_many=True)
+    if chat == "many":
+        return _json_error("chat_id_required", status=409)
     if chat is None:
         return _json_error("not_found", status=404)
     return organization, chat
@@ -149,6 +191,27 @@ def api_v1_organization_recruiting_chat(
     return _patch_recruiting_chat(request, slug)
 
 
+def _chat_list_payload(organization, viewer, *, can_manage: bool) -> dict:
+    chats = list_visible_organization_chats(organization, viewer)
+    serialized = [
+        serialize_recruiting_chat_for_viewer(
+            chat, viewer, include_manager_fields=can_manage
+        )
+        for chat in chats
+    ]
+    active_count = count_active_organization_chats(organization)
+    limit = max_active_organization_chats()
+    return {
+        "ok": True,
+        "recruiting_chats": serialized,
+        "recruiting_chat": serialized[0] if serialized else None,
+        "can_create": bool(can_manage and active_count < limit),
+        "can_manage": can_manage,
+        "chat_count": active_count,
+        "chat_max": limit,
+    }
+
+
 def _get_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
     organization = get_organization_by_slug(slug)
     if organization is None:
@@ -156,60 +219,31 @@ def _get_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
     viewer = _viewer(request)
     visible = can_view_organization_profile(viewer, organization)
     can_manage = can_manage_organization(viewer, organization)
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        if not visible and not can_manage:
+    if not visible and not can_manage:
+        if not list_visible_organization_chats(organization, viewer):
             return _json_error("not_found", status=404)
+    chat_id = _chat_id_from_request(request)
+    if chat_id:
+        chat = get_organization_chat(organization, chat_id)
+        if chat is None or not can_see_recruiting_chat(viewer, chat):
+            return _json_error("not_found", status=404)
+        payload = serialize_recruiting_chat_for_viewer(
+            chat, viewer, include_manager_fields=can_manage
+        )
+        active_count = count_active_organization_chats(organization)
+        limit = max_active_organization_chats()
         return JsonResponse(
             {
                 "ok": True,
-                "recruiting_chat": None,
-                "can_create": can_manage,
+                "recruiting_chat": payload,
+                "recruiting_chats": [payload],
+                "can_create": bool(can_manage and active_count < limit),
                 "can_manage": can_manage,
+                "chat_count": active_count,
+                "chat_max": limit,
             }
         )
-    can_access = can_access_recruiting_room(chat.room, viewer)
-    discoverable = can_discover_recruiting_chat(viewer, chat)
-    payload = serialize_recruiting_chat_for_viewer(
-        chat, viewer, include_manager_fields=can_manage
-    )
-    invited = payload.get("membership_status") == "invited"
-    if not visible and not can_manage and not can_access and not invited:
-        return _json_error("not_found", status=404)
-    if not (can_manage or can_access or discoverable):
-        if invited:
-            return JsonResponse(
-                {
-                    "ok": True,
-                    "recruiting_chat": payload,
-                    "can_create": False,
-                    "can_manage": False,
-                }
-            )
-        return JsonResponse(
-            {
-                "ok": True,
-                "recruiting_chat": {
-                    "membership_status": payload["membership_status"],
-                    "join_mode": payload["join_mode"],
-                    "listing_status": payload["listing_status"],
-                    "can_join": False,
-                    "can_apply": False,
-                    "can_manage": False,
-                    "room_id": None,
-                },
-                "can_create": False,
-                "can_manage": False,
-            }
-        )
-    return JsonResponse(
-        {
-            "ok": True,
-            "recruiting_chat": payload,
-            "can_create": False,
-            "can_manage": can_manage,
-        }
-    )
+    return JsonResponse(_chat_list_payload(organization, viewer, can_manage=can_manage))
 
 
 def _create_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
@@ -226,10 +260,10 @@ def _create_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
             actor=request.user,
             name=str(data.get("name") or ""),
             description=str(data.get("description") or ""),
-            join_mode=str(
-                data.get("join_mode") or "open"
-            ),
+            join_mode=str(data.get("join_mode") or "open"),
             listing_status=str(data.get("listing_status") or "open"),
+            visibility=str(data.get("visibility") or "public"),
+            posting_mode=str(data.get("posting_mode") or "all"),
         )
     except OrganizationRecruitingChatError as exc:
         return _error_response(exc)
@@ -246,14 +280,45 @@ def _create_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
 
 
 def _patch_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
-    result = _managed_chat(request, slug)
+    data = _parse_json(request)
+    result = _managed_chat(request, slug, data)
     if isinstance(result, JsonResponse):
         return result
     _organization, chat = result
     limited = _write_allowed(request)
     if limited:
         return limited
-    data = _parse_json(request)
+    if "is_active" in data and not _truthy(data.get("is_active")):
+        try:
+            chat = deactivate_recruiting_chat(chat=chat, actor=request.user)
+        except OrganizationRecruitingChatError as exc:
+            return _error_response(exc)
+        return JsonResponse(
+            {
+                "ok": True,
+                "archived": True,
+                "recruiting_chat": serialize_recruiting_chat_for_viewer(
+                    chat, request.user, include_manager_fields=True
+                ),
+            }
+        )
+    if "pinned_message_id" in data:
+        try:
+            chat = pin_recruiting_message(
+                chat=chat,
+                actor=request.user,
+                message_id=data.get("pinned_message_id"),
+            )
+        except OrganizationRecruitingChatError as exc:
+            return _error_response(exc)
+        return JsonResponse(
+            {
+                "ok": True,
+                "recruiting_chat": serialize_recruiting_chat_for_viewer(
+                    chat, request.user, include_manager_fields=True
+                ),
+            }
+        )
     kwargs = {"chat": chat, "actor": request.user}
     if "name" in data:
         kwargs["name"] = str(data.get("name") or "")
@@ -263,6 +328,10 @@ def _patch_recruiting_chat(request: HttpRequest, slug: str) -> JsonResponse:
         kwargs["join_mode"] = str(data.get("join_mode") or "")
     if "listing_status" in data:
         kwargs["listing_status"] = str(data.get("listing_status") or "")
+    if "visibility" in data:
+        kwargs["visibility"] = str(data.get("visibility") or "")
+    if "posting_mode" in data:
+        kwargs["posting_mode"] = str(data.get("posting_mode") or "")
     kwargs["confirm_auto_approve"] = _truthy(
         data.get("confirm_auto_approve")
     )
@@ -290,8 +359,18 @@ def api_v1_organization_recruiting_chat_join(
     limited = _write_allowed(request)
     if limited:
         return limited
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
+    data = _parse_json(request)
+    chat = _resolve_chat(
+        organization, _chat_id_from_request(request, data), required_if_many=True
+    )
+    if chat is None or chat == "many":
+        return _json_error(
+            "chat_id_required" if chat == "many" else "not_found",
+            status=409 if chat == "many" else 404,
+        )
+    if not can_see_recruiting_chat(request.user, chat) and not can_discover_recruiting_chat(
+        request.user, chat
+    ):
         return _json_error("not_found", status=404)
     try:
         application = join_or_apply_recruiting_chat(chat=chat, user=request.user)
@@ -322,9 +401,15 @@ def api_v1_organization_recruiting_chat_leave(
     limited = _write_allowed(request)
     if limited:
         return limited
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        return _json_error("not_found", status=404)
+    data = _parse_json(request)
+    chat = _resolve_chat(
+        organization, _chat_id_from_request(request, data), required_if_many=True
+    )
+    if chat is None or chat == "many":
+        return _json_error(
+            "chat_id_required" if chat == "many" else "not_found",
+            status=409 if chat == "many" else 404,
+        )
     try:
         leave_recruiting_chat(chat=chat, user=request.user)
     except OrganizationRecruitingChatError as exc:
@@ -351,9 +436,15 @@ def api_v1_organization_recruiting_chat_withdraw(
     limited = _write_allowed(request)
     if limited:
         return limited
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        return _json_error("not_found", status=404)
+    data = _parse_json(request)
+    chat = _resolve_chat(
+        organization, _chat_id_from_request(request, data), required_if_many=True
+    )
+    if chat is None or chat == "many":
+        return _json_error(
+            "chat_id_required" if chat == "many" else "not_found",
+            status=409 if chat == "many" else 404,
+        )
     try:
         application = withdraw_recruiting_application(chat=chat, user=request.user)
     except OrganizationRecruitingChatError as exc:

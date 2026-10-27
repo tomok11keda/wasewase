@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingManageNav } from "../features/orgs/RecruitingManageNav";
 import {
   canShowRecruitingManageNav,
   formatRecruitingDate,
+  parseRecruitingChatIdFromSearch,
   type RecruitingApplication,
 } from "../features/orgs/recruitingChat";
 import {
@@ -30,6 +31,8 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatApplicationsPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const sessionUserId =
@@ -52,7 +55,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
     setCanManage(false);
     setLoading(true);
     setError(null);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -61,7 +64,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const envelope = await fetchRecruitingChat(slug);
+      const envelope = await fetchRecruitingChat(slug, undefined, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       const manage =
@@ -72,7 +75,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
         setApplications([]);
         return;
       }
-      const data = await fetchRecruitingApplications(slug, "pending");
+      const data = await fetchRecruitingApplications(slug, "pending", chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setApplications(data.applications);
@@ -88,7 +91,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [slug]);
+  }, [slug, chatId]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -121,7 +124,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
     setError(null);
     try {
       await fn();
-      const data = await fetchRecruitingApplications(slug, "pending");
+      const data = await fetchRecruitingApplications(slug, "pending", chatId);
       setApplications(data.applications);
       setPendingCount(data.pending_count);
     } catch (err) {
@@ -140,7 +143,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
           hydrated: !loading && !sessionLoading,
           canManage,
         }) ? (
-          <RecruitingManageNav slug={slug} pendingCount={pendingCount} />
+          <RecruitingManageNav slug={slug} chatId={chatId} pendingCount={pendingCount} />
         ) : null}
         {loading || sessionLoading ? (
           <PeopleListSkeleton />
@@ -188,7 +191,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
                           disabled={busyId != null}
                           onClick={() =>
                             void act(row.id, () =>
-                              approveRecruitingApplication(slug, row.id)
+                              approveRecruitingApplication(slug, row.id, chatId)
                             )
                           }
                         >
@@ -200,7 +203,7 @@ export function OrganizationRecruitingChatApplicationsPage() {
                           disabled={busyId != null}
                           onClick={() =>
                             void act(row.id, () =>
-                              rejectRecruitingApplication(slug, row.id)
+                              rejectRecruitingApplication(slug, row.id, chatId)
                             )
                           }
                         >

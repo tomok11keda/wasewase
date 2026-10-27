@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingManageNav } from "../features/orgs/RecruitingManageNav";
@@ -8,6 +8,7 @@ import {
   RECRUITING_INVITE_QUERY_MIN,
   canShowRecruitingManageNav,
   formatRecruitingDate,
+  parseRecruitingChatIdFromSearch,
   recruitingInviteSkipLabel,
   type RecruitingInvitation,
   type RecruitingInviteCandidate,
@@ -35,6 +36,8 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatInvitesPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const sessionUserId =
@@ -75,7 +78,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     setError(null);
     setFeedback(null);
     setLoading(true);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -84,7 +87,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     setLoading(true);
     setError(null);
     try {
-      const envelope = await fetchRecruitingChat(slug);
+      const envelope = await fetchRecruitingChat(slug, undefined, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       const manage =
@@ -97,7 +100,7 @@ export function OrganizationRecruitingChatInvitesPage() {
         setInvites([]);
         return;
       }
-      const rows = await fetchRecruitingInvites(slug);
+      const rows = await fetchRecruitingInvites(slug, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setInvites(rows);
@@ -112,7 +115,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [slug]);
+  }, [slug, chatId]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -130,7 +133,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     }
     const handle = window.setTimeout(() => {
       setSearching(true);
-      void searchRecruitingInviteCandidates(slug, trimmed)
+      void searchRecruitingInviteCandidates(slug, trimmed, undefined, chatId)
         .then((rows) => {
           if (!isLatestRequest(searchGen, gen)) return;
           if (slugRef.current !== slug) return;
@@ -146,7 +149,7 @@ export function OrganizationRecruitingChatInvitesPage() {
         });
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [query, slug, canManage]);
+  }, [query, slug, canManage, chatId]);
 
   if (!slug) return <Navigate to="/" replace />;
   const loginNext = `/app/organizations/${slug}/recruiting-chat/invites`;
@@ -186,7 +189,11 @@ export function OrganizationRecruitingChatInvitesPage() {
     setError(null);
     setFeedback(null);
     try {
-      const result = await sendRecruitingInvites(startedSlug, [...selected.keys()]);
+      const result = await sendRecruitingInvites(
+        startedSlug,
+        [...selected.keys()],
+        chatId
+      );
       if (slugRef.current !== startedSlug) return;
       const skipText = result.skipped
         .map((row) => recruitingInviteSkipLabel(row.reason))
@@ -201,7 +208,7 @@ export function OrganizationRecruitingChatInvitesPage() {
         setFeedback(`招待できませんでした（${skipText.join("、") || "対象なし"}）。`);
       }
       setSelected(new Map());
-      const rows = await fetchRecruitingInvites(startedSlug);
+      const rows = await fetchRecruitingInvites(startedSlug, chatId);
       if (slugRef.current !== startedSlug) return;
       setInvites(rows);
     } catch (err) {
@@ -224,7 +231,7 @@ export function OrganizationRecruitingChatInvitesPage() {
     setBusyId(invitation.id);
     setError(null);
     try {
-      await cancelRecruitingInvite(startedSlug, invitation.id);
+      await cancelRecruitingInvite(startedSlug, invitation.id, chatId);
       if (slugRef.current !== startedSlug) return;
       setInvites((prev) => prev.filter((row) => row.id !== invitation.id));
     } catch (err) {
@@ -248,7 +255,7 @@ export function OrganizationRecruitingChatInvitesPage() {
           hydrated: !loading && !sessionLoading,
           canManage,
         }) ? (
-          <RecruitingManageNav slug={slug} pendingCount={pendingCount} />
+          <RecruitingManageNav slug={slug} chatId={chatId} pendingCount={pendingCount} />
         ) : null}
         {loading || sessionLoading ? (
           <PeopleListSkeleton />

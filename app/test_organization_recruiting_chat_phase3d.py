@@ -421,15 +421,17 @@ class OrganizationRecruitingChatPhase3DTests(TestCase):
             item for item in inbox["conversations"] if item["kind"] == "recruiting"
         ]
         self.assertEqual(len(recruiting), 1)
-        self.assertEqual(
-            recruiting[0]["spa_path"],
-            f"/organizations/{self.other_org.slug}/recruiting-chat",
+        self.assertTrue(
+            recruiting[0]["spa_path"].startswith(
+                f"/organizations/{self.other_org.slug}/recruiting-chat"
+            )
         )
+        self.assertIn("chat=", recruiting[0]["spa_path"])
 
     def test_sequential_races_are_rejected_without_duplicate_membership(self):
         self.client.force_login(self.owner)
-        duplicate = self._json("post", self._org_url(), name="二重作成")
-        self.assertEqual(duplicate.status_code, 409)
+        second = self._json("post", self._org_url(), name="二重作成")
+        self.assertEqual(second.status_code, 201, second.content)
 
         approval = create_recruiting_chat(
             organization=self.other_org,

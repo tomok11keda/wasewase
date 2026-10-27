@@ -5,8 +5,10 @@ export const RECRUITING_CHAT_DESCRIPTION_MAX = 2000;
 export const MAX_RECRUITING_INVITEES = 20;
 export const RECRUITING_INVITE_QUERY_MIN = 2;
 
-export type RecruitingJoinMode = "open" | "approval";
+export type RecruitingJoinMode = "open" | "approval" | "invite";
 export type RecruitingListingStatus = "open" | "closed";
+export type RecruitingVisibility = "public" | "private";
+export type RecruitingPostingMode = "all" | "admins";
 export type RecruitingMembershipStatus =
   | "not_joined"
   | "pending"
@@ -51,6 +53,8 @@ export type RecruitingChat = {
   description: string;
   join_mode: RecruitingJoinMode;
   listing_status: RecruitingListingStatus;
+  visibility: RecruitingVisibility;
+  posting_mode: RecruitingPostingMode;
   is_active: boolean;
   member_count: number;
   viewer_state: string;
@@ -64,6 +68,8 @@ export type RecruitingChat = {
   can_withdraw: boolean;
   can_send: boolean;
   can_invite: boolean;
+  can_pin?: boolean;
+  pinned_message_id?: number | null;
   room_id: number | null;
   pending_count?: number;
   would_auto_approve_on_open?: boolean;
@@ -73,8 +79,11 @@ export type RecruitingChat = {
 export type RecruitingChatEnvelope = {
   ok: boolean;
   recruiting_chat: RecruitingChat | null;
+  recruiting_chats?: RecruitingChat[];
   can_create: boolean;
   can_manage: boolean;
+  chat_count?: number;
+  chat_max?: number;
 };
 
 export type RecruitingChatSummary = {
@@ -82,6 +91,8 @@ export type RecruitingChatSummary = {
   name: string;
   join_mode: RecruitingJoinMode;
   listing_status: RecruitingListingStatus;
+  visibility?: RecruitingVisibility;
+  posting_mode?: RecruitingPostingMode;
   membership_status: RecruitingMembershipStatus;
   can_join: boolean;
   can_apply: boolean;
@@ -129,6 +140,8 @@ export type RecruitingChatForm = {
   description: string;
   join_mode: RecruitingJoinMode;
   listing_status: RecruitingListingStatus;
+  visibility: RecruitingVisibility;
+  posting_mode: RecruitingPostingMode;
 };
 
 function asString(value: unknown): string {
@@ -145,7 +158,16 @@ function asBool(value: unknown): boolean {
 }
 
 function parseJoinMode(value: unknown): RecruitingJoinMode {
-  return value === "approval" ? "approval" : "open";
+  if (value === "approval" || value === "invite") return value;
+  return "open";
+}
+
+function parseVisibility(value: unknown): RecruitingVisibility {
+  return value === "private" ? "private" : "public";
+}
+
+function parsePostingMode(value: unknown): RecruitingPostingMode {
+  return value === "admins" ? "admins" : "all";
 }
 
 function parseListingStatus(value: unknown): RecruitingListingStatus {
@@ -165,44 +187,92 @@ function parseMembershipStatus(value: unknown): RecruitingMembershipStatus {
   return "not_joined";
 }
 
-export function recruitingChatPath(slug: string): string {
-  return `/organizations/${slug}/recruiting-chat`;
+export function parseRecruitingChatId(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export function recruitingChatInfoPath(slug: string): string {
-  return `${recruitingChatPath(slug)}/info`;
+export function parseRecruitingChatIdFromSearch(search: string): number | null {
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  return parseRecruitingChatId(params.get("chat") || params.get("chat_id"));
 }
 
-export function recruitingChatSettingsPath(slug: string): string {
-  return `${recruitingChatPath(slug)}/settings`;
+function withChatQuery(path: string, chatId?: number | null): string {
+  const id = parseRecruitingChatId(chatId);
+  return id ? `${path}?chat=${id}` : path;
 }
 
-export function recruitingChatApplicationsPath(slug: string): string {
-  return `${recruitingChatPath(slug)}/applications`;
+export function recruitingChatPath(slug: string, chatId?: number | null): string {
+  return withChatQuery(`/organizations/${slug}/recruiting-chat`, chatId);
 }
 
-export function recruitingChatMembersPath(slug: string): string {
-  return `${recruitingChatPath(slug)}/members`;
+export function recruitingChatInfoPath(slug: string, chatId?: number | null): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/info`, chatId);
 }
 
-export function recruitingChatInvitesPath(slug: string): string {
-  return `${recruitingChatPath(slug)}/invites`;
+export function recruitingChatSettingsPath(
+  slug: string,
+  chatId?: number | null
+): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/settings`, chatId);
+}
+
+export function recruitingChatCreatePath(slug: string): string {
+  return `${recruitingChatPath(slug)}/settings?create=1`;
+}
+
+export function recruitingChatApplicationsPath(
+  slug: string,
+  chatId?: number | null
+): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/applications`, chatId);
+}
+
+export function recruitingChatMembersPath(
+  slug: string,
+  chatId?: number | null
+): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/members`, chatId);
+}
+
+export function recruitingChatInvitesPath(
+  slug: string,
+  chatId?: number | null
+): string {
+  return withChatQuery(`${recruitingChatPath(slug)}/invites`, chatId);
 }
 
 export function recruitingChatInvitePath(slug: string): string {
   return `${recruitingChatPath(slug)}/invite`;
 }
 
-/** Open the active chat, or fall back to the existing create/settings screen. */
+export function envelopeChats(envelope: RecruitingChatEnvelope | null): RecruitingChat[] {
+  if (!envelope) return [];
+  if (envelope.recruiting_chats && envelope.recruiting_chats.length) {
+    return envelope.recruiting_chats;
+  }
+  return envelope.recruiting_chat ? [envelope.recruiting_chat] : [];
+}
+
+/** Open the chat hub, a specific chat, or the create screen. */
 export function resolveRecruitingChatDestination(
   envelope: RecruitingChatEnvelope,
   slug: string
 ): { path: string; action: "open" | "create" } | null {
-  if (envelope.recruiting_chat) {
-    return { path: recruitingChatPath(slug), action: "open" };
+  const chats = envelopeChats(envelope);
+  if (chats.length > 1 || envelope.can_manage) {
+    if (chats.length) {
+      return { path: recruitingChatPath(slug), action: "open" };
+    }
+  }
+  const chat = chats[0] || envelope.recruiting_chat;
+  if (chat?.id) {
+    return { path: recruitingChatPath(slug, chat.id), action: "open" };
   }
   if (envelope.can_create) {
-    return { path: recruitingChatSettingsPath(slug), action: "create" };
+    return { path: recruitingChatCreatePath(slug), action: "create" };
   }
   return null;
 }
@@ -247,7 +317,17 @@ export function inboxSpaHref(spaPath: string): string {
 }
 
 export function joinModeLabel(mode: RecruitingJoinMode): string {
-  return mode === "approval" ? "承認制" : "自由参加";
+  if (mode === "approval") return "承認制";
+  if (mode === "invite") return "招待制";
+  return "自由参加";
+}
+
+export function visibilityLabel(visibility: RecruitingVisibility): string {
+  return visibility === "private" ? "非公開" : "公開";
+}
+
+export function postingModeLabel(mode: RecruitingPostingMode): string {
+  return mode === "admins" ? "管理者のみ投稿" : "参加者も投稿";
 }
 
 export function listingStatusLabel(status: RecruitingListingStatus): string {
@@ -282,6 +362,16 @@ export function recruitingChatErrorMessage(
       return "募集状態が正しくありません。";
     case "already_exists":
       return "この団体の団体チャットはすでに作成されています。";
+    case "chat_limit_reached":
+      return "作成できる団体チャットの上限に達しています。";
+    case "chat_id_required":
+      return "対象の団体チャットを選んでください。";
+    case "invalid_visibility":
+      return "公開範囲が正しくありません。";
+    case "invalid_posting_mode":
+      return "投稿権限が正しくありません。";
+    case "invite_only":
+      return "このチャットは招待された人だけ参加できます。";
     case "forbidden":
       return "この操作を行う権限がありません。";
     case "not_found":
@@ -401,6 +491,8 @@ export function parseRecruitingChatSummary(
     name: asString(data.name),
     join_mode,
     listing_status,
+    visibility: parseVisibility(data.visibility),
+    posting_mode: parsePostingMode(data.posting_mode),
     membership_status,
     can_join: asBool(data.can_join),
     can_apply: asBool(data.can_apply),
@@ -422,6 +514,8 @@ export function parseRecruitingChat(raw: unknown): RecruitingChat | null {
     description: asString(data.description),
     join_mode: summary.join_mode,
     listing_status: summary.listing_status,
+    visibility: summary.visibility || "public",
+    posting_mode: summary.posting_mode || "all",
     is_active: data.is_active !== false,
     member_count: summary.member_count,
     viewer_state: asString(data.viewer_state),
@@ -435,6 +529,11 @@ export function parseRecruitingChat(raw: unknown): RecruitingChat | null {
     can_withdraw: asBool(data.can_withdraw),
     can_send: asBool(data.can_send),
     can_invite: asBool(data.can_invite),
+    can_pin: asBool(data.can_pin),
+    pinned_message_id:
+      data.pinned_message_id == null
+        ? null
+        : asFiniteNumber(data.pinned_message_id),
     room_id: summary.room_id,
   };
   if ("pending_count" in data) {
@@ -454,21 +553,33 @@ export function parseRecruitingChatEnvelope(
 ): RecruitingChatEnvelope | null {
   if (data.ok === false) return null;
   const raw = data.recruiting_chat;
+  const listed = Array.isArray(data.recruiting_chats)
+    ? data.recruiting_chats
+        .map(parseRecruitingChat)
+        .filter((row): row is RecruitingChat => row != null)
+    : [];
   if (raw == null) {
     return {
       ok: true,
-      recruiting_chat: null,
+      recruiting_chat: listed[0] ?? null,
+      recruiting_chats: listed,
       can_create: asBool(data.can_create),
       can_manage: asBool(data.can_manage),
+      chat_count: asFiniteNumber(data.chat_count) ?? listed.length,
+      chat_max: asFiniteNumber(data.chat_max) ?? undefined,
     };
   }
   const chat = parseRecruitingChat(raw);
   if (!chat) return null;
+  const chats = listed.length ? listed : [chat];
   return {
     ok: true,
     recruiting_chat: chat,
+    recruiting_chats: chats,
     can_create: asBool(data.can_create),
     can_manage: asBool(data.can_manage) || chat.can_manage,
+    chat_count: asFiniteNumber(data.chat_count) ?? chats.length,
+    chat_max: asFiniteNumber(data.chat_max) ?? undefined,
   };
 }
 
@@ -530,11 +641,23 @@ export function parseRecruitingRoom(raw: unknown): RecruitingRoom | null {
 export function formFromRecruitingChat(
   chat: RecruitingChat | null
 ): RecruitingChatForm {
+  const visibility = chat?.visibility === "private" ? "private" : "public";
+  const joinMode =
+    visibility === "private" || chat?.join_mode === "invite"
+      ? "invite"
+      : chat?.join_mode === "approval"
+        ? "approval"
+        : "open";
   return {
     name: chat?.name || "",
     description: chat?.description || "",
-    join_mode: chat?.join_mode === "approval" ? "approval" : "open",
-    listing_status: chat?.listing_status === "closed" ? "closed" : "open",
+    join_mode: joinMode,
+    listing_status:
+      visibility === "private" || chat?.listing_status === "closed"
+        ? "closed"
+        : "open",
+    visibility,
+    posting_mode: chat?.posting_mode === "admins" ? "admins" : "all",
   };
 }
 
@@ -551,8 +674,18 @@ export function validateRecruitingChatForm(
   if (form.description.length > RECRUITING_CHAT_DESCRIPTION_MAX) {
     errors.description = `説明は${RECRUITING_CHAT_DESCRIPTION_MAX}文字以内で入力してください。`;
   }
-  if (form.join_mode !== "open" && form.join_mode !== "approval") {
+  if (
+    form.join_mode !== "open" &&
+    form.join_mode !== "approval" &&
+    form.join_mode !== "invite"
+  ) {
     errors.join_mode = "参加方式を選択してください。";
+  }
+  if (form.visibility !== "public" && form.visibility !== "private") {
+    errors.visibility = "公開範囲を選択してください。";
+  }
+  if (form.posting_mode !== "all" && form.posting_mode !== "admins") {
+    errors.posting_mode = "投稿権限を選択してください。";
   }
   if (form.listing_status !== "open" && form.listing_status !== "closed") {
     errors.listing_status = "募集状態を選択してください。";
@@ -593,7 +726,7 @@ export function shouldShowRecruitingSection(
 ): boolean {
   if (!envelope) return false;
   if (envelope.can_create || envelope.can_manage) return true;
-  return envelope.recruiting_chat != null;
+  return envelopeChats(envelope).length > 0 || envelope.recruiting_chat != null;
 }
 
 /** Admin chrome stays hidden until the server confirms manage/create. */

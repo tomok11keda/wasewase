@@ -400,6 +400,16 @@ urlpatterns = [
         name="api_v1_organization_event_lottery_share",
     ),
     path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/share/",
+        organization_event_api_views.api_v1_organization_event_share,
+        name="api_v1_organization_event_share",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/duplicate/",
+        organization_event_api_views.api_v1_organization_event_duplicate,
+        name="api_v1_organization_event_duplicate",
+    ),
+    path(
         "api/v1/organizations/<slug:slug>/events/<int:event_id>/lottery/",
         organization_event_api_views.api_v1_organization_event_lottery,
         name="api_v1_organization_event_lottery",

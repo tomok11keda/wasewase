@@ -18,6 +18,7 @@ import {
   recruitingChatInvitesPath,
   recruitingChatPath,
   recruitingChatErrorMessage,
+  recruitingChatCreatePath,
   recruitingChatSettingsPath,
   resolveRecruitingChatDestination,
   recruitingInviteOpenState,
@@ -159,7 +160,7 @@ test("org chat picker opens an existing chat or the create screen", () => {
   });
   assert.ok(create);
   assert.deepEqual(resolveRecruitingChatDestination(create, "circle"), {
-    path: recruitingChatSettingsPath("circle"),
+    path: recruitingChatCreatePath("circle"),
     action: "create",
   });
 
@@ -280,6 +281,8 @@ test("create form validation matches backend name/description limits", () => {
     description: "x".repeat(2001),
     join_mode: "open",
     listing_status: "open",
+    visibility: "public",
+    posting_mode: "all",
   });
   assert.ok(errors.name);
   assert.ok(errors.description);
@@ -417,6 +420,74 @@ test("sqlite lock and quota errors stay retryable and are not duplicate copy", (
     recruitingChatErrorMessage("busy", "fallback"),
     recruitingChatErrorMessage("already_pending", "fallback")
   );
+});
+
+test("multi-chat paths and private/invite parsers", () => {
+  assert.equal(
+    recruitingChatPath("circle", 12),
+    "/organizations/circle/recruiting-chat?chat=12"
+  );
+  assert.equal(
+    recruitingChatSettingsPath("circle", 12),
+    "/organizations/circle/recruiting-chat/settings?chat=12"
+  );
+  assert.equal(
+    recruitingChatCreatePath("circle"),
+    "/organizations/circle/recruiting-chat/settings?create=1"
+  );
+  const privateChat = parseRecruitingChat({
+    id: 4,
+    name: "幹部",
+    join_mode: "invite",
+    listing_status: "closed",
+    visibility: "private",
+    posting_mode: "admins",
+    membership_status: "not_joined",
+    can_join: false,
+    can_apply: false,
+    can_manage: false,
+    room_id: null,
+  });
+  assert.equal(privateChat?.visibility, "private");
+  assert.equal(privateChat?.join_mode, "invite");
+  assert.equal(joinModeLabel("invite"), "招待制");
+  assert.equal(
+    recruitingChatErrorMessage("chat_limit_reached", "fallback"),
+    "作成できる団体チャットの上限に達しています。"
+  );
+  const list = parseRecruitingChatEnvelope({
+    ok: true,
+    recruiting_chats: [
+      {
+        id: 1,
+        name: "公開",
+        join_mode: "open",
+        listing_status: "open",
+        visibility: "public",
+        membership_status: "joined",
+        can_join: false,
+        can_apply: false,
+        can_manage: true,
+        room_id: 10,
+      },
+      {
+        id: 2,
+        name: "非公開",
+        join_mode: "invite",
+        listing_status: "closed",
+        visibility: "private",
+        membership_status: "not_joined",
+        can_join: true,
+        can_apply: false,
+        can_manage: true,
+        room_id: null,
+      },
+    ],
+    can_create: true,
+    can_manage: true,
+  });
+  assert.equal(list?.recruiting_chats?.length, 2);
+  assert.equal(list?.recruiting_chat?.id, 1);
 });
 
 test("invite button helper stays hidden until the server confirms manage", () => {

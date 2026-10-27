@@ -18,13 +18,16 @@ import {
   organizationEventRegistrationsPath,
   type OrganizationEvent,
 } from "../features/orgs/orgEvents";
+import { OrgChatSharePicker } from "../features/orgs/OrgChatSharePicker";
 import {
   cancelOrganizationEvent,
   deleteOrganizationEvent,
+  duplicateOrganizationEvent,
   fetchOrganizationEvent,
   patchEventRegistrationOpen,
   publishOrganizationEvent,
   registerOrganizationEvent,
+  shareOrganizationEventToChat,
   unpublishOrganizationEvent,
   unregisterOrganizationEvent,
 } from "../features/orgs/orgEventsApi";
@@ -56,6 +59,8 @@ export function OrganizationEventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     nextRequestId(fetchGen);
@@ -311,7 +316,70 @@ export function OrganizationEventDetailPage() {
                   <Link className="btn btn-secondary" to={organizationEventManagePath(slug)}>
                     イベント管理
                   </Link>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const copy = await duplicateOrganizationEvent(slug, event.id);
+                        navigate(organizationEventEditPath(slug, copy.id));
+                        return event;
+                      })
+                    }
+                  >
+                    複製して下書きを作る
+                  </button>
                 </p>
+                {event.status === "published" ? (
+                  <div className="org-event-share">
+                    {shareNote ? (
+                      <p className="org-recruiting-card__pending" role="status">
+                        {shareNote}
+                      </p>
+                    ) : null}
+                    <OrgChatSharePicker
+                      slug={slug}
+                      busy={shareBusy}
+                      submitLabel="選んだチャットにイベントを共有"
+                      onShare={async (chatIds) => {
+                        setShareBusy(true);
+                        setShareNote(null);
+                        setActionError(null);
+                        try {
+                          let shared = 0;
+                          for (const chatId of chatIds) {
+                            try {
+                              await shareOrganizationEventToChat(slug, event.id, chatId);
+                              shared += 1;
+                            } catch (err) {
+                              if (
+                                err instanceof OrganizationRequestError &&
+                                err.code === "already_shared"
+                              ) {
+                                continue;
+                              }
+                              throw err;
+                            }
+                          }
+                          setShareNote(
+                            shared
+                              ? `${shared}件の団体チャットに共有しました。`
+                              : "選択したチャットにはすでに共有済みです。"
+                          );
+                        } catch (err) {
+                          setActionError(
+                            err instanceof OrganizationRequestError
+                              ? err.message
+                              : "共有できませんでした。"
+                          );
+                        } finally {
+                          setShareBusy(false);
+                        }
+                      }}
+                    />
+                  </div>
+                ) : null}
                 {event.status !== "cancelled" ? (
                   <p className="org-recruiting-card__actions">
                     <button

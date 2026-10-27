@@ -28,9 +28,11 @@ from .organization_event_services import (
     publish_organization_event,
     register_organization_event,
     serialize_organization_event,
+    share_organization_event_to_chat,
     unpublish_organization_event,
     unregister_organization_event,
     update_organization_event,
+    duplicate_organization_event,
 )
 from .organization_services import can_manage_organization, can_view_organization_profile
 from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_organization_event_write
@@ -394,7 +396,15 @@ def api_v1_organization_event_lottery_share(
     if event is None:
         return _json_error("not_found", status=404)
     try:
-        lottery = share_organization_event_lottery(event=event, actor=request.user)
+        data = _parse_json(request)
+        chat_id = data.get("chat_id") or data.get("chat")
+        try:
+            chat_id = int(chat_id) if chat_id not in (None, "") else None
+        except (TypeError, ValueError):
+            chat_id = None
+        lottery = share_organization_event_lottery(
+            event=event, actor=request.user, chat_id=chat_id
+        )
     except OrganizationEventError as exc:
         return _error_response(exc)
     except Exception as exc:
@@ -402,6 +412,83 @@ def api_v1_organization_event_lottery_share(
             return _json_error("busy", status=409)
         raise
     return _lottery_response(lottery, request.user)
+
+
+@require_POST
+def api_v1_organization_event_share(
+    request: HttpRequest, slug: str, event_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    limited = _write_allowed(request)
+    if limited:
+        return limited
+    organization = _visible_organization(slug, request.user)
+    if isinstance(organization, JsonResponse):
+        return organization
+    event = get_event_for_organization(organization, event_id)
+    if event is None:
+        return _json_error("not_found", status=404)
+    data = _parse_json(request)
+    try:
+        chat_id = int(data.get("chat_id") or data.get("chat") or 0)
+    except (TypeError, ValueError):
+        chat_id = 0
+    if chat_id <= 0:
+        return _json_error("chat_id_required", status=400)
+    try:
+        share = share_organization_event_to_chat(
+            event=event, actor=request.user, chat_id=chat_id
+        )
+    except OrganizationEventError as exc:
+        return _error_response(exc)
+    except Exception as exc:
+        if is_write_contention(exc):
+            return _json_error("busy", status=409)
+        raise
+    return JsonResponse(
+        {
+            "ok": True,
+            "shared": True,
+            "chat_id": share.recruiting_chat_id,
+            "message_id": share.message_id,
+            "event": serialize_organization_event(event, request.user),
+        },
+        status=201,
+    )
+
+
+@require_POST
+def api_v1_organization_event_duplicate(
+    request: HttpRequest, slug: str, event_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    limited = _write_allowed(request)
+    if limited:
+        return limited
+    organization = _visible_organization(slug, request.user)
+    if isinstance(organization, JsonResponse):
+        return organization
+    event = get_event_for_organization(organization, event_id)
+    if event is None:
+        return _json_error("not_found", status=404)
+    data = _parse_json(request)
+    try:
+        copy = duplicate_organization_event(
+            event=event, actor=request.user, payload=data or None
+        )
+    except OrganizationEventError as exc:
+        return _error_response(exc)
+    return JsonResponse(
+        {
+            "ok": True,
+            "event": serialize_organization_event(copy, request.user),
+        },
+        status=201,
+    )
 
 
 @require_GET

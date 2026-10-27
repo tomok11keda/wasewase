@@ -86,8 +86,6 @@ def assert_can_send_recruiting_invites(
     actor: AbstractBaseUser | None, chat: OrganizationRecruitingChat
 ) -> None:
     assert_can_manage_recruiting_invites(actor, chat)
-    if chat.listing_status != OrganizationRecruitingChat.ListingStatus.OPEN:
-        raise OrganizationRecruitingChatError("listing_closed", status=403)
 
 
 def get_pending_recruiting_invitation(

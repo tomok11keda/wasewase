@@ -119,32 +119,29 @@ class OrganizationRecruitingChatFoundationTests(TestCase):
                 name="別団体",
             )
 
-    def test_one_active_chat_per_organization_allows_history(self):
+    def test_multiple_active_chats_and_archive_keeps_history(self):
         first = self._create_chat()
-        with self.assertRaises(OrganizationRecruitingChatError) as ctx:
-            self._create_chat(name="二重")
-        self.assertEqual(ctx.exception.code, "already_exists")
-        deactivate_recruiting_chat(chat=first, actor=self.owner)
-        second = self._create_chat(name="2027新歓")
+        second = self._create_chat(name="イベント連絡")
         self.assertTrue(second.is_active)
-        first.refresh_from_db()
-        self.assertFalse(first.is_active)
+        self.assertNotEqual(first.pk, second.pk)
         self.assertEqual(
             OrganizationRecruitingChat.objects.filter(
                 organization=self.org, is_active=True
             ).count(),
-            1,
+            2,
         )
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                OrganizationRecruitingChat.objects.create(
-                    organization=self.org,
-                    room=ChatRoom.objects.create(
-                        kind=ChatRoom.Kind.RECRUITING, name="不正"
-                    ),
-                    name="不正",
-                    is_active=True,
-                )
+        join_or_apply_recruiting_chat(chat=first, user=self.student)
+        send_recruiting_chat_message(first.room, self.student, "残るメッセージ")
+        deactivate_recruiting_chat(chat=first, actor=self.owner)
+        first.refresh_from_db()
+        self.assertFalse(first.is_active)
+        self.assertTrue(
+            ChatMessage.objects.filter(
+                room=first.room, body="残るメッセージ"
+            ).exists()
+        )
+        third = self._create_chat(name="2027新歓")
+        self.assertTrue(third.is_active)
 
     def test_join_does_not_create_organization_member(self):
         chat = self._create_chat()
@@ -418,7 +415,7 @@ class OrganizationRecruitingChatFoundationTests(TestCase):
         self.assertNotIn("email", rows[0])
         self.assertNotIn(self.student.email, json.dumps(rows))
         participants = list_recruiting_participants(chat=chat, viewer=self.student)
-        self.assertEqual(len(participants), 1)
+        self.assertEqual(len(participants), 2)
         self.assertNotIn("email", participants[0])
         self.assertNotIn(self.student.email, json.dumps(participants))
         with self.assertRaises(OrganizationRecruitingChatError):
@@ -437,12 +434,18 @@ class OrganizationRecruitingChatFoundationTests(TestCase):
         )
         self.assertFalse(can_access_recruiting_room(chat.room, self.student))
 
-    def test_manager_can_access_without_membership(self):
+    def test_manager_joins_to_access_and_creator_is_member(self):
         chat = self._create_chat()
-        self.assertTrue(can_access_recruiting_room(chat.room, self.owner))
-        self.assertFalse(
+        self.assertTrue(
             ChatRoomMembership.objects.filter(room=chat.room, user=self.owner).exists()
         )
+        self.assertTrue(can_access_recruiting_room(chat.room, self.owner))
+        self.assertFalse(
+            ChatRoomMembership.objects.filter(room=chat.room, user=self.admin).exists()
+        )
+        self.assertFalse(can_access_recruiting_room(chat.room, self.admin))
+        join_or_apply_recruiting_chat(chat=chat, user=self.admin)
+        self.assertTrue(can_access_recruiting_room(chat.room, self.admin))
         send_recruiting_chat_message(chat.room, self.owner, "管理者から")
         rooms = list(list_recruiting_rooms_for_user(self.owner))
         self.assertEqual([room.pk for room in rooms], [chat.room_id])

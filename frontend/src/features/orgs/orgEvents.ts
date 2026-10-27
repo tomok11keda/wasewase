@@ -109,6 +109,23 @@ export type OrganizationEventLotteryShareCard = {
   content?: OrganizationEventLotteryShareContent;
 };
 
+export type OrganizationEventShareContent = {
+  event_id: number;
+  organization_slug: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  venue_name: string;
+  path: string;
+};
+
+export type OrganizationEventShareCard = {
+  type: "org_event";
+  id: number;
+  available: boolean;
+  content?: OrganizationEventShareContent;
+};
+
 export type OrganizationEventListPayload = {
   ok: true;
   events: OrganizationEvent[];
@@ -439,6 +456,33 @@ export function parseOrganizationEventLotteryShareCard(
   };
 }
 
+export function parseOrganizationEventShareCard(
+  raw: unknown
+): OrganizationEventShareCard | null {
+  const data = asRecord(raw);
+  if (!data || asString(data.type) !== "org_event") return null;
+  const id = asNumber(data.id);
+  if (id == null || id <= 0) return null;
+  const contentRaw = asRecord(data.content);
+  const content = contentRaw
+    ? {
+        event_id: asNumber(contentRaw.event_id) || 0,
+        organization_slug: asString(contentRaw.organization_slug),
+        title: asString(contentRaw.title),
+        starts_at: asString(contentRaw.starts_at),
+        ends_at: asString(contentRaw.ends_at),
+        venue_name: asString(contentRaw.venue_name),
+        path: asString(contentRaw.path),
+      }
+    : undefined;
+  return {
+    type: "org_event",
+    id,
+    available: data.available !== false,
+    content,
+  };
+}
+
 export function parseOrganizationEventListPayload(
   raw: unknown
 ): OrganizationEventListPayload | null {
@@ -670,7 +714,9 @@ export function organizationEventErrorMessage(
     case "already_drawn":
       return "このイベントの抽選はすでに確定しています。";
     case "already_shared":
-      return "抽選結果はすでに団体チャットへ共有されています。";
+      return "この団体チャットにはすでに共有されています。";
+    case "chat_id_required":
+      return "共有先の団体チャットを選んでください。";
     case "winner_count_exceeds_eligible":
       return "当選人数は抽選対象者数以下にしてください。";
     case "invalid_excluded":

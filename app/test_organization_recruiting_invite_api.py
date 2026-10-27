@@ -242,13 +242,10 @@ class OrganizationRecruitingInviteApiTests(TestCase):
 
         self._json("patch", self._url(), listing_status="closed")
         closed = self._invite(self.student)
-        self.assertEqual(closed.status_code, 403)
-        self.assertEqual(closed.json()["error"], "listing_closed")
+        self.assertEqual(closed.status_code, 201, closed.content)
+        self.assertGreaterEqual(closed.json().get("invited_count") or 0, 1)
+        invitation_id = closed.json()["invited"][0]["id"]
         self._json("patch", self._url(), listing_status="open")
-
-        invited = self._invite(self.student)
-        self.assertEqual(invited.status_code, 201)
-        invitation_id = invited.json()["invited"][0]["id"]
         self.client.force_login(self.student)
         accepted = self._json(
             "post", f"/api/v1/recruiting-invitations/{invitation_id}/accept/"

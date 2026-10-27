@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingManageNav } from "../features/orgs/RecruitingManageNav";
@@ -8,7 +8,9 @@ import {
   RECRUITING_CHAT_NAME_MAX,
   autoApproveConfirmMessage,
   canShowRecruitingManageNav,
+  envelopeChats,
   formFromRecruitingChat,
+  parseRecruitingChatIdFromSearch,
   recruitingChatPath,
   shouldConfirmAutoApprove,
   validateRecruitingChatForm,
@@ -36,6 +38,9 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatSettingsPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
+  const createIntent = searchParams.get("create") === "1";
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
@@ -64,7 +69,7 @@ export function OrganizationRecruitingChatSettingsPage() {
     setLoading(true);
     setLoadError(null);
     setError(null);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, createIntent, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -77,13 +82,26 @@ export function OrganizationRecruitingChatSettingsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const envelope = await fetchRecruitingChat(slug);
+      const envelope = await fetchRecruitingChat(
+        slug,
+        undefined,
+        createIntent ? null : chatId
+      );
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
-      setChat(envelope.recruiting_chat);
+      const chats = envelopeChats(envelope);
+      const target =
+        createIntent
+          ? null
+          : chatId
+            ? chats.find((row) => row.id === chatId) || envelope.recruiting_chat
+            : chats.length === 1
+              ? chats[0]
+              : null;
+      setChat(target);
       setCanCreate(envelope.can_create);
-      setCanManage(envelope.can_manage || Boolean(envelope.recruiting_chat?.can_manage));
-      setForm(formFromRecruitingChat(envelope.recruiting_chat));
+      setCanManage(envelope.can_manage || Boolean(target?.can_manage));
+      setForm(formFromRecruitingChat(target));
     } catch (err) {
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
@@ -96,7 +114,7 @@ export function OrganizationRecruitingChatSettingsPage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [slug]);
+  }, [slug, chatId, createIntent]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -155,7 +173,18 @@ export function OrganizationRecruitingChatSettingsPage() {
     );
   }
 
-  const isCreate = !chat && canCreate;
+  const isCreate = createIntent || (!chat && canCreate);
+
+  if (!isCreate && !chat) {
+    return (
+      <div className="org-edit-page" data-spa-page="団体チャット設定">
+        <div className="main-inner">
+          <p>編集する団体チャットを選んでください。</p>
+          <Link to={recruitingChatPath(slug)}>チャット一覧へ</Link>
+        </div>
+      </div>
+    );
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -175,15 +204,23 @@ export function OrganizationRecruitingChatSettingsPage() {
     setBusy(true);
     setError(null);
     try {
+      const payload =
+        form.visibility === "private"
+          ? { ...form, join_mode: "invite" as const, listing_status: "closed" as const }
+          : form;
       const next = isCreate
-        ? await createRecruitingChat(slug, form)
-        : await updateRecruitingChat(slug, {
-            ...form,
-            confirm_auto_approve: confirmAutoApprove,
-          });
+        ? await createRecruitingChat(slug, payload)
+        : await updateRecruitingChat(
+            slug,
+            {
+              ...payload,
+              confirm_auto_approve: confirmAutoApprove,
+            },
+            chatId || chat?.id
+          );
       setChat(next);
       setForm(formFromRecruitingChat(next));
-      navigate(recruitingChatPath(slug));
+      navigate(recruitingChatPath(slug, next.id));
     } catch (err) {
       if (
         err instanceof OrganizationRequestError &&
@@ -192,13 +229,17 @@ export function OrganizationRecruitingChatSettingsPage() {
         const pending = Number(err.extra.pending_count || chat?.pending_count || 0);
         if (window.confirm(autoApproveConfirmMessage(pending))) {
           try {
-            const next = await updateRecruitingChat(slug, {
-              ...form,
-              confirm_auto_approve: true,
-            });
+            const next = await updateRecruitingChat(
+              slug,
+              {
+                ...form,
+                confirm_auto_approve: true,
+              },
+              chatId || chat?.id
+            );
             setChat(next);
             setForm(formFromRecruitingChat(next));
-            navigate(recruitingChatPath(slug));
+            navigate(recruitingChatPath(slug, next.id));
             return;
           } catch (retryErr) {
             setError(errorText(retryErr, "設定を保存できませんでした。"));
@@ -220,12 +261,16 @@ export function OrganizationRecruitingChatSettingsPage() {
       <div className="main-inner">
         <p className="form-lead">
           {isCreate
-            ? "団体につき有効な団体チャットは1件です。作成後、学生が団体プロフィールから参加できます。"
-            : "チャット名・説明・参加方式・募集状態を変更できます。"}
+            ? "チャット名と参加方式を決めて作成します。公開・承認制・招待制を選べます。"
+            : "チャット名・説明・公開範囲・参加方式を変更できます。"}
         </p>
         {!isCreate &&
         canShowRecruitingManageNav({ hydrated: true, canManage }) ? (
-          <RecruitingManageNav slug={slug} pendingCount={chat?.pending_count} />
+          <RecruitingManageNav
+            slug={slug}
+            chatId={chatId || chat?.id}
+            pendingCount={chat?.pending_count}
+          />
         ) : null}
         <form className="form-card" onSubmit={(e) => void submit(e)}>
           {error ? (
@@ -263,46 +308,121 @@ export function OrganizationRecruitingChatSettingsPage() {
             ) : null}
           </div>
           <div className="form-group">
-            <label htmlFor="recruiting-join-mode">参加方式</label>
+            <label htmlFor="recruiting-visibility">公開範囲</label>
             <select
-              id="recruiting-join-mode"
-              value={form.join_mode}
-              onChange={(e) =>
+              id="recruiting-visibility"
+              value={form.visibility}
+              onChange={(e) => {
+                const visibility = e.target.value === "private" ? "private" : "public";
                 setForm({
                   ...form,
-                  join_mode: e.target.value === "approval" ? "approval" : "open",
-                })
-              }
+                  visibility,
+                  join_mode: visibility === "private" ? "invite" : form.join_mode === "invite" ? "open" : form.join_mode,
+                  listing_status: visibility === "private" ? "closed" : form.listing_status,
+                });
+              }}
             >
-              <option value="open">自由参加</option>
-              <option value="approval">承認制</option>
+              <option value="public">公開</option>
+              <option value="private">非公開（招待のみ）</option>
             </select>
-            {chat?.would_auto_approve_on_open && form.join_mode === "open" ? (
-              <p className="org-recruiting-warn">
-                承認待ちが{chat.pending_count || 0}件あります。自由参加に切り替えると全員が自動承認されます。
-              </p>
-            ) : null}
           </div>
+          {form.visibility === "public" ? (
+            <>
+              <div className="form-group">
+                <label htmlFor="recruiting-join-mode">参加方式</label>
+                <select
+                  id="recruiting-join-mode"
+                  value={form.join_mode === "invite" ? "open" : form.join_mode}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      join_mode: e.target.value === "approval" ? "approval" : "open",
+                    })
+                  }
+                >
+                  <option value="open">自由参加</option>
+                  <option value="approval">承認制</option>
+                </select>
+                {chat?.would_auto_approve_on_open && form.join_mode === "open" ? (
+                  <p className="org-recruiting-warn">
+                    承認待ちが{chat.pending_count || 0}件あります。自由参加に切り替えると全員が自動承認されます。
+                  </p>
+                ) : null}
+              </div>
+              <div className="form-group">
+                <label htmlFor="recruiting-listing">募集状態</label>
+                <select
+                  id="recruiting-listing"
+                  value={form.listing_status}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      listing_status: e.target.value === "closed" ? "closed" : "open",
+                    })
+                  }
+                >
+                  <option value="open">募集中</option>
+                  <option value="closed">募集停止</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <p className="org-recruiting-card__lead">
+              非公開チャットは招待した人だけが参加できます。プロフィールには表示されません。
+            </p>
+          )}
           <div className="form-group">
-            <label htmlFor="recruiting-listing">募集状態</label>
+            <label htmlFor="recruiting-posting">投稿できる人</label>
             <select
-              id="recruiting-listing"
-              value={form.listing_status}
+              id="recruiting-posting"
+              value={form.posting_mode}
               onChange={(e) =>
                 setForm({
                   ...form,
-                  listing_status: e.target.value === "closed" ? "closed" : "open",
+                  posting_mode: e.target.value === "admins" ? "admins" : "all",
                 })
               }
             >
-              <option value="open">募集中</option>
-              <option value="closed">募集停止</option>
+              <option value="all">参加者も投稿できる</option>
+              <option value="admins">管理者だけ投稿できる</option>
             </select>
           </div>
           <button type="submit" className="btn-submit" disabled={busy}>
             {busy ? "保存中…" : isCreate ? "作成する" : "保存する"}
           </button>
         </form>
+        {!isCreate && chat ? (
+          <p className="org-recruiting-card__actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "このチャットをアーカイブしますか？履歴は残りますが、新しい参加と投稿はできなくなります。"
+                  )
+                ) {
+                  return;
+                }
+                void (async () => {
+                  try {
+                    await updateRecruitingChat(
+                      slug,
+                      { is_active: false },
+                      chatId || chat.id
+                    );
+                    navigate(recruitingChatPath(slug), { replace: true });
+                  } catch (err) {
+                    setError(errorText(err, "アーカイブできませんでした。"));
+                  }
+                })();
+              }}
+            >
+              チャットをアーカイブ
+            </button>
+          </p>
+        ) : null}
         <Link className="org-edit-back" to={`/orgs/${slug}`}>
           団体プロフィールへ戻る
         </Link>

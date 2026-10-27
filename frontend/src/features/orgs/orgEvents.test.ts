@@ -20,6 +20,7 @@ import {
   parseOrganizationEventListPayload,
   parseOrganizationEventLottery,
   parseOrganizationEventLotteryShareCard,
+  parseOrganizationEventShareCard,
   parseOrganizationEventRegistrant,
   tokyoInputToIso,
   validateEventForm,
@@ -358,6 +359,22 @@ test("lottery setup defaults everyone eligible and validates notes", () => {
   });
   assert.equal(card?.content?.winner_count, 20);
   assert.equal(card?.content?.path, "/organizations/tennis/events/11/lottery");
+  const eventCard = parseOrganizationEventShareCard({
+    type: "org_event",
+    id: 11,
+    available: true,
+    content: {
+      event_id: 11,
+      organization_slug: "tennis",
+      title: "新歓説明会",
+      starts_at: "2026-04-02T00:00:00Z",
+      ends_at: "2026-04-02T02:00:00Z",
+      venue_name: "大隈講堂",
+      path: "/organizations/tennis/events/11",
+    },
+  });
+  assert.equal(eventCard?.content?.title, "新歓説明会");
+  assert.equal(eventCard?.type, "org_event");
   const selfOnly = parseOrganizationEventLottery({
     id: 4,
     event_id: 11,

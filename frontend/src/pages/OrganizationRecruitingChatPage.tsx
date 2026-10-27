@@ -6,7 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChatComposeBar } from "../components/ChatComposeBar";
 import { spaLoginPath } from "../features/auth/api";
 import { ChatDateDivider } from "../features/chat/ChatDateDivider";
@@ -46,7 +46,10 @@ import {
 } from "../features/orgs/api";
 import { RecruitingChatSection } from "../features/orgs/RecruitingChatSection";
 import {
+  envelopeChats,
+  parseRecruitingChatIdFromSearch,
   recruitingChatInfoPath,
+  recruitingChatPath,
   type RecruitingChat,
   type RecruitingChatEnvelope,
   type RecruitingRoom,
@@ -82,6 +85,8 @@ function isAccessLost(err: unknown): boolean {
 
 export function OrganizationRecruitingChatPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const sessionUserId =
@@ -170,7 +175,7 @@ export function OrganizationRecruitingChatPage() {
     setHydrated(false);
     setError(null);
     clearThread();
-  }, [slug, clearThread]);
+  }, [slug, chatId, clearThread]);
 
   useLayoutEffect(() => {
     if (prevUserIdRef.current === sessionUserId) return;
@@ -212,7 +217,7 @@ export function OrganizationRecruitingChatPage() {
     void (async () => {
       try {
         const [chatEnvelope, profile] = await Promise.all([
-          fetchRecruitingChat(currentSlug, ac.signal),
+          fetchRecruitingChat(currentSlug, ac.signal, chatId),
           fetchOrganizationProfile(currentSlug).catch(() => null),
         ]);
         if (ac.signal.aborted || slugRef.current !== currentSlug) return;
@@ -222,6 +227,24 @@ export function OrganizationRecruitingChatPage() {
         if (profile) {
           setOrgName(profile.organization.name);
           setOrgAvatar(profile.organization.avatar_url);
+        }
+        const chats = envelopeChats(chatEnvelope);
+        if (!chatId) {
+          if (
+            !chatEnvelope.can_manage &&
+            chats.length === 1 &&
+            chats[0]?.id
+          ) {
+            navigate(recruitingChatPath(currentSlug, chats[0].id), {
+              replace: true,
+            });
+            return;
+          }
+          setMessages([]);
+          setRoom(null);
+          setHydrated(true);
+          setLoading(false);
+          return;
         }
         const roomId = chatEnvelope.recruiting_chat?.room_id;
         const canSend = Boolean(chatEnvelope.recruiting_chat?.can_send);
@@ -282,7 +305,7 @@ export function OrganizationRecruitingChatPage() {
       }
     })();
     return () => ac.abort();
-  }, [me?.authenticated, sessionLoading, slug, navigate, clearThread, applyEnvelope, sessionUserId, reloadKey]);
+  }, [me?.authenticated, sessionLoading, slug, chatId, navigate, clearThread, applyEnvelope, sessionUserId, reloadKey]);
 
   const chat = envelope?.recruiting_chat ?? null;
   const canManage = Boolean(envelope?.can_manage || chat?.can_manage);
@@ -416,10 +439,13 @@ export function OrganizationRecruitingChatPage() {
     );
   }
 
-  const displayName = chat?.name || room?.name || "";
+  const showHub = !chatId;
+  const displayName = showHub
+    ? "団体チャット"
+    : chat?.name || room?.name || "";
   const orgLabel = orgName || room?.organization_name || "";
   const headerPreview = readRecruitingHeaderPreview(sessionUserId, slug);
-  const canViewThread = Boolean(canSend && room && !accessLost);
+  const canViewThread = Boolean(!showHub && canSend && room && !accessLost);
   const phase = chatContentPhase({
     loading: sessionLoading || loading,
     error,
@@ -460,7 +486,9 @@ export function OrganizationRecruitingChatPage() {
             )}
             avatarShape="rounded"
             detailsTo={
-              hydrated && envelope ? recruitingChatInfoPath(slug) : undefined
+              hydrated && envelope
+                ? recruitingChatInfoPath(slug, chatId)
+                : undefined
             }
             pending={!hydrated}
           />
@@ -496,7 +524,8 @@ export function OrganizationRecruitingChatPage() {
           <RecruitingChatSection
             slug={slug}
             envelope={envelope}
-            hideManageActions
+            focusedChatId={chatId}
+            hideManageActions={Boolean(chatId)}
             error={
               error && error !== "forbidden" && error !== "not_found"
                 ? "通信に失敗しました。"
@@ -507,7 +536,10 @@ export function OrganizationRecruitingChatPage() {
               applyEnvelope({
                 ok: true,
                 recruiting_chat: next,
-                can_create: false,
+                recruiting_chats: envelopeChats(envelope).map((row) =>
+                  row.id === next.id ? next : row
+                ),
+                can_create: Boolean(envelope?.can_create),
                 can_manage: canManage || next.can_manage,
               });
               if (!next.room_id || !next.can_send) return;

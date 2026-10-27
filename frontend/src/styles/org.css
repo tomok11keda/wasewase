@@ -261,6 +261,24 @@
   text-decoration: none;
 }
 
+.org-recruiting-list {
+  margin: 20px 0 0;
+}
+
+.org-recruiting-list > .org-recruiting-card {
+  margin-top: 12px;
+}
+
+.org-chat-share-picker {
+  margin-top: 12px;
+}
+
+.org-chat-share-picker label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .org-recruiting-card {
   margin: 20px 0 0;
   padding: 16px;

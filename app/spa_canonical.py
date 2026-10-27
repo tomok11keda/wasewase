@@ -92,11 +92,16 @@ def group_room_url(room_pk: int) -> str:
     return reverse("dm_group_room", kwargs={"room_pk": room_pk})
 
 
-def recruiting_chat_spa_path(slug: str, room_pk: int) -> str:
+def recruiting_chat_spa_path(
+    slug: str, room_pk: int, chat_id: int | None = None
+) -> str:
     """React Router path (basename=/app は付けない。inbox spa_path と同じ規約)。"""
     org_slug = (slug or "").strip()
     if org_slug:
-        return f"/organizations/{org_slug}/recruiting-chat"
+        path = f"/organizations/{org_slug}/recruiting-chat"
+        if chat_id:
+            return f"{path}?chat={int(chat_id)}"
+        return path
     return f"/dm/recruiting/{room_pk}"
 
 

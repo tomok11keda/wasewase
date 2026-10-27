@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -29,7 +30,7 @@ from .models import (
     ChatRoomInvitation,
     ChatRoomMembership,
     Organization,
-    OrganizationMember,
+    OrganizationChatShare,
     OrganizationRecruitingChat,
     OrganizationRecruitingChatApplication,
 )
@@ -42,6 +43,18 @@ from .timeline_api_services import serialize_author
 
 NAME_MAX = 120
 DESCRIPTION_MAX = 2000
+DEFAULT_MAX_ACTIVE_ORGANIZATION_CHATS = 12
+
+
+def max_active_organization_chats() -> int:
+    raw = getattr(
+        settings, "MAX_ACTIVE_ORGANIZATION_CHATS", DEFAULT_MAX_ACTIVE_ORGANIZATION_CHATS
+    )
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = DEFAULT_MAX_ACTIVE_ORGANIZATION_CHATS
+    return max(1, value)
 
 
 class OrganizationRecruitingChatError(ValueError):
@@ -96,13 +109,42 @@ def get_recruiting_chat_for_room(
 def get_active_recruiting_chat(
     organization: Organization | None,
 ) -> OrganizationRecruitingChat | None:
+    """互換用。複数ある場合は最も古い有効チャット。"""
+    chats = list_active_recruiting_chats(organization)
+    return chats[0] if chats else None
+
+
+def list_active_recruiting_chats(
+    organization: Organization | None,
+) -> list[OrganizationRecruitingChat]:
     if organization is None or not getattr(organization, "pk", None):
+        return []
+    return list(
+        OrganizationRecruitingChat.objects.select_related("organization", "room")
+        .filter(organization=organization, is_active=True)
+        .order_by("pk")
+    )
+
+
+def get_organization_chat(
+    organization: Organization | None,
+    chat_id: int | None,
+) -> OrganizationRecruitingChat | None:
+    if organization is None or not getattr(organization, "pk", None) or not chat_id:
         return None
     return (
         OrganizationRecruitingChat.objects.select_related("organization", "room")
-        .filter(organization=organization, is_active=True)
+        .filter(organization=organization, pk=chat_id)
         .first()
     )
+
+
+def count_active_organization_chats(organization: Organization | None) -> int:
+    if organization is None or not getattr(organization, "pk", None):
+        return 0
+    return OrganizationRecruitingChat.objects.filter(
+        organization=organization, is_active=True
+    ).count()
 
 
 def is_recruiting_participant(
@@ -126,7 +168,7 @@ def organization_allows_recruiting_access(
 def can_access_recruiting_room(
     room: ChatRoom | None, user: AbstractBaseUser | None
 ) -> bool:
-    """メッセージ閲覧・送信・既読。suspended では参加者も管理者も拒否。"""
+    """メッセージ閲覧・送信・既読は参加者のみ。団体管理者でも未参加なら拒否。"""
     if not is_recruiting_room(room) or not _authenticated_user(user):
         return False
     chat = get_recruiting_chat_for_room(room)
@@ -135,9 +177,7 @@ def can_access_recruiting_room(
     organization = _organization_for_chat(chat)
     if not organization_allows_recruiting_access(organization):
         return False
-    if is_recruiting_participant(room, user):
-        return True
-    return can_manage_organization(user, organization)
+    return is_recruiting_participant(room, user)
 
 
 def assert_can_send_recruiting_message(
@@ -145,6 +185,15 @@ def assert_can_send_recruiting_message(
 ) -> None:
     if not can_access_recruiting_room(room, sender):
         raise OrganizationRecruitingChatError("forbidden", status=403)
+    chat = get_recruiting_chat_for_room(room)
+    if chat is None:
+        raise OrganizationRecruitingChatError("not_found", status=404)
+    if not chat.is_active:
+        raise OrganizationRecruitingChatError("inactive", status=403)
+    if chat.posting_mode == OrganizationRecruitingChat.PostingMode.ADMINS:
+        organization = _organization_for_chat(chat)
+        if not can_manage_organization(sender, organization):
+            raise OrganizationRecruitingChatError("admins_only", status=403)
 
 
 def recruiting_chat_message_is_reportable_by(
@@ -187,8 +236,10 @@ def _organization_for_chat(
 def can_discover_recruiting_chat(
     viewer: AbstractBaseUser | None, chat: OrganizationRecruitingChat | None
 ) -> bool:
-    """団体プロフィール上での発見。募集中かつプロフィール閲覧可能なとき。"""
+    """団体プロフィール上での発見。公開かつ募集中のときだけ。非公開は出さない。"""
     if chat is None or not chat.is_active:
+        return False
+    if chat.visibility != OrganizationRecruitingChat.Visibility.PUBLIC:
         return False
     if chat.listing_status != OrganizationRecruitingChat.ListingStatus.OPEN:
         return False
@@ -203,12 +254,38 @@ def can_discover_recruiting_chat(
 def can_list_recruiting_chat_publicly(
     chat: OrganizationRecruitingChat | None,
 ) -> bool:
-    """検索・一覧カード。団体自体が listed かつ募集中。"""
+    """検索・一覧カード。公開・募集中かつ団体自体が listed。"""
     if chat is None or not chat.is_active:
+        return False
+    if chat.visibility != OrganizationRecruitingChat.Visibility.PUBLIC:
         return False
     if chat.listing_status != OrganizationRecruitingChat.ListingStatus.OPEN:
         return False
     return can_list_organization(_organization_for_chat(chat))
+
+
+def can_see_recruiting_chat(
+    viewer: AbstractBaseUser | None, chat: OrganizationRecruitingChat | None
+) -> bool:
+    """存在を知ってよい相手。非公開は管理者・参加者・招待先のみ。"""
+    if chat is None:
+        return False
+    organization = _organization_for_chat(chat)
+    if can_manage_organization(viewer, organization):
+        return True
+    if is_recruiting_participant(chat.room, viewer):
+        return True
+    if viewer_has_pending_recruiting_invitation(chat, viewer):
+        return True
+    if can_discover_recruiting_chat(viewer, chat):
+        return True
+    if (
+        chat.is_active
+        and chat.visibility == OrganizationRecruitingChat.Visibility.PUBLIC
+        and can_view_organization_profile(viewer, organization)
+    ):
+        return True
+    return False
 
 
 def _lock_chat(chat_id: int) -> OrganizationRecruitingChat:
@@ -321,6 +398,33 @@ def _approve_pending_applications(
     return len(pending)
 
 
+def _normalize_visibility(visibility: str) -> str:
+    if visibility not in OrganizationRecruitingChat.Visibility.values:
+        raise OrganizationRecruitingChatError("invalid_visibility")
+    return visibility
+
+
+def _normalize_posting_mode(posting_mode: str) -> str:
+    if posting_mode not in OrganizationRecruitingChat.PostingMode.values:
+        raise OrganizationRecruitingChatError("invalid_posting_mode")
+    return posting_mode
+
+
+def _apply_visibility_join_rules(
+    *,
+    join_mode: str,
+    visibility: str,
+    listing_status: str,
+) -> tuple[str, str, str]:
+    if visibility == OrganizationRecruitingChat.Visibility.PRIVATE:
+        join_mode = OrganizationRecruitingChat.JoinMode.INVITE
+        listing_status = OrganizationRecruitingChat.ListingStatus.CLOSED
+    elif join_mode == OrganizationRecruitingChat.JoinMode.INVITE:
+        visibility = OrganizationRecruitingChat.Visibility.PRIVATE
+        listing_status = OrganizationRecruitingChat.ListingStatus.CLOSED
+    return join_mode, visibility, listing_status
+
+
 def create_recruiting_chat(
     *,
     organization: Organization,
@@ -329,6 +433,8 @@ def create_recruiting_chat(
     description: str = "",
     join_mode: str = OrganizationRecruitingChat.JoinMode.OPEN,
     listing_status: str = OrganizationRecruitingChat.ListingStatus.OPEN,
+    visibility: str = OrganizationRecruitingChat.Visibility.PUBLIC,
+    posting_mode: str = OrganizationRecruitingChat.PostingMode.ALL,
 ) -> OrganizationRecruitingChat:
     if not can_manage_organization(actor, organization):
         raise OrganizationRecruitingChatError("forbidden", status=403)
@@ -338,35 +444,47 @@ def create_recruiting_chat(
         raise OrganizationRecruitingChatError("invalid_join_mode")
     if listing_status not in OrganizationRecruitingChat.ListingStatus.values:
         raise OrganizationRecruitingChatError("invalid_listing_status")
+    visibility = _normalize_visibility(visibility)
+    posting_mode = _normalize_posting_mode(posting_mode)
+    join_mode, visibility, listing_status = _apply_visibility_join_rules(
+        join_mode=join_mode,
+        visibility=visibility,
+        listing_status=listing_status,
+    )
 
     with transaction.atomic():
         locked_org = Organization.objects.select_for_update().get(pk=organization.pk)
         if not can_manage_organization(actor, locked_org):
             raise OrganizationRecruitingChatError("forbidden", status=403)
-        if OrganizationRecruitingChat.objects.filter(
+        active_count = OrganizationRecruitingChat.objects.filter(
             organization=locked_org, is_active=True
-        ).exists():
-            raise OrganizationRecruitingChatError("already_exists", status=409)
+        ).count()
+        limit = max_active_organization_chats()
+        if active_count >= limit:
+            raise OrganizationRecruitingChatError(
+                "chat_limit_reached",
+                status=409,
+                chat_max=limit,
+                chat_count=active_count,
+            )
         room = ChatRoom.objects.create(
             kind=ChatRoom.Kind.RECRUITING,
             name=name,
             created_by=actor,
         )
-        try:
-            chat = OrganizationRecruitingChat.objects.create(
-                organization=locked_org,
-                room=room,
-                name=name,
-                description=description,
-                join_mode=join_mode,
-                listing_status=listing_status,
-                is_active=True,
-                created_by=actor,
-            )
-        except IntegrityError as exc:
-            raise OrganizationRecruitingChatError(
-                "already_exists", status=409
-            ) from exc
+        chat = OrganizationRecruitingChat.objects.create(
+            organization=locked_org,
+            room=room,
+            name=name,
+            description=description,
+            join_mode=join_mode,
+            listing_status=listing_status,
+            visibility=visibility,
+            posting_mode=posting_mode,
+            is_active=True,
+            created_by=actor,
+        )
+        _ensure_membership(room, actor)
     return (
         OrganizationRecruitingChat.objects.select_related("organization", "room")
         .get(pk=chat.pk)
@@ -381,6 +499,8 @@ def update_recruiting_chat_settings(
     description: str | None = None,
     join_mode: str | None = None,
     listing_status: str | None = None,
+    visibility: str | None = None,
+    posting_mode: str | None = None,
     confirm_auto_approve: bool = False,
 ) -> tuple[OrganizationRecruitingChat, dict[str, Any]]:
     assert_can_manage_recruiting_chat(actor, chat)
@@ -389,23 +509,46 @@ def update_recruiting_chat_settings(
         assert_can_manage_recruiting_chat(actor, locked)
         update_fields = ["updated_at"]
         previous_mode = locked.join_mode
+        previous_visibility = locked.visibility
         pending_before = count_pending_applications(locked)
-        if join_mode is not None:
-            if join_mode not in OrganizationRecruitingChat.JoinMode.values:
-                raise OrganizationRecruitingChatError("invalid_join_mode")
-            switching_to_open = (
-                previous_mode != OrganizationRecruitingChat.JoinMode.OPEN
-                and join_mode == OrganizationRecruitingChat.JoinMode.OPEN
+        next_join = join_mode if join_mode is not None else locked.join_mode
+        next_visibility = (
+            visibility if visibility is not None else locked.visibility
+        )
+        next_listing = (
+            listing_status if listing_status is not None else locked.listing_status
+        )
+        if join_mode is not None and next_join not in OrganizationRecruitingChat.JoinMode.values:
+            raise OrganizationRecruitingChatError("invalid_join_mode")
+        if visibility is not None:
+            next_visibility = _normalize_visibility(next_visibility)
+        if listing_status is not None and next_listing not in OrganizationRecruitingChat.ListingStatus.values:
+            raise OrganizationRecruitingChatError("invalid_listing_status")
+        next_join, next_visibility, next_listing = _apply_visibility_join_rules(
+            join_mode=next_join,
+            visibility=next_visibility,
+            listing_status=next_listing,
+        )
+        switching_to_open = (
+            previous_mode != OrganizationRecruitingChat.JoinMode.OPEN
+            and next_join == OrganizationRecruitingChat.JoinMode.OPEN
+        )
+        if switching_to_open and pending_before > 0 and not confirm_auto_approve:
+            raise OrganizationRecruitingChatError(
+                "confirm_auto_approve_required",
+                status=409,
+                pending_count=pending_before,
+                would_auto_approve=True,
             )
-            if switching_to_open and pending_before > 0 and not confirm_auto_approve:
-                raise OrganizationRecruitingChatError(
-                    "confirm_auto_approve_required",
-                    status=409,
-                    pending_count=pending_before,
-                    would_auto_approve=True,
-                )
-            locked.join_mode = join_mode
+        if locked.join_mode != next_join:
+            locked.join_mode = next_join
             update_fields.append("join_mode")
+        if locked.visibility != next_visibility:
+            locked.visibility = next_visibility
+            update_fields.append("visibility")
+        if locked.listing_status != next_listing:
+            locked.listing_status = next_listing
+            update_fields.append("listing_status")
         if name is not None:
             locked.name = _normalize_name(name)
             locked.room.name = locked.name
@@ -414,11 +557,9 @@ def update_recruiting_chat_settings(
         if description is not None:
             locked.description = _normalize_description(description)
             update_fields.append("description")
-        if listing_status is not None:
-            if listing_status not in OrganizationRecruitingChat.ListingStatus.values:
-                raise OrganizationRecruitingChatError("invalid_listing_status")
-            locked.listing_status = listing_status
-            update_fields.append("listing_status")
+        if posting_mode is not None:
+            locked.posting_mode = _normalize_posting_mode(posting_mode)
+            update_fields.append("posting_mode")
         locked.save(update_fields=update_fields)
         switched_to_open = (
             previous_mode != OrganizationRecruitingChat.JoinMode.OPEN
@@ -427,6 +568,10 @@ def update_recruiting_chat_settings(
         auto_approved_count = 0
         if switched_to_open:
             auto_approved_count = _approve_pending_applications(locked, actor)
+        became_public = (
+            previous_visibility != OrganizationRecruitingChat.Visibility.PUBLIC
+            and locked.visibility == OrganizationRecruitingChat.Visibility.PUBLIC
+        )
     refreshed = (
         OrganizationRecruitingChat.objects.select_related("organization", "room")
         .get(pk=locked.pk)
@@ -435,6 +580,7 @@ def update_recruiting_chat_settings(
         "pending_count_before": pending_before,
         "would_auto_approve": switched_to_open and pending_before > 0,
         "auto_approved_count": auto_approved_count,
+        "became_public": became_public,
     }
 
 
@@ -460,12 +606,21 @@ def _assert_can_join_or_apply(
     organization = chat.organization
     if not organization_accepts_recruiting_join(organization):
         raise OrganizationRecruitingChatError("organization_suspended", status=403)
-    if not can_view_organization_profile(user, organization):
-        raise OrganizationRecruitingChatError("organization_not_viewable", status=404)
     if not chat.is_active:
         raise OrganizationRecruitingChatError("inactive", status=404)
+    if can_manage_organization(user, organization):
+        return
+    invited = viewer_has_pending_recruiting_invitation(chat, user)
+    if invited:
+        return
+    if chat.visibility != OrganizationRecruitingChat.Visibility.PUBLIC:
+        raise OrganizationRecruitingChatError("not_found", status=404)
+    if not can_view_organization_profile(user, organization):
+        raise OrganizationRecruitingChatError("organization_not_viewable", status=404)
     if chat.listing_status != OrganizationRecruitingChat.ListingStatus.OPEN:
         raise OrganizationRecruitingChatError("listing_closed", status=403)
+    if chat.join_mode == OrganizationRecruitingChat.JoinMode.INVITE:
+        raise OrganizationRecruitingChatError("invite_only", status=403)
 
 
 def _mark_pending_invite_accepted(room: ChatRoom, user: AbstractBaseUser) -> None:
@@ -511,6 +666,12 @@ def join_or_apply_recruiting_chat(
             )
         elif ChatRoomMembership.objects.filter(room=locked.room, user=user).exists():
             raise OrganizationRecruitingChatError("already_member", status=409)
+        elif can_manage_organization(user, locked.organization):
+            application, _created = _get_or_lock_application(locked, user)
+            _ensure_membership(locked.room, user)
+            _mark_application_approved(application, reviewer=user)
+        elif locked.join_mode == OrganizationRecruitingChat.JoinMode.INVITE:
+            raise OrganizationRecruitingChatError("invite_only", status=403)
         else:
             application, created = _get_or_lock_application(locked, user)
             if locked.join_mode == OrganizationRecruitingChat.JoinMode.OPEN:
@@ -705,17 +866,9 @@ def list_recruiting_messages(room: ChatRoom, viewer: AbstractBaseUser):
 
 
 def list_recruiting_rooms_for_user(user: AbstractBaseUser):
-    """チャット一覧接続点。参加者と現行団体管理者。pending は含めない。"""
+    """チャット一覧接続点。参加者のみ。pending と未参加の管理者は含めない。"""
     if not _authenticated_user(user):
         return ChatRoom.objects.none()
-    managed_org_ids = OrganizationMember.objects.filter(
-        user=user,
-        role__in=(OrganizationMember.Role.OWNER, OrganizationMember.Role.ADMIN),
-        organization__status__in=(
-            Organization.Status.DRAFT,
-            Organization.Status.ACTIVE,
-        ),
-    ).values_list("organization_id", flat=True)
     latest_message = Prefetch(
         "chat_messages",
         queryset=ChatMessage.objects.select_related("sender").order_by("-pk")[:1],
@@ -728,10 +881,7 @@ def list_recruiting_rooms_for_user(user: AbstractBaseUser):
     )
     return (
         ChatRoom.objects.filter(kind=ChatRoom.Kind.RECRUITING)
-        .filter(
-            Q(memberships__user_id=user.pk)
-            | Q(organization_recruiting_chat__organization_id__in=managed_org_ids)
-        )
+        .filter(memberships__user_id=user.pk)
         .exclude(
             organization_recruiting_chat__organization__status=Organization.Status.SUSPENDED
         )
@@ -812,7 +962,11 @@ def list_recruiting_participants(
     chat: OrganizationRecruitingChat,
     viewer: AbstractBaseUser,
 ) -> list[dict[str, Any]]:
-    if not can_access_recruiting_room(chat.room, viewer):
+    organization = _organization_for_chat(chat)
+    if not (
+        can_access_recruiting_room(chat.room, viewer)
+        or can_manage_organization(viewer, organization)
+    ):
         raise OrganizationRecruitingChatError("forbidden", status=403)
     memberships = (
         ChatRoomMembership.objects.filter(room=chat.room)
@@ -876,9 +1030,16 @@ def serialize_recruiting_chat_for_viewer(
         can_manage
         and chat.is_active
         and organization_allows_recruiting_access(organization)
-        and chat.listing_status == OrganizationRecruitingChat.ListingStatus.OPEN
     )
     visible_meta = discoverable or can_manage or can_access or invited
+    can_send = bool(
+        can_access
+        and chat.is_active
+        and (
+            chat.posting_mode != OrganizationRecruitingChat.PostingMode.ADMINS
+            or can_manage
+        )
+    )
     payload: dict[str, Any] = {
         "id": chat.pk,
         "organization_id": chat.organization_id,
@@ -886,6 +1047,8 @@ def serialize_recruiting_chat_for_viewer(
         "description": chat.description if (discoverable or can_manage or can_access) else "",
         "join_mode": chat.join_mode,
         "listing_status": chat.listing_status,
+        "visibility": chat.visibility,
+        "posting_mode": chat.posting_mode,
         "is_active": chat.is_active,
         "member_count": member_count if (discoverable or can_manage or can_access) else 0,
         "viewer_state": state,
@@ -895,10 +1058,15 @@ def serialize_recruiting_chat_for_viewer(
         "can_list_publicly": can_list_recruiting_chat_publicly(chat),
         "can_join": bool(
             authenticated
-            and discoverable
-            and chat.join_mode == OrganizationRecruitingChat.JoinMode.OPEN
             and state != "member"
             and not invited
+            and (
+                can_manage
+                or (
+                    discoverable
+                    and chat.join_mode == OrganizationRecruitingChat.JoinMode.OPEN
+                )
+            )
         ),
         "can_apply": bool(
             authenticated
@@ -909,8 +1077,10 @@ def serialize_recruiting_chat_for_viewer(
         ),
         "can_leave": bool(state == "member"),
         "can_withdraw": bool(state == "pending" and not invited),
-        "can_send": can_access,
+        "can_send": can_send,
         "can_invite": can_invite,
+        "can_pin": bool(can_manage and can_access),
+        "pinned_message_id": chat.pinned_message_id if can_access else None,
     }
     if can_access:
         payload["room_id"] = chat.room_id
@@ -947,35 +1117,78 @@ def serialize_recruiting_chat_for_viewer(
     return payload
 
 
-def serialize_recruiting_chat_summary(
-    organization: Organization,
-    viewer: AbstractBaseUser | None,
-) -> dict[str, Any] | None:
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        return None
-    can_manage = can_manage_organization(viewer, organization)
-    can_access = can_access_recruiting_room(chat.room, viewer)
-    discoverable = can_discover_recruiting_chat(viewer, chat)
-    if not (can_manage or can_access or discoverable):
-        status = public_membership_status(chat, viewer)
-        if status not in {"pending", "rejected", "closed", "invited"}:
-            return None
-    payload = serialize_recruiting_chat_for_viewer(
-        chat, viewer, include_manager_fields=can_manage
-    )
+def _chat_summary_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": payload["id"],
         "name": payload["name"],
         "join_mode": payload["join_mode"],
         "listing_status": payload["listing_status"],
+        "visibility": payload.get("visibility") or "public",
+        "posting_mode": payload.get("posting_mode") or "all",
+        "is_active": payload.get("is_active", True),
         "membership_status": payload["membership_status"],
         "can_join": payload["can_join"],
         "can_apply": payload["can_apply"],
         "can_manage": payload["can_manage"],
         "room_id": payload["room_id"],
         "member_count": payload["member_count"],
+        "pending_count": payload.get("pending_count"),
     }
+
+
+def serialize_recruiting_chat_summary(
+    organization: Organization,
+    viewer: AbstractBaseUser | None,
+) -> dict[str, Any] | None:
+    chats = list_visible_organization_chats(organization, viewer)
+    if not chats:
+        return None
+    payload = serialize_recruiting_chat_for_viewer(
+        chats[0],
+        viewer,
+        include_manager_fields=can_manage_organization(viewer, organization),
+    )
+    return _chat_summary_payload(payload)
+
+
+def list_visible_organization_chats(
+    organization: Organization | None,
+    viewer: AbstractBaseUser | None,
+) -> list[OrganizationRecruitingChat]:
+    if organization is None or not getattr(organization, "pk", None):
+        return []
+    rows = list(
+        OrganizationRecruitingChat.objects.select_related("organization", "room")
+        .filter(organization=organization)
+        .order_by("-is_active", "pk")
+    )
+    return [chat for chat in rows if can_see_recruiting_chat(viewer, chat)]
+
+
+def pin_recruiting_message(
+    *,
+    chat: OrganizationRecruitingChat,
+    actor: AbstractBaseUser,
+    message_id: int | None,
+) -> OrganizationRecruitingChat:
+    assert_can_manage_recruiting_chat(actor, chat)
+    if not can_access_recruiting_room(chat.room, actor):
+        raise OrganizationRecruitingChatError("forbidden", status=403)
+    with transaction.atomic():
+        locked = _lock_chat(chat.pk)
+        assert_can_manage_recruiting_chat(actor, locked)
+        if message_id in (None, 0, ""):
+            locked.pinned_message = None
+        else:
+            try:
+                message = ChatMessage.objects.get(pk=int(message_id), room=locked.room)
+            except (TypeError, ValueError, ChatMessage.DoesNotExist) as exc:
+                raise OrganizationRecruitingChatError("not_found", status=404) from exc
+            if message.deleted_at or message.is_hidden:
+                raise OrganizationRecruitingChatError("invalid_message")
+            locked.pinned_message = message
+        locked.save(update_fields=["pinned_message", "updated_at"])
+    return locked
 
 
 def build_recruiting_conversations(user: AbstractBaseUser) -> list[dict[str, Any]]:
@@ -1020,7 +1233,9 @@ def build_recruiting_conversations(user: AbstractBaseUser) -> list[dict[str, Any
                     get_organization_avatar_url(organization) if organization else ""
                 ),
                 "viewer_role": "manager" if can_manage else "member",
-                "spa_path": recruiting_chat_spa_path(slug, room.pk),
+                "spa_path": recruiting_chat_spa_path(
+                    slug, room.pk, getattr(chat, "pk", None)
+                ),
                 "thumbnail_url": (
                     get_organization_avatar_url(organization) if organization else ""
                 ),
@@ -1050,8 +1265,10 @@ def _serialize_recruiting_messages(
     messages: list[ChatMessage], viewer_id: int
 ) -> list[dict[str, Any]]:
     from .organization_event_lottery_services import lottery_share_extras_for_messages
+    from .organization_event_services import event_share_extras_for_messages
 
     extras = lottery_share_extras_for_messages(messages)
+    extras.update(event_share_extras_for_messages(messages))
     return [
         serialize_chat_message(
             message,
@@ -1096,13 +1313,14 @@ def build_recruiting_room_payload(
     messages, has_more, next_before = slice_chat_history(base_qs)
     latest_id = mark_group_room_read(room, viewer)
     organization = _organization_for_chat(chat)
+    chat_payload = serialize_recruiting_chat_for_viewer(chat, viewer)
     return {
         "ok": True,
         "room": {
             "id": room.pk,
             "kind": ChatRoom.Kind.RECRUITING,
             "name": chat.name,
-            "can_send": True,
+            "can_send": bool(chat_payload.get("can_send")),
             "latest_id": latest_id or 0,
             "member_count": ChatRoomMembership.objects.filter(room=room).count(),
             "viewer_role": (
@@ -1115,7 +1333,7 @@ def build_recruiting_room_payload(
             "organization_name": getattr(organization, "name", "") or "",
             "membership_status": "joined",
         },
-        "recruiting_chat": serialize_recruiting_chat_for_viewer(chat, viewer),
+        "recruiting_chat": chat_payload,
         "messages": _serialize_recruiting_messages(messages, viewer.pk),
         **history_meta(has_more, next_before),
     }
@@ -1156,7 +1374,11 @@ def build_recruiting_messages_payload(
         "ok": True,
         "messages": _serialize_recruiting_messages(messages, viewer.pk),
         "latest_id": latest_id or 0,
-        "can_send": True,
+        "can_send": serialize_recruiting_chat_for_viewer(
+            get_recruiting_chat_for_room(room), viewer
+        ).get("can_send", False)
+        if get_recruiting_chat_for_room(room)
+        else False,
         **history,
     }
 

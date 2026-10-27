@@ -600,6 +600,9 @@ WASE_INFEED_AD_INTERVAL = env.int("WASE_INFEED_AD_INTERVAL", default=3)
 # True: インフィード HTML はアプリ（IS_APP）のみ。Web は将来用にフラグだけ用意。
 WASE_INFEED_ADS_APP_ONLY = env.bool("WASE_INFEED_ADS_APP_ONLY", default=True)
 
+# 団体あたり同時に有効な団体チャット数。後から環境変数で上げられる。
+MAX_ACTIVE_ORGANIZATION_CHATS = env.int("MAX_ACTIVE_ORGANIZATION_CHATS", default=12)
+
 # Django 6 + 旧ライブラリ互換（サードパーティが参照する場合に備える）
 STATICFILES_STORAGE = STORAGES["staticfiles"]["BACKEND"]
 DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]

@@ -10,10 +10,10 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .chat_message_services import create_chat_message
 from .models import (
     ChatMessage,
     Organization,
+    OrganizationChatShare,
     OrganizationEvent,
     OrganizationEventLottery,
     OrganizationEventLotteryEntry,
@@ -34,7 +34,9 @@ from .organization_event_services import (
 )
 from .organization_recruiting_chat_services import (
     get_active_recruiting_chat,
+    get_organization_chat,
     is_recruiting_participant,
+    list_active_recruiting_chats,
 )
 from .organization_services import can_manage_organization
 from .spa_canonical import organization_event_lottery_url
@@ -59,15 +61,31 @@ def can_view_event_lottery_lists(
         return can_manage_organization(viewer, organization)
     if can_manage_organization(viewer, organization):
         return True
-    chat = get_active_recruiting_chat(organization)
-    if chat is None:
-        return False
-    return is_recruiting_participant(chat.room, viewer)
+    for chat in list_active_recruiting_chats(organization):
+        if is_recruiting_participant(chat.room, viewer):
+            return True
+    return False
 
 
-def lottery_has_live_share(lottery: OrganizationEventLottery | None) -> bool:
+def lottery_has_live_share(
+    lottery: OrganizationEventLottery | None,
+    *,
+    chat_id: int | None = None,
+) -> bool:
     """現存する（未削除・非hidden）共有メッセージがあるか。"""
-    if lottery is None or not lottery.shared_message_id:
+    if lottery is None:
+        return False
+    shares = OrganizationChatShare.objects.filter(
+        event_id=lottery.event_id,
+        share_type=OrganizationChatShare.ShareType.LOTTERY,
+    ).select_related("message")
+    if chat_id:
+        shares = shares.filter(recruiting_chat_id=chat_id)
+    for share in shares:
+        message = share.message
+        if message and message.deleted_at is None and not message.is_hidden:
+            return True
+    if not lottery.shared_message_id:
         return False
     message = getattr(lottery, "shared_message", None)
     if message is None or getattr(message, "pk", None) != lottery.shared_message_id:
@@ -281,7 +299,7 @@ def serialize_organization_event_lottery(
     can_view = can_view_event_lottery_lists(viewer, organization)
     not_selected = max(0, int(lottery.eligible_count) - int(lottery.winner_count))
     shared = lottery_has_live_share(lottery)
-    chat = get_active_recruiting_chat(organization)
+    chats = list_active_recruiting_chats(organization)
     payload: dict[str, Any] = {
         "id": lottery.pk,
         "event_id": event.pk,
@@ -294,7 +312,12 @@ def serialize_organization_event_lottery(
         "not_selected_count": not_selected,
         "shared": shared,
         "shared_at": _iso(lottery.shared_at),
-        "can_share": bool(manage and chat is not None and not shared),
+        "can_share": bool(
+            manage
+            and any(
+                not lottery_has_live_share(lottery, chat_id=chat.pk) for chat in chats
+            )
+        ),
         "can_manage": manage,
         "can_view": can_view,
         "lists_visible": bool(can_view and include_entries),
@@ -535,46 +558,39 @@ def share_organization_event_lottery(
     *,
     event: OrganizationEvent,
     actor: AbstractBaseUser,
+    chat_id: int | None = None,
 ) -> OrganizationEventLottery:
+    from .organization_event_services import share_organization_event_to_chat
+
     organization = event.organization
     _require_manage(actor, organization)
-    with transaction.atomic():
-        locked = _lock_event(event.pk)
-        _require_manage(actor, locked.organization)
-        if locked.deleted_at is not None:
-            raise OrganizationEventError("not_found", status=404)
-        lottery = (
-            OrganizationEventLottery.objects.select_for_update()
-            .filter(event_id=locked.pk)
-            .first()
-        )
-        if lottery is None:
-            raise OrganizationEventError("no_lottery", status=404)
-        live_message = None
-        if lottery.shared_message_id:
-            live_message = (
-                ChatMessage.objects.select_for_update()
-                .filter(pk=lottery.shared_message_id)
-                .first()
-            )
-        if (
-            live_message is not None
-            and live_message.deleted_at is None
-            and not live_message.is_hidden
-        ):
-            raise OrganizationEventError("already_shared", status=409)
-        chat = get_active_recruiting_chat(locked.organization)
+    resolved_chat_id = chat_id
+    if not resolved_chat_id:
+        chat = get_active_recruiting_chat(organization)
         if chat is None:
             raise OrganizationEventError("no_recruiting_chat", status=409)
-        message = create_chat_message(chat.room, actor, LOTTERY_SHARE_BODY)
-        lottery.shared_message = message
-        lottery.shared_at = timezone.now()
-        lottery.save(update_fields=["shared_message", "shared_at", "updated_at"])
-        lottery_id = lottery.pk
+        resolved_chat_id = chat.pk
+    else:
+        chat = get_organization_chat(organization, resolved_chat_id)
+        if chat is None:
+            raise OrganizationEventError("no_recruiting_chat", status=409)
+    share = share_organization_event_to_chat(
+        event=event,
+        actor=actor,
+        chat_id=resolved_chat_id,
+        share_type=OrganizationChatShare.ShareType.LOTTERY,
+        body=LOTTERY_SHARE_BODY,
+    )
+    lottery = OrganizationEventLottery.objects.filter(event_id=event.pk).first()
+    if lottery is None:
+        raise OrganizationEventError("no_lottery", status=404)
+    lottery.shared_message = share.message
+    lottery.shared_at = timezone.now()
+    lottery.save(update_fields=["shared_message", "shared_at", "updated_at"])
     return (
         OrganizationEventLottery.objects.select_related(
             "event", "event__organization", "shared_message"
-        ).get(pk=lottery_id)
+        ).get(pk=lottery.pk)
     )
 
 
@@ -597,6 +613,18 @@ def lottery_share_extras_for_messages(
     ).select_related("event", "event__organization")
     for lottery in lotteries:
         extras[lottery.shared_message_id] = {
+            "message_kind": "share",
+            "share": serialize_lottery_share(lottery),
+        }
+    shares = OrganizationChatShare.objects.filter(
+        message_id__in=live_ids,
+        share_type=OrganizationChatShare.ShareType.LOTTERY,
+    ).select_related("event", "event__organization", "event__lottery")
+    for share in shares:
+        lottery = getattr(share.event, "lottery", None)
+        if lottery is None:
+            continue
+        extras[share.message_id] = {
             "message_kind": "share",
             "share": serialize_lottery_share(lottery),
         }

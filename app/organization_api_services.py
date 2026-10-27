@@ -159,9 +159,25 @@ def serialize_organization_profile(
     organization: Organization,
     viewer: AbstractBaseUser | None,
 ) -> dict[str, Any]:
-    from .organization_recruiting_chat_services import serialize_recruiting_chat_summary
+    from .organization_recruiting_chat_services import (
+        _chat_summary_payload,
+        list_visible_organization_chats,
+        serialize_recruiting_chat_for_viewer,
+        serialize_recruiting_chat_summary,
+    )
     from .profile_link_services import serialize_organization_links
 
+    manage = can_manage_organization(viewer, organization)
+    visible_chats = list_visible_organization_chats(organization, viewer)
+    chat_summaries = [
+        _chat_summary_payload(
+            serialize_recruiting_chat_for_viewer(
+                chat, viewer, include_manager_fields=manage
+            )
+        )
+        for chat in visible_chats
+        if chat.is_active
+    ]
     return {
         "ok": True,
         "organization": {
@@ -176,9 +192,10 @@ def serialize_organization_profile(
             "is_verified": bool(organization.is_verified),
             "links": serialize_organization_links(organization),
         },
-        "can_manage": can_manage_organization(viewer, organization),
+        "can_manage": manage,
         "my_role": get_organization_membership_role(viewer, organization),
         "recruiting_chat": serialize_recruiting_chat_summary(organization, viewer),
+        "recruiting_chats": chat_summaries,
     }
 
 

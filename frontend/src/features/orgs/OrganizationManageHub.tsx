@@ -4,10 +4,9 @@ import {
   organizationEventNewPath,
 } from "./orgEvents";
 import {
-  recruitingChatApplicationsPath,
-  recruitingChatInvitesPath,
+  envelopeChats,
+  recruitingChatCreatePath,
   recruitingChatPath,
-  recruitingChatSettingsPath,
   type RecruitingChatEnvelope,
 } from "./recruitingChat";
 
@@ -25,9 +24,12 @@ export function OrganizationManageHub({
   onComposeAsOrg,
 }: Props) {
   if (!canManage) return null;
-  const chat = recruiting?.recruiting_chat ?? null;
+  const chats = envelopeChats(recruiting);
   const canCreate = Boolean(recruiting?.can_create);
-  const pending = chat?.pending_count;
+  const pendingTotal = chats.reduce(
+    (sum, chat) => sum + (chat.pending_count || 0),
+    0
+  );
 
   return (
     <section className="org-recruiting-card org-manage-hub" aria-label="団体の管理">
@@ -60,44 +62,19 @@ export function OrganizationManageHub({
             イベント管理
           </Link>
         </li>
-        {chat ? (
-          <>
-            <li>
-              <Link className="org-manage-hub__link" to={recruitingChatPath(slug)}>
-                団体チャットを開く
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="org-manage-hub__link"
-                to={recruitingChatSettingsPath(slug)}
-              >
-                団体チャット設定
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="org-manage-hub__link"
-                to={recruitingChatApplicationsPath(slug)}
-              >
-                参加申請を管理
-                {typeof pending === "number" && pending > 0 ? `（${pending}）` : ""}
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="org-manage-hub__link"
-                to={recruitingChatInvitesPath(slug)}
-              >
-                学生を招待
-              </Link>
-            </li>
-          </>
-        ) : canCreate ? (
+        {chats.length ? (
+          <li>
+            <Link className="org-manage-hub__link" to={recruitingChatPath(slug)}>
+              チャット管理
+              {pendingTotal > 0 ? `（申請 ${pendingTotal}）` : ""}
+            </Link>
+          </li>
+        ) : null}
+        {canCreate ? (
           <li>
             <Link
               className="org-manage-hub__link"
-              to={recruitingChatSettingsPath(slug)}
+              to={recruitingChatCreatePath(slug)}
             >
               団体チャットを作成
             </Link>

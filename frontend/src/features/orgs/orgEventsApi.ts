@@ -340,9 +340,12 @@ export async function runOrganizationEventLottery(
 
 export async function shareOrganizationEventLottery(
   slug: string,
-  eventId: number
+  eventId: number,
+  chatId?: number | null
 ): Promise<{ event: OrganizationEvent; lottery: OrganizationEventLottery }> {
-  const result = await apiPostJson(eventUrl(slug, `${eventId}/lottery/share/`));
+  const result = await apiPostJson(eventUrl(slug, `${eventId}/lottery/share/`), {
+    ...(chatId ? { chat_id: chatId } : {}),
+  });
   if (!result.data.ok || result.error) {
     throwEventError(
       result.status,
@@ -362,6 +365,51 @@ export async function shareOrganizationEventLottery(
     );
   }
   return { event, lottery };
+}
+
+export async function shareOrganizationEventToChat(
+  slug: string,
+  eventId: number,
+  chatId: number
+): Promise<{ chat_id: number; message_id: number; event: OrganizationEvent }> {
+  const result = await apiPostJson(eventUrl(slug, `${eventId}/share/`), {
+    chat_id: chatId,
+  });
+  if (!result.data.ok || result.error) {
+    throwEventError(
+      result.status,
+      result.error,
+      result.data,
+      "イベントを共有できませんでした。"
+    );
+  }
+  const event = parseOrganizationEvent(result.data.event);
+  if (!event) {
+    throwEventError(
+      result.status,
+      "invalid_payload",
+      result.data,
+      "イベントを共有できませんでした。"
+    );
+  }
+  return {
+    chat_id: Number(result.data.chat_id || chatId),
+    message_id: Number(result.data.message_id || 0),
+    event,
+  };
+}
+
+export async function duplicateOrganizationEvent(
+  slug: string,
+  eventId: number
+): Promise<OrganizationEvent> {
+  const result = await apiPostJson(eventUrl(slug, `${eventId}/duplicate/`), {});
+  return eventFromResult(
+    result.status,
+    result.error,
+    result.data,
+    "イベントを複製できませんでした。"
+  );
 }
 
 export async function patchEventRegistrationOpen(

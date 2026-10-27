@@ -8,8 +8,12 @@ import type { ReplyTarget } from "./ChatReplyPreview";
 import { chatTimeLabel, type ChatThreadLayout } from "./chatThread";
 import { analytics } from "../../lib/analytics/events";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
+import { EventShareCard } from "../orgs/EventShareCard";
 import { LotteryShareCard } from "../orgs/LotteryShareCard";
-import type { OrganizationEventLotteryShareCard } from "../orgs/orgEvents";
+import type {
+  OrganizationEventLotteryShareCard,
+  OrganizationEventShareCard,
+} from "../orgs/orgEvents";
 
 export type ThreadMessage = {
   id: number;
@@ -36,7 +40,11 @@ export type ThreadMessage = {
   enrollment_label?: string | null;
   enrollment_role?: string | null;
   message_kind?: "text" | "share" | string;
-  share?: OrganizationEventLotteryShareCard | { type?: string } | null;
+  share?:
+    | OrganizationEventLotteryShareCard
+    | OrganizationEventShareCard
+    | { type?: string }
+    | null;
 };
 
 type Props = {
@@ -233,6 +241,10 @@ export function ChatThreadMessage({
                 m.share &&
                 m.share.type === "org_event_lottery" ? (
                 <LotteryShareCard share={m.share} />
+              ) : m.message_kind === "share" &&
+                m.share &&
+                m.share.type === "org_event" ? (
+                <EventShareCard share={m.share} />
               ) : (
                 m.body
               )}

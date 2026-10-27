@@ -103,8 +103,11 @@ class OrganizationRecruitingChatApiTests(TestCase):
         self.assertNotIn("@waseda.jp", json.dumps(body))
 
         self.client.force_login(self.admin)
-        duplicate = self._json("post", self._url(), name="二重")
-        self.assertEqual(duplicate.status_code, 409)
+        second = self._json("post", self._url(), name="運営用")
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertNotEqual(
+            second.json()["recruiting_chat"]["id"], body["id"]
+        )
 
         self.client.force_login(self.member)
         denied_member = self._json("post", self._url(), name="メンバー作成")
@@ -336,10 +339,12 @@ class OrganizationRecruitingChatApiTests(TestCase):
         self.assertEqual(item["viewer_role"], "member")
         self.assertEqual(item["latest_body"], "inbox本文")
         self.assertEqual(item["status_label"], "団体チャット")
-        self.assertEqual(
-            item["spa_path"],
-            f"/organizations/{self.org.slug}/recruiting-chat",
+        self.assertTrue(
+            item["spa_path"].startswith(
+                f"/organizations/{self.org.slug}/recruiting-chat"
+            )
         )
+        self.assertIn("chat=", item["spa_path"])
         self.assertFalse(item["spa_path"].startswith("/app/"))
         self.assertNotIn("@waseda.jp", json.dumps(item))
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone as dt_timezone
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import AbstractBaseUser
@@ -15,6 +15,7 @@ from django.utils.dateparse import parse_datetime
 
 from .models import (
     Organization,
+    OrganizationChatShare,
     OrganizationEvent,
     OrganizationEventLottery,
     OrganizationEventRegistration,
@@ -994,3 +995,138 @@ def list_my_event_registrations_payload(
 def is_write_contention(exc: BaseException) -> bool:
     text = str(exc).lower()
     return "locked" in text or "deadlock" in text or isinstance(exc, OperationalError)
+
+
+EVENT_SHARE_BODY = "イベントを共有しました"
+
+
+def serialize_event_share(event: OrganizationEvent) -> dict[str, Any]:
+    slug = event.organization.slug
+    return {
+        "type": "org_event",
+        "id": event.pk,
+        "available": True,
+        "content": {
+            "event_id": event.pk,
+            "organization_slug": slug,
+            "title": event.title,
+            "starts_at": _iso(event.starts_at),
+            "ends_at": _iso(event.ends_at),
+            "venue_name": event.venue_name,
+            "path": f"/organizations/{slug}/events/{event.pk}",
+        },
+    }
+
+
+def share_organization_event_to_chat(
+    *,
+    event: OrganizationEvent,
+    actor: AbstractBaseUser,
+    chat_id: int,
+    share_type: str = OrganizationChatShare.ShareType.EVENT,
+    body: str = EVENT_SHARE_BODY,
+) -> OrganizationChatShare:
+    from .chat_message_services import create_chat_message
+    from .organization_recruiting_chat_services import (
+        _ensure_membership,
+        assert_can_manage_recruiting_chat,
+        get_organization_chat,
+    )
+
+    organization = event.organization
+    _require_manage(actor, organization)
+    if event.deleted_at is not None:
+        raise OrganizationEventError("not_found", status=404)
+    chat = get_organization_chat(organization, chat_id)
+    if chat is None or not chat.is_active:
+        raise OrganizationEventError("no_recruiting_chat", status=409)
+    assert_can_manage_recruiting_chat(actor, chat)
+    with transaction.atomic():
+        existing = (
+            OrganizationChatShare.objects.select_for_update()
+            .filter(
+                event=event,
+                recruiting_chat=chat,
+                share_type=share_type,
+            )
+            .select_related("message")
+            .first()
+        )
+        if (
+            existing is not None
+            and existing.message_id
+            and existing.message.deleted_at is None
+            and not existing.message.is_hidden
+        ):
+            raise OrganizationEventError("already_shared", status=409)
+        _ensure_membership(chat.room, actor)
+        message = create_chat_message(chat.room, actor, body)
+        if existing is not None:
+            existing.message = message
+            existing.save(update_fields=["message"])
+            share = existing
+        else:
+            share = OrganizationChatShare.objects.create(
+                event=event,
+                recruiting_chat=chat,
+                message=message,
+                share_type=share_type,
+            )
+    return share
+
+
+def event_share_extras_for_messages(
+    messages: Iterable,
+) -> dict[int, dict[str, Any]]:
+    ids = [
+        row.pk
+        for row in messages
+        if getattr(row, "pk", None)
+        and row.deleted_at is None
+        and not row.is_hidden
+    ]
+    if not ids:
+        return {}
+    extras: dict[int, dict[str, Any]] = {}
+    shares = OrganizationChatShare.objects.filter(
+        message_id__in=ids,
+        share_type=OrganizationChatShare.ShareType.EVENT,
+    ).select_related("event", "event__organization")
+    for share in shares:
+        extras[share.message_id] = {
+            "message_kind": "share",
+            "share": serialize_event_share(share.event),
+        }
+    return extras
+
+
+def duplicate_organization_event(
+    *,
+    event: OrganizationEvent,
+    actor: AbstractBaseUser,
+    payload: dict[str, Any] | None = None,
+) -> OrganizationEvent:
+    """日時などを差し替えて下書き複製する。抽選・申込はコピーしない。"""
+    organization = event.organization
+    _require_manage(actor, organization)
+    if event.deleted_at is not None:
+        raise OrganizationEventError("not_found", status=404)
+    data = {
+        "title": event.title,
+        "description": event.description,
+        "starts_at": event.starts_at.isoformat(),
+        "ends_at": event.ends_at.isoformat(),
+        "venue_name": event.venue_name,
+        "venue_address": event.venue_address,
+        "registration_deadline": (
+            event.registration_deadline.isoformat()
+            if event.registration_deadline
+            else None
+        ),
+        "registration_open": True,
+    }
+    if payload:
+        data.update(payload)
+    return create_organization_event(
+        organization=organization, actor=actor, payload=data
+    )

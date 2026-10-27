@@ -26,8 +26,15 @@ import {
   type RecruitingRoom,
 } from "./recruitingChat";
 
-function orgChatUrl(slug: string, suffix = ""): string {
-  return `/api/v1/organizations/${encodeURIComponent(slug)}/recruiting-chat/${suffix}`;
+function orgChatUrl(
+  slug: string,
+  suffix = "",
+  chatId?: number | null
+): string {
+  const base = `/api/v1/organizations/${encodeURIComponent(slug)}/recruiting-chat/${suffix}`;
+  const id = Number(chatId);
+  if (!Number.isInteger(id) || id <= 0) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}chat=${id}`;
 }
 
 function roomUrl(roomPk: number, suffix = ""): string {
@@ -74,10 +81,11 @@ function chatFromResult(
 
 export async function fetchRecruitingChat(
   slug: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  chatId?: number | null
 ): Promise<RecruitingChatEnvelope> {
   const result = signal
-    ? await fetch(orgChatUrl(slug), {
+    ? await fetch(orgChatUrl(slug, "", chatId), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
         signal,
@@ -98,7 +106,7 @@ export async function fetchRecruitingChat(
                 : `http_${res.status}`,
         };
       })
-    : await apiGetJson(orgChatUrl(slug));
+    : await apiGetJson(orgChatUrl(slug, "", chatId));
   if (result.status === 401 || result.error === "unauthorized") {
     throwRecruitingError(
       result.status,
@@ -144,6 +152,8 @@ export async function createRecruitingChat(
     description: form.description.trim(),
     join_mode: form.join_mode,
     listing_status: form.listing_status,
+    visibility: form.visibility,
+    posting_mode: form.posting_mode,
   });
   if (result.status === 201 || result.ok) {
     return chatFromResult(
@@ -163,15 +173,26 @@ export async function createRecruitingChat(
 
 export async function updateRecruitingChat(
   slug: string,
-  patch: Partial<RecruitingChatForm> & { confirm_auto_approve?: boolean }
+  patch: Partial<RecruitingChatForm> & {
+    confirm_auto_approve?: boolean;
+    is_active?: boolean;
+    pinned_message_id?: number | null;
+  },
+  chatId?: number | null
 ): Promise<RecruitingChat> {
   const body: Record<string, unknown> = {};
   if (patch.name != null) body.name = patch.name.trim();
   if (patch.description != null) body.description = patch.description.trim();
   if (patch.join_mode != null) body.join_mode = patch.join_mode;
   if (patch.listing_status != null) body.listing_status = patch.listing_status;
+  if (patch.visibility != null) body.visibility = patch.visibility;
+  if (patch.posting_mode != null) body.posting_mode = patch.posting_mode;
   if (patch.confirm_auto_approve) body.confirm_auto_approve = true;
-  const result = await apiPatchJson(orgChatUrl(slug), body);
+  if (patch.is_active === false) body.is_active = false;
+  if (patch.pinned_message_id !== undefined) {
+    body.pinned_message_id = patch.pinned_message_id;
+  }
+  const result = await apiPatchJson(orgChatUrl(slug, "", chatId), body);
   return chatFromResult(
     result.status,
     result.error,
@@ -180,8 +201,11 @@ export async function updateRecruitingChat(
   );
 }
 
-export async function joinRecruitingChat(slug: string): Promise<RecruitingChat> {
-  const result = await apiPostJson(orgChatUrl(slug, "join/"));
+export async function joinRecruitingChat(
+  slug: string,
+  chatId?: number | null
+): Promise<RecruitingChat> {
+  const result = await apiPostJson(orgChatUrl(slug, "join/", chatId));
   return chatFromResult(
     result.status,
     result.error,
@@ -190,8 +214,11 @@ export async function joinRecruitingChat(slug: string): Promise<RecruitingChat> 
   );
 }
 
-export async function leaveRecruitingChat(slug: string): Promise<RecruitingChat> {
-  const result = await apiPostJson(orgChatUrl(slug, "leave/"));
+export async function leaveRecruitingChat(
+  slug: string,
+  chatId?: number | null
+): Promise<RecruitingChat> {
+  const result = await apiPostJson(orgChatUrl(slug, "leave/", chatId));
   return chatFromResult(
     result.status,
     result.error,
@@ -201,9 +228,10 @@ export async function leaveRecruitingChat(slug: string): Promise<RecruitingChat>
 }
 
 export async function withdrawRecruitingChat(
-  slug: string
+  slug: string,
+  chatId?: number | null
 ): Promise<RecruitingChat> {
-  const result = await apiPostJson(orgChatUrl(slug, "withdraw/"));
+  const result = await apiPostJson(orgChatUrl(slug, "withdraw/", chatId));
   return chatFromResult(
     result.status,
     result.error,
@@ -214,10 +242,11 @@ export async function withdrawRecruitingChat(
 
 export async function fetchRecruitingApplications(
   slug: string,
-  status = "pending"
+  status = "pending",
+  chatId?: number | null
 ): Promise<{ applications: RecruitingApplication[]; pending_count: number }> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  const result = await apiGetJson(orgChatUrl(slug, `applications/${qs}`));
+  const result = await apiGetJson(orgChatUrl(slug, `applications/${qs}`, chatId));
   if (!result.ok) {
     throwRecruitingError(
       result.status,
@@ -239,10 +268,11 @@ export async function fetchRecruitingApplications(
 
 export async function approveRecruitingApplication(
   slug: string,
-  applicationId: number
+  applicationId: number,
+  chatId?: number | null
 ): Promise<RecruitingChat> {
   const result = await apiPostJson(
-    orgChatUrl(slug, `applications/${applicationId}/approve/`)
+    orgChatUrl(slug, `applications/${applicationId}/approve/`, chatId)
   );
   return chatFromResult(
     result.status,
@@ -254,10 +284,11 @@ export async function approveRecruitingApplication(
 
 export async function rejectRecruitingApplication(
   slug: string,
-  applicationId: number
+  applicationId: number,
+  chatId?: number | null
 ): Promise<RecruitingChat> {
   const result = await apiPostJson(
-    orgChatUrl(slug, `applications/${applicationId}/reject/`)
+    orgChatUrl(slug, `applications/${applicationId}/reject/`, chatId)
   );
   return chatFromResult(
     result.status,
@@ -268,9 +299,10 @@ export async function rejectRecruitingApplication(
 }
 
 export async function fetchRecruitingMembers(
-  slug: string
+  slug: string,
+  chatId?: number | null
 ): Promise<RecruitingMember[]> {
-  const result = await apiGetJson(orgChatUrl(slug, "members/"));
+  const result = await apiGetJson(orgChatUrl(slug, "members/", chatId));
   if (!result.ok) {
     throwRecruitingError(
       result.status,
@@ -288,13 +320,14 @@ export async function fetchRecruitingMembers(
 export async function searchRecruitingInviteCandidates(
   slug: string,
   query: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  chatId?: number | null
 ): Promise<RecruitingInviteCandidate[]> {
   const qs = query.trim()
     ? `?q=${encodeURIComponent(query.trim())}`
     : "";
   const result = signal
-    ? await fetch(orgChatUrl(slug, `invite-candidates/${qs}`), {
+    ? await fetch(orgChatUrl(slug, `invite-candidates/${qs}`, chatId), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
         signal,
@@ -315,7 +348,7 @@ export async function searchRecruitingInviteCandidates(
                 : `http_${res.status}`,
         };
       })
-    : await apiGetJson(orgChatUrl(slug, `invite-candidates/${qs}`));
+    : await apiGetJson(orgChatUrl(slug, `invite-candidates/${qs}`, chatId));
   if (!result.ok) {
     throwRecruitingError(
       result.status,
@@ -331,9 +364,10 @@ export async function searchRecruitingInviteCandidates(
 }
 
 export async function fetchRecruitingInvites(
-  slug: string
+  slug: string,
+  chatId?: number | null
 ): Promise<RecruitingInvitation[]> {
-  const result = await apiGetJson(orgChatUrl(slug, "invites/"));
+  const result = await apiGetJson(orgChatUrl(slug, "invites/", chatId));
   if (!result.ok) {
     throwRecruitingError(
       result.status,
@@ -350,14 +384,15 @@ export async function fetchRecruitingInvites(
 
 export async function sendRecruitingInvites(
   slug: string,
-  inviteeIds: number[]
+  inviteeIds: number[],
+  chatId?: number | null
 ): Promise<{
   invited_count: number;
   invited: RecruitingInvitation[];
   skipped: RecruitingInviteSkip[];
   recruiting_chat: RecruitingChat | null;
 }> {
-  const result = await apiPostJson(orgChatUrl(slug, "invites/"), {
+  const result = await apiPostJson(orgChatUrl(slug, "invites/", chatId), {
     invitee_ids: inviteeIds,
   });
   if (!result.ok) {
@@ -413,10 +448,11 @@ export async function sendRecruitingInvites(
 
 export async function cancelRecruitingInvite(
   slug: string,
-  invitationId: number
+  invitationId: number,
+  chatId?: number | null
 ): Promise<void> {
   const result = await apiPostJson(
-    orgChatUrl(slug, `invites/${invitationId}/cancel/`)
+    orgChatUrl(slug, `invites/${invitationId}/cancel/`, chatId)
   );
   if (!result.ok) {
     throwRecruitingError(
@@ -430,13 +466,14 @@ export async function cancelRecruitingInvite(
 
 export async function fetchViewerRecruitingInvitation(
   slug: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  chatId?: number | null
 ): Promise<{
   invitation: RecruitingInvitation;
   recruiting_chat: RecruitingChat | null;
 }> {
   const result = signal
-    ? await fetch(orgChatUrl(slug, "invitation/"), {
+    ? await fetch(orgChatUrl(slug, "invitation/", chatId), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
         signal,
@@ -457,7 +494,7 @@ export async function fetchViewerRecruitingInvitation(
                 : `http_${res.status}`,
         };
       })
-    : await apiGetJson(orgChatUrl(slug, "invitation/"));
+    : await apiGetJson(orgChatUrl(slug, "invitation/", chatId));
   if (!result.ok) {
     throwRecruitingError(
       result.status,
@@ -513,10 +550,11 @@ export async function declineRecruitingInvitation(
 
 export async function removeRecruitingMember(
   slug: string,
-  userId: number
+  userId: number,
+  chatId?: number | null
 ): Promise<void> {
   const result = await apiPostJson(
-    orgChatUrl(slug, `members/${userId}/remove/`)
+    orgChatUrl(slug, `members/${userId}/remove/`, chatId)
   );
   if (!result.ok) {
     throwRecruitingError(

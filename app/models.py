@@ -2513,19 +2513,28 @@ class ProfileLink(models.Model):
 
 
 class OrganizationRecruitingChat(models.Model):
-    """学生団体の新歓チャット設定。実体の会話は ChatRoom(kind=recruiting) を再利用する。
+    """学生団体の団体チャット設定。実体の会話は ChatRoom(kind=recruiting) を再利用する。
 
     参加者は ChatRoomMembership。OrganizationMember にはしない。
-    MVP では団体あたり is_active=True は1件。過去行を残して年度別に増やせる。
+    団体管理者であることと、個別チャットの参加者であることは別。
     """
 
     class JoinMode(models.TextChoices):
         OPEN = "open", "自由参加"
         APPROVAL = "approval", "承認制"
+        INVITE = "invite", "招待制"
 
     class ListingStatus(models.TextChoices):
         OPEN = "open", "募集中"
         CLOSED = "closed", "募集停止"
+
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", "公開"
+        PRIVATE = "private", "非公開"
+
+    class PostingMode(models.TextChoices):
+        ALL = "all", "全参加者が送信可"
+        ADMINS = "admins", "管理者のみ送信可"
 
     organization = models.ForeignKey(
         Organization,
@@ -2556,11 +2565,33 @@ class OrganizationRecruitingChat(models.Model):
         default=ListingStatus.OPEN,
         db_index=True,
     )
+    visibility = models.CharField(
+        "公開範囲",
+        max_length=16,
+        choices=Visibility.choices,
+        default=Visibility.PUBLIC,
+        db_index=True,
+    )
+    posting_mode = models.CharField(
+        "投稿権限",
+        max_length=16,
+        choices=PostingMode.choices,
+        default=PostingMode.ALL,
+        db_index=True,
+    )
     is_active = models.BooleanField(
-        "有効な新歓チャット",
+        "有効な団体チャット",
         default=True,
         db_index=True,
-        help_text="True の行は団体あたり1件。過去のチャットは False にして残す。",
+        help_text="False はアーカイブ。メッセージと参加者は残す。",
+    )
+    pinned_message = models.ForeignKey(
+        "ChatMessage",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pinned_organization_chats",
+        verbose_name="固定メッセージ",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -2574,30 +2605,87 @@ class OrganizationRecruitingChat(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "新歓チャット"
-        verbose_name_plural = "新歓チャット"
+        verbose_name = "団体チャット"
+        verbose_name_plural = "団体チャット"
         ordering = ["-updated_at"]
         constraints = [
-            models.UniqueConstraint(
-                fields=["organization"],
-                condition=models.Q(is_active=True),
-                name="uniq_org_active_recruiting_chat",
-            ),
             models.CheckConstraint(
-                condition=models.Q(join_mode__in=["open", "approval"]),
+                condition=models.Q(join_mode__in=["open", "approval", "invite"]),
                 name="app_recruiting_chat_join_mode_valid",
             ),
             models.CheckConstraint(
                 condition=models.Q(listing_status__in=["open", "closed"]),
                 name="app_recruiting_chat_listing_valid",
             ),
+            models.CheckConstraint(
+                condition=models.Q(visibility__in=["public", "private"]),
+                name="app_recruiting_chat_visibility_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(posting_mode__in=["all", "admins"]),
+                name="app_recruiting_chat_posting_mode_valid",
+            ),
         ]
         indexes = [
             models.Index(fields=["organization", "is_active"]),
+            models.Index(fields=["organization", "visibility", "is_active"]),
         ]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.organization_id})"
+
+
+class OrganizationChatShare(models.Model):
+    """団体チャットへ共有したイベント／抽選カード。"""
+
+    class ShareType(models.TextChoices):
+        EVENT = "org_event", "イベント"
+        LOTTERY = "org_event_lottery", "抽選結果"
+
+    event = models.ForeignKey(
+        "OrganizationEvent",
+        on_delete=models.CASCADE,
+        related_name="chat_shares",
+        verbose_name="イベント",
+    )
+    recruiting_chat = models.ForeignKey(
+        OrganizationRecruitingChat,
+        on_delete=models.CASCADE,
+        related_name="shares",
+        verbose_name="団体チャット",
+    )
+    message = models.OneToOneField(
+        "ChatMessage",
+        on_delete=models.CASCADE,
+        related_name="organization_chat_share",
+        verbose_name="共有メッセージ",
+    )
+    share_type = models.CharField(
+        "共有種別",
+        max_length=32,
+        choices=ShareType.choices,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "団体チャット共有"
+        verbose_name_plural = "団体チャット共有"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "recruiting_chat", "share_type"],
+                name="uniq_org_chat_share_event_chat_type",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    share_type__in=["org_event", "org_event_lottery"]
+                ),
+                name="app_org_chat_share_type_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.share_type} event={self.event_id} chat={self.recruiting_chat_id}"
 
 
 class OrganizationRecruitingChatApplication(models.Model):

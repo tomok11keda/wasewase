@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import {
   fetchOrganizationProfile,
@@ -9,11 +9,13 @@ import { organizationInitial } from "../features/orgs/orgProfile";
 import {
   joinModeLabel,
   listingStatusLabel,
+  parseRecruitingChatIdFromSearch,
   recruitingChatApplicationsPath,
   recruitingChatInvitesPath,
   recruitingChatMembersPath,
   recruitingChatPath,
   recruitingChatSettingsPath,
+  visibilityLabel,
   type RecruitingChat,
 } from "../features/orgs/recruitingChat";
 import {
@@ -36,6 +38,8 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatInfoPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const navigate = useNavigate();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
@@ -60,7 +64,7 @@ export function OrganizationRecruitingChatInfoPage() {
     setOrgAvatar("");
     setLoading(true);
     setError(null);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -74,7 +78,7 @@ export function OrganizationRecruitingChatInfoPage() {
     setError(null);
     try {
       const [envelope, profile] = await Promise.all([
-        fetchRecruitingChat(slug),
+        fetchRecruitingChat(slug, undefined, chatId),
         fetchOrganizationProfile(slug).catch(() => null),
       ]);
       if (!isLatestRequest(fetchGen, gen)) return;
@@ -100,7 +104,7 @@ export function OrganizationRecruitingChatInfoPage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [slug]);
+  }, [slug, chatId]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -133,7 +137,7 @@ export function OrganizationRecruitingChatInfoPage() {
     }
     setLeaveBusy(true);
     try {
-      const next = await leaveRecruitingChat(slug);
+      const next = await leaveRecruitingChat(slug, chatId);
       setChat(next);
       navigate(recruitingChatPath(slug), { replace: true });
     } catch (err) {
@@ -184,8 +188,11 @@ export function OrganizationRecruitingChatInfoPage() {
               {chat?.description ? <p>{chat.description}</p> : null}
               {chat ? (
                 <p>
-                  {joinModeLabel(chat.join_mode)} ·{" "}
-                  {listingStatusLabel(chat.listing_status)}
+                  {visibilityLabel(chat.visibility)} ·{" "}
+                  {joinModeLabel(chat.join_mode)}
+                  {chat.visibility === "public"
+                    ? ` · ${listingStatusLabel(chat.listing_status)}`
+                    : ""}
                 </p>
               ) : null}
             </section>
@@ -202,13 +209,13 @@ export function OrganizationRecruitingChatInfoPage() {
               {canManage ? (
                 <>
                   <li>
-                    <Link to={recruitingChatSettingsPath(slug)}>
+                    <Link to={recruitingChatSettingsPath(slug, chatId)}>
                       チャット設定
                       <span aria-hidden="true">›</span>
                     </Link>
                   </li>
                   <li>
-                    <Link to={recruitingChatApplicationsPath(slug)}>
+                    <Link to={recruitingChatApplicationsPath(slug, chatId)}>
                       申請管理
                       {typeof chat?.pending_count === "number" &&
                       chat.pending_count > 0
@@ -218,13 +225,13 @@ export function OrganizationRecruitingChatInfoPage() {
                     </Link>
                   </li>
                   <li>
-                    <Link to={recruitingChatMembersPath(slug)}>
+                    <Link to={recruitingChatMembersPath(slug, chatId)}>
                       参加者管理
                       <span aria-hidden="true">›</span>
                     </Link>
                   </li>
                   <li>
-                    <Link to={recruitingChatInvitesPath(slug)}>
+                    <Link to={recruitingChatInvitesPath(slug, chatId)}>
                       学生を招待
                       <span aria-hidden="true">›</span>
                     </Link>

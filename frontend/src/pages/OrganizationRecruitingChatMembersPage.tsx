@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import { RecruitingManageNav } from "../features/orgs/RecruitingManageNav";
 import {
   canShowRecruitingManageNav,
   formatRecruitingDate,
+  parseRecruitingChatIdFromSearch,
   type RecruitingMember,
 } from "../features/orgs/recruitingChat";
 import {
@@ -29,6 +30,8 @@ function errorText(err: unknown, fallback: string): string {
 
 export function OrganizationRecruitingChatMembersPage() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const chatId = parseRecruitingChatIdFromSearch(searchParams.toString());
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const sessionUserId =
@@ -51,7 +54,7 @@ export function OrganizationRecruitingChatMembersPage() {
     setPendingCount(undefined);
     setLoading(true);
     setError(null);
-  }, [slug, sessionUserId]);
+  }, [slug, chatId, sessionUserId]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -60,7 +63,7 @@ export function OrganizationRecruitingChatMembersPage() {
     setLoading(true);
     setError(null);
     try {
-      const envelope = await fetchRecruitingChat(slug);
+      const envelope = await fetchRecruitingChat(slug, undefined, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       const manage = envelope.can_manage || Boolean(envelope.recruiting_chat?.can_manage);
@@ -71,7 +74,7 @@ export function OrganizationRecruitingChatMembersPage() {
         setMembers([]);
         return;
       }
-      const rows = await fetchRecruitingMembers(slug);
+      const rows = await fetchRecruitingMembers(slug, chatId);
       if (!isLatestRequest(fetchGen, gen)) return;
       if (!isSameUserScope(startedUserId, userIdRef.current)) return;
       setMembers(rows);
@@ -87,7 +90,7 @@ export function OrganizationRecruitingChatMembersPage() {
     } finally {
       if (isLatestRequest(fetchGen, gen)) setLoading(false);
     }
-  }, [slug]);
+  }, [slug, chatId]);
 
   useEffect(() => {
     if (sessionLoading || browsePreview) return;
@@ -120,8 +123,8 @@ export function OrganizationRecruitingChatMembersPage() {
     setError(null);
     void (async () => {
       try {
-        await removeRecruitingMember(slug, member.user_id as number);
-        setMembers(await fetchRecruitingMembers(slug));
+        await removeRecruitingMember(slug, member.user_id as number, chatId);
+        setMembers(await fetchRecruitingMembers(slug, chatId));
       } catch (err) {
         setError(errorText(err, "除外できませんでした。"));
       } finally {
@@ -139,7 +142,7 @@ export function OrganizationRecruitingChatMembersPage() {
           hydrated: !loading && !sessionLoading,
           canManage,
         }) ? (
-          <RecruitingManageNav slug={slug} pendingCount={pendingCount} />
+          <RecruitingManageNav slug={slug} chatId={chatId} pendingCount={pendingCount} />
         ) : null}
         {loading || sessionLoading ? (
           <PeopleListSkeleton />

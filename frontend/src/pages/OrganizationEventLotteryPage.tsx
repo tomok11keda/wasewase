@@ -17,6 +17,7 @@ import {
   type OrganizationEventLotteryEntry,
   type OrganizationEventRegistrant,
 } from "../features/orgs/orgEvents";
+import { OrgChatSharePicker } from "../features/orgs/OrgChatSharePicker";
 import {
   fetchAllOrganizationEventRegistrations,
   fetchOrganizationEvent,
@@ -292,15 +293,31 @@ export function OrganizationEventLotteryPage() {
     }
   };
 
-  const shareLottery = async () => {
+  const shareLottery = async (chatIds: number[]) => {
     if (!slug || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setActionError(null);
     try {
-      const payload = await shareOrganizationEventLottery(slug, eventId);
-      setEvent(payload.event);
-      setLottery(payload.lottery);
+      let last = lottery;
+      let eventPayload = event;
+      for (const chatId of chatIds) {
+        try {
+          const payload = await shareOrganizationEventLottery(slug, eventId, chatId);
+          eventPayload = payload.event;
+          last = payload.lottery;
+        } catch (err) {
+          if (
+            err instanceof OrganizationRequestError &&
+            err.code === "already_shared"
+          ) {
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (eventPayload) setEvent(eventPayload);
+      if (last) setLottery(last);
     } catch (err) {
       setActionError(
         err instanceof OrganizationRequestError
@@ -363,25 +380,21 @@ export function OrganizationEventLotteryPage() {
               </p>
             ) : null}
             {lottery.can_manage ? (
-              <p className="org-recruiting-card__actions">
-                {lottery.can_share ? (
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy}
-                    onClick={() => void shareLottery()}
-                  >
-                    {busy ? "送信中…" : "団体チャットに結果を共有"}
-                  </button>
-                ) : lottery.shared ? (
-                  <span>団体チャットへ共有済みです。</span>
-                ) : null}
+              <div className="org-event-share">
+                <OrgChatSharePicker
+                  slug={slug}
+                  busy={busy}
+                  submitLabel="選んだチャットに抽選結果を共有"
+                  onShare={(chatIds) => void shareLottery(chatIds)}
+                />
                 {lottery.shared ? (
-                  <Link className="btn btn-secondary" to={recruitingChatPathSafeLocal(slug)}>
-                    団体チャットを開く
-                  </Link>
+                  <p className="org-recruiting-card__actions">
+                    <Link className="btn btn-secondary" to={recruitingChatPathSafeLocal(slug)}>
+                      団体チャットを開く
+                    </Link>
+                  </p>
                 ) : null}
-              </p>
+              </div>
             ) : null}
             {lottery.lists_visible ? (
               <ResultLists lottery={lottery} />

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -454,13 +455,13 @@ class OrganizationEventLotteryApiTests(TestCase):
         lottery.save(update_fields=["shared_message", "updated_at"])
         self.client.force_login(self.owner)
         after_null = self._json("post", self._event_url(f"{event_id}/lottery/share/"))
-        self.assertEqual(after_null.status_code, 200, after_null.content)
-        self.assertTrue(after_null.json()["lottery"]["shared"])
-        self.assertEqual(after_null.json()["lottery"]["winner_count"], winner_count)
-        self.assertEqual(after_null.json()["lottery"]["id"], lottery_id)
+        self.assertEqual(after_null.status_code, 409, after_null.content)
+        self.assertEqual(after_null.json()["error"], "already_shared")
         lottery.refresh_from_db()
-        self.assertIsNotNone(lottery.shared_message_id)
-        self.assertNotEqual(lottery.shared_message_id, previous_message_id)
+        self.assertIsNone(lottery.shared_message_id)
+        self.assertTrue(
+            ChatMessage.objects.filter(pk=previous_message_id, is_hidden=False).exists()
+        )
 
     def test_cancel_after_register_is_not_in_lottery_snapshot(self):
         event_id = self._create_published_event()
@@ -608,17 +609,22 @@ class OrganizationEventLotteryApiTests(TestCase):
             unregister_snip.index("_lock_event("),
             unregister_snip.index("OrganizationEventRegistration.objects.select_for_update"),
         )
-        for name in (
-            "def run_organization_event_lottery",
-            "def share_organization_event_lottery",
-        ):
-            idx = lottery_src.index(name)
-            snippet = lottery_src[idx : idx + 1800]
-            self.assertIn("_lock_event(", snippet, name)
-            self.assertLess(
-                snippet.index("_lock_event("),
-                snippet.index("select_for_update"),
+        run_snip = lottery_src[
+            lottery_src.index("def run_organization_event_lottery") : lottery_src.index(
+                "def share_organization_event_lottery"
             )
+        ]
+        self.assertIn("_lock_event(", run_snip)
+        self.assertLess(
+            run_snip.index("_lock_event("),
+            run_snip.index("select_for_update"),
+        )
+        self.assertIn("share_organization_event_to_chat", lottery_src)
+        share_src = Path("app/organization_event_services.py").read_text()
+        share_snip = share_src[
+            share_src.index("def share_organization_event_to_chat") :
+        ][:1800]
+        self.assertIn("select_for_update", share_snip)
         self.assertIn("applicant_ids", lottery_src)
         self.assertIn("registrants_changed", lottery_src)
         self.assertIn("lottery_closed", event_src)

@@ -10,25 +10,26 @@ import {
 
 type Props = {
   slug: string;
+  chatId?: number | null;
   pendingCount?: number;
 };
 
-export function RecruitingManageNav({ slug, pendingCount }: Props) {
+export function RecruitingManageNav({ slug, chatId, pendingCount }: Props) {
   return (
     <nav className="org-recruiting-manage-nav" aria-label="団体チャット管理">
-      <NavLink to={recruitingChatPath(slug)} end>
+      <NavLink to={recruitingChatPath(slug, chatId)} end>
         チャット
       </NavLink>
-      <NavLink to={recruitingChatInfoPath(slug)}>詳細</NavLink>
-      <NavLink to={recruitingChatSettingsPath(slug)}>設定</NavLink>
-      <NavLink to={recruitingChatApplicationsPath(slug)}>
+      <NavLink to={recruitingChatInfoPath(slug, chatId)}>詳細</NavLink>
+      <NavLink to={recruitingChatSettingsPath(slug, chatId)}>設定</NavLink>
+      <NavLink to={recruitingChatApplicationsPath(slug, chatId)}>
         申請管理
         {typeof pendingCount === "number" && pendingCount > 0
           ? `（${pendingCount}）`
           : ""}
       </NavLink>
-      <NavLink to={recruitingChatMembersPath(slug)}>参加者管理</NavLink>
-      <NavLink to={recruitingChatInvitesPath(slug)}>学生を招待</NavLink>
+      <NavLink to={recruitingChatMembersPath(slug, chatId)}>参加者管理</NavLink>
+      <NavLink to={recruitingChatInvitesPath(slug, chatId)}>学生を招待</NavLink>
     </nav>
   );
 }

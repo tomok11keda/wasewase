@@ -228,10 +228,14 @@ export function OrganizationProfilePage() {
     const startedViewerId = viewerId;
     const requestId = nextRequestId(recruitingGenRef);
     const summary = parseRecruitingChat(payload.recruiting_chat);
+    const summaries = (payload.recruiting_chats || [])
+      .map((row) => parseRecruitingChat(row))
+      .filter((row): row is NonNullable<typeof row> => row != null);
     setRecruiting({
       ok: true,
       recruiting_chat: summary,
-      can_create: payload.can_manage && summary == null,
+      recruiting_chats: summaries.length ? summaries : summary ? [summary] : [],
+      can_create: payload.can_manage,
       can_manage: payload.can_manage,
     });
     setRecruitingLoading(true);
@@ -257,7 +261,8 @@ export function OrganizationProfilePage() {
       setRecruiting({
         ok: true,
         recruiting_chat: summary,
-        can_create: payload.can_manage && summary == null,
+        recruiting_chats: summaries.length ? summaries : summary ? [summary] : [],
+        can_create: payload.can_manage,
         can_manage: payload.can_manage,
       });
       setRecruitingError("団体チャットの最新情報を取得できませんでした。");
