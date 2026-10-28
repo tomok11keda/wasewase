@@ -1295,3 +1295,269 @@
     grid-template-columns: 1fr;
   }
 }
+
+.org-event-detail-page {
+  background: #f7f9fc;
+}
+
+.org-event-detail-page .main-inner {
+  padding-top: 12px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.org-event-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.org-event-detail__card {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.org-event-detail__org {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #891e2b;
+  overflow-wrap: anywhere;
+}
+
+.org-event-detail__title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.org-event-detail__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.org-event-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.org-event-badge--draft {
+  background: #eef2f5;
+  color: #536471;
+}
+
+.org-event-badge--published {
+  background: #f7edf0;
+  color: #891e2b;
+}
+
+.org-event-badge--cancelled {
+  background: #3d1016;
+  color: #fff;
+}
+
+.org-event-badge--signup,
+.org-event-badge--count,
+.org-event-badge--ended {
+  background: #eff3f4;
+  color: #0f1419;
+}
+
+.org-event-badge--ended {
+  color: #536471;
+}
+
+.org-event-detail__when,
+.org-event-detail__when-split,
+.org-event-detail__field {
+  margin: 14px 0 0;
+}
+
+.org-event-detail__when-split {
+  display: grid;
+  gap: 12px;
+}
+
+.org-event-detail__label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #536471;
+}
+
+.org-event-detail__date {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.org-event-detail__time {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #891e2b;
+}
+
+.org-event-detail__value {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.org-event-detail__note {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #891e2b;
+}
+
+.org-event-detail__cancelled {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #3d1016;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.org-event-detail__actions {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.org-event-detail__actions--row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.org-event-detail .btn,
+.org-event-detail a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.org-event-detail .btn-primary {
+  background: #891e2b;
+  color: #fff;
+}
+
+.org-event-detail .btn-secondary {
+  background: #fff;
+  color: #0f1419;
+  border-color: #cfd9de;
+}
+
+.org-event-detail .btn-danger {
+  background: #fff;
+  color: #c62828;
+  border-color: #f0c2c2;
+}
+
+.org-event-detail .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.org-event-detail .org-event-share {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.org-event-detail .org-event-share label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.org-event-detail .org-event-share textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+
+.org-event-more {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f7f9fc;
+  padding: 0 12px;
+}
+
+.org-event-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.org-event-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.org-event-more__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+
+.org-event-detail__footer {
+  margin: 0;
+}
+
+.org-event-detail__footer .btn {
+  background: #fff;
+}
+
+@media (max-width: 360px) {
+  .org-event-detail__title {
+    font-size: 20px;
+  }
+
+  .org-event-detail__actions--row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 640px) {
+  .org-event-detail-page .main-inner {
+    max-width: 560px;
+  }
+}
