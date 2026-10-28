@@ -28,6 +28,8 @@ from .organization_event_services import (
     _require_manage,
     _run_after_commit,
     can_view_organization_event,
+    event_registration_is_closed,
+    event_uses_registration,
     get_event_for_organization,
     organization_allows_event_access,
     serialize_organization_event,
@@ -448,6 +450,10 @@ def run_organization_event_lottery(
             raise OrganizationEventError("cancelled", status=409)
         if locked.status != OrganizationEvent.Status.PUBLISHED:
             raise OrganizationEventError("not_published", status=409)
+        if not event_uses_registration(locked):
+            raise OrganizationEventError("announcement_only", status=409)
+        if not event_registration_is_closed(locked):
+            raise OrganizationEventError("registration_still_open", status=409)
         if OrganizationEventLottery.objects.filter(event_id=locked.pk).exists():
             raise OrganizationEventError("already_drawn", status=409)
 

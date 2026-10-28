@@ -348,6 +348,8 @@ def _timeline_posts_queryset_base():
         "quoted_post__author__profile",
         "quoted_post__organization",
         "shared_product",
+        "shared_organization_event",
+        "shared_organization_event__organization",
     ).prefetch_related(timeline_comments_prefetch())
 
 

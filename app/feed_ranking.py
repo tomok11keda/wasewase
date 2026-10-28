@@ -226,6 +226,8 @@ def _posts_by_ids_preserving_order(
             "quoted_post__author",
             "quoted_post__author__profile",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
     }
     return [found[pk] for pk in ids if pk in found]

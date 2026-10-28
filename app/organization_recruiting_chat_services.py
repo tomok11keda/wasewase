@@ -1269,6 +1269,9 @@ def _serialize_recruiting_messages(
 
     extras = lottery_share_extras_for_messages(messages)
     extras.update(event_share_extras_for_messages(messages))
+    from .organization_chat_event_services import chat_event_share_extras_for_messages
+
+    extras.update(chat_event_share_extras_for_messages(messages))
     return [
         serialize_chat_message(
             message,

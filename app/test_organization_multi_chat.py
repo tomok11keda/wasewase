@@ -286,6 +286,8 @@ class OrganizationMultiChatTests(TestCase):
         )
 
         register_organization_event(event=event, user=self.student)
+        event.registration_open = False
+        event.save(update_fields=["registration_open", "updated_at"])
         lottery = run_organization_event_lottery(
             event=event,
             actor=self.owner,

@@ -2089,6 +2089,15 @@ class TimelinePost(models.Model):
         related_name="quotes",
         verbose_name="リポスト元投稿",
     )
+    shared_organization_event = models.ForeignKey(
+        "OrganizationEvent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timeline_share_posts",
+        verbose_name="共有した団体イベント",
+        help_text="団体名義のタイムライン共有。本文は紹介文、カードはイベントを都度参照する。",
+    )
     body = models.CharField(max_length=280)
     course_name = models.CharField(
         max_length=120, blank=True, null=True, verbose_name="授業名"
@@ -2763,6 +2772,10 @@ class OrganizationEvent(models.Model):
         PUBLISHED = "published", "公開"
         CANCELLED = "cancelled", "中止"
 
+    class SignupMode(models.TextChoices):
+        REGISTRATION = "registration", "参加申込あり"
+        ANNOUNCEMENT = "announcement", "告知のみ"
+
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -2797,6 +2810,15 @@ class OrganizationEvent(models.Model):
         default=True,
         db_index=True,
     )
+    signup_mode = models.CharField(
+        "申込方式",
+        max_length=16,
+        choices=SignupMode.choices,
+        default=SignupMode.REGISTRATION,
+        db_default=SignupMode.REGISTRATION,
+        db_index=True,
+        help_text="既存イベントは参加申込あり。告知のみでは申込・抽選を使わない。",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -2823,6 +2845,12 @@ class OrganizationEvent(models.Model):
             models.CheckConstraint(
                 condition=models.Q(status__in=["draft", "published", "cancelled"]),
                 name="app_org_event_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    signup_mode__in=["registration", "announcement"]
+                ),
+                name="app_org_event_signup_mode_valid",
             ),
             models.CheckConstraint(
                 condition=models.Q(ends_at__gt=models.F("starts_at")),
@@ -3040,4 +3068,130 @@ class OrganizationEventLotteryEntry(models.Model):
 
     def __str__(self) -> str:
         return f"lottery={self.lottery_id} user={self.user_id} ({self.result})"
+
+
+class OrganizationChatEvent(models.Model):
+    """団体チャット内部の出欠イベント。公開イベント・抽選とは別物。"""
+
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "開催予定"
+        CANCELLED = "cancelled", "中止"
+
+    recruiting_chat = models.ForeignKey(
+        OrganizationRecruitingChat,
+        on_delete=models.CASCADE,
+        related_name="chat_events",
+        verbose_name="団体チャット",
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="chat_events",
+        verbose_name="団体",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_organization_chat_events",
+        verbose_name="作成者",
+    )
+    title = models.CharField("タイトル", max_length=120)
+    description = models.TextField("説明", blank=True, default="")
+    starts_at = models.DateTimeField("開始日時", db_index=True)
+    ends_at = models.DateTimeField("終了日時", null=True, blank=True)
+    venue_name = models.CharField("会場", max_length=120, blank=True, default="")
+    rsvp_deadline = models.DateTimeField("回答期限", null=True, blank=True)
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.SCHEDULED,
+        db_index=True,
+    )
+    announcement_message = models.OneToOneField(
+        "ChatMessage",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_chat_event",
+        verbose_name="チャット掲載メッセージ",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "団体チャット内イベント"
+        verbose_name_plural = "団体チャット内イベント"
+        ordering = ["starts_at", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["scheduled", "cancelled"]),
+                name="app_org_chat_event_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ends_at__isnull=True)
+                | models.Q(ends_at__gt=models.F("starts_at")),
+                name="app_org_chat_event_ends_after_starts",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["recruiting_chat", "starts_at"]),
+            models.Index(fields=["organization", "starts_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.title} chat={self.recruiting_chat_id}"
+
+
+class OrganizationChatEventRsvp(models.Model):
+    """チャット内イベントの出欠。ユーザー×イベントで1行。"""
+
+    class Answer(models.TextChoices):
+        GOING = "going", "参加"
+        NOT_GOING = "not_going", "不参加"
+        MAYBE = "maybe", "未定"
+
+    event = models.ForeignKey(
+        OrganizationChatEvent,
+        on_delete=models.CASCADE,
+        related_name="rsvps",
+        verbose_name="チャット内イベント",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="organization_chat_event_rsvps",
+        verbose_name="ユーザー",
+    )
+    answer = models.CharField(
+        "回答",
+        max_length=16,
+        choices=Answer.choices,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "団体チャット内イベント出欠"
+        verbose_name_plural = "団体チャット内イベント出欠"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "user"],
+                name="uniq_org_chat_event_rsvp_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(answer__in=["going", "not_going", "maybe"]),
+                name="app_org_chat_event_rsvp_answer_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["event", "answer"]),
+            models.Index(fields=["user", "updated_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"event={self.event_id} user={self.user_id} ({self.answer})"
 

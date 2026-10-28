@@ -126,7 +126,18 @@ class OrganizationEventLotteryApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         return response
 
+    def _close_registration(self, event_id, actor=None):
+        self.client.force_login(actor or self.owner)
+        response = self._json(
+            "patch",
+            self._event_url(f"{event_id}/"),
+            registration_open=False,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response
+
     def _run_lottery(self, event_id, actor=None, **payload):
+        self._close_registration(event_id, actor=self.owner)
         self.client.force_login(actor or self.owner)
         if "applicant_ids" not in payload:
             payload = {
@@ -150,6 +161,9 @@ class OrganizationEventLotteryApiTests(TestCase):
         self.assertIsNone(body["viewer_lottery_result"])
         self.assertFalse(body["can_run_lottery"])
         self.client.force_login(self.owner)
+        manage = self.client.get(self._event_url(f"{event_id}/"))
+        self.assertFalse(manage.json()["event"]["can_run_lottery"])
+        self._close_registration(event_id)
         manage = self.client.get(self._event_url(f"{event_id}/"))
         self.assertTrue(manage.json()["event"]["can_run_lottery"])
         missing = self.client.get(self._event_url(f"{event_id}/lottery/"))
@@ -263,7 +277,7 @@ class OrganizationEventLotteryApiTests(TestCase):
             OrganizationEventLottery.objects.filter(event_id=event_id).exists()
         )
         event = OrganizationEvent.objects.get(pk=event_id)
-        self.assertTrue(event.registration_open)
+        self.assertFalse(event.registration_open)
 
     def test_double_lottery_is_rejected_and_source_uses_secrets(self):
         event_id = self._create_published_event()
@@ -299,7 +313,7 @@ class OrganizationEventLotteryApiTests(TestCase):
         self.assertFalse(OrganizationEventLottery.objects.filter(event_id=event_id).exists())
         self.assertEqual(Notification.objects.count(), 0)
         event = OrganizationEvent.objects.get(pk=event_id)
-        self.assertTrue(event.registration_open)
+        self.assertFalse(event.registration_open)
 
     def test_lottery_view_requires_recruiting_member_or_manager(self):
         event_id = self._create_published_event()
@@ -563,6 +577,11 @@ class OrganizationEventLotteryApiTests(TestCase):
         self.assertEqual(unknown.status_code, 400)
         self.assertEqual(unknown.json()["error"], "invalid_excluded")
 
+        self.client.force_login(self.owner)
+        reopened = self._json(
+            "patch", self._event_url(f"{event_id}/"), registration_open=True
+        )
+        self.assertEqual(reopened.status_code, 200, reopened.content)
         self._register(event_id, self.other)
         current = self._run_lottery(
             event_id, winner_count=1, applicant_ids=[self.student.pk]

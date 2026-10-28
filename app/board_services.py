@@ -54,6 +54,8 @@ def build_timeline_posts_queryset(request):
             "quoted_post__author__profile",
             "quoted_post__organization",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
         .prefetch_related(timeline_comments_prefetch())
     )
@@ -116,6 +118,8 @@ def get_profile_timeline_posts(
             "quoted_post__author__profile",
             "quoted_post__organization",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
         .prefetch_related(timeline_comments_prefetch())
         .filter(author=profile_user, is_removed=False, organization_id__isnull=True)
@@ -156,6 +160,8 @@ def get_quotable_post(post_id: int, viewer: AbstractBaseUser | None) -> Timeline
             "quoted_post",
             "quoted_post__author",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
         .filter(pk=post_id, is_removed=False)
         .first()

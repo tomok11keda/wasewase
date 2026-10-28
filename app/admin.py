@@ -47,6 +47,8 @@ from .models import (
     Organization,
     OrganizationMember,
     ProfileLink,
+    OrganizationChatEvent,
+    OrganizationChatEventRsvp,
     OrganizationEvent,
     OrganizationEventLottery,
     OrganizationEventLotteryEntry,
@@ -1240,11 +1242,12 @@ class OrganizationEventAdmin(admin.ModelAdmin):
         "title",
         "organization",
         "status",
+        "signup_mode",
         "starts_at",
         "registration_open",
         "deleted_at",
     )
-    list_filter = ("status", "registration_open")
+    list_filter = ("status", "signup_mode", "registration_open")
     search_fields = ("title", "organization__name", "organization__slug")
     raw_id_fields = ("organization", "created_by")
     readonly_fields = ("created_at", "updated_at", "deleted_at")
@@ -1299,6 +1302,35 @@ class OrganizationEventLotteryEntryAdmin(admin.ModelAdmin):
         "initial_snapshot",
         "created_at",
     )
+
+
+@admin.register(OrganizationChatEvent)
+class OrganizationChatEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "organization",
+        "recruiting_chat",
+        "status",
+        "starts_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("title", "organization__name", "organization__slug")
+    raw_id_fields = (
+        "organization",
+        "recruiting_chat",
+        "created_by",
+        "announcement_message",
+    )
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(OrganizationChatEventRsvp)
+class OrganizationChatEventRsvpAdmin(admin.ModelAdmin):
+    list_display = ("event", "user", "answer", "updated_at")
+    list_filter = ("answer",)
+    search_fields = ("event__title", "user__username")
+    raw_id_fields = ("event", "user")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(OrganizationRecruitingChatApplication)

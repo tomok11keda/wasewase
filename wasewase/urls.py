@@ -25,6 +25,7 @@ from app import follow_api_views
 from app import onboarding_api_views
 from app import organization_api_views
 from app import organization_event_api_views
+from app import organization_chat_event_api_views
 from app import organization_recruiting_chat_api_views
 from app.spa_canonical import spa_get_redirect
 
@@ -403,6 +404,31 @@ urlpatterns = [
         "api/v1/organizations/<slug:slug>/events/<int:event_id>/share/",
         organization_event_api_views.api_v1_organization_event_share,
         name="api_v1_organization_event_share",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/events/<int:event_id>/timeline-share/",
+        organization_event_api_views.api_v1_organization_event_timeline_share,
+        name="api_v1_organization_event_timeline_share",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/events/<int:event_id>/rsvp/",
+        organization_chat_event_api_views.api_v1_organization_chat_event_rsvp,
+        name="api_v1_organization_chat_event_rsvp",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/events/<int:event_id>/cancel/",
+        organization_chat_event_api_views.api_v1_organization_chat_event_cancel,
+        name="api_v1_organization_chat_event_cancel",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/events/<int:event_id>/",
+        organization_chat_event_api_views.api_v1_organization_chat_event_detail,
+        name="api_v1_organization_chat_event_detail",
+    ),
+    path(
+        "api/v1/organizations/<slug:slug>/recruiting-chat/events/",
+        organization_chat_event_api_views.api_v1_organization_chat_events,
+        name="api_v1_organization_chat_events",
     ),
     path(
         "api/v1/organizations/<slug:slug>/events/<int:event_id>/duplicate/",

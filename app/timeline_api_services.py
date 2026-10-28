@@ -149,6 +149,14 @@ def serialize_quoted_post(
     }
 
 
+def serialize_shared_organization_event(post: TimelinePost) -> dict[str, Any] | None:
+    from .organization_event_timeline_services import (
+        serialize_shared_organization_event as serialize_event_card,
+    )
+
+    return serialize_event_card(post)
+
+
 def serialize_shared_product(post: TimelinePost) -> dict[str, Any] | None:
     """Structured flea card payload. Missing / hidden products → None, never raise."""
     try:
@@ -313,6 +321,7 @@ def serialize_timeline_post(
             viewer,
         ),
         "shared_product": serialize_shared_product(post),
+        "shared_organization_event": serialize_shared_organization_event(post),
         "comments": comments_payload,
     }
     if is_organization_timeline_post(post):
@@ -344,6 +353,8 @@ def get_visible_timeline_post_payload(
             "quoted_post__author__profile",
             "quoted_post__organization",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         ).prefetch_related(timeline_comments_prefetch())
     )
     auth_viewer = (
@@ -376,6 +387,8 @@ def get_visible_timeline_post_payload(
                 "quoted_post__author__profile",
                 "quoted_post__organization",
                 "shared_product",
+                "shared_organization_event",
+                "shared_organization_event__organization",
             )
             .prefetch_related(timeline_comments_prefetch())
             .filter(pk=pk, is_removed=False)

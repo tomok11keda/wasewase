@@ -34,6 +34,10 @@ from .organization_event_services import (
     update_organization_event,
     duplicate_organization_event,
 )
+from .organization_event_timeline_services import (
+    share_organization_event_to_timeline,
+    timeline_share_response_payload,
+)
 from .organization_services import can_manage_organization, can_view_organization_profile
 from .rate_limit_services import RATE_LIMIT_USER_MESSAGE, allow_organization_event_write
 
@@ -455,6 +459,41 @@ def api_v1_organization_event_share(
             "message_id": share.message_id,
             "event": serialize_organization_event(event, request.user),
         },
+        status=201,
+    )
+
+
+@require_POST
+def api_v1_organization_event_timeline_share(
+    request: HttpRequest, slug: str, event_id: int
+) -> JsonResponse:
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    limited = _write_allowed(request)
+    if limited:
+        return limited
+    organization = _visible_organization(slug, request.user)
+    if isinstance(organization, JsonResponse):
+        return organization
+    event = get_event_for_organization(organization, event_id)
+    if event is None:
+        return _json_error("not_found", status=404)
+    data = _parse_json(request)
+    try:
+        post = share_organization_event_to_timeline(
+            event=event,
+            actor=request.user,
+            body=str(data.get("body") or data.get("intro") or ""),
+        )
+    except OrganizationEventError as exc:
+        return _error_response(exc)
+    except Exception as exc:
+        if is_write_contention(exc):
+            return _json_error("busy", status=409)
+        raise
+    return JsonResponse(
+        timeline_share_response_payload(event, request.user, post),
         status=201,
     )
 

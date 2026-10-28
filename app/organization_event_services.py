@@ -211,6 +211,39 @@ def event_deadline_passed(
     return event.registration_deadline <= (now or _now())
 
 
+def event_uses_registration(event: OrganizationEvent) -> bool:
+    mode = getattr(
+        event, "signup_mode", OrganizationEvent.SignupMode.REGISTRATION
+    )
+    return mode == OrganizationEvent.SignupMode.REGISTRATION
+
+
+def event_registration_is_closed(
+    event: OrganizationEvent, *, now: datetime | None = None
+) -> bool:
+    if not event_uses_registration(event):
+        return True
+    if not event.registration_open:
+        return True
+    return event_deadline_passed(event, now=now)
+
+
+def _parse_signup_mode(value: Any, *, default: str | None) -> str | None:
+    if value is None:
+        return default
+    raw = str(value).strip().lower()
+    if raw not in {
+        OrganizationEvent.SignupMode.REGISTRATION,
+        OrganizationEvent.SignupMode.ANNOUNCEMENT,
+    }:
+        raise OrganizationEventError(
+            "invalid_payload",
+            status=400,
+            errors={"signup_mode": "申込方式を選択してください。"},
+        )
+    return raw
+
+
 def can_view_organization_event(
     viewer: AbstractBaseUser | None, event: OrganizationEvent | None
 ) -> bool:
@@ -319,6 +352,15 @@ def _fields_from_payload(payload: dict[str, Any], *, partial: bool) -> dict[str,
         data["registration_open"] = _parse_bool(
             payload.get("registration_open"), default=True if not partial else None
         )
+    if not partial or "signup_mode" in payload:
+        parsed_mode = _parse_signup_mode(
+            payload.get("signup_mode"),
+            default=(
+                OrganizationEvent.SignupMode.REGISTRATION if not partial else None
+            ),
+        )
+        if parsed_mode is not None:
+            data["signup_mode"] = parsed_mode
     return data
 
 
@@ -367,9 +409,12 @@ def serialize_organization_event(
     if not lottery_loaded:
         lottery = lottery_for_event(event)
     has_lottery = lottery is not None
+    uses_registration = event_uses_registration(event)
+    registration_closed = event_registration_is_closed(event, now=now)
     can_register = bool(
         _authenticated_user(viewer)
         and published
+        and uses_registration
         and event.registration_open
         and not has_lottery
         and not ended
@@ -380,9 +425,11 @@ def serialize_organization_event(
     )
     can_cancel_registration = bool(
         viewer_registered
+        and uses_registration
         and event.deleted_at is None
         and not cancelled
         and organization_allows_event_access(organization)
+        and (has_lottery or not registration_closed)
     )
     if (
         not viewer_lottery_loaded
@@ -398,7 +445,16 @@ def serialize_organization_event(
     can_run_lottery = bool(
         manage
         and published
+        and uses_registration
+        and registration_closed
         and not has_lottery
+        and event.deleted_at is None
+        and organization_allows_event_access(organization)
+    )
+    can_share_to_timeline = bool(
+        manage
+        and published
+        and not cancelled
         and event.deleted_at is None
         and organization_allows_event_access(organization)
     )
@@ -417,7 +473,13 @@ def serialize_organization_event(
         "venue_address": event.venue_address or "",
         "registration_deadline": _iso(event.registration_deadline),
         "status": event.status,
+        "signup_mode": (
+            event.signup_mode
+            if event.signup_mode
+            else OrganizationEvent.SignupMode.REGISTRATION
+        ),
         "registration_open": bool(event.registration_open),
+        "registration_closed": registration_closed,
         "registered_count": count,
         "is_ended": ended,
         "is_deadline_passed": deadline,
@@ -442,8 +504,10 @@ def serialize_organization_event(
         "can_run_lottery": can_run_lottery,
         "can_view_lottery": bool(has_lottery and can_view_lottery),
         "can_share_lottery": bool(manage and has_lottery and not shared),
+        "can_share_to_timeline": can_share_to_timeline,
         "can_reopen_registration": bool(
             manage
+            and uses_registration
             and not has_lottery
             and not cancelled
             and event.deleted_at is None
@@ -522,6 +586,9 @@ def create_organization_event(
 ) -> OrganizationEvent:
     _require_manage(actor, organization)
     fields = _fields_from_payload(payload, partial=False)
+    if fields.get("signup_mode") == OrganizationEvent.SignupMode.ANNOUNCEMENT:
+        fields["registration_open"] = False
+        fields["registration_deadline"] = None
     _validate_schedule(
         starts_at=fields["starts_at"],
         ends_at=fields["ends_at"],
@@ -576,10 +643,29 @@ def update_organization_event(
         locked = _lock_event(event.pk)
         if locked.deleted_at is not None:
             raise OrganizationEventError("not_found", status=404)
-        if fields.get("registration_open") is True and event_has_completed_lottery(
-            locked.pk
+        next_mode = fields.get("signup_mode", locked.signup_mode)
+        has_lottery = event_has_completed_lottery(locked.pk)
+        if has_lottery and (
+            "signup_mode" in fields and fields["signup_mode"] != locked.signup_mode
         ):
             raise OrganizationEventError("lottery_closed", status=409)
+        if (
+            next_mode == OrganizationEvent.SignupMode.ANNOUNCEMENT
+            and locked.signup_mode != OrganizationEvent.SignupMode.ANNOUNCEMENT
+        ):
+            if has_lottery:
+                raise OrganizationEventError("lottery_closed", status=409)
+            if OrganizationEventRegistration.objects.filter(
+                event_id=locked.pk,
+                status=OrganizationEventRegistration.Status.REGISTERED,
+            ).exists():
+                raise OrganizationEventError("has_registrations", status=409)
+        if fields.get("registration_open") is True and has_lottery:
+            raise OrganizationEventError("lottery_closed", status=409)
+        if next_mode == OrganizationEvent.SignupMode.ANNOUNCEMENT:
+            fields["registration_open"] = False
+            if "registration_deadline" not in fields:
+                fields["registration_deadline"] = None
         changed_important = False
         for key, value in fields.items():
             if key in IMPORTANT_CHANGE_FIELDS and getattr(locked, key) != value:
@@ -707,6 +793,8 @@ def _assert_can_register(event: OrganizationEvent, user: AbstractBaseUser) -> No
         raise OrganizationEventError("cancelled", status=409)
     if event.status != OrganizationEvent.Status.PUBLISHED:
         raise OrganizationEventError("not_found", status=404)
+    if not event_uses_registration(event):
+        raise OrganizationEventError("announcement_only", status=409)
     if event_has_completed_lottery(event.pk):
         raise OrganizationEventError("lottery_closed", status=409)
     if not event.registration_open:
@@ -793,6 +881,13 @@ def unregister_organization_event(
         locked = _lock_event(event.pk)
         if locked.deleted_at is not None:
             raise OrganizationEventError("not_found", status=404)
+        if not event_uses_registration(locked):
+            raise OrganizationEventError("announcement_only", status=409)
+        if locked.status == OrganizationEvent.Status.CANCELLED:
+            raise OrganizationEventError("cancelled", status=409)
+        has_lottery = event_has_completed_lottery(locked.pk)
+        if not has_lottery and event_registration_is_closed(locked):
+            raise OrganizationEventError("registration_closed", status=409)
         row = (
             OrganizationEventRegistration.objects.select_for_update()
             .filter(event_id=locked.pk, user_id=user.pk)
@@ -1001,7 +1096,10 @@ EVENT_SHARE_BODY = "イベントを共有しました"
 
 
 def serialize_event_share(event: OrganizationEvent) -> dict[str, Any]:
+    from .organization_event_timeline_services import public_event_card_status
+
     slug = event.organization.slug
+    _status, status_label = public_event_card_status(event)
     return {
         "type": "org_event",
         "id": event.pk,
@@ -1013,6 +1111,7 @@ def serialize_event_share(event: OrganizationEvent) -> dict[str, Any]:
             "starts_at": _iso(event.starts_at),
             "ends_at": _iso(event.ends_at),
             "venue_name": event.venue_name,
+            "status_label": status_label,
             "path": f"/organizations/{slug}/events/{event.pk}",
         },
     }
@@ -1123,7 +1222,10 @@ def duplicate_organization_event(
             if event.registration_deadline
             else None
         ),
-        "registration_open": True,
+        "registration_open": event.signup_mode
+        != OrganizationEvent.SignupMode.ANNOUNCEMENT,
+        "signup_mode": event.signup_mode
+        or OrganizationEvent.SignupMode.REGISTRATION,
     }
     if payload:
         data.update(payload)

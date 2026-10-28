@@ -129,7 +129,12 @@ def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
       - \"popular\": いいね数が多い順（同点は新しい順）
     """
     qs = TimelinePost.objects.select_related(
-        "author", "author__profile", "organization", "shared_product"
+        "author",
+        "author__profile",
+        "organization",
+        "shared_product",
+        "shared_organization_event",
+        "shared_organization_event__organization",
     )
     if not query:
         return qs.none()

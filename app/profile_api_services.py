@@ -373,6 +373,8 @@ def _discover_timeline_candidates(
         "quoted_post__author__profile",
         "quoted_post__organization",
         "shared_product",
+        "shared_organization_event",
+        "shared_organization_event__organization",
     ).prefetch_related(timeline_comments_prefetch())
     qs = filter_visible_timeline_posts(qs, viewer)
     if faculty:
@@ -726,6 +728,8 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
                 "quoted_post__author",
                 "quoted_post__organization",
                 "shared_product",
+        "shared_organization_event",
+        "shared_organization_event__organization",
             )
             .prefetch_related(timeline_comments_prefetch())
         )

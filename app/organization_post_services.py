@@ -318,6 +318,8 @@ def build_organization_posts_payload(
             "quoted_post__author__profile",
             "quoted_post__organization",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
         .prefetch_related(timeline_comments_prefetch())
         .filter(organization=organization, is_removed=False)

@@ -164,6 +164,8 @@ def api_v1_timeline_create(request: HttpRequest) -> HttpResponse:
             "quoted_post__author__profile",
             "quoted_post__organization",
             "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
         .prefetch_related(timeline_comments_prefetch())
         .get(pk=post.pk)
