@@ -3,6 +3,7 @@ import {
   Link,
   NavLink,
   Navigate,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -30,6 +31,7 @@ import {
 } from "../features/profile/ownProfileCache";
 import { startDm } from "../features/dm/api";
 import { spaLoginPath } from "../features/auth/api";
+import { withConversationBackState } from "../lib/conversationBack";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   PostCardSkeleton,
@@ -66,6 +68,7 @@ export function ProfilePage() {
   const { userId, tab: tabParam } = useParams();
   const pk = Number(userId);
   const navigate = useNavigate();
+  const location = useLocation();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const viewerId = me?.authenticated ? me.user?.id ?? null : null;
@@ -540,14 +543,18 @@ export function ProfilePage() {
                     onClick={() => {
                       void (async () => {
                         if (profile.dm_room_id) {
-                          navigate(`/dm/${profile.dm_room_id}`);
+                          navigate(`/dm/${profile.dm_room_id}`, {
+                            state: withConversationBackState(location),
+                          });
                           return;
                         }
                         setBusy(true);
                         try {
                           const roomId = await startDm(u.id);
                           analytics.dmStarted({ created_new: true });
-                          navigate(`/dm/${roomId}`);
+                          navigate(`/dm/${roomId}`, {
+                            state: withConversationBackState(location),
+                          });
                         } catch (err) {
                           window.alert(
                             err instanceof Error

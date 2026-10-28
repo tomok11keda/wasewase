@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isBrowsePreview, useSession } from "../lib/session";
 import { spaLoginPath } from "../features/auth/api";
+import { useConversationBackState } from "../lib/conversationBack";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import {
   createAbsenceRecord,
@@ -60,6 +61,7 @@ function Stars({
 export function CourseDetailPage() {
   const { offeringPk } = useParams();
   const navigate = useNavigate();
+  const conversationBackState = useConversationBackState();
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const pk = Number(offeringPk);
@@ -374,6 +376,7 @@ export function CourseDetailPage() {
             <Link
               className="course-detail__talk-cta"
               to={`/courses/${offering.id}/talk`}
+              state={conversationBackState}
             >
               授業掲示板
               <span className="course-detail__talk-cta-sub">

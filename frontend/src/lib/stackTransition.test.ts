@@ -53,13 +53,21 @@ test("stack push plays for inbox and rooms on SPA PUSH, not on boot or POP", () 
   );
 });
 
-test("stack push skips returning from a chat via explicit pop state", () => {
+test("stack push does not run on POP, including conversation header back", () => {
   assert.equal(
     shouldPlayStackPush({
-      navigationType: "PUSH",
+      navigationType: "POP",
       pathname: "/dm",
       isSessionStart: false,
-      state: { waseStackPop: true },
+      isStackPath: stack,
+    }),
+    false
+  );
+  assert.equal(
+    shouldPlayStackPush({
+      navigationType: "REPLACE",
+      pathname: "/dm",
+      isSessionStart: false,
       isStackPath: stack,
     }),
     false

@@ -130,6 +130,18 @@ class DualHeaderRemovalTests(SimpleTestCase):
             self.assertIn(back_to, src)
             self.assertNotIn("dm-back-text", src)
 
+    def test_conversation_header_back_does_not_push_inbox(self):
+        transition = _read("frontend/src/lib/detailTransition.ts")
+        stack_back = transition.split("export function requestStackHeaderBack")[1].split(
+            "export function useDetailPushTransition"
+        )[0]
+        self.assertIn("conversationBack.execute", stack_back)
+        self.assertNotIn("stackPopState", stack_back)
+        self.assertNotIn("waseStackPop", stack_back)
+        header = _read("frontend/src/features/chat/ChatRoomHeader.tsx")
+        self.assertIn("requestStackHeaderBack(navigate, backTo, location.state)", header)
+        self.assertNotIn("isMessageStackPath", header)
+
 
 class OffsetAndSafeAreaTests(SimpleTestCase):
     def test_header_height_is_sat_plus_content_not_double_counted_on_content(self):

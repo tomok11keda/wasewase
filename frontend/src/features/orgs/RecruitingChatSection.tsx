@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useConversationBackState } from "../../lib/conversationBack";
 import { ListRowSkeleton } from "../../components/skeleton";
 import { OrganizationRequestError } from "./api";
 import { RecruitingInviteBanner } from "./RecruitingInviteBanner";
@@ -85,6 +86,7 @@ function ChatCard({
     !showInvite;
   const showOpen = Boolean(chat.room_id) && (status === "joined" || canManage);
   const chatId = chat.id;
+  const conversationBackState = useConversationBackState();
 
   return (
     <article className="org-recruiting-card" aria-label={chat.name || "団体チャット"}>
@@ -167,7 +169,11 @@ function ChatCard({
           </>
         ) : null}
         {showOpen ? (
-          <Link className="btn btn-primary" to={recruitingChatPath(slug, chatId)}>
+          <Link
+            className="btn btn-primary"
+            to={recruitingChatPath(slug, chatId)}
+            state={conversationBackState}
+          >
             チャットを開く
           </Link>
         ) : null}

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useConversationBackState } from "../../lib/conversationBack";
 import {
   organizationEventManagePath,
   organizationEventNewPath,
@@ -23,6 +24,7 @@ export function OrganizationManageHub({
   recruiting,
   onComposeAsOrg,
 }: Props) {
+  const conversationBackState = useConversationBackState();
   if (!canManage) return null;
   const chats = envelopeChats(recruiting);
   const canCreate = Boolean(recruiting?.can_create);
@@ -64,7 +66,11 @@ export function OrganizationManageHub({
         </li>
         {chats.length ? (
           <li>
-            <Link className="org-manage-hub__link" to={recruitingChatPath(slug)}>
+            <Link
+              className="org-manage-hub__link"
+              to={recruitingChatPath(slug)}
+              state={conversationBackState}
+            >
               チャット管理
               {pendingTotal > 0 ? `（申請 ${pendingTotal}）` : ""}
             </Link>

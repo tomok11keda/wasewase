@@ -26,6 +26,7 @@ import {
   type ProductDetail,
 } from "../features/flea/api";
 import { spaLoginPath } from "../features/auth/api";
+import { withConversationBackState } from "../lib/conversationBack";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { ListRowSkeleton, ProductDetailSkeleton } from "../components/skeleton";
 import { readInitialProduct } from "../features/flea/productNav";
@@ -244,7 +245,9 @@ export function ProductDetailPage() {
         type: "success",
         text: "即決購入が成立しました。受け渡し場所と時間を相談してください。",
       });
-      navigate(`/flea/chats/${roomId}`);
+      navigate(`/flea/chats/${roomId}`, {
+        state: withConversationBackState(location),
+      });
     } catch (err) {
       const code = err instanceof Error ? err.message : "purchase_failed";
       setFlash({ type: "warning", text: purchaseErrorMessage(code) });
@@ -264,7 +267,9 @@ export function ProductDetailPage() {
     try {
       const roomId = await startProductChat(product.id);
       analytics.fleaInquiryCreated();
-      navigate(`/flea/chats/${roomId}`);
+      navigate(`/flea/chats/${roomId}`, {
+        state: withConversationBackState(location),
+      });
     } catch (err) {
       setFlash({
         type: "error",
@@ -552,6 +557,7 @@ export function ProductDetailPage() {
                 <Link
                   className="btn-chat-open"
                   to={`/flea/chats/${product.user_chat_room.id}`}
+                  state={withConversationBackState(location)}
                 >
                   取引チャットを開く
                 </Link>
@@ -581,7 +587,12 @@ export function ProductDetailPage() {
                         （
                         {room.deal_status}）
                       </p>
-                      <Link to={`/flea/chats/${room.id}`}>開く</Link>
+                      <Link
+                        to={`/flea/chats/${room.id}`}
+                        state={withConversationBackState(location)}
+                      >
+                        開く
+                      </Link>
                     </div>
                   ))}
                 </div>

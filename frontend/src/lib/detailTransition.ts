@@ -7,11 +7,11 @@ import {
 } from "react-router-dom";
 import { matchChromeMode, resolveDetailBack } from "./chrome";
 import { allowUnsavedNavigation } from "./unsavedChangesGuard";
+import { conversationBack } from "./conversationBack";
 import {
   DM_INBOX_SCROLL_KEY,
   isDmInboxPath,
   isMessageStackPath,
-  stackPopState,
 } from "./messageStack";
 import {
   clearStackTransitionClasses,
@@ -233,13 +233,13 @@ export function requestDetailHeaderBack(
 }
 
 /**
- * Conversation-header back: play the stack pop, then navigate to `to`.
- * Destination stays a normal history PUSH so React Router URLs are unchanged;
- * enter animation is skipped via `waseStackPop` state.
+ * Conversation-header back: play the stack pop, then POP or replace.
+ * Never PUSH a new inbox entry — that loops with the inbox header history back.
  */
 export function requestStackHeaderBack(
   navigate: NavigateFunction,
-  to: string
+  to: string,
+  state?: unknown
 ): void {
   if (detailBackInFlight) return;
   detailBackInFlight = true;
@@ -248,7 +248,7 @@ export function requestStackHeaderBack(
   const go = () => {
     if (navigated) return;
     navigated = true;
-    navigate(to, { state: stackPopState() });
+    conversationBack.execute(navigate, to, state);
     window.setTimeout(releaseDetailBackLock, 80);
   };
 

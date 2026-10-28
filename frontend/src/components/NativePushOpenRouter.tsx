@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { analytics } from "../lib/analytics";
 import { parseRetentionPushOpen } from "../lib/retentionPush";
+import { isConversationPath } from "../lib/tabs";
 import { spaHrefTo } from "../lib/spaHref";
 import {
   consumePendingPushOpenLink,
@@ -29,7 +30,11 @@ export function NativePushOpenRouter() {
           post_id: retention.postId,
         });
       }
-      navigate(spaHrefTo(path));
+      const dest = spaHrefTo(path);
+      navigate(
+        dest,
+        isConversationPath(dest.pathname) ? { replace: true } : undefined
+      );
     };
 
     go(consumePendingPushOpenLink());

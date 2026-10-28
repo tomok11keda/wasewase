@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { SfIcon } from "../../components/SfIcon";
 import { SkeletonBone, SkeletonCircle } from "../../components/skeleton";
 import { requestStackHeaderBack } from "../../lib/detailTransition";
-import { isMessageStackPath } from "../../lib/messageStack";
 
 type Props = {
   backTo: string;
@@ -37,7 +36,6 @@ export function ChatRoomHeader({
 }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
-  const stackBack = isMessageStackPath(location.pathname);
   const initial = (avatarInitial || title || "?").slice(0, 1);
   const showDetails = Boolean(detailsTo) && !pending;
   const avatar = pending && !avatarUrl && !avatarInitial ? (
@@ -79,10 +77,9 @@ export function ChatRoomHeader({
   );
 
   const onStackBack = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (!stackBack) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    requestStackHeaderBack(navigate, backTo);
+    requestStackHeaderBack(navigate, backTo, location.state);
   };
 
   return (

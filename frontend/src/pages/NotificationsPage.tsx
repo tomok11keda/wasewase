@@ -12,6 +12,7 @@ import {
   writeNotificationsCacheForUser,
 } from "../features/notifications/notificationsCache";
 import { spaLoginPath } from "../features/auth/api";
+import { useConversationBackState } from "../lib/conversationBack";
 import { spaHrefTo } from "../lib/spaHref";
 import {
   isLatestRequest,
@@ -37,6 +38,9 @@ function isAuthLostError(err: unknown): boolean {
 }
 
 function NotificationRow({ item }: { item: NotificationItem }) {
+  const conversationBackState = useConversationBackState({
+    fromWaseWase: true,
+  });
   const body = (
     <>
       <p className="notification-message">{item.message}</p>
@@ -48,7 +52,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     return (
       <Link
         to={spaHrefTo(item.spa_path)}
-        state={{ fromWaseWase: true }}
+        state={conversationBackState}
         onClick={() => analytics.notificationOpened()}
       >
         {body}
@@ -61,7 +65,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     return (
       <Link
         to={spaHrefTo(raw)}
-        state={{ fromWaseWase: true }}
+        state={conversationBackState}
         onClick={() => analytics.notificationOpened()}
       >
         {body}

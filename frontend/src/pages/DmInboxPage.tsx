@@ -11,6 +11,7 @@ import {
 } from "../features/dm/inboxCache";
 import { inboxSpaHref } from "../features/orgs/recruitingChat";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
+import { useConversationBackState } from "../lib/conversationBack";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 
 const TABS = [
@@ -102,6 +103,7 @@ function InboxSkeleton() {
 export function DmInboxPage() {
   const { me, loading: sessionLoading } = useSession();
   const navigate = useNavigate();
+  const conversationBackState = useConversationBackState();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") || "all";
   const userId = me?.authenticated ? me.user?.id ?? null : null;
@@ -260,6 +262,7 @@ export function DmInboxPage() {
                       : ""
                   }`}
                   to={inboxSpaHref(item.spa_path)}
+                  state={conversationBackState}
                 >
                   <span
                     className={`dm-inbox-avatar${
