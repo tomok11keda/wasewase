@@ -641,9 +641,7 @@
   resize: vertical;
 }
 
-.org-event-form input[type="datetime-local"],
-.org-event-form input[type="date"],
-.org-event-form input[type="time"] {
+.org-event-form input[type="datetime-local"] {
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -676,29 +674,203 @@
   font-weight: 700;
 }
 
-.tokyo-datetime__fields {
+.tokyo-datetime__trigger {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: #fff;
+  color: #0f1419;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tokyo-datetime__clear {
+  display: inline-flex;
+  margin: 6px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #891e2b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tokyo-datetime-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.tokyo-datetime-picker__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.tokyo-datetime-picker__panel {
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  max-width: 100%;
+  padding: 16px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  background: #fff;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.tokyo-datetime-picker__title {
+  margin: 0 4px 12px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.tokyo-wheel {
+  --tokyo-wheel-item: 36px;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1.3fr) repeat(4, minmax(0, 1fr));
+  gap: 2px;
   min-width: 0;
   width: 100%;
+  touch-action: pan-y;
 }
 
-.tokyo-datetime__field {
+.tokyo-wheel-col {
   min-width: 0;
 }
 
-.tokyo-datetime__field label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
-  font-weight: 700;
+.tokyo-wheel-col__unit {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   color: #536471;
+  text-align: center;
 }
 
-@media (max-width: 359px) {
-  .tokyo-datetime__fields {
-    grid-template-columns: minmax(0, 1fr);
+.tokyo-wheel-col__viewport {
+  position: relative;
+  height: calc(var(--tokyo-wheel-item) * 5);
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 18%,
+    #000 82%,
+    transparent
+  );
+}
+
+.tokyo-wheel-col__highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--tokyo-wheel-item) * 2);
+  z-index: 1;
+  height: var(--tokyo-wheel-item);
+  border-top: 1px solid #ead6db;
+  border-bottom: 1px solid #ead6db;
+  background: #f7edf0;
+  pointer-events: none;
+}
+
+.tokyo-wheel-col__scroller {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tokyo-wheel-col__scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.tokyo-wheel-col__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font: inherit;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+
+.tokyo-wheel-col__item.is-selected {
+  position: relative;
+  z-index: 2;
+  color: #0f1419;
+  font-weight: 800;
+}
+
+.tokyo-datetime-picker__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.tokyo-datetime-picker__cancel,
+.tokyo-datetime-picker__confirm {
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tokyo-datetime-picker__cancel {
+  background: #eff3f4;
+  color: #0f1419;
+}
+
+.tokyo-datetime-picker__confirm {
+  background: #891e2b;
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .tokyo-datetime-picker {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .tokyo-datetime-picker__panel {
+    border-radius: 16px;
+    padding-bottom: 16px;
   }
 }
 

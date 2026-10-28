@@ -9,12 +9,14 @@ const css = readFileSync(
   "utf8"
 );
 
-test("date and time fields share the event form width rules", () => {
-  assert.equal(css.includes('.org-event-form input[type="date"]'), true);
-  assert.equal(css.includes('.org-event-form input[type="time"]'), true);
-  assert.equal(css.includes(".tokyo-datetime__fields"), true);
+test("datetime picker keeps five Japanese wheel columns on a narrow sheet", () => {
+  assert.equal(css.includes(".tokyo-datetime__trigger"), true);
+  assert.equal(css.includes(".tokyo-wheel"), true);
+  assert.equal(css.includes("overscroll-behavior: contain"), true);
   assert.match(
     css,
-    /\.tokyo-datetime__fields\s*\{[^}]*grid-template-columns: minmax\(0, 1\.25fr\) minmax\(0, 1fr\)/
+    /\.tokyo-wheel\s*\{[^}]*grid-template-columns: minmax\(0, 1\.3fr\) repeat\(4, minmax\(0, 1fr\)\)/
   );
+  assert.equal(css.includes('input[type="date"]'), false);
+  assert.equal(css.includes('input[type="time"]'), false);
 });

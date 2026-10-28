@@ -9,9 +9,16 @@ const source = readFileSync(
   "utf8"
 );
 
-test("shared event datetime component uses native date and time inputs", () => {
-  assert.equal(source.includes('type="date"'), true);
-  assert.equal(source.includes('type="time"'), true);
+test("shared event datetime component uses a Japanese wheel picker", () => {
+  assert.equal(source.includes('type="date"'), false);
+  assert.equal(source.includes('type="time"'), false);
   assert.equal(source.includes("datetime-local"), false);
-  assert.equal(source.includes("tokyoTimeInputStep"), true);
+  assert.equal(source.includes('unit="年"'), true);
+  assert.equal(source.includes('unit="月"'), true);
+  assert.equal(source.includes('unit="日"'), true);
+  assert.equal(source.includes('unit="時"'), true);
+  assert.equal(source.includes('unit="分"'), true);
+  assert.equal(source.includes("決定"), true);
+  assert.equal(source.includes("キャンセル"), true);
+  assert.equal(source.includes("createPortal"), true);
 });

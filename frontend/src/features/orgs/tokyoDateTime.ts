@@ -98,6 +98,79 @@ export function suggestedEndFromStart(args: {
   return addTokyoHours(args.start, 2) || args.end;
 }
 
+export type TokyoDateTimeWheels = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+export function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+export function daysInMonth(year: number, month: number): number {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return 0;
+  }
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+export function clampDay(year: number, month: number, day: number): number {
+  const max = daysInMonth(year, month);
+  if (!max) return 1;
+  if (!Number.isInteger(day) || day < 1) return 1;
+  return Math.min(day, max);
+}
+
+export function formatTokyoDateTimeLabel(value: string): string {
+  const { date, time } = splitTokyoDateTime(value);
+  if (!date || !time) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return `${year}年${month}月${day}日 ${time}`;
+}
+
+export function wheelsToTokyoInput(wheels: TokyoDateTimeWheels): string {
+  const day = clampDay(wheels.year, wheels.month, wheels.day);
+  return joinTokyoDateTime(
+    `${wheels.year}-${pad2(wheels.month)}-${pad2(day)}`,
+    `${pad2(wheels.hour)}:${pad2(wheels.minute)}`
+  );
+}
+
+export function tokyoDateTimeToWheels(
+  value: string,
+  now: Date = new Date()
+): TokyoDateTimeWheels {
+  const source = isCompleteTokyoDateTime(value)
+    ? value
+    : isoToTokyoInput(now.toISOString());
+  const { date, time } = splitTokyoDateTime(source);
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return {
+    year: year || 2026,
+    month: month || 1,
+    day: clampDay(year || 2026, month || 1, day || 1),
+    hour: Number.isInteger(hour) ? hour : 0,
+    minute: Number.isInteger(minute) ? minute : 0,
+  };
+}
+
+export function tokyoYearOptions(
+  selectedYear: number,
+  now: Date = new Date()
+): number[] {
+  const current = tokyoDateTimeToWheels("", now).year;
+  const min = Math.min(selectedYear, current - 1);
+  const max = Math.max(selectedYear, current + 3);
+  const years: number[] = [];
+  for (let year = min; year <= max; year += 1) years.push(year);
+  return years;
+}
+
 export function tokyoDateTimeOrderError(
   start: string,
   end: string,

@@ -2,13 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addTokyoHours,
+  clampDay,
+  daysInMonth,
+  formatTokyoDateTimeLabel,
   isoToTokyoInput,
   joinTokyoDateTime,
   splitTokyoDateTime,
   suggestedEndFromStart,
   tokyoDateTimeOrderError,
+  tokyoDateTimeToWheels,
   tokyoInputToIso,
   tokyoTimeInputStep,
+  wheelsToTokyoInput,
 } from "./tokyoDateTime.ts";
 
 test("ISO values round-trip as Tokyo wall time, not the browser offset", () => {
@@ -78,6 +83,62 @@ test("empty end times are filled with start plus two Tokyo hours", () => {
     }),
     ""
   );
+});
+
+test("labels stay Japanese and preserve odd minutes like 18:07", () => {
+  assert.equal(
+    formatTokyoDateTimeLabel("2026-10-28T14:30"),
+    "2026年10月28日 14:30"
+  );
+  assert.equal(formatTokyoDateTimeLabel("2026-04-10T18:07"), "2026年4月10日 18:07");
+  assert.equal(formatTokyoDateTimeLabel(""), "");
+  assert.equal(
+    wheelsToTokyoInput({
+      year: 2026,
+      month: 4,
+      day: 10,
+      hour: 18,
+      minute: 7,
+    }),
+    "2026-04-10T18:07"
+  );
+});
+
+test("month length and leap years clamp the day wheel", () => {
+  assert.equal(daysInMonth(2024, 2), 29);
+  assert.equal(daysInMonth(2025, 2), 28);
+  assert.equal(daysInMonth(2026, 4), 30);
+  assert.equal(daysInMonth(2026, 1), 31);
+  assert.equal(clampDay(2026, 2, 31), 28);
+  assert.equal(clampDay(2024, 2, 31), 29);
+  assert.equal(
+    wheelsToTokyoInput({
+      year: 2026,
+      month: 2,
+      day: 31,
+      hour: 10,
+      minute: 0,
+    }),
+    "2026-02-28T10:00"
+  );
+});
+
+test("empty picker drafts the current Tokyo wall clock without writing it", () => {
+  const now = new Date("2026-04-10T09:07:00.000Z");
+  assert.deepEqual(tokyoDateTimeToWheels("", now), {
+    year: 2026,
+    month: 4,
+    day: 10,
+    hour: 18,
+    minute: 7,
+  });
+  assert.deepEqual(tokyoDateTimeToWheels("2026-10-28T14:30", now), {
+    year: 2026,
+    month: 10,
+    day: 28,
+    hour: 14,
+    minute: 30,
+  });
 });
 
 test("end must be after start when both values are complete", () => {
