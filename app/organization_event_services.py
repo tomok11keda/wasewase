@@ -767,6 +767,11 @@ def delete_organization_event(
         locked.save(
             update_fields=["status", "registration_open", "deleted_at", "updated_at"]
         )
+        from .organization_event_timeline_services import (
+            unlist_organization_event_timeline_shares,
+        )
+
+        unlist_organization_event_timeline_shares(locked.pk)
         event_id = locked.pk
     if notify_ids:
         _run_after_commit(

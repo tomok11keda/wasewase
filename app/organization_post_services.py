@@ -72,8 +72,32 @@ def organization_post_is_explicitly_public(post: TimelinePost | None) -> bool:
     )
 
 
+def hidden_organization_event_share_q() -> Q:
+    """非公開・削除イベントの共有投稿。中止イベントは残す。"""
+    from .models import OrganizationEvent
+
+    return Q(shared_organization_event_id__isnull=False) & (
+        Q(shared_organization_event__deleted_at__isnull=False)
+        | Q(shared_organization_event__status=OrganizationEvent.Status.DRAFT)
+    )
+
+
+def organization_event_share_is_publicly_listed(post: TimelinePost | None) -> bool:
+    event_id = getattr(post, "shared_organization_event_id", None) if post else None
+    if not event_id:
+        return True
+    event = getattr(post, "shared_organization_event", None)
+    if event is None or getattr(event, "deleted_at", None) is not None:
+        return False
+    from .models import OrganizationEvent
+
+    return event.status != OrganizationEvent.Status.DRAFT
+
+
 def organization_post_is_publicly_listed(post: TimelinePost | None) -> bool:
     if not organization_post_is_explicitly_public(post):
+        return False
+    if not organization_event_share_is_publicly_listed(post):
         return False
     return organization_posts_are_publicly_listable(_post_organization(post))
 
@@ -90,7 +114,9 @@ def public_organization_post_q() -> Q:
 
 def filter_public_organization_posts(qs: QuerySet[TimelinePost]) -> QuerySet[TimelinePost]:
     """公開フィード用。既存 unlisted と下書き、draft/unlisted/suspended 団体は出さない。"""
-    return qs.filter(Q(organization_id__isnull=True) | public_organization_post_q())
+    return qs.filter(
+        Q(organization_id__isnull=True) | public_organization_post_q()
+    ).exclude(hidden_organization_event_share_q())
 
 
 def viewer_may_access_unpublished_organization_post(
@@ -325,9 +351,11 @@ def build_organization_posts_payload(
         .filter(organization=organization, is_removed=False)
         .order_by("-created_at")
     )
-    public_count = queryset.filter(
-        organization_visibility=ORG_POST_VISIBILITY_PUBLIC
-    ).count()
+    public_count = (
+        queryset.filter(organization_visibility=ORG_POST_VISIBILITY_PUBLIC)
+        .exclude(hidden_organization_event_share_q())
+        .count()
+    )
     unpublished_count = queryset.filter(
         organization_visibility__in=[
             ORG_POST_VISIBILITY_DRAFT,
@@ -344,7 +372,7 @@ def build_organization_posts_payload(
     else:
         queryset = queryset.filter(
             organization_visibility=ORG_POST_VISIBILITY_PUBLIC
-        )
+        ).exclude(hidden_organization_event_share_q())
     total = queryset.count()
     page = list(queryset[start : start + page_size])
     prepared = prepare_timeline_posts(page, viewer)

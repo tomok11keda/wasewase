@@ -259,6 +259,11 @@ export function chatEventBackPath(slug: string, chatId?: number | null): string 
   return chatId ? `${base}?chat=${chatId}` : base;
 }
 
+/** Invalid or unauthorized chat-event URLs must not guess another chat. */
+export function chatEventSafeFallbackPath(slug: string): string {
+  return `/orgs/${slug}`;
+}
+
 export function chatEventAnswerLabel(answer: ChatEventAnswer | null): string {
   if (answer === "going") return "参加";
   if (answer === "not_going") return "不参加";

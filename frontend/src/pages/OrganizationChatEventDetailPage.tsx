@@ -6,6 +6,7 @@ import { OrganizationRequestError } from "../features/orgs/api";
 import {
   chatEventAnswerLabel,
   chatEventBackPath,
+  chatEventSafeFallbackPath,
   chatEventStatusLabel,
   recruitingChatEventEditPath,
   recruitingChatEventNewPath,
@@ -83,8 +84,11 @@ export function OrganizationChatEventDetailPage() {
     void load();
   }, [browsePreview, load, sessionLoading, sessionUserId]);
 
-  if (!slug || !Number.isInteger(eventId) || eventId <= 0 || chatId == null) {
+  if (!slug) {
     return <Navigate to="/" replace />;
+  }
+  if (!Number.isInteger(eventId) || eventId <= 0 || chatId == null) {
+    return <Navigate to={chatEventSafeFallbackPath(slug)} replace />;
   }
 
   const loginNext = `/app/organizations/${slug}/recruiting-chat/events/${eventId}?chat=${chatId}`;
@@ -125,6 +129,8 @@ export function OrganizationChatEventDetailPage() {
       <div className="main-inner">
         {loading || sessionLoading ? (
           <ListRowSkeleton rows={6} />
+        ) : error === "not_found" || error === "forbidden" ? (
+          <Navigate to={chatEventSafeFallbackPath(slug)} replace />
         ) : error || !event ? (
           <p>このチャット内イベントを表示する権限がありません。</p>
         ) : (

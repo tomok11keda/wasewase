@@ -5,6 +5,7 @@ import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import {
   chatEventBackPath,
+  chatEventSafeFallbackPath,
   chatEventStatusLabel,
   recruitingChatEventNewPath,
   recruitingChatEventPath,
@@ -72,8 +73,11 @@ export function OrganizationChatEventListPage() {
     void load();
   }, [browsePreview, load, sessionLoading, sessionUserId]);
 
-  if (!slug || chatId == null) {
+  if (!slug) {
     return <Navigate to="/" replace />;
+  }
+  if (chatId == null) {
+    return <Navigate to={chatEventSafeFallbackPath(slug)} replace />;
   }
 
   const loginNext = `/app/organizations/${slug}/recruiting-chat/events?chat=${chatId}`;
@@ -97,6 +101,8 @@ export function OrganizationChatEventListPage() {
         <h1>チャット内イベント</h1>
         {loading || sessionLoading ? (
           <ListRowSkeleton rows={4} />
+        ) : error === "not_found" || error === "forbidden" ? (
+          <Navigate to={chatEventSafeFallbackPath(slug)} replace />
         ) : error ? (
           <p>このチャットのイベントを表示できません。</p>
         ) : (

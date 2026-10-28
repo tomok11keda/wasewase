@@ -4,6 +4,7 @@ import { FormSkeleton } from "../components/skeleton";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
 import {
+  chatEventSafeFallbackPath,
   emptyChatEventForm,
   recruitingChatEventPath,
   recruitingChatEventsPath,
@@ -92,8 +93,11 @@ export function OrganizationChatEventFormPage() {
     void load();
   }, [browsePreview, load, sessionLoading, sessionUserId]);
 
-  if (!slug || chatId == null) {
+  if (!slug) {
     return <Navigate to="/" replace />;
+  }
+  if (chatId == null) {
+    return <Navigate to={chatEventSafeFallbackPath(slug)} replace />;
   }
 
   const loginNext = `/app/organizations/${slug}/recruiting-chat/events/new?chat=${chatId}`;
@@ -157,7 +161,7 @@ export function OrganizationChatEventFormPage() {
         {loading || sessionLoading ? (
           <FormSkeleton />
         ) : error === "forbidden" || error === "not_found" ? (
-          <p>このイベントを編集する権限がありません。</p>
+          <Navigate to={chatEventSafeFallbackPath(slug)} replace />
         ) : (
           <>
             <p className="org-event-kicker">チャット内イベント · 公開されません</p>

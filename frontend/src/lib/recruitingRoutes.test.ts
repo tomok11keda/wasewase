@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchChromeMode, matchDetailChrome } from "./chrome.ts";
+import { matchChromeMode, matchDetailChrome, resolveDetailBack } from "./chrome.ts";
 import { isConversationPath } from "./tabs.ts";
 
 test("recruiting chat room uses conversation chrome so the composer can use the keyboard", () => {
@@ -89,8 +89,29 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
     "チャット内イベント"
   );
   assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events", "?chat=9")
+      ?.back.to,
+    "/organizations/circle/recruiting-chat?chat=9"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events", "?chat=9")
+      ?.back.kind,
+    "history-or-fallback"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events")?.back.to,
+    "/orgs/circle"
+  );
+  assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/events/4")?.title,
     "チャット内イベント"
+  );
+  assert.equal(
+    matchDetailChrome(
+      "/organizations/circle/recruiting-chat/events/4",
+      "?chat=9"
+    )?.back.to,
+    "/organizations/circle/recruiting-chat/events?chat=9"
   );
   assert.equal(
     isConversationPath("/organizations/circle/recruiting-chat/events/4/edit"),
@@ -101,6 +122,41 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
       ?.title,
     "チャット内イベントを編集"
   );
+  assert.equal(
+    matchDetailChrome(
+      "/organizations/circle/recruiting-chat/events/4/edit",
+      "?chat=9"
+    )?.back.to,
+    "/organizations/circle/recruiting-chat/events/4?chat=9"
+  );
+  assert.equal(
+    matchDetailChrome(
+      "/organizations/circle/recruiting-chat/events/new",
+      "?chat=9"
+    )?.back.to,
+    "/organizations/circle/recruiting-chat/events?chat=9"
+  );
+  const listBack = resolveDetailBack(
+    "/organizations/circle/recruiting-chat/events",
+    undefined,
+    "?chat=9"
+  );
+  if (listBack.mode === "path") {
+    assert.equal(listBack.to, "/organizations/circle/recruiting-chat?chat=9");
+    assert.equal(listBack.replace, true);
+  } else {
+    assert.equal(listBack.mode, "history");
+  }
+  const otherChatBack = resolveDetailBack(
+    "/organizations/circle/recruiting-chat/events",
+    undefined,
+    "?chat=12"
+  );
+  if (otherChatBack.mode === "path") {
+    assert.equal(otherChatBack.to, "/organizations/circle/recruiting-chat?chat=12");
+  } else {
+    assert.equal(otherChatBack.mode, "history");
+  }
   assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/info")?.title,
     "チャット詳細"

@@ -10,12 +10,17 @@ type Props = {
 export function AppDetailHeader({ right }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
-  const chrome = matchDetailChrome(location.pathname);
+  const chrome = matchDetailChrome(location.pathname, location.search);
   const title = chrome?.title || "わせわせ";
 
   const onBack = useCallback(() => {
-    requestDetailHeaderBack(navigate, location.pathname, location.state);
-  }, [location.pathname, location.state, navigate]);
+    requestDetailHeaderBack(
+      navigate,
+      location.pathname,
+      location.state,
+      location.search
+    );
+  }, [location.pathname, location.search, location.state, navigate]);
 
   return (
     <header className="site-header site-header--detail">

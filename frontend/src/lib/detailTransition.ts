@@ -127,9 +127,10 @@ export function prefersReducedMotion(): boolean {
 export function executeDetailBack(
   navigate: NavigateFunction,
   pathname: string,
-  state: unknown
+  state: unknown,
+  search = ""
 ): void {
-  const dest = resolveDetailBack(pathname, state);
+  const dest = resolveDetailBack(pathname, state, search);
   if (dest.mode === "history") {
     navigate(-1);
     return;
@@ -183,12 +184,13 @@ function releaseDetailBackLock(): void {
 export function requestDetailHeaderBack(
   navigate: NavigateFunction,
   pathname: string,
-  state: unknown
+  state: unknown,
+  search = ""
 ): void {
   if (!allowUnsavedNavigation()) return;
   if (detailBackInFlight) return;
   if (matchChromeMode(pathname) !== "detail") {
-    executeDetailBack(navigate, pathname, state);
+    executeDetailBack(navigate, pathname, state, search);
     return;
   }
 
@@ -198,7 +200,7 @@ export function requestDetailHeaderBack(
   const go = () => {
     if (navigated) return;
     navigated = true;
-    executeDetailBack(navigate, pathname, state);
+    executeDetailBack(navigate, pathname, state, search);
     window.setTimeout(releaseDetailBackLock, 80);
   };
 

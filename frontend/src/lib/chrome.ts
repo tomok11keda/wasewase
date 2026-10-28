@@ -35,7 +35,29 @@ function fromWaseWaseState(state: unknown): boolean {
   return Boolean((state as { fromWaseWase?: unknown }).fromWaseWase);
 }
 
-export function matchDetailChrome(pathname: string): DetailChrome | null {
+function recruitingChatQuery(search: string): string {
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  const raw = params.get("chat") || params.get("chat_id") || "";
+  const chatId = Number(raw);
+  return Number.isInteger(chatId) && chatId > 0 ? `?chat=${chatId}` : "";
+}
+
+function withRecruitingChatQuery(path: string, search: string): string {
+  return `${path}${recruitingChatQuery(search)}`;
+}
+
+function recruitingChatSafeBack(orgSlug: string, search: string): string {
+  const query = recruitingChatQuery(search);
+  if (query) return `/organizations/${orgSlug}/recruiting-chat${query}`;
+  return `/orgs/${orgSlug}`;
+}
+
+export function matchDetailChrome(
+  pathname: string,
+  search = ""
+): DetailChrome | null {
   if (matchChromeMode(pathname) !== "detail") return null;
   const p = normalizeSpaPath(pathname);
 
@@ -143,8 +165,11 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
     return {
       title: "チャット内イベント",
       back: {
-        kind: "fallback",
-        to: `/organizations/${orgSlug}/recruiting-chat/events`,
+        kind: "history-or-fallback",
+        to: withRecruitingChatQuery(
+          `/organizations/${orgSlug}/recruiting-chat/events`,
+          search
+        ),
       },
     };
   }
@@ -154,8 +179,11 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
     return {
       title: "チャット内イベントを編集",
       back: {
-        kind: "fallback",
-        to: `/organizations/${orgSlug}/recruiting-chat/events/${eventId}`,
+        kind: "history-or-fallback",
+        to: withRecruitingChatQuery(
+          `/organizations/${orgSlug}/recruiting-chat/events/${eventId}`,
+          search
+        ),
       },
     };
   }
@@ -164,8 +192,11 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
     return {
       title: "チャット内イベント",
       back: {
-        kind: "fallback",
-        to: `/organizations/${orgSlug}/recruiting-chat/events`,
+        kind: "history-or-fallback",
+        to: withRecruitingChatQuery(
+          `/organizations/${orgSlug}/recruiting-chat/events`,
+          search
+        ),
       },
     };
   }
@@ -174,8 +205,8 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
     return {
       title: "チャット内イベント",
       back: {
-        kind: "fallback",
-        to: `/organizations/${orgSlug}/recruiting-chat`,
+        kind: "history-or-fallback",
+        to: recruitingChatSafeBack(orgSlug, search),
       },
     };
   }
@@ -314,9 +345,10 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
 /** Preserve existing back semantics; only the chrome host changes. */
 export function resolveDetailBack(
   pathname: string,
-  state?: unknown
+  state?: unknown,
+  search = ""
 ): DetailBackTarget {
-  const chrome = matchDetailChrome(pathname);
+  const chrome = matchDetailChrome(pathname, search);
   if (!chrome) {
     return { mode: "path", to: "/", replace: true };
   }
@@ -328,7 +360,7 @@ export function resolveDetailBack(
     if (typeof window !== "undefined" && window.history.length > 1) {
       return { mode: "history" };
     }
-    return { mode: "path", to: chrome.back.to };
+    return { mode: "path", to: chrome.back.to, replace: true };
   }
   return { mode: "path", to: chrome.back.to };
 }

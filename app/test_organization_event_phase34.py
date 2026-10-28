@@ -203,9 +203,24 @@ class OrganizationEventPhase34Tests(TestCase):
 
         unpublished = self._json("post", self._url(f"{event_id}/unpublish/"))
         self.assertEqual(unpublished.status_code, 200, unpublished.content)
-        hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
-        self.assertIsNone(hidden.json()["post"]["shared_organization_event"])
+        owner_hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(owner_hidden.status_code, 200, owner_hidden.content)
+        self.assertIsNone(owner_hidden.json()["post"]["shared_organization_event"])
+        self.client.force_login(self.student)
+        student_hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(student_hidden.status_code, 404)
+        feed = self.client.get("/api/v1/timeline/")
+        self.assertEqual(feed.status_code, 200)
+        self.assertFalse(any(row["id"] == post_id for row in feed.json()["posts"]))
+        org_posts = self.client.get(f"/api/v1/organizations/{self.org.slug}/posts/")
+        self.assertFalse(any(row["id"] == post_id for row in org_posts.json()["posts"]))
+        search = self.client.get("/api/v1/search/", {"q": "新歓に来てね", "tab": "all"})
+        self.assertEqual(search.status_code, 200)
+        self.assertNotIn(
+            post_id, [item["id"] for item in search.json().get("posts") or []]
+        )
 
+        self.client.force_login(self.owner)
         draft_share = self._json("post", self._url(f"{event_id}/timeline-share/"))
         self.assertEqual(draft_share.status_code, 409)
         self.assertEqual(draft_share.json()["error"], "not_published")
@@ -222,8 +237,53 @@ class OrganizationEventPhase34Tests(TestCase):
         post_id = first.json()["post_id"]
         deleted = self._json("post", self._url(f"{event_id}/delete/"))
         self.assertEqual(deleted.status_code, 200, deleted.content)
-        hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
-        self.assertEqual(hidden.status_code, 200, hidden.content)
-        self.assertIsNone(hidden.json()["post"]["shared_organization_event"])
+        post = TimelinePost.objects.get(pk=post_id)
+        self.assertEqual(
+            post.organization_visibility, TimelinePost.OrganizationVisibility.DRAFT
+        )
+        owner_hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(owner_hidden.status_code, 200, owner_hidden.content)
+        self.assertIsNone(owner_hidden.json()["post"]["shared_organization_event"])
+        self.client.force_login(self.student)
+        student_hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(student_hidden.status_code, 404)
+        TimelinePost.objects.filter(pk=post_id).update(shared_organization_event=None)
+        still_hidden = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(still_hidden.status_code, 404)
+        self.client.force_login(self.owner)
         share_again = self._json("post", self._url(f"{event_id}/timeline-share/"))
         self.assertEqual(share_again.status_code, 404)
+
+    def test_cancelled_share_stays_listed_and_regular_posts_remain(self):
+        event_id = self._create_published(title="中止するイベント")
+        self.client.force_login(self.owner)
+        shared = self._json(
+            "post",
+            self._url(f"{event_id}/timeline-share/"),
+            body="中止確認シェア",
+        )
+        self.assertEqual(shared.status_code, 201, shared.content)
+        post_id = shared.json()["post_id"]
+        regular = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            organization_visibility=TimelinePost.OrganizationVisibility.PUBLIC,
+            body="通常の団体投稿です",
+        )
+        cancelled = self._json("post", self._url(f"{event_id}/cancel/"))
+        self.assertEqual(cancelled.status_code, 200, cancelled.content)
+
+        self.client.force_login(self.student)
+        detail = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(detail.status_code, 200, detail.content)
+        card = detail.json()["post"]["shared_organization_event"]
+        self.assertEqual(card["title"], "中止するイベント")
+        self.assertEqual(card["status_label"], "中止")
+        feed = self.client.get("/api/v1/timeline/")
+        feed_ids = [row["id"] for row in feed.json()["posts"]]
+        self.assertIn(post_id, feed_ids)
+        self.assertIn(regular.pk, feed_ids)
+        regular_detail = self.client.get(f"/api/v1/timeline/{regular.pk}/")
+        self.assertEqual(regular_detail.status_code, 200)
+        self.assertEqual(regular_detail.json()["post"]["body"], "通常の団体投稿です")
+        self.assertIsNone(regular_detail.json()["post"].get("shared_organization_event"))

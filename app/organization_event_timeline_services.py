@@ -7,6 +7,8 @@ from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import OrganizationEvent, TimelinePost
@@ -22,7 +24,10 @@ from .organization_event_services import (
     organization_allows_event_access,
     serialize_organization_event,
 )
-from .organization_post_services import ORG_POST_VISIBILITY_PUBLIC
+from .organization_post_services import (
+    ORG_POST_VISIBILITY_DRAFT,
+    ORG_POST_VISIBILITY_PUBLIC,
+)
 from .rate_limit_services import allow_timeline_post
 
 EVENT_TIMELINE_SHARE_BODY = "イベントをシェアしました"
@@ -77,6 +82,25 @@ def serialize_shared_organization_event(post: TimelinePost) -> dict[str, Any] | 
         "status_label": status_label,
         "path": f"/organizations/{slug}/events/{event.pk}",
     }
+
+
+def unlist_organization_event_timeline_shares(event_id: int) -> int:
+    """削除後に SET_NULL されても通常投稿として残らないように非公開化する。"""
+    return TimelinePost.objects.filter(
+        shared_organization_event_id=event_id,
+        is_removed=False,
+    ).update(organization_visibility=ORG_POST_VISIBILITY_DRAFT)
+
+
+@receiver(
+    pre_delete,
+    sender=OrganizationEvent,
+    dispatch_uid="wase_organization_event_pre_delete_unlist_shares",
+)
+def _unlist_shares_before_event_row_delete(sender, instance, **kwargs):
+    event_id = getattr(instance, "pk", None)
+    if event_id:
+        unlist_organization_event_timeline_shares(event_id)
 
 
 def share_organization_event_to_timeline(

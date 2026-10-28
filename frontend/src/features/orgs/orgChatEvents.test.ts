@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   chatEventAnswerLabel,
+  chatEventSafeFallbackPath,
   parseOrganizationChatEvent,
   parseOrganizationChatEventShareCard,
   recruitingChatEventPath,
@@ -59,6 +60,7 @@ test("parses chat event RSVP payload without email", () => {
     recruitingChatEventPath("circle", 4, 9),
     "/organizations/circle/recruiting-chat/events/4?chat=9"
   );
+  assert.equal(chatEventSafeFallbackPath("circle"), "/orgs/circle");
 });
 
 test("chat event share cards stay private-path only", () => {
