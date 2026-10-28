@@ -1,3 +1,4 @@
+import { useReducer, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   eventCapacityLabel,
@@ -9,6 +10,11 @@ import {
   viewerLotteryRegistrationLabel,
   type OrganizationEvent,
 } from "./orgEvents";
+import { EventTimelineShareSheet } from "./EventTimelineShareSheet";
+import {
+  initialTimelineShareUi,
+  reduceTimelineShareUi,
+} from "./eventTimelineShareFlow";
 import { OrgChatSharePicker } from "./OrgChatSharePicker";
 import {
   eventDetailAdminActionLabel,
@@ -29,9 +35,7 @@ type Props = {
   shareNote: string | null;
   sharePostPath: string | null;
   shareBusy: boolean;
-  timelineBody: string;
   timelineBusy: boolean;
-  onTimelineBodyChange: (value: string) => void;
   onPublish: () => void;
   onUnpublish: () => void;
   onToggleRegistration: () => void;
@@ -40,7 +44,7 @@ type Props = {
   onDuplicate: () => void;
   onCancelEvent: () => void;
   onDelete: () => void;
-  onTimelineShare: () => void;
+  onTimelineShare: (body: string) => Promise<void>;
   onChatShare: (chatIds: number[]) => void | Promise<void>;
 };
 
@@ -55,9 +59,7 @@ export function OrganizationEventDetailView({
   shareNote,
   sharePostPath,
   shareBusy,
-  timelineBody,
   timelineBusy,
-  onTimelineBodyChange,
   onPublish,
   onUnpublish,
   onToggleRegistration,
@@ -69,6 +71,12 @@ export function OrganizationEventDetailView({
   onTimelineShare,
   onChatShare,
 }: Props) {
+  const [shareUi, dispatchShare] = useReducer(
+    reduceTimelineShareUi,
+    undefined,
+    initialTimelineShareUi
+  );
+  const shareSubmitLockRef = useRef(false);
   const schedule = formatTokyoEventSchedule(event.starts_at, event.ends_at);
   const venue = eventVenueText(event);
   const description = event.description.trim();
@@ -97,7 +105,7 @@ export function OrganizationEventDetailView({
         onDuplicate();
         return;
       case "timeline_share":
-        onTimelineShare();
+        dispatchShare({ type: "tap_open" });
         return;
       case "cancel":
         onCancelEvent();
@@ -138,8 +146,8 @@ export function OrganizationEventDetailView({
     const href = adminHref(action);
     const className = buttonClass(action, variant);
     const disabled =
-      busy ||
-      (action === "timeline_share" && (timelineBusy || busy)) ||
+      (action === "timeline_share" && shareUi.submitting) ||
+      (action !== "timeline_share" && busy) ||
       (action === "registration_toggle" && registrationToggleDisabled);
     if (href) {
       return (
@@ -152,11 +160,26 @@ export function OrganizationEventDetailView({
       <button
         key={action}
         type="button"
-        className={className}
+        className={
+          action === "timeline_share"
+            ? `${className} org-event-timeline-share-open`
+            : className
+        }
+        data-action={action}
+        aria-haspopup={action === "timeline_share" ? "dialog" : undefined}
+        aria-expanded={
+          action === "timeline_share" ? shareUi.composerOpen : undefined
+        }
         disabled={disabled}
         onClick={() => runAdminAction(action)}
       >
-        {action === "timeline_share" && timelineBusy ? "シェア中…" : busy ? "送信中…" : label}
+        {action === "timeline_share" && shareUi.composerOpen
+          ? "紹介文を入力"
+          : action === "timeline_share" && shareUi.submitting
+            ? "シェア中…"
+            : busy
+              ? "送信中…"
+              : label}
       </button>
     );
   };
@@ -316,20 +339,9 @@ export function OrganizationEventDetailView({
             {layout.primary === "publish"
               ? renderAction("publish", "primary")
               : null}
-            {layout.primary === "timeline_share" ? (
-              <div className="org-event-share">
-                <label htmlFor="event-timeline-body">タイムラインにシェア</label>
-                <textarea
-                  id="event-timeline-body"
-                  value={timelineBody}
-                  onChange={(e) => onTimelineBodyChange(e.target.value)}
-                  rows={3}
-                  maxLength={280}
-                  placeholder="紹介文（任意）"
-                />
-                {renderAction("timeline_share", "primary")}
-              </div>
-            ) : null}
+            {layout.primary === "timeline_share"
+              ? renderAction("timeline_share", "primary")
+              : null}
             {layout.secondary.length ? (
               <div
                 className={
@@ -386,6 +398,41 @@ export function OrganizationEventDetailView({
           団体プロフィールへ
         </Link>
       </p>
+      <EventTimelineShareSheet
+        open={shareUi.composerOpen}
+        body={shareUi.body}
+        submitting={shareUi.submitting || timelineBusy}
+        error={shareUi.error || (shareUi.composerOpen ? actionError : null)}
+        onBodyChange={(value) => dispatchShare({ type: "edit", body: value })}
+        onClose={() => dispatchShare({ type: "close" })}
+        onSubmit={() => {
+          if (
+            shareSubmitLockRef.current ||
+            shareUi.submitting ||
+            timelineBusy
+          ) {
+            return;
+          }
+          shareSubmitLockRef.current = true;
+          dispatchShare({ type: "tap_submit" });
+          void onTimelineShare(shareUi.body)
+            .then(() => {
+              dispatchShare({ type: "success" });
+            })
+            .catch((err: unknown) => {
+              dispatchShare({
+                type: "failure",
+                message:
+                  err instanceof Error && err.message
+                    ? err.message
+                    : "タイムラインにシェアできませんでした。",
+              });
+            })
+            .finally(() => {
+              shareSubmitLockRef.current = false;
+            });
+        }}
+      />
     </article>
   );
 }

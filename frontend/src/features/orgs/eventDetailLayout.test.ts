@@ -24,7 +24,7 @@ test("public and draft event details share one information layout", () => {
 
 test("admin CTAs stay grouped by draft published and danger actions", () => {
   assert.equal(presentation.includes("イベントを公開する"), true);
-  assert.equal(view.includes("タイムラインにシェア"), true);
+  assert.equal(presentation.includes("タイムラインにシェア"), true);
   assert.equal(presentation.includes("編集する"), true);
   assert.equal(presentation.includes('return "複製"'), true);
   assert.equal(view.includes("その他の操作"), true);
@@ -37,6 +37,8 @@ test("admin CTAs stay grouped by draft published and danger actions", () => {
   assert.equal(page.includes("deleteOrganizationEvent"), true);
   assert.equal(page.includes("shareOrganizationEventToTimeline"), true);
   assert.equal(page.includes("invalidateTimelineFeed"), true);
+  assert.equal(view.includes("EventTimelineShareSheet"), true);
+  assert.equal(view.includes('type: "tap_open"'), true);
   assert.equal(page.includes("window.confirm"), true);
   assert.equal(view.includes("投稿を見る"), true);
   assert.equal(view.includes("org-event-detail__image"), true);

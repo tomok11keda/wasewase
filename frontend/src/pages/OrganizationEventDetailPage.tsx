@@ -57,7 +57,6 @@ export function OrganizationEventDetailPage() {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [sharePostPath, setSharePostPath] = useState<string | null>(null);
-  const [timelineBody, setTimelineBody] = useState("");
   const [timelineBusy, setTimelineBusy] = useState(false);
 
   useLayoutEffect(() => {
@@ -169,9 +168,7 @@ export function OrganizationEventDetailPage() {
             shareNote={shareNote}
             sharePostPath={sharePostPath}
             shareBusy={shareBusy}
-            timelineBody={timelineBody}
             timelineBusy={timelineBusy}
-            onTimelineBodyChange={setTimelineBody}
             onPublish={() =>
               void run(() => publishOrganizationEvent(slug, event.id))
             }
@@ -229,27 +226,32 @@ export function OrganizationEventDetailPage() {
                 }
               })();
             }}
-            onTimelineShare={() =>
-              void run(async () => {
-                setTimelineBusy(true);
-                setShareNote(null);
-                setSharePostPath(null);
-                try {
-                  const shared = await shareOrganizationEventToTimeline(
-                    slug,
-                    event.id,
-                    timelineBody
-                  );
-                  invalidateTimelineFeed();
-                  setShareNote("タイムラインにシェアしました。");
-                  setSharePostPath(shared.postPath);
-                  setTimelineBody("");
-                  return shared.event || event;
-                } finally {
-                  setTimelineBusy(false);
-                }
-              })
-            }
+            onTimelineShare={async (body) => {
+              setTimelineBusy(true);
+              setShareNote(null);
+              setSharePostPath(null);
+              setActionError(null);
+              try {
+                const shared = await shareOrganizationEventToTimeline(
+                  slug,
+                  event.id,
+                  body
+                );
+                invalidateTimelineFeed();
+                setShareNote("タイムラインにシェアしました。");
+                setSharePostPath(shared.postPath);
+                if (shared.event) setEvent(shared.event);
+              } catch (err) {
+                const message =
+                  err instanceof OrganizationRequestError
+                    ? err.message
+                    : "タイムラインにシェアできませんでした。";
+                setActionError(message);
+                throw err instanceof Error ? err : new Error(message);
+              } finally {
+                setTimelineBusy(false);
+              }
+            }}
             onChatShare={async (chatIds) => {
               setShareBusy(true);
               setShareNote(null);

@@ -1563,6 +1563,82 @@
   resize: vertical;
 }
 
+.org-event-detail .org-event-timeline-share-open {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(137, 30, 43, 0.16);
+  pointer-events: auto;
+}
+
+.org-event-share-modal.compose-modal {
+  z-index: 500;
+  pointer-events: auto;
+}
+
+.org-event-share-modal .compose-modal__panel {
+  pointer-events: auto;
+}
+
+.org-event-share-modal__label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.org-event-share-modal__textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.org-event-share-modal__actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.org-event-share-modal .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.org-event-share-modal .btn-primary {
+  background: #891e2b;
+  color: #fff;
+}
+
+.org-event-share-modal .btn-secondary {
+  background: #fff;
+  color: #0f1419;
+  border-color: #cfd9de;
+}
+
+.org-event-share-modal .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .org-event-more {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
