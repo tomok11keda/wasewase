@@ -37,6 +37,9 @@ import { OrganizationEventFormPage } from "./pages/OrganizationEventFormPage";
 import { OrganizationEventLotteryPage } from "./pages/OrganizationEventLotteryPage";
 import { OrganizationEventManagePage } from "./pages/OrganizationEventManagePage";
 import { OrganizationEventRegistrationsPage } from "./pages/OrganizationEventRegistrationsPage";
+import { OrganizationChatEventDetailPage } from "./pages/OrganizationChatEventDetailPage";
+import { OrganizationChatEventFormPage } from "./pages/OrganizationChatEventFormPage";
+import { OrganizationChatEventListPage } from "./pages/OrganizationChatEventListPage";
 import { OrganizationProfilePage } from "./pages/OrganizationProfilePage";
 import { OrganizationRecruitingChatApplicationsPage } from "./pages/OrganizationRecruitingChatApplicationsPage";
 import { OrganizationRecruitingChatInfoPage } from "./pages/OrganizationRecruitingChatInfoPage";
@@ -75,11 +78,14 @@ import { useSpaNavDiag } from "./lib/spaNavDiag";
 const BASENAME = "/app";
 
 function OrganizationRecruitingAlias() {
-  const { slug, section } = useParams();
-  const suffix = section ? `/${section}` : "";
+  const { slug } = useParams();
+  const { pathname, search } = useLocation();
+  const marker = "/recruiting-chat";
+  const idx = pathname.lastIndexOf(marker);
+  const tail = idx >= 0 ? pathname.slice(idx + marker.length) : "";
   return (
     <Navigate
-      to={`/organizations/${slug || ""}/recruiting-chat${suffix}`}
+      to={`/organizations/${slug || ""}/recruiting-chat${tail}${search}`}
       replace
     />
   );
@@ -173,6 +179,22 @@ function NestedAppRoutes() {
         element={<OrganizationEventAlias />}
       />
       <Route
+        path="organizations/:slug/recruiting-chat/events/new"
+        element={<OrganizationChatEventFormPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/events/:eventId/edit"
+        element={<OrganizationChatEventFormPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/events/:eventId"
+        element={<OrganizationChatEventDetailPage />}
+      />
+      <Route
+        path="organizations/:slug/recruiting-chat/events"
+        element={<OrganizationChatEventListPage />}
+      />
+      <Route
         path="organizations/:slug/recruiting-chat/info"
         element={<OrganizationRecruitingChatInfoPage />}
       />
@@ -199,6 +221,18 @@ function NestedAppRoutes() {
       <Route
         path="organizations/:slug/recruiting-chat"
         element={<OrganizationRecruitingChatPage />}
+      />
+      <Route
+        path="orgs/:slug/recruiting-chat/events/new"
+        element={<OrganizationRecruitingAlias />}
+      />
+      <Route
+        path="orgs/:slug/recruiting-chat/events/:eventId/edit"
+        element={<OrganizationRecruitingAlias />}
+      />
+      <Route
+        path="orgs/:slug/recruiting-chat/events/:eventId"
+        element={<OrganizationRecruitingAlias />}
       />
       <Route
         path="orgs/:slug/recruiting-chat/:section"

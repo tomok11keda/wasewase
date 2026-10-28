@@ -77,6 +77,31 @@ test("recruiting admin pages stay on detail chrome and do not reuse the message 
     false
   );
   assert.equal(
+    isConversationPath("/organizations/circle/recruiting-chat/events"),
+    false
+  );
+  assert.equal(
+    isConversationPath("/organizations/circle/recruiting-chat/events/4"),
+    false
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events")?.title,
+    "チャット内イベント"
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events/4")?.title,
+    "チャット内イベント"
+  );
+  assert.equal(
+    isConversationPath("/organizations/circle/recruiting-chat/events/4/edit"),
+    false
+  );
+  assert.equal(
+    matchDetailChrome("/organizations/circle/recruiting-chat/events/4/edit")
+      ?.title,
+    "チャット内イベントを編集"
+  );
+  assert.equal(
     matchDetailChrome("/organizations/circle/recruiting-chat/info")?.title,
     "チャット詳細"
   );

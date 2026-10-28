@@ -714,6 +714,51 @@
   }
 }
 
+.org-event-signup-mode {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+}
+
+.org-event-signup-mode legend {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.org-chat-event-rsvp {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.org-chat-event-rsvp .btn {
+  min-height: 44px;
+  min-width: 0;
+}
+
+.org-event-counts {
+  margin: 12px 0;
+  font-size: 14px;
+  color: #536471;
+}
+
+.share-card__meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #891e2b;
+}
+
+.timeline-org-event-share,
+.share-card--chat-event {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .org-event-privacy {
   margin: 12px 0 0;
   font-size: 12px;

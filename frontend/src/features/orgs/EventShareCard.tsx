@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import {
+  formatTokyoDateTime,
   parseOrganizationEventShareCard,
   type OrganizationEventShareCard,
 } from "./orgEvents";
@@ -27,10 +28,13 @@ export function EventShareCard({
       <p className="share-card__brand">イベント</p>
       <p className="share-card__title">{content.title || "イベント"}</p>
       {content.starts_at ? (
-        <p className="share-card__body">{content.starts_at}</p>
+        <p className="share-card__body">{formatTokyoDateTime(content.starts_at)}</p>
       ) : null}
       {content.venue_name ? (
         <p className="share-card__body">{content.venue_name}</p>
+      ) : null}
+      {content.status_label ? (
+        <p className="share-card__meta">{content.status_label}</p>
       ) : null}
       <span className="share-card__cta">イベントを見る</span>
     </Link>

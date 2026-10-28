@@ -26,6 +26,7 @@ import {
 } from "./organizationPostVisibility";
 import { ImageLightbox } from "./ImageLightbox";
 import { TimelineFleaShareCard } from "./TimelineFleaShareCard";
+import { TimelineOrgEventShareCard } from "./TimelineOrgEventShareCard";
 import { LikerListModal } from "./LikerListModal";
 import { ShareActionSheet } from "../../components/ShareActionSheet";
 import { timelineSharePayload } from "../../lib/share";
@@ -814,6 +815,10 @@ export function TimelinePostCard({
 
           {post.shared_product ? (
             <TimelineFleaShareCard product={post.shared_product} />
+          ) : null}
+
+          {post.shared_organization_event ? (
+            <TimelineOrgEventShareCard event={post.shared_organization_event} />
           ) : null}
 
           {post.image_url ? (

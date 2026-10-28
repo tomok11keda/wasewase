@@ -74,6 +74,8 @@ test("parses event list and rejects email on registrants", () => {
   assert.ok(parsed);
   assert.equal(parsed?.title, "新歓説明会");
   assert.equal(parsed?.can_register, true);
+  assert.equal(parsed?.signup_mode, "registration");
+  assert.equal(parsed?.can_share_to_timeline, false);
   const list = parseOrganizationEventListPayload({
     ok: true,
     events: [published],
@@ -426,4 +428,27 @@ test("lottery setup defaults everyone eligible and validates notes", () => {
   });
   assert.equal(viewerLotteryRegistrationLabel(declined!), "参加辞退");
   assert.equal(eventStatusLabel(declined!), "当選");
+});
+
+test("announcement events parse as 告知のみ and skip deadline validation", () => {
+  const parsed = parseOrganizationEvent({
+    ...published,
+    signup_mode: "announcement",
+    can_register: false,
+    registration_open: false,
+  });
+  assert.equal(parsed?.signup_mode, "announcement");
+  assert.equal(eventStatusLabel(parsed!), "告知のみ");
+  const form = {
+    ...emptyEventForm(),
+    title: "早稲田祭屋台",
+    venue_name: "キャンパス",
+    starts_at: "2026-11-01T10:00",
+    ends_at: "2026-11-01T16:00",
+    signup_mode: "announcement" as const,
+  };
+  assert.deepEqual(validateEventForm(form), {});
+  const payload = eventFormToPayload(form);
+  assert.equal(payload.signup_mode, "announcement");
+  assert.equal(payload.registration_open, false);
 });

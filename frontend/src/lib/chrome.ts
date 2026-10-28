@@ -138,6 +138,47 @@ export function matchDetailChrome(pathname: string): DetailChrome | null {
       back: { kind: "fallback", to: `/orgs/${orgSlug}` },
     };
   }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/events\/new$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "チャット内イベント",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/recruiting-chat/events`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/events\/\d+\/edit$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    const eventId = p.split("/")[5];
+    return {
+      title: "チャット内イベントを編集",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/recruiting-chat/events/${eventId}`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/events\/\d+$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "チャット内イベント",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/recruiting-chat/events`,
+      },
+    };
+  }
+  if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/events$/.test(p)) {
+    const orgSlug = p.split("/")[2];
+    return {
+      title: "チャット内イベント",
+      back: {
+        kind: "fallback",
+        to: `/organizations/${orgSlug}/recruiting-chat`,
+      },
+    };
+  }
   if (/^\/(?:organizations|orgs)\/[^/]+\/recruiting-chat\/info$/.test(p)) {
     const orgSlug = p.split("/")[2];
     return {

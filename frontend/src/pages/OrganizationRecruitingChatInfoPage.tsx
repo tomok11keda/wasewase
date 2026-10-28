@@ -6,6 +6,7 @@ import {
   OrganizationRequestError,
 } from "../features/orgs/api";
 import { organizationInitial } from "../features/orgs/orgProfile";
+import { recruitingChatEventsPath } from "../features/orgs/orgChatEvents";
 import {
   joinModeLabel,
   listingStatusLabel,
@@ -206,6 +207,12 @@ export function OrganizationRecruitingChatInfoPage() {
                   </Link>
                 </li>
               ) : null}
+              <li>
+                <Link to={recruitingChatEventsPath(slug || "", chatId)}>
+                  チャット内イベント
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </li>
               {canManage ? (
                 <>
                   <li>

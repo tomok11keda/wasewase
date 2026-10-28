@@ -28,6 +28,7 @@ import {
   publishOrganizationEvent,
   registerOrganizationEvent,
   shareOrganizationEventToChat,
+  shareOrganizationEventToTimeline,
   unpublishOrganizationEvent,
   unregisterOrganizationEvent,
 } from "../features/orgs/orgEventsApi";
@@ -61,6 +62,8 @@ export function OrganizationEventDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareNote, setShareNote] = useState<string | null>(null);
+  const [timelineBody, setTimelineBody] = useState("");
+  const [timelineBusy, setTimelineBusy] = useState(false);
 
   useLayoutEffect(() => {
     nextRequestId(fetchGen);
@@ -201,6 +204,9 @@ export function OrganizationEventDetailPage() {
                   </Link>
                 </p>
               ) : null}
+              {event.signup_mode === "announcement" ? (
+                <p className="org-recruiting-card__pending">告知のみのイベントです。</p>
+              ) : null}
               {event.can_register ? (
                 <button
                   type="button"
@@ -267,7 +273,8 @@ export function OrganizationEventDetailPage() {
                       非公開にする
                     </button>
                   ) : null}
-                  {event.status !== "cancelled" &&
+                  {event.signup_mode === "registration" &&
+                  event.status !== "cancelled" &&
                   (event.registration_open || event.can_reopen_registration) ? (
                     <button
                       type="button"
@@ -291,12 +298,14 @@ export function OrganizationEventDetailPage() {
                   <Link className="btn btn-secondary" to={organizationEventEditPath(slug, event.id)}>
                     編集
                   </Link>
+                  {event.signup_mode === "registration" ? (
                   <Link
                     className="btn btn-secondary"
                     to={organizationEventRegistrationsPath(slug, event.id)}
                   >
                     申込者
                   </Link>
+                  ) : null}
                   {event.can_run_lottery ? (
                     <Link
                       className="btn btn-primary"
@@ -331,6 +340,43 @@ export function OrganizationEventDetailPage() {
                     複製して下書きを作る
                   </button>
                 </p>
+                {event.can_share_to_timeline ? (
+                  <div className="org-event-share">
+                    <label htmlFor="event-timeline-body">タイムラインにシェア</label>
+                    <textarea
+                      id="event-timeline-body"
+                      value={timelineBody}
+                      onChange={(e) => setTimelineBody(e.target.value)}
+                      rows={3}
+                      maxLength={280}
+                      placeholder="紹介文（任意）"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={timelineBusy || busy}
+                      onClick={() =>
+                        void run(async () => {
+                          setTimelineBusy(true);
+                          try {
+                            const shared = await shareOrganizationEventToTimeline(
+                              slug,
+                              event.id,
+                              timelineBody
+                            );
+                            setShareNote("タイムラインにシェアしました。");
+                            setTimelineBody("");
+                            return shared;
+                          } finally {
+                            setTimelineBusy(false);
+                          }
+                        })
+                      }
+                    >
+                      {timelineBusy ? "シェア中…" : "タイムラインにシェア"}
+                    </button>
+                  </div>
+                ) : null}
                 {event.status === "published" ? (
                   <div className="org-event-share">
                     {shareNote ? (

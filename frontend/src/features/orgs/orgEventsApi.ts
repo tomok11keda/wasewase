@@ -399,6 +399,22 @@ export async function shareOrganizationEventToChat(
   };
 }
 
+export async function shareOrganizationEventToTimeline(
+  slug: string,
+  eventId: number,
+  body = ""
+): Promise<OrganizationEvent> {
+  const result = await apiPostJson(eventUrl(slug, `${eventId}/timeline-share/`), {
+    body,
+  });
+  return eventFromResult(
+    result.status,
+    result.error,
+    result.data,
+    "タイムラインにシェアできませんでした。"
+  );
+}
+
 export async function duplicateOrganizationEvent(
   slug: string,
   eventId: number

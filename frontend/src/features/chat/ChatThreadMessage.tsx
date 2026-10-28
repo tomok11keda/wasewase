@@ -8,6 +8,7 @@ import type { ReplyTarget } from "./ChatReplyPreview";
 import { chatTimeLabel, type ChatThreadLayout } from "./chatThread";
 import { analytics } from "../../lib/analytics/events";
 import { AccountDisplayName } from "../../components/VerifiedAccountBadge";
+import { ChatEventShareCard } from "../orgs/ChatEventShareCard";
 import { EventShareCard } from "../orgs/EventShareCard";
 import { LotteryShareCard } from "../orgs/LotteryShareCard";
 import type {
@@ -245,6 +246,10 @@ export function ChatThreadMessage({
                 m.share &&
                 m.share.type === "org_event" ? (
                 <EventShareCard share={m.share} />
+              ) : m.message_kind === "share" &&
+                m.share &&
+                m.share.type === "org_chat_event" ? (
+                <ChatEventShareCard share={m.share} />
               ) : (
                 m.body
               )}

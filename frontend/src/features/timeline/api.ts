@@ -58,6 +58,21 @@ export type SharedProduct = {
   is_pending: boolean;
 };
 
+export type SharedOrganizationEvent = {
+  id: number;
+  organization_id: number;
+  organization_slug: string;
+  organization_name: string;
+  title: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  venue_name: string;
+  signup_mode: string;
+  status: string;
+  status_label: string;
+  path: string;
+};
+
 export type TimelinePost = {
   id: number;
   body: string;
@@ -79,6 +94,7 @@ export type TimelinePost = {
   visibility?: "public" | "draft" | "unlisted" | "organization_preview" | string | null;
   quoted_post: QuotedPost;
   shared_product: SharedProduct | null;
+  shared_organization_event?: SharedOrganizationEvent | null;
   comments: TimelineComment[];
 };
 

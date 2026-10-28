@@ -145,7 +145,10 @@ export function OrganizationEventFormPage() {
     })();
   };
 
-  const setField = (key: keyof OrganizationEventForm, value: string | boolean) => {
+  const setField = <K extends keyof OrganizationEventForm>(
+    key: K,
+    value: OrganizationEventForm[K]
+  ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -184,6 +187,30 @@ export function OrganizationEventFormPage() {
                   <p className="org-edit-field-error">{fieldErrors.title}</p>
                 ) : null}
               </div>
+
+              <fieldset className="form-group org-event-signup-mode">
+                <legend>申込方式</legend>
+                <label className="org-event-check">
+                  <input
+                    type="radio"
+                    name="event-signup-mode"
+                    checked={form.signup_mode === "registration"}
+                    disabled={hasLottery}
+                    onChange={() => setField("signup_mode", "registration")}
+                  />
+                  <span>参加申込あり（締切後に抽選も可）</span>
+                </label>
+                <label className="org-event-check">
+                  <input
+                    type="radio"
+                    name="event-signup-mode"
+                    checked={form.signup_mode === "announcement"}
+                    disabled={hasLottery}
+                    onChange={() => setField("signup_mode", "announcement")}
+                  />
+                  <span>告知のみ（申込・抽選なし）</span>
+                </label>
+              </fieldset>
 
               <div className="form-group">
                 <label htmlFor="event-description">説明</label>
@@ -254,6 +281,8 @@ export function OrganizationEventFormPage() {
                 ) : null}
               </div>
 
+              {form.signup_mode === "registration" ? (
+                <>
               <div className="form-group">
                 <label htmlFor="event-registration-deadline">申込締切（任意・日本時間）</label>
                 <input
@@ -283,6 +312,12 @@ export function OrganizationEventFormPage() {
                   </span>
                 </label>
               </div>
+                </>
+              ) : (
+                <p className="org-event-privacy">
+                  告知のみでは申込ボタンと抽選は使いません。早稲田祭の屋台・公演などに使えます。
+                </p>
+              )}
 
               <div className="org-event-form__actions">
                 <button type="submit" className="btn-submit" disabled={busy}>

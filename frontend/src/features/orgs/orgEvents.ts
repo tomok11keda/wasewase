@@ -7,6 +7,7 @@ export const EVENT_VENUE_ADDRESS_MAX = 200;
 export const EXCLUSION_NOTE_MAX = 100;
 
 export type OrganizationEventStatus = "draft" | "published" | "cancelled";
+export type OrganizationEventSignupMode = "registration" | "announcement";
 export type OrganizationEventRegistrationStatus = "registered" | "cancelled";
 export type OrganizationEventLotteryResult =
   | "selected"
@@ -27,7 +28,9 @@ export type OrganizationEvent = {
   venue_address: string;
   registration_deadline: string | null;
   status: OrganizationEventStatus;
+  signup_mode: OrganizationEventSignupMode;
   registration_open: boolean;
+  registration_closed: boolean;
   registered_count: number;
   is_ended: boolean;
   is_deadline_passed: boolean;
@@ -48,6 +51,7 @@ export type OrganizationEvent = {
   can_run_lottery: boolean;
   can_view_lottery: boolean;
   can_share_lottery: boolean;
+  can_share_to_timeline: boolean;
   can_reopen_registration: boolean;
   created_at: string;
   updated_at: string;
@@ -117,6 +121,7 @@ export type OrganizationEventShareContent = {
   ends_at: string;
   venue_name: string;
   path: string;
+  status_label?: string;
 };
 
 export type OrganizationEventShareCard = {
@@ -156,6 +161,7 @@ export type OrganizationEventForm = {
   venue_address: string;
   registration_deadline: string;
   registration_open: boolean;
+  signup_mode: OrganizationEventSignupMode;
 };
 
 const STATUSES = new Set<string>(["draft", "published", "cancelled"]);
@@ -293,7 +299,12 @@ export function parseOrganizationEvent(raw: unknown): OrganizationEvent | null {
     venue_address: asString(data.venue_address),
     registration_deadline: asString(data.registration_deadline) || null,
     status: status as OrganizationEventStatus,
+    signup_mode:
+      asString(data.signup_mode) === "announcement"
+        ? "announcement"
+        : "registration",
     registration_open: asBool(data.registration_open),
+    registration_closed: asBool(data.registration_closed),
     registered_count: asNumber(data.registered_count) || 0,
     is_ended: asBool(data.is_ended),
     is_deadline_passed: asBool(data.is_deadline_passed),
@@ -317,6 +328,7 @@ export function parseOrganizationEvent(raw: unknown): OrganizationEvent | null {
     can_run_lottery: asBool(data.can_run_lottery),
     can_view_lottery: asBool(data.can_view_lottery),
     can_share_lottery: asBool(data.can_share_lottery),
+    can_share_to_timeline: asBool(data.can_share_to_timeline),
     can_reopen_registration: asBool(data.can_reopen_registration),
     created_at: asString(data.created_at),
     updated_at: asString(data.updated_at),
@@ -473,6 +485,7 @@ export function parseOrganizationEventShareCard(
         ends_at: asString(contentRaw.ends_at),
         venue_name: asString(contentRaw.venue_name),
         path: asString(contentRaw.path),
+        status_label: asString(contentRaw.status_label) || undefined,
       }
     : undefined;
   return {
@@ -537,6 +550,7 @@ export function emptyEventForm(): OrganizationEventForm {
     venue_address: "",
     registration_deadline: "",
     registration_open: true,
+    signup_mode: "registration",
   };
 }
 
@@ -555,6 +569,7 @@ export function formFromOrganizationEvent(
       ? isoToTokyoInput(event.registration_deadline)
       : "",
     registration_open: event.registration_open,
+    signup_mode: event.signup_mode,
   };
 }
 
@@ -566,10 +581,13 @@ export function eventFormToPayload(form: OrganizationEventForm): Record<string, 
     ends_at: tokyoInputToIso(form.ends_at),
     venue_name: form.venue_name.trim(),
     venue_address: form.venue_address.trim(),
-    registration_deadline: form.registration_deadline.trim()
-      ? tokyoInputToIso(form.registration_deadline)
-      : null,
-    registration_open: form.registration_open,
+    registration_deadline:
+      form.signup_mode === "announcement" || !form.registration_deadline.trim()
+        ? null
+        : tokyoInputToIso(form.registration_deadline),
+    registration_open:
+      form.signup_mode === "announcement" ? false : form.registration_open,
+    signup_mode: form.signup_mode,
   };
 }
 
@@ -602,7 +620,7 @@ export function validateEventForm(
   if (starts && ends && new Date(ends).getTime() <= new Date(starts).getTime()) {
     errors.ends_at = "終了日時は開始日時より後にしてください。";
   }
-  if (form.registration_deadline.trim()) {
+  if (form.signup_mode === "registration" && form.registration_deadline.trim()) {
     const deadline = tokyoInputToIso(form.registration_deadline);
     if (!deadline) {
       errors.registration_deadline = "申込締切の形式が正しくありません。";
@@ -617,6 +635,7 @@ export function eventStatusLabel(event: OrganizationEvent): string {
   if (event.status === "cancelled") return "中止";
   if (event.status === "draft") return "下書き";
   if (event.is_ended) return "終了";
+  if (event.signup_mode === "announcement") return "告知のみ";
   if (event.viewer_lottery_result === "selected") return "当選";
   if (event.viewer_lottery_result === "not_selected") return "落選";
   if (event.viewer_lottery_result === "excluded") return "対象外";
@@ -715,6 +734,16 @@ export function organizationEventErrorMessage(
       return "このイベントの抽選はすでに確定しています。";
     case "already_shared":
       return "この団体チャットにはすでに共有されています。";
+    case "announcement_only":
+      return "このイベントは告知のみのため、申し込みできません。";
+    case "has_registrations":
+      return "申込者がいるため、告知のみには変更できません。";
+    case "registration_still_open":
+      return "申込受付が終了してから抽選できます。";
+    case "share_cooldown":
+      return "同じイベントの連続シェアを防ぐため、しばらく待ってからもう一度お試しください。";
+    case "not_published":
+      return "公開中のイベントだけ操作できます。";
     case "chat_id_required":
       return "共有先の団体チャットを選んでください。";
     case "winner_count_exceeds_eligible":
@@ -723,8 +752,6 @@ export function organizationEventErrorMessage(
       return "除外者の指定が正しくありません。";
     case "no_eligible":
       return "抽選対象者を1人以上選択してください。";
-    case "not_published":
-      return "公開中のイベントだけ抽選できます。";
     case "no_recruiting_chat":
       return "団体チャットがないため共有できません。";
     case "lottery_closed":
