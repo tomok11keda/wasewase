@@ -20,3 +20,14 @@ test("datetime picker keeps five Japanese wheel columns on a narrow sheet", () =
   assert.equal(css.includes('input[type="date"]'), false);
   assert.equal(css.includes('input[type="time"]'), false);
 });
+
+test("selected wheel values stay above the highlight band", () => {
+  const highlight = css.split(".tokyo-wheel-col__highlight")[1] || "";
+  const scroller = css.split(".tokyo-wheel-col__scroller")[1] || "";
+  const selected = css.split(".tokyo-wheel-col__item.is-selected")[1] || "";
+  assert.equal(highlight.includes("z-index: 0"), true);
+  assert.equal(scroller.includes("z-index: 1"), true);
+  assert.equal(scroller.includes("background: transparent"), true);
+  assert.equal(selected.includes("-webkit-text-fill-color: #0f1419"), true);
+  assert.equal(css.includes("mask-image:"), false);
+});
