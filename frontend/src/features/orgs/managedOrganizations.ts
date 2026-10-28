@@ -66,6 +66,42 @@ export function parseManagedOrganization(
   };
 }
 
+function managedRoleRank(role: string): number {
+  if (role === "owner") return 2;
+  if (role === "admin") return 1;
+  return 0;
+}
+
+export function dedupeManagedOrganizations(
+  organizations: ManagedOrganization[]
+): ManagedOrganization[] {
+  const byId = new Map<number, ManagedOrganization>();
+  for (const organization of organizations) {
+    const existing = byId.get(organization.id);
+    if (
+      !existing ||
+      managedRoleRank(organization.my_role) > managedRoleRank(existing.my_role)
+    ) {
+      byId.set(organization.id, organization);
+    }
+  }
+  return [...byId.values()];
+}
+
+export function organizationsForChatPick(
+  organizations: ManagedOrganization[],
+  currentId: number | null
+): ManagedOrganization[] {
+  return [...dedupeManagedOrganizations(organizations)].sort((a, b) => {
+    if (a.id === currentId) return -1;
+    if (b.id === currentId) return 1;
+    return a.name.localeCompare(b.name, "ja");
+  });
+}
+
+export const ORG_CHAT_PICK_LEAD =
+  "管理している団体を1件選びます。複数の団体チャットがある場合は、次の画面でチャットを選べます。まだチャットがなければ作成できます。";
+
 export function parseManagedOrganizationsPayload(
   value: unknown
 ): ManagedOrganization[] | null {
@@ -83,7 +119,7 @@ export function parseManagedOrganizationsPayload(
     if (extra) return null;
     organizations.push(parsed);
   }
-  return organizations;
+  return dedupeManagedOrganizations(organizations);
 }
 
 export function resolveActiveOrganization(

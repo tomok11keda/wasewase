@@ -164,6 +164,23 @@ export type OrganizationEventForm = {
   signup_mode: OrganizationEventSignupMode;
 };
 
+export const EVENT_SIGNUP_MODE_OPTIONS: ReadonlyArray<{
+  value: OrganizationEventSignupMode;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "registration",
+    title: "参加申込あり",
+    description: "締切後に抽選もできます。参加者を受け付ける公開イベント向けです。",
+  },
+  {
+    value: "announcement",
+    title: "告知のみ",
+    description: "申込・抽選は使いません。早稲田祭の屋台・公演などの案内向けです。",
+  },
+];
+
 const STATUSES = new Set<string>(["draft", "published", "cancelled"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {

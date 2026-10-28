@@ -7,7 +7,9 @@ import {
   organizationInitial,
 } from "../features/orgs/orgProfile";
 import {
+  ORG_CHAT_PICK_LEAD,
   organizationRoleLabel,
+  organizationsForChatPick,
   type ManagedOrganization,
 } from "../features/orgs/managedOrganizations";
 import {
@@ -51,13 +53,10 @@ export function OrgChatPickPage() {
 
   const currentId =
     actor.type === "organization" ? actor.organization.id : null;
-  const sorted = useMemo(() => {
-    return [...organizations].sort((a, b) => {
-      if (a.id === currentId) return -1;
-      if (b.id === currentId) return 1;
-      return a.name.localeCompare(b.name, "ja");
-    });
-  }, [organizations, currentId]);
+  const sorted = useMemo(
+    () => organizationsForChatPick(organizations, currentId),
+    [organizations, currentId]
+  );
 
   const pick = async (organization: ManagedOrganization) => {
     if (busySlug) return;
@@ -83,7 +82,7 @@ export function OrgChatPickPage() {
       <main className="main-inner" aria-label="団体チャット">
         <div className="dm-group-header">
           <p>
-            管理している団体を選ぶと、有効な団体チャットがあれば開きます。なければ作成画面へ進みます。
+            {ORG_CHAT_PICK_LEAD}
           </p>
         </div>
         {actor.type === "organization" ? (
@@ -146,8 +145,10 @@ export function OrgChatPickPage() {
                       </span>
                       <span className="org-chat-pick-role">
                         {organizationRoleLabel(organization.my_role)}
-                        {selected ? " · 現在選択中" : ""}
                       </span>
+                      {selected ? (
+                        <span className="org-chat-pick-selected">現在選択中</span>
+                      ) : null}
                     </span>
                     <span className="org-chat-pick-action">
                       {busySlug === organization.slug ? "確認中…" : "開く"}

@@ -27,6 +27,7 @@ import {
   validateLotterySetup,
   viewerLotteryRegistrationLabel,
   emptyEventForm,
+  EVENT_SIGNUP_MODE_OPTIONS,
 } from "./orgEvents.ts";
 
 const published = {
@@ -428,6 +429,30 @@ test("lottery setup defaults everyone eligible and validates notes", () => {
   });
   assert.equal(viewerLotteryRegistrationLabel(declined!), "参加辞退");
   assert.equal(eventStatusLabel(declined!), "当選");
+});
+
+test("signup mode cards keep both draft payloads without extra fields", () => {
+  assert.deepEqual(
+    EVENT_SIGNUP_MODE_OPTIONS.map((option) => option.value),
+    ["registration", "announcement"]
+  );
+  const base = {
+    ...emptyEventForm(),
+    title: "新歓",
+    venue_name: "キャンパス",
+    starts_at: "2026-11-01T10:00",
+    ends_at: "2026-11-01T16:00",
+  };
+  for (const option of EVENT_SIGNUP_MODE_OPTIONS) {
+    const form = { ...base, signup_mode: option.value };
+    assert.deepEqual(validateEventForm(form), {});
+    const payload = eventFormToPayload(form);
+    assert.equal(payload.signup_mode, option.value);
+    assert.equal(
+      payload.registration_open,
+      option.value === "registration"
+    );
+  }
 });
 
 test("announcement events parse as 告知のみ and skip deadline validation", () => {

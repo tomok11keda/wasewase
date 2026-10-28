@@ -6,6 +6,7 @@ import { OrganizationRequestError } from "../features/orgs/api";
 import {
   canShowEventManage,
   emptyEventForm,
+  EVENT_SIGNUP_MODE_OPTIONS,
   formFromOrganizationEvent,
   organizationEventErrorMessage,
   organizationEventManagePath,
@@ -190,26 +191,36 @@ export function OrganizationEventFormPage() {
 
               <fieldset className="form-group org-event-signup-mode">
                 <legend>申込方式</legend>
-                <label className="org-event-check">
-                  <input
-                    type="radio"
-                    name="event-signup-mode"
-                    checked={form.signup_mode === "registration"}
-                    disabled={hasLottery}
-                    onChange={() => setField("signup_mode", "registration")}
-                  />
-                  <span>参加申込あり（締切後に抽選も可）</span>
-                </label>
-                <label className="org-event-check">
-                  <input
-                    type="radio"
-                    name="event-signup-mode"
-                    checked={form.signup_mode === "announcement"}
-                    disabled={hasLottery}
-                    onChange={() => setField("signup_mode", "announcement")}
-                  />
-                  <span>告知のみ（申込・抽選なし）</span>
-                </label>
+                <div
+                  className="org-event-signup-mode__options"
+                  role="radiogroup"
+                  aria-label="申込方式"
+                >
+                  {EVENT_SIGNUP_MODE_OPTIONS.map((option) => {
+                    const selected = form.signup_mode === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`org-event-choice${
+                          selected ? " is-selected" : ""
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="event-signup-mode"
+                          value={option.value}
+                          checked={selected}
+                          disabled={hasLottery}
+                          onChange={() => setField("signup_mode", option.value)}
+                        />
+                        <span className="org-event-choice__text">
+                          <strong>{option.title}</strong>
+                          <small>{option.description}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </fieldset>
 
               <div className="form-group">
