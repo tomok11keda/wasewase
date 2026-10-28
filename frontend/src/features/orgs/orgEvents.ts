@@ -1,3 +1,11 @@
+import {
+  isoToTokyoInput,
+  tokyoDateTimeOrderError,
+  tokyoInputToIso,
+} from "./tokyoDateTime.ts";
+
+export { isoToTokyoInput, tokyoInputToIso };
+
 const TOKYO_TIME_ZONE = "Asia/Tokyo";
 
 export const EVENT_TITLE_MAX = 120;
@@ -250,33 +258,6 @@ export function formatTokyoDateTime(value: string): string {
     minute: "2-digit",
     hour12: false,
   });
-}
-
-export function isoToTokyoInput(iso: string): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TOKYO_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
-  const hour = get("hour") === "24" ? "00" : get("hour");
-  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
-}
-
-export function tokyoInputToIso(local: string): string {
-  const raw = local.trim();
-  if (!raw) return "";
-  const date = new Date(`${raw}:00+09:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString();
 }
 
 export function parseOrganizationEvent(raw: unknown): OrganizationEvent | null {
@@ -629,14 +610,15 @@ export function validateEventForm(
   const starts = tokyoInputToIso(form.starts_at);
   const ends = tokyoInputToIso(form.ends_at);
   if (!form.starts_at.trim() || !starts) {
-    errors.starts_at = "開始日時を入力してください。";
+    errors.starts_at = "開始の日付と時刻を入力してください。";
   }
   if (!form.ends_at.trim() || !ends) {
-    errors.ends_at = "終了日時を入力してください。";
+    errors.ends_at = "終了の日付と時刻を入力してください。";
   }
-  if (starts && ends && new Date(ends).getTime() <= new Date(starts).getTime()) {
-    errors.ends_at = "終了日時は開始日時より後にしてください。";
-  }
+  const orderError = tokyoDateTimeOrderError(form.starts_at, form.ends_at, {
+    endRequired: true,
+  });
+  if (orderError) errors.ends_at = orderError;
   if (form.signup_mode === "registration" && form.registration_deadline.trim()) {
     const deadline = tokyoInputToIso(form.registration_deadline);
     if (!deadline) {

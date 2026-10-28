@@ -641,7 +641,9 @@
   resize: vertical;
 }
 
-.org-event-form input[type="datetime-local"] {
+.org-event-form input[type="datetime-local"],
+.org-event-form input[type="date"],
+.org-event-form input[type="time"] {
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -653,6 +655,51 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
   min-width: 0;
+}
+
+.tokyo-datetime {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 0;
+  border: none;
+}
+
+.tokyo-datetime legend {
+  float: none;
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tokyo-datetime__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tokyo-datetime__field {
+  min-width: 0;
+}
+
+.tokyo-datetime__field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #536471;
+}
+
+@media (max-width: 359px) {
+  .tokyo-datetime__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .org-event-form__actions {

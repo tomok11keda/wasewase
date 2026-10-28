@@ -14,6 +14,8 @@ import {
   validateEventForm,
   type OrganizationEventForm,
 } from "../features/orgs/orgEvents";
+import { TokyoDateTimeFields } from "../features/orgs/TokyoDateTimeFields";
+import { suggestedEndFromStart } from "../features/orgs/tokyoDateTime.ts";
 import {
   createOrganizationEvent,
   fetchOrganizationEvent,
@@ -40,6 +42,7 @@ export function OrganizationEventFormPage() {
   userIdRef.current = sessionUserId;
   const fetchGen = useRef(0);
   const busyRef = useRef(false);
+  const endTouchedRef = useRef(false);
   const [form, setForm] = useState<OrganizationEventForm>(emptyEventForm());
   const [canManage, setCanManage] = useState(false);
   const [hasLottery, setHasLottery] = useState(false);
@@ -57,6 +60,7 @@ export function OrganizationEventFormPage() {
     setError(null);
     setFieldErrors({});
     setLoading(true);
+    endTouchedRef.current = false;
   }, [slug, eventId, sessionUserId, isEdit]);
 
   const load = useCallback(async () => {
@@ -153,6 +157,23 @@ export function OrganizationEventFormPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const setStartAt = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      starts_at: value,
+      ends_at: suggestedEndFromStart({
+        start: value,
+        end: prev.ends_at,
+        endTouched: endTouchedRef.current,
+      }),
+    }));
+  };
+
+  const setEndAt = (value: string) => {
+    endTouchedRef.current = true;
+    setField("ends_at", value);
+  };
+
   return (
     <div className="org-edit-page" data-spa-page={pageTitle}>
       <div className="main-inner">
@@ -237,32 +258,22 @@ export function OrganizationEventFormPage() {
               </div>
 
               <div className="org-event-form__when">
-                <div className="form-group">
-                  <label htmlFor="event-starts-at">開始日時（日本時間）</label>
-                  <input
-                    id="event-starts-at"
-                    type="datetime-local"
-                    value={form.starts_at}
-                    onChange={(e) => setField("starts_at", e.target.value)}
-                    required
-                  />
-                  {fieldErrors.starts_at ? (
-                    <p className="org-edit-field-error">{fieldErrors.starts_at}</p>
-                  ) : null}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="event-ends-at">終了日時（日本時間）</label>
-                  <input
-                    id="event-ends-at"
-                    type="datetime-local"
-                    value={form.ends_at}
-                    onChange={(e) => setField("ends_at", e.target.value)}
-                    required
-                  />
-                  {fieldErrors.ends_at ? (
-                    <p className="org-edit-field-error">{fieldErrors.ends_at}</p>
-                  ) : null}
-                </div>
+                <TokyoDateTimeFields
+                  id="event-starts-at"
+                  legend="開始（日本時間）"
+                  value={form.starts_at}
+                  onChange={setStartAt}
+                  required
+                  error={fieldErrors.starts_at}
+                />
+                <TokyoDateTimeFields
+                  id="event-ends-at"
+                  legend="終了（日本時間）"
+                  value={form.ends_at}
+                  onChange={setEndAt}
+                  required
+                  error={fieldErrors.ends_at}
+                />
               </div>
 
               <div className="form-group">
@@ -294,18 +305,13 @@ export function OrganizationEventFormPage() {
 
               {form.signup_mode === "registration" ? (
                 <>
-              <div className="form-group">
-                <label htmlFor="event-registration-deadline">申込締切（任意・日本時間）</label>
-                <input
-                  id="event-registration-deadline"
-                  type="datetime-local"
-                  value={form.registration_deadline}
-                  onChange={(e) => setField("registration_deadline", e.target.value)}
-                />
-                {fieldErrors.registration_deadline ? (
-                  <p className="org-edit-field-error">{fieldErrors.registration_deadline}</p>
-                ) : null}
-              </div>
+              <TokyoDateTimeFields
+                id="event-registration-deadline"
+                legend="申込締切（任意・日本時間）"
+                value={form.registration_deadline}
+                onChange={(value) => setField("registration_deadline", value)}
+                error={fieldErrors.registration_deadline}
+              />
 
               <div className="form-group">
                 <label className="org-event-check" htmlFor="event-registration-open">

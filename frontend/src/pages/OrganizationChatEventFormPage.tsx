@@ -16,6 +16,11 @@ import {
   updateOrganizationChatEvent,
 } from "../features/orgs/orgChatEventsApi";
 import { isoToTokyoInput, tokyoInputToIso } from "../features/orgs/orgEvents";
+import { TokyoDateTimeFields } from "../features/orgs/TokyoDateTimeFields";
+import {
+  suggestedEndFromStart,
+  tokyoDateTimeOrderError,
+} from "../features/orgs/tokyoDateTime.ts";
 import { parseRecruitingChatIdFromSearch } from "../features/orgs/recruitingChat";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
@@ -39,6 +44,7 @@ export function OrganizationChatEventFormPage() {
   userIdRef.current = sessionUserId;
   const fetchGen = useRef(0);
   const busyRef = useRef(false);
+  const endTouchedRef = useRef(false);
   const [form, setForm] = useState<OrganizationChatEventForm>(emptyChatEventForm());
   const [loading, setLoading] = useState(isEdit);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +57,7 @@ export function OrganizationChatEventFormPage() {
     setError(null);
     setFieldErrors({});
     setLoading(isEdit);
+    endTouchedRef.current = false;
   }, [slug, eventId, chatId, sessionUserId, isEdit]);
 
   const load = useCallback(async () => {
@@ -121,14 +128,35 @@ export function OrganizationChatEventFormPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setStartAt(value: string) {
+    setForm((current) => ({
+      ...current,
+      starts_at: value,
+      ends_at: suggestedEndFromStart({
+        start: value,
+        end: current.ends_at,
+        endTouched: endTouchedRef.current,
+      }),
+    }));
+  }
+
+  function setEndAt(value: string) {
+    endTouchedRef.current = true;
+    setField("ends_at", value);
+  }
+
   async function onSubmit(ev: FormEvent) {
     ev.preventDefault();
     if (!slug || chatId == null || busyRef.current) return;
     const errors: Record<string, string> = {};
     if (!form.title.trim()) errors.title = "イベント名を入力してください。";
     if (!form.starts_at.trim() || !tokyoInputToIso(form.starts_at)) {
-      errors.starts_at = "開始日時を入力してください。";
+      errors.starts_at = "開始の日付と時刻を入力してください。";
     }
+    const orderError = tokyoDateTimeOrderError(form.starts_at, form.ends_at, {
+      endRequired: false,
+    });
+    if (orderError) errors.ends_at = orderError;
     if (Object.keys(errors).length) {
       setFieldErrors(errors);
       return;
@@ -195,25 +223,21 @@ export function OrganizationChatEventFormPage() {
                 />
               </div>
               <div className="org-event-form__when">
-                <div className="form-group">
-                  <label htmlFor="chat-event-starts">開始日時（日本時間）</label>
-                  <input
-                    id="chat-event-starts"
-                    type="datetime-local"
-                    value={form.starts_at}
-                    onChange={(e) => setField("starts_at", e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="chat-event-ends">終了日時（任意）</label>
-                  <input
-                    id="chat-event-ends"
-                    type="datetime-local"
-                    value={form.ends_at}
-                    onChange={(e) => setField("ends_at", e.target.value)}
-                  />
-                </div>
+                <TokyoDateTimeFields
+                  id="chat-event-starts"
+                  legend="開始（日本時間）"
+                  value={form.starts_at}
+                  onChange={setStartAt}
+                  required
+                  error={fieldErrors.starts_at}
+                />
+                <TokyoDateTimeFields
+                  id="chat-event-ends"
+                  legend="終了（任意・日本時間）"
+                  value={form.ends_at}
+                  onChange={setEndAt}
+                  error={fieldErrors.ends_at}
+                />
               </div>
               <div className="form-group">
                 <label htmlFor="chat-event-venue">場所（任意）</label>
@@ -224,15 +248,13 @@ export function OrganizationChatEventFormPage() {
                   autoComplete="off"
                 />
               </div>
-              <div className="form-group">
-                <label htmlFor="chat-event-deadline">回答期限（任意・日本時間）</label>
-                <input
-                  id="chat-event-deadline"
-                  type="datetime-local"
-                  value={form.rsvp_deadline}
-                  onChange={(e) => setField("rsvp_deadline", e.target.value)}
-                />
-              </div>
+              <TokyoDateTimeFields
+                id="chat-event-deadline"
+                legend="回答期限（任意・日本時間）"
+                value={form.rsvp_deadline}
+                onChange={(value) => setField("rsvp_deadline", value)}
+                error={fieldErrors.rsvp_deadline}
+              />
               <div className="org-event-form__actions">
                 <button type="submit" className="btn-submit" disabled={busy}>
                   {busy ? "保存中…" : isEdit ? "変更を保存" : "作成してチャットに掲載"}
