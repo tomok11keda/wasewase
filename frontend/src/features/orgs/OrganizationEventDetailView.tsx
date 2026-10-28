@@ -27,6 +27,7 @@ type Props = {
   busy: boolean;
   actionError: string | null;
   shareNote: string | null;
+  sharePostPath: string | null;
   shareBusy: boolean;
   timelineBody: string;
   timelineBusy: boolean;
@@ -52,6 +53,7 @@ export function OrganizationEventDetailView({
   busy,
   actionError,
   shareNote,
+  sharePostPath,
   shareBusy,
   timelineBody,
   timelineBusy,
@@ -197,6 +199,13 @@ export function OrganizationEventDetailView({
             </li>
           ) : null}
         </ul>
+        {event.image_url ? (
+          <img
+            className="org-event-detail__image"
+            src={event.image_url}
+            alt=""
+          />
+        ) : null}
         {schedule.startDateLine ? (
           schedule.sameDay ? (
             <div className="org-event-detail__when">
@@ -293,6 +302,14 @@ export function OrganizationEventDetailView({
           {shareNote ? (
             <p className="org-event-detail__note" role="status">
               {shareNote}
+              {sharePostPath ? (
+                <>
+                  {" "}
+                  <Link className="org-event-detail__share-link" to={sharePostPath}>
+                    投稿を見る
+                  </Link>
+                </>
+              ) : null}
             </p>
           ) : null}
           <div className="org-event-detail__actions">

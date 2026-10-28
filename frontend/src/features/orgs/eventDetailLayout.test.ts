@@ -36,7 +36,10 @@ test("admin CTAs stay grouped by draft published and danger actions", () => {
   assert.equal(page.includes("cancelOrganizationEvent"), true);
   assert.equal(page.includes("deleteOrganizationEvent"), true);
   assert.equal(page.includes("shareOrganizationEventToTimeline"), true);
+  assert.equal(page.includes("invalidateTimelineFeed"), true);
   assert.equal(page.includes("window.confirm"), true);
+  assert.equal(view.includes("投稿を見る"), true);
+  assert.equal(view.includes("org-event-detail__image"), true);
 });
 
 test("chat events keep the existing detail page", () => {

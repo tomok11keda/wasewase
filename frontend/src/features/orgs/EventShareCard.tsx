@@ -26,6 +26,13 @@ export function EventShareCard({
   return (
     <Link className="share-card share-card--event" to={to}>
       <p className="share-card__brand">イベント</p>
+      {content.image_url ? (
+        <img
+          className="share-card__media share-card__media--event"
+          src={content.image_url}
+          alt=""
+        />
+      ) : null}
       <p className="share-card__title">{content.title || "イベント"}</p>
       {content.starts_at ? (
         <p className="share-card__body">{formatTokyoDateTime(content.starts_at)}</p>

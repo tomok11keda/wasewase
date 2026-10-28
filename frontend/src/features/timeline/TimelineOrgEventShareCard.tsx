@@ -19,6 +19,9 @@ export function TimelineOrgEventShareCard({
       aria-label={`イベント ${event.title}`}
     >
       <p className="share-card__brand">イベント</p>
+      {event.image_url ? (
+        <img className="share-card__media share-card__media--event" src={event.image_url} alt="" />
+      ) : null}
       <p className="share-card__title">{event.title}</p>
       {event.starts_at ? (
         <p className="share-card__body">{formatTokyoDateTime(event.starts_at)}</p>

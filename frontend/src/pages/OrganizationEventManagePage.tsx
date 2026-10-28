@@ -134,10 +134,15 @@ export function OrganizationEventManagePage() {
                 {events.map((event) => (
                   <li key={event.id}>
                     <Link className="org-event-row" to={organizationEventPath(slug, event.id)}>
-                      <span className="org-event-row__title">{event.title}</span>
-                      <span className="org-event-row__meta">
-                        {formatTokyoDateTime(event.starts_at)} · {eventStatusLabel(event)} ·{" "}
-                        {eventCapacityLabel(event)}
+                      {event.image_url ? (
+                        <img className="org-event-row__thumb" src={event.image_url} alt="" />
+                      ) : null}
+                      <span className="org-event-row__text">
+                        <span className="org-event-row__title">{event.title}</span>
+                        <span className="org-event-row__meta">
+                          {formatTokyoDateTime(event.starts_at)} · {eventStatusLabel(event)} ·{" "}
+                          {eventCapacityLabel(event)}
+                        </span>
                       </span>
                     </Link>
                   </li>

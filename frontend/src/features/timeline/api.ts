@@ -71,6 +71,7 @@ export type SharedOrganizationEvent = {
   status: string;
   status_label: string;
   path: string;
+  image_url?: string | null;
 };
 
 export type TimelinePost = {
@@ -162,6 +163,7 @@ export async function fetchTimeline(
 ): Promise<TimelineFeedResponse> {
   const res = await fetch(buildFeedUrl(query), {
     credentials: "same-origin",
+    cache: "no-store",
     headers: { Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`timeline_${res.status}`);

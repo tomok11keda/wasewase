@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { ImagePickField } from "../components/ImagePickField";
 import { FormSkeleton } from "../components/skeleton";
 import { spaLoginPath } from "../features/auth/api";
 import { OrganizationRequestError } from "../features/orgs/api";
@@ -50,6 +51,9 @@ export function OrganizationEventFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState("");
+  const [clearImage, setClearImage] = useState(false);
   const pageTitle = isEdit ? "イベントを編集" : "イベントを作成";
 
   useLayoutEffect(() => {
@@ -60,6 +64,9 @@ export function OrganizationEventFormPage() {
     setError(null);
     setFieldErrors({});
     setLoading(true);
+    setImageFile(null);
+    setExistingImageUrl("");
+    setClearImage(false);
     endTouchedRef.current = false;
   }, [slug, eventId, sessionUserId, isEdit]);
 
@@ -77,6 +84,9 @@ export function OrganizationEventFormPage() {
         setCanManage(event.can_manage);
         setHasLottery(event.has_lottery);
         setForm(formFromOrganizationEvent(event));
+        setExistingImageUrl(event.image_url || "");
+        setClearImage(false);
+        setImageFile(null);
       } else {
         const payload = await fetchOrganizationEvents(slug, { manage: true });
         if (!isLatestRequest(fetchGen, gen)) return;
@@ -133,8 +143,11 @@ export function OrganizationEventFormPage() {
     void (async () => {
       try {
         const saved = isEdit && eventId != null
-          ? await updateOrganizationEvent(slug, eventId, form)
-          : await createOrganizationEvent(slug, form);
+          ? await updateOrganizationEvent(slug, eventId, form, {
+              image: imageFile,
+              clearImage,
+            })
+          : await createOrganizationEvent(slug, form, imageFile);
         navigate(organizationEventPath(slug, saved.id), { replace: true });
       } catch (err) {
         if (err instanceof OrganizationRequestError) {
@@ -245,6 +258,43 @@ export function OrganizationEventFormPage() {
               </fieldset>
 
               <div className="form-group">
+                <label>イベント画像（任意）</label>
+                {existingImageUrl && !clearImage && !imageFile ? (
+                  <div className="org-event-image-edit">
+                    <img
+                      className="org-event-image-edit__preview"
+                      src={existingImageUrl}
+                      alt="現在のイベント画像"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setClearImage(true);
+                        setImageFile(null);
+                      }}
+                    >
+                      画像を削除
+                    </button>
+                  </div>
+                ) : null}
+                <ImagePickField
+                  id="event-image"
+                  value={imageFile}
+                  onChange={(file) => {
+                    setImageFile(file);
+                    if (file) setClearImage(false);
+                  }}
+                  disabled={busy}
+                  hint="JPEG / PNG / GIF / WebP（任意）"
+                />
+                {fieldErrors.image ? (
+                  <p className="org-edit-field-error">{fieldErrors.image}</p>
+                ) : null}
+              </div>
+
+              <div className="form-group">
                 <label htmlFor="event-description">説明</label>
                 <textarea
                   id="event-description"
@@ -338,7 +388,13 @@ export function OrganizationEventFormPage() {
 
               <div className="org-event-form__actions">
                 <button type="submit" className="btn-submit" disabled={busy}>
-                  {busy ? "保存中…" : isEdit ? "変更を保存" : "下書きを保存"}
+                  {busy
+                    ? imageFile
+                      ? "画像をアップロード中…"
+                      : "保存中…"
+                    : isEdit
+                      ? "変更を保存"
+                      : "下書きを保存"}
                 </button>
                 <Link className="org-edit-back" to={organizationEventManagePath(slug)}>
                   キャンセル

@@ -182,13 +182,37 @@ class OrganizationEventPhase34Tests(TestCase):
         )
         self.assertEqual(shared.status_code, 201, shared.content)
         post_id = shared.json()["post_id"]
+        self.assertEqual(shared.json()["post_path"], f"/posts/{post_id}")
         post = TimelinePost.objects.get(pk=post_id)
         self.assertEqual(post.organization_id, self.org.pk)
         self.assertEqual(post.body, "新歓に来てね")
         self.assertEqual(post.shared_organization_event_id, event_id)
+        self.assertEqual(
+            post.organization_visibility, TimelinePost.OrganizationVisibility.PUBLIC
+        )
         card = shared.json()["shared_organization_event"]
         self.assertEqual(card["title"], "ライブカード")
         self.assertEqual(card["status_label"], "申込受付中")
+        self.assertEqual(shared.json()["post"]["actor_type"], "organization")
+        self.assertIsNone(shared.json()["post"]["author"])
+
+        feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertEqual(feed.status_code, 200, feed.content)
+        self.assertTrue(any(row["id"] == post_id for row in feed.json()["posts"]))
+        org_posts = self.client.get(f"/api/v1/organizations/{self.org.slug}/posts/")
+        self.assertEqual(org_posts.status_code, 200, org_posts.content)
+        self.assertTrue(any(row["id"] == post_id for row in org_posts.json()["posts"]))
+
+        self.client.force_login(self.student)
+        student_feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertEqual(student_feed.status_code, 200, student_feed.content)
+        student_row = next(
+            row for row in student_feed.json()["posts"] if row["id"] == post_id
+        )
+        self.assertEqual(student_row["actor_type"], "organization")
+        self.assertEqual(student_row["shared_organization_event"]["title"], "ライブカード")
+        self.assertEqual(student_row["body"], "新歓に来てね")
+        self.client.force_login(self.owner)
 
         renamed = self._json(
             "patch", self._url(f"{event_id}/"), title="改名後イベント"
@@ -230,6 +254,7 @@ class OrganizationEventPhase34Tests(TestCase):
         self.client.force_login(self.owner)
         first = self._json("post", self._url(f"{event_id}/timeline-share/"))
         self.assertEqual(first.status_code, 201, first.content)
+        self.assertEqual(first.json()["post"]["body"], "イベントをシェアしました")
         second = self._json("post", self._url(f"{event_id}/timeline-share/"))
         self.assertEqual(second.status_code, 429)
         self.assertEqual(second.json()["error"], "share_cooldown")

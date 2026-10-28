@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -22,6 +23,7 @@ from .organization_event_services import (
     event_registration_is_closed,
     event_uses_registration,
     organization_allows_event_access,
+    organization_event_image_url,
     serialize_organization_event,
 )
 from .organization_post_services import (
@@ -29,6 +31,8 @@ from .organization_post_services import (
     ORG_POST_VISIBILITY_PUBLIC,
 )
 from .rate_limit_services import allow_timeline_post
+
+logger = logging.getLogger(__name__)
 
 EVENT_TIMELINE_SHARE_BODY = "イベントをシェアしました"
 EVENT_TIMELINE_SHARE_COOLDOWN = timedelta(minutes=10)
@@ -80,6 +84,7 @@ def serialize_shared_organization_event(post: TimelinePost) -> dict[str, Any] | 
         or OrganizationEvent.SignupMode.REGISTRATION,
         "status": status,
         "status_label": status_label,
+        "image_url": organization_event_image_url(event),
         "path": f"/organizations/{slug}/events/{event.pk}",
     }
 
@@ -162,14 +167,38 @@ def share_organization_event_to_timeline(
 def timeline_share_response_payload(
     event: OrganizationEvent, actor: AbstractBaseUser, post: TimelinePost
 ) -> dict[str, Any]:
-    from .timeline_api_services import serialize_timeline_post
+    from .timeline_api_services import (
+        get_visible_timeline_post_payload,
+        serialize_timeline_post,
+    )
 
-    prepared = post
+    payload: dict[str, Any] = {}
+    try:
+        loaded = get_visible_timeline_post_payload(actor, post.pk)
+        payload = loaded if loaded is not None else serialize_timeline_post(post, actor)
+    except Exception:
+        logger.exception("timeline share serialize failed post_id=%s", post.pk)
+        try:
+            payload = serialize_timeline_post(post, actor)
+        except Exception:
+            payload = {}
+    card = payload.get("shared_organization_event") if payload else None
+    if not card:
+        try:
+            card = serialize_shared_organization_event(post)
+        except Exception:
+            card = None
+    try:
+        event_payload = serialize_organization_event(event, actor)
+    except Exception:
+        logger.exception("timeline share event serialize failed event_id=%s", event.pk)
+        event_payload = None
     return {
         "ok": True,
         "shared": True,
         "post_id": post.pk,
-        "event": serialize_organization_event(event, actor),
-        "post": serialize_timeline_post(prepared, actor),
-        "shared_organization_event": serialize_shared_organization_event(post),
+        "post_path": f"/posts/{post.pk}",
+        "event": event_payload,
+        "post": payload,
+        "shared_organization_event": card,
     }

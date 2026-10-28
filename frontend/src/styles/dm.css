@@ -2225,6 +2225,13 @@ html.chrome-detail .dm-group-header {
   background: #eef2f5;
 }
 
+.share-card__media--event {
+  height: auto;
+  max-height: 280px;
+  object-fit: contain;
+  object-position: center;
+}
+
 .share-card__cta {
   display: block;
   font-size: 13px;

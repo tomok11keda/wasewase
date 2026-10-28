@@ -84,6 +84,23 @@ export async function apiPatchJson(
   return jsonResult(res);
 }
 
+/** Multipart POST. Do not set Content-Type — the browser must keep the boundary. */
+export async function apiPostForm(
+  url: string,
+  body: FormData
+): Promise<ApiJsonResult> {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body,
+  });
+  return jsonResult(res);
+}
+
 /** Multipart PATCH. Do not set Content-Type — the browser must keep the boundary. */
 export async function apiPatchForm(
   url: string,

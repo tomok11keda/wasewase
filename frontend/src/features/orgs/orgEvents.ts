@@ -34,6 +34,7 @@ export type OrganizationEvent = {
   ends_at: string;
   venue_name: string;
   venue_address: string;
+  image_url: string;
   registration_deadline: string | null;
   status: OrganizationEventStatus;
   signup_mode: OrganizationEventSignupMode;
@@ -130,6 +131,7 @@ export type OrganizationEventShareContent = {
   venue_name: string;
   path: string;
   status_label?: string;
+  image_url?: string;
 };
 
 export type OrganizationEventShareCard = {
@@ -295,6 +297,7 @@ export function parseOrganizationEvent(raw: unknown): OrganizationEvent | null {
     ends_at: ends,
     venue_name: asString(data.venue_name),
     venue_address: asString(data.venue_address),
+    image_url: asString(data.image_url),
     registration_deadline: asString(data.registration_deadline) || null,
     status: status as OrganizationEventStatus,
     signup_mode:
@@ -484,6 +487,7 @@ export function parseOrganizationEventShareCard(
         venue_name: asString(contentRaw.venue_name),
         path: asString(contentRaw.path),
         status_label: asString(contentRaw.status_label) || undefined,
+        image_url: asString(contentRaw.image_url) || undefined,
       }
     : undefined;
   return {
@@ -740,7 +744,7 @@ export function organizationEventErrorMessage(
     case "registration_still_open":
       return "申込受付が終了してから抽選できます。";
     case "share_cooldown":
-      return "同じイベントの連続シェアを防ぐため、しばらく待ってからもう一度お試しください。";
+      return "同じイベントは10分間に1回までシェアできます。しばらく待ってからもう一度お試しください。";
     case "not_published":
       return "公開中のイベントだけ操作できます。";
     case "chat_id_required":

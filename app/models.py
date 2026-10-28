@@ -2819,6 +2819,13 @@ class OrganizationEvent(models.Model):
         db_index=True,
         help_text="既存イベントは参加申込あり。告知のみでは申込・抽選を使わない。",
     )
+    image = models.ImageField(
+        "イベント画像",
+        upload_to="event_images/",
+        blank=True,
+        null=True,
+        help_text="任意。通常投稿と同じストレージ・検証を使う。",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

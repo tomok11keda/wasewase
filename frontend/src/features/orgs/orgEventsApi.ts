@@ -1,4 +1,11 @@
-import { apiGetJson, apiPatchJson, apiPostJson, mutationErrorMessage } from "../../lib/http";
+import {
+  apiGetJson,
+  apiPatchForm,
+  apiPatchJson,
+  apiPostForm,
+  apiPostJson,
+  mutationErrorMessage,
+} from "../../lib/http";
 import { OrganizationRequestError } from "./api";
 import {
   organizationEventErrorMessage,
@@ -104,11 +111,31 @@ export async function fetchOrganizationEvent(
   );
 }
 
+function eventFormToFormData(
+  form: OrganizationEventForm,
+  image?: File | null,
+  clearImage = false
+): FormData {
+  const payload = eventFormToPayload(form);
+  const data = new FormData();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value == null) data.append(key, "");
+    else if (typeof value === "boolean") data.append(key, value ? "true" : "false");
+    else data.append(key, String(value));
+  }
+  if (image) data.append("image", image);
+  if (clearImage) data.append("clear_image", "true");
+  return data;
+}
+
 export async function createOrganizationEvent(
   slug: string,
-  form: OrganizationEventForm
+  form: OrganizationEventForm,
+  image?: File | null
 ): Promise<OrganizationEvent> {
-  const result = await apiPostJson(eventUrl(slug), eventFormToPayload(form));
+  const result = image
+    ? await apiPostForm(eventUrl(slug), eventFormToFormData(form, image))
+    : await apiPostJson(eventUrl(slug), eventFormToPayload(form));
   return eventFromResult(
     result.status,
     result.error,
@@ -120,12 +147,19 @@ export async function createOrganizationEvent(
 export async function updateOrganizationEvent(
   slug: string,
   eventId: number,
-  form: OrganizationEventForm
+  form: OrganizationEventForm,
+  options: { image?: File | null; clearImage?: boolean } = {}
 ): Promise<OrganizationEvent> {
-  const result = await apiPatchJson(
-    eventUrl(slug, `${eventId}/`),
-    eventFormToPayload(form)
-  );
+  const result =
+    options.image || options.clearImage
+      ? await apiPatchForm(
+          eventUrl(slug, `${eventId}/`),
+          eventFormToFormData(form, options.image, options.clearImage)
+        )
+      : await apiPatchJson(
+          eventUrl(slug, `${eventId}/`),
+          eventFormToPayload(form)
+        );
   return eventFromResult(
     result.status,
     result.error,
@@ -403,16 +437,44 @@ export async function shareOrganizationEventToTimeline(
   slug: string,
   eventId: number,
   body = ""
-): Promise<OrganizationEvent> {
+): Promise<{ event: OrganizationEvent | null; postId: number; postPath: string }> {
   const result = await apiPostJson(eventUrl(slug, `${eventId}/timeline-share/`), {
     body,
   });
-  return eventFromResult(
-    result.status,
-    result.error,
-    result.data,
-    "タイムラインにシェアできませんでした。"
-  );
+  if (result.status === 401 || result.error === "unauthorized") {
+    throwEventError(
+      result.status,
+      "unauthorized",
+      result.data,
+      "タイムラインにシェアできませんでした。"
+    );
+  }
+  if (!result.data.ok || result.error) {
+    throwEventError(
+      result.status,
+      result.error,
+      result.data,
+      "タイムラインにシェアできませんでした。"
+    );
+  }
+  const postId = Number(result.data.post_id || 0);
+  if (!Number.isInteger(postId) || postId <= 0) {
+    throwEventError(
+      result.status,
+      "invalid_payload",
+      result.data,
+      "投稿は作成されましたが、確認用の投稿IDを取得できませんでした。"
+    );
+  }
+  const postPath =
+    typeof result.data.post_path === "string" && result.data.post_path
+      ? result.data.post_path
+      : `/posts/${postId}`;
+  return {
+    event: parseOrganizationEvent(result.data.event),
+    postId,
+    postPath,
+  };
 }
 
 export async function duplicateOrganizationEvent(

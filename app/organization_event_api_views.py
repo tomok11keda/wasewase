@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 
+from django.core.exceptions import RequestDataTooBig
 from django.http import HttpRequest, JsonResponse
+from django.http.multipartparser import MultiPartParser, MultiPartParserError
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .organization_api_services import get_organization_by_slug
@@ -56,6 +59,47 @@ def _parse_json(request: HttpRequest) -> dict:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def _load_multipart(request: HttpRequest):
+    if request.method == "POST":
+        return request.POST, request.FILES
+    try:
+        # PATCH does not populate request.FILES. Stream the body so a 5MB
+        # image is not rejected by DATA_UPLOAD_MAX_MEMORY_SIZE via request.body.
+        stream = BytesIO(request.body) if hasattr(request, "_body") else request
+        parser = MultiPartParser(
+            request.META,
+            stream,
+            list(request.upload_handlers),
+            request.encoding,
+        )
+        return parser.parse()
+    except RequestDataTooBig as exc:
+        raise OrganizationEventError(
+            "invalid_payload",
+            status=400,
+            errors={"image": "画像は5MB以下にしてください。"},
+        ) from exc
+    except MultiPartParserError:
+        return None, None
+
+
+def _parse_event_write(request: HttpRequest) -> dict:
+    content_type = (request.content_type or "").lower()
+    if request.FILES or "multipart/form-data" in content_type:
+        parsed = _load_multipart(request)
+        if parsed[0] is None:
+            return {}
+        post, files = parsed
+        data: dict = {}
+        for key in post.keys():
+            data[key] = post.get(key)
+        image = files.get("image") if files is not None else None
+        if image is not None:
+            data["image"] = image
+        return data
+    return _parse_json(request)
 
 
 def _viewer(request: HttpRequest):
@@ -137,7 +181,7 @@ def api_v1_organization_events(request: HttpRequest, slug: str) -> JsonResponse:
         event = create_organization_event(
             organization=organization,
             actor=request.user,
-            payload=_parse_json(request),
+            payload=_parse_event_write(request),
         )
     except OrganizationEventError as exc:
         return _error_response(exc)
@@ -175,7 +219,7 @@ def api_v1_organization_event_detail(
         return _json_error("not_found", status=404)
     try:
         updated = update_organization_event(
-            event=event, actor=request.user, payload=_parse_json(request)
+            event=event, actor=request.user, payload=_parse_event_write(request)
         )
     except OrganizationEventError as exc:
         return _error_response(exc)

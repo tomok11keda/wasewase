@@ -25,6 +25,7 @@ import {
   unpublishOrganizationEvent,
   unregisterOrganizationEvent,
 } from "../features/orgs/orgEventsApi";
+import { invalidateTimelineFeed } from "../features/timeline/feedInvalidation";
 import { isBrowsePreview, useSession } from "../lib/session";
 import {
   isLatestRequest,
@@ -55,6 +56,7 @@ export function OrganizationEventDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareNote, setShareNote] = useState<string | null>(null);
+  const [sharePostPath, setSharePostPath] = useState<string | null>(null);
   const [timelineBody, setTimelineBody] = useState("");
   const [timelineBusy, setTimelineBusy] = useState(false);
 
@@ -63,6 +65,8 @@ export function OrganizationEventDetailPage() {
     setEvent(null);
     setError(null);
     setActionError(null);
+    setShareNote(null);
+    setSharePostPath(null);
     setLoading(true);
   }, [slug, eventId, sessionUserId]);
 
@@ -163,6 +167,7 @@ export function OrganizationEventDetailPage() {
             busy={busy}
             actionError={actionError}
             shareNote={shareNote}
+            sharePostPath={sharePostPath}
             shareBusy={shareBusy}
             timelineBody={timelineBody}
             timelineBusy={timelineBusy}
@@ -227,15 +232,19 @@ export function OrganizationEventDetailPage() {
             onTimelineShare={() =>
               void run(async () => {
                 setTimelineBusy(true);
+                setShareNote(null);
+                setSharePostPath(null);
                 try {
                   const shared = await shareOrganizationEventToTimeline(
                     slug,
                     event.id,
                     timelineBody
                   );
+                  invalidateTimelineFeed();
                   setShareNote("タイムラインにシェアしました。");
+                  setSharePostPath(shared.postPath);
                   setTimelineBody("");
-                  return shared;
+                  return shared.event || event;
                 } finally {
                   setTimelineBusy(false);
                 }

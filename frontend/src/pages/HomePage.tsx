@@ -49,6 +49,7 @@ import {
   parseTimelinePostHash,
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
+import { subscribeTimelineFeedInvalidation } from "../features/timeline/feedInvalidation";
 import { analytics } from "../lib/analytics/events";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 import {
@@ -327,6 +328,12 @@ export function HomePage() {
   useSoftTabRefetch("home", () => {
     void loadInitial("soft");
   });
+
+  useEffect(() => {
+    return subscribeTimelineFeedInvalidation(() => {
+      void loadInitial("soft");
+    });
+  }, [loadInitial]);
 
   const onVisibleHome =
     activeTab === "home" ||

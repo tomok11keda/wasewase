@@ -7,7 +7,9 @@ from datetime import datetime, timezone as dt_timezone
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -46,6 +48,7 @@ MY_REGISTRATION_PAGE = 20
 IMPORTANT_CHANGE_FIELDS = frozenset(
     {"starts_at", "ends_at", "venue_name", "venue_address"}
 )
+EVENT_IMAGE_PAYLOAD_KEYS = frozenset({"image", "clear_image"})
 
 PUSH_KIND_ORG_EVENT_REGISTERED = "org_event_registered"
 PUSH_KIND_ORG_EVENT_CANCELLED = "org_event_cancelled"
@@ -313,6 +316,75 @@ def _validate_schedule(
         raise OrganizationEventError("invalid_payload", status=400, errors=errors)
 
 
+def organization_event_image_url(event: OrganizationEvent | None) -> str:
+    image = getattr(event, "image", None) if event is not None else None
+    if not image:
+        return ""
+    try:
+        return image.url or ""
+    except (ValueError, OSError):
+        return ""
+
+
+def _split_event_image_payload(
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], Any, bool]:
+    data = {
+        key: value
+        for key, value in payload.items()
+        if key not in EVENT_IMAGE_PAYLOAD_KEYS
+    }
+    raw_clear = payload.get("clear_image")
+    clear = False
+    if raw_clear is not None and raw_clear != "":
+        clear = _parse_bool(raw_clear, default=False)
+    image = payload.get("image")
+    if image in (None, ""):
+        image = None
+    elif not getattr(image, "name", ""):
+        raise OrganizationEventError(
+            "invalid_payload",
+            status=400,
+            errors={"image": "画像はファイルで送信してください。"},
+        )
+    return data, image, clear
+
+
+def _validate_event_image(image) -> None:
+    from .media_services import validate_timeline_image_file
+
+    try:
+        validate_timeline_image_file(image)
+    except ValidationError as exc:
+        raise OrganizationEventError(
+            "invalid_payload",
+            status=400,
+            errors={"image": " ".join(str(message) for message in exc.messages)},
+        ) from exc
+
+
+def _assign_event_image(event: OrganizationEvent, image) -> None:
+    from .media_services import (
+        ensure_local_media_upload_dir,
+        prepare_image_field_for_save,
+    )
+
+    _validate_event_image(image)
+    try:
+        if not getattr(settings, "USE_CLOUDINARY", False):
+            ensure_local_media_upload_dir("event_images")
+        event.image = image
+        prepare_image_field_for_save(event)
+    except OrganizationEventError:
+        raise
+    except (OSError, ValidationError) as exc:
+        raise OrganizationEventError(
+            "invalid_payload",
+            status=400,
+            errors={"image": "画像の保存に失敗しました。しばらくしてから再度お試しください。"},
+        ) from exc
+
+
 def _fields_from_payload(payload: dict[str, Any], *, partial: bool) -> dict[str, Any]:
     data: dict[str, Any] = {}
     if not partial or "title" in payload:
@@ -471,6 +543,7 @@ def serialize_organization_event(
         "ends_at": _iso(event.ends_at),
         "venue_name": event.venue_name,
         "venue_address": event.venue_address or "",
+        "image_url": organization_event_image_url(event),
         "registration_deadline": _iso(event.registration_deadline),
         "status": event.status,
         "signup_mode": (
@@ -585,7 +658,8 @@ def create_organization_event(
     payload: dict[str, Any],
 ) -> OrganizationEvent:
     _require_manage(actor, organization)
-    fields = _fields_from_payload(payload, partial=False)
+    data, image, _clear = _split_event_image_payload(payload)
+    fields = _fields_from_payload(data, partial=False)
     if fields.get("signup_mode") == OrganizationEvent.SignupMode.ANNOUNCEMENT:
         fields["registration_open"] = False
         fields["registration_deadline"] = None
@@ -594,12 +668,17 @@ def create_organization_event(
         ends_at=fields["ends_at"],
         registration_deadline=fields.get("registration_deadline"),
     )
-    event = OrganizationEvent.objects.create(
+    if image is not None:
+        _validate_event_image(image)
+    event = OrganizationEvent(
         organization=organization,
         created_by=actor,
         status=OrganizationEvent.Status.DRAFT,
         **fields,
     )
+    if image is not None:
+        _assign_event_image(event, image)
+    event.save()
     return event
 
 
@@ -624,10 +703,13 @@ def update_organization_event(
         "deleted_at",
         "status",
     }
-    if forbidden.intersection(payload.keys()):
+    data, image, clear_image = _split_event_image_payload(payload)
+    if forbidden.intersection(data.keys()):
         raise OrganizationEventError("forbidden_field", status=400)
 
-    fields = _fields_from_payload(payload, partial=True)
+    if image is not None:
+        _validate_event_image(image)
+    fields = _fields_from_payload(data, partial=True)
     starts_at = fields.get("starts_at", event.starts_at)
     ends_at = fields.get("ends_at", event.ends_at)
     deadline = (
@@ -671,6 +753,18 @@ def update_organization_event(
             if key in IMPORTANT_CHANGE_FIELDS and getattr(locked, key) != value:
                 changed_important = True
             setattr(locked, key, value)
+        if image is not None:
+            previous_name = locked.image.name if locked.image else ""
+            try:
+                _assign_event_image(locked, image)
+            except Exception:
+                if previous_name:
+                    locked.image = previous_name
+                else:
+                    locked.image = None
+                raise
+        elif clear_image:
+            locked.image = None
         locked.save()
         notify_ids: list[int] = []
         if (
@@ -1117,6 +1211,7 @@ def serialize_event_share(event: OrganizationEvent) -> dict[str, Any]:
             "ends_at": _iso(event.ends_at),
             "venue_name": event.venue_name,
             "status_label": status_label,
+            "image_url": organization_event_image_url(event),
             "path": f"/organizations/{slug}/events/{event.pk}",
         },
     }

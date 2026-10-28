@@ -22,6 +22,17 @@ test("event form text inputs no longer stretch radios to 100% width", () => {
   );
 });
 
+test("event form offers the same image picker as timeline compose", () => {
+  const form = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../pages/OrganizationEventFormPage.tsx"),
+    "utf8"
+  );
+  assert.equal(form.includes("ImagePickField"), true);
+  assert.equal(form.includes("イベント画像（任意）"), true);
+  assert.equal(form.includes("画像を削除"), true);
+  assert.equal(form.includes("画像をアップロード中…"), true);
+});
+
 test("signup mode uses stacked choice cards that keep radio controls compact", () => {
   assert.equal(css.includes(".org-event-signup-mode__options"), true);
   assert.equal(css.includes(".org-event-choice"), true);

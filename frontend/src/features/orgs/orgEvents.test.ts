@@ -77,6 +77,12 @@ test("parses event list and rejects email on registrants", () => {
   assert.equal(parsed?.can_register, true);
   assert.equal(parsed?.signup_mode, "registration");
   assert.equal(parsed?.can_share_to_timeline, false);
+  assert.equal(parsed?.image_url, "");
+  assert.equal(
+    parseOrganizationEvent({ ...published, image_url: "/media/event_images/a.gif" })
+      ?.image_url,
+    "/media/event_images/a.gif"
+  );
   const list = parseOrganizationEventListPayload({
     ok: true,
     events: [published],
@@ -254,6 +260,10 @@ test("paths stay basename-relative and error copy is not cancelled for network",
   assert.equal(
     organizationEventErrorMessage("not_found", "x"),
     "イベントが見つからないか、表示できません。"
+  );
+  assert.equal(
+    organizationEventErrorMessage("share_cooldown", "x"),
+    "同じイベントは10分間に1回までシェアできます。しばらく待ってからもう一度お試しください。"
   );
 });
 

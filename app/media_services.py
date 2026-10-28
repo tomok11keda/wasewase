@@ -472,10 +472,15 @@ def validate_timeline_image_file(image) -> None:
     raise ValidationError("画像ファイル（JPEG・PNG・GIF・WebP）を選択してください。")
 
 
+def ensure_local_media_upload_dir(subdir: str) -> Path:
+    """ローカル保存時に MEDIA_ROOT 配下のアップロード先を用意する。"""
+    upload_dir = Path(settings.MEDIA_ROOT) / subdir
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    if not os.access(upload_dir, os.W_OK):
+        raise OSError(f"{subdir} is not writable: {upload_dir}")
+    return upload_dir
+
+
 def ensure_local_post_images_dir() -> Path:
     """ローカル保存時に post_images ディレクトリを用意する。"""
-    post_images_dir = Path(settings.MEDIA_ROOT) / "post_images"
-    post_images_dir.mkdir(parents=True, exist_ok=True)
-    if not os.access(post_images_dir, os.W_OK):
-        raise OSError(f"post_images is not writable: {post_images_dir}")
-    return post_images_dir
+    return ensure_local_media_upload_dir("post_images")
