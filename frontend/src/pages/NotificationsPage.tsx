@@ -201,7 +201,7 @@ export function NotificationsPage() {
   const showEmpty = !error && !showSkeleton && items.length === 0;
 
   return (
-    <div className="notifications-page" data-spa-page="通知">
+    <div className="notifications-page ptr-shift" data-spa-page="通知">
       <PullToRefresh
         enabled={Boolean(me?.authenticated) && !showSafeChrome}
         onRefresh={async () => {

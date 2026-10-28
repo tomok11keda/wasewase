@@ -153,6 +153,11 @@ class PullToRefreshGestureHookTests(SimpleTestCase):
         self.assertIn("position: fixed", css)
         self.assertIn("pull-to-refresh.css", main)
         self.assertNotIn("tab-keep-alive", hook)
+        self.assertIn("document.documentElement", hook)
+        self.assertIn("--ptr-pull", hook)
+        self.assertIn("ptr-active", hook)
+        self.assertIn(".ptr-shift", css)
+        self.assertIn("translate3d(0, var(--ptr-pull, 0px), 0)", css)
 
 
 class PullToRefreshPageWiringTests(SimpleTestCase):
@@ -162,6 +167,7 @@ class PullToRefreshPageWiringTests(SimpleTestCase):
             self.assertIn('from "../lib/usePullToRefresh"', src, rel)
             self.assertIn("<PullToRefresh", src, rel)
             self.assertIn("onRefresh=", src, rel)
+            self.assertIn("ptr-shift", src, rel)
             self.assertNotIn("get_latest_posts", src, rel)
             self.assertNotIn("/board/latest/", src, rel)
             self.assertNotIn("window.location.reload()", src, rel)
@@ -180,9 +186,10 @@ class PullToRefreshPageWiringTests(SimpleTestCase):
         self.assertIn("await loadInitial(\"soft\")", home)
         self.assertIn("refresh_failed", home)
         self.assertIn("fetchTimeline({", home)
-        self.assertIn("sort,", home)
-        self.assertIn("faculty: faculty || undefined", home)
-        self.assertIn("q: qParam || undefined", home)
+        self.assertIn("sort: HOME_TIMELINE_SORT", home)
+        self.assertNotIn("faculty: faculty || undefined", home)
+        self.assertNotIn("q: qParam || undefined", home)
+        self.assertIn("ptr-shift", home)
         self.assertIn('if (mode === "soft") return false', home)
         self.assertIn('if (mode !== "soft") setLoading(false)', home)
         self.assertIn("setPosts(data.posts)", home)

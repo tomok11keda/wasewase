@@ -115,6 +115,22 @@ export function usePullToRefresh({
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--ptr-pull", `${pullPx}px`);
+    root.setAttribute("data-ptr-status", status);
+    root.classList.toggle("ptr-active", status !== "idle" || pullPx > 0);
+  }, [pullPx, status]);
+
+  useEffect(() => {
+    return () => {
+      const root = document.documentElement;
+      root.classList.remove("ptr-active");
+      root.style.removeProperty("--ptr-pull");
+      root.removeAttribute("data-ptr-status");
+    };
+  }, []);
+
+  useEffect(() => {
     const active = enabled && isMobile;
     if (!active) {
       sessionRef.current = null;

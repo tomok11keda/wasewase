@@ -261,11 +261,14 @@ def serialize_search_offering(offering: CourseOffering) -> dict[str, Any]:
 
 
 def post_relevance(query: str, post: dict[str, Any]) -> int:
+    event = post.get("shared_organization_event") or {}
+    event_title = event.get("title") if isinstance(event, dict) else ""
     return text_relevance(
         query,
         post.get("body") or "",
         post.get("course_name") or "",
         post.get("professor_name") or "",
+        event_title or "",
     )
 
 

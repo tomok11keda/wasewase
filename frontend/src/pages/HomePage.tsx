@@ -69,15 +69,21 @@ export function HomePage() {
   const location = useLocation();
   const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
-  const faculty = searchParams.get("faculty") || "";
-  const qParam = searchParams.get("q") || "";
-
-  // Clear obsolete feed=/sort= query from bookmarks / old links.
+  // Home is unfiltered latest. Leftover faculty=/q= hid organization posts.
   useEffect(() => {
-    if (!searchParams.has("feed") && !searchParams.has("sort")) return;
+    if (
+      !searchParams.has("feed") &&
+      !searchParams.has("sort") &&
+      !searchParams.has("faculty") &&
+      !searchParams.has("q")
+    ) {
+      return;
+    }
     const next = new URLSearchParams(searchParams);
     next.delete("feed");
     next.delete("sort");
+    next.delete("faculty");
+    next.delete("q");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -288,8 +294,6 @@ export function HomePage() {
       try {
         const data = await fetchTimeline({
           sort: HOME_TIMELINE_SORT,
-          faculty: faculty || undefined,
-          q: qParam || undefined,
         });
         setPosts(data.posts);
         setHasMore(data.has_more);
@@ -305,7 +309,7 @@ export function HomePage() {
         if (mode !== "soft") setLoading(false);
       }
     },
-    [faculty, qParam, browsePreview]
+    [browsePreview]
   );
 
   useEffect(() => {
@@ -453,8 +457,6 @@ export function HomePage() {
         setLoadingMore(true);
         void fetchTimeline({
           sort: HOME_TIMELINE_SORT,
-          faculty: faculty || undefined,
-          q: qParam || undefined,
           offset: nextOffset,
         })
           .then((data: TimelineFeedResponse) => {
@@ -475,7 +477,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [browsePreview, faculty, qParam, hasMore, loading, loadingMore, nextOffset]);
+  }, [browsePreview, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -672,7 +674,7 @@ export function HomePage() {
   );
 
   return (
-    <div className="main-inner timeline-home" data-spa-page="タイムライン">
+    <div className="main-inner timeline-home ptr-shift" data-spa-page="タイムライン">
       <PullToRefresh
         enabled={onVisibleHome && !composeOpen && !browsePreview}
         onRefresh={async () => {
@@ -792,11 +794,7 @@ export function HomePage() {
       ) : feedPhase === "error" ? (
         <p className="empty-message">読み込みに失敗しました（{error}）</p>
       ) : feedPhase === "empty" ? (
-        <p className="empty-message">
-          {qParam
-            ? "一致する投稿はありません。"
-            : "まだ投稿がありません。"}
-        </p>
+        <p className="empty-message">まだ投稿がありません。</p>
       ) : (
         <div className="timeline-list home-feed" id="timeline-list">
           {postUnavailable ? (

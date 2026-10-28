@@ -9,6 +9,7 @@ from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
+from .board_services import TIMELINE_INITIAL_SIZE
 from .models import (
     Organization,
     OrganizationEvent,
@@ -248,6 +249,108 @@ class OrganizationEventPhase34Tests(TestCase):
         draft_share = self._json("post", self._url(f"{event_id}/timeline-share/"))
         self.assertEqual(draft_share.status_code, 409)
         self.assertEqual(draft_share.json()["error"], "not_published")
+
+    def _search_post_ids(self, q: str, tab: str = "latest") -> set[int]:
+        res = self.client.get("/api/v1/search/", {"q": q, "tab": tab})
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        ids = {row["id"] for row in data.get("posts") or []}
+        for row in data.get("results") or []:
+            if row.get("kind") == "post" and row.get("post"):
+                ids.add(row["post"]["id"])
+        return ids
+
+    def test_event_share_is_discoverable_in_latest_feed_org_profile_and_search(self):
+        for i in range(TIMELINE_INITIAL_SIZE + 5):
+            TimelinePost.objects.create(
+                author=self.other,
+                body=f"埋める用の古い投稿 {i}",
+            )
+        event_id = self._create_published(title="発見テスト新歓2026")
+        self.client.force_login(self.owner)
+        shared = self._json(
+            "post",
+            self._url(f"{event_id}/timeline-share/"),
+            body="本文キーワードで探すシェア",
+        )
+        self.assertEqual(shared.status_code, 201, shared.content)
+        post_id = shared.json()["post_id"]
+
+        owner_detail = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(owner_detail.status_code, 200)
+        self.assertEqual(
+            owner_detail.json()["post"]["shared_organization_event"]["title"],
+            "発見テスト新歓2026",
+        )
+        owner_feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertEqual(owner_feed.status_code, 200)
+        owner_ids = [row["id"] for row in owner_feed.json()["posts"]]
+        self.assertIn(post_id, owner_ids)
+        self.assertEqual(owner_ids[0], post_id)
+        self.assertTrue(owner_feed.json()["has_more"])
+        self.assertGreater(owner_feed.json()["total_count"], TIMELINE_INITIAL_SIZE)
+
+        org_posts = self.client.get(f"/api/v1/organizations/{self.org.slug}/posts/")
+        self.assertTrue(any(row["id"] == post_id for row in org_posts.json()["posts"]))
+
+        self.client.force_login(self.student)
+        student_detail = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(student_detail.status_code, 200)
+        student_feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        student_ids = [row["id"] for row in student_feed.json()["posts"]]
+        self.assertIn(post_id, student_ids)
+        self.assertEqual(student_ids[0], post_id)
+        student_row = next(row for row in student_feed.json()["posts"] if row["id"] == post_id)
+        self.assertEqual(student_row["actor_type"], "organization")
+        self.assertEqual(
+            student_row["shared_organization_event"]["title"], "発見テスト新歓2026"
+        )
+
+        self.assertIn(post_id, self._search_post_ids("本文キーワードで探すシェア"))
+        self.assertIn(post_id, self._search_post_ids("発見テスト新歓2026"))
+        self.assertIn(post_id, self._search_post_ids("発見テスト新歓2026", tab="all"))
+
+        profile = self.student.profile
+        profile.department = "政治経済学部"
+        profile.save(update_fields=["department"])
+        faculty_feed = self.client.get(
+            "/api/v1/timeline/", {"sort": "latest", "faculty": "政治経済学部"}
+        )
+        faculty_ids = [row["id"] for row in faculty_feed.json()["posts"]]
+        self.assertNotIn(post_id, faculty_ids)
+
+        self.client.force_login(self.owner)
+        unpublished = self._json("post", self._url(f"{event_id}/unpublish/"))
+        self.assertEqual(unpublished.status_code, 200)
+        self.client.force_login(self.student)
+        self.assertEqual(self.client.get(f"/api/v1/timeline/{post_id}/").status_code, 404)
+        hidden_feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertNotIn(post_id, [row["id"] for row in hidden_feed.json()["posts"]])
+        self.assertNotIn(post_id, self._search_post_ids("本文キーワードで探すシェア"))
+        self.assertNotIn(post_id, self._search_post_ids("発見テスト新歓2026"))
+
+    def test_draft_event_title_does_not_leak_through_search(self):
+        now = timezone.now()
+        draft = OrganizationEvent.objects.create(
+            organization=self.org,
+            title="秘密の下書きイベント題XYZ",
+            starts_at=now + timedelta(days=3),
+            ends_at=now + timedelta(days=3, hours=2),
+            venue_name="非公開会場",
+            status=OrganizationEvent.Status.DRAFT,
+            created_by=self.owner,
+        )
+        leaked = TimelinePost.objects.create(
+            author=self.owner,
+            organization=self.org,
+            organization_visibility=TimelinePost.OrganizationVisibility.PUBLIC,
+            body="公開に見える紹介文",
+            shared_organization_event=draft,
+        )
+        self.client.force_login(self.student)
+        self.assertNotIn(leaked.pk, self._search_post_ids("秘密の下書きイベント題XYZ"))
+        feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertNotIn(leaked.pk, [row["id"] for row in feed.json()["posts"]])
 
     def test_timeline_share_cooldown_and_deleted_event(self):
         event_id = self._create_published()

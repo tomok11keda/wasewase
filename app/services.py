@@ -121,8 +121,36 @@ def search_products(query: str, viewer=None):
     return filter_visible_products(qs, viewer)
 
 
+def timeline_post_search_q(query: str) -> Q:
+    """本文・授業・教員に加え、公開/中止イベントの共有カードタイトル。
+
+    下書き・削除イベントの題名はヒットさせない。公開判定は呼び出し側の
+    filter_visible_timeline_posts が担う。
+    """
+    text = (query or "").strip()
+    if not text:
+        return Q(pk__in=[])
+    from .models import OrganizationEvent
+
+    listed_event_title = Q(
+        shared_organization_event_id__isnull=False,
+        shared_organization_event__deleted_at__isnull=True,
+        shared_organization_event__status__in=[
+            OrganizationEvent.Status.PUBLISHED,
+            OrganizationEvent.Status.CANCELLED,
+        ],
+        shared_organization_event__title__icontains=text,
+    )
+    return (
+        Q(body__icontains=text)
+        | Q(course_name__icontains=text)
+        | Q(professor_name__icontains=text)
+        | listed_event_title
+    )
+
+
 def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
-    """タイムライン投稿を本文・授業名・教員名で検索。
+    """タイムライン投稿を本文・授業名・教員名・公開イベント名で検索。
 
     sort:
       - \"latest\": 投稿日時の新しい順
@@ -138,11 +166,7 @@ def search_timeline_posts(query: str, viewer=None, *, sort: str = "latest"):
     )
     if not query:
         return qs.none()
-    qs = qs.filter(
-        Q(body__icontains=query)
-        | Q(course_name__icontains=query)
-        | Q(professor_name__icontains=query)
-    )
+    qs = qs.filter(timeline_post_search_q(query))
     if sort == "popular":
         qs = qs.order_by("-like_count", "-created_at")
     else:

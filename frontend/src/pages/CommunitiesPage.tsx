@@ -291,7 +291,7 @@ export function CommunitiesPage() {
 
   return (
     <div
-      className={`communities-page${composeOpen ? " is-composing" : ""}`}
+      className={`communities-page ptr-shift${composeOpen ? " is-composing" : ""}`}
       data-spa-page="コミュニティ"
     >
       <PullToRefresh

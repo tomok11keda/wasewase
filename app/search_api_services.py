@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from .community_services import list_community_threads
 from .models import Product, TimelinePost
-from .services import user_display_name
+from .services import timeline_post_search_q, user_display_name
 from .ugc_services import filter_visible_products, filter_visible_timeline_posts
 
 SEARCH_SCOPES = ("home", "communities", "flea")
@@ -80,12 +80,12 @@ def search_home_posts(query: str, viewer=None, *, limit: int = SEARCH_RESULT_LIM
     if not query:
         return []
     qs = TimelinePost.objects.select_related(
-        "author", "author__profile", "organization"
-    ).filter(
-        Q(body__icontains=query)
-        | Q(course_name__icontains=query)
-        | Q(professor_name__icontains=query)
-    ).order_by("-created_at")
+        "author",
+        "author__profile",
+        "organization",
+        "shared_organization_event",
+        "shared_organization_event__organization",
+    ).filter(timeline_post_search_q(query)).order_by("-created_at")
     qs = filter_visible_timeline_posts(qs, viewer)[:limit]
     return [_serialize_post(post) for post in qs]
 

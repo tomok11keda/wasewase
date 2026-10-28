@@ -33,8 +33,11 @@ class HomeTimelineChromeTests(SimpleTestCase):
         self.assertIn("いまどうしてる？", home)
         self.assertIn("compose-fab", home)
         self.assertIn("fetchTimeline", home)
-        self.assertIn("faculty: faculty || undefined", home)
-        self.assertIn("q: qParam || undefined", home)
+        self.assertIn("sort: HOME_TIMELINE_SORT", home)
+        self.assertNotIn("faculty: faculty || undefined", home)
+        self.assertNotIn("q: qParam || undefined", home)
+        self.assertIn('next.delete("faculty")', home)
+        self.assertIn('next.delete("q")', home)
 
     def test_other_hubs_keep_faculty_filter(self):
         flea = _read("frontend/src/pages/FleaPage.tsx")

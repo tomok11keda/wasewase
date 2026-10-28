@@ -198,7 +198,7 @@ export function DmInboxPage() {
   const empty = emptyCopy(tab);
 
   return (
-    <div className="dm-page" data-spa-page="メッセージ">
+    <div className="dm-page ptr-shift" data-spa-page="メッセージ">
       <PullToRefresh
         enabled={!loading && !showSafeChrome}
         onRefresh={async () => {

@@ -224,7 +224,7 @@ export function FleaPage() {
   });
 
   return (
-    <div className="flea-page" data-spa-page="フリマ">
+    <div className="flea-page ptr-shift" data-spa-page="フリマ">
       <PullToRefresh
         enabled={showExhibitFab && !browsePreview}
         onRefresh={async () => {

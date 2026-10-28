@@ -68,3 +68,29 @@
     transform: rotate(360deg);
   }
 }
+
+/* Feed follows the finger. Header / bottom nav stay put. */
+.ptr-shift {
+  transform: translate3d(0, var(--ptr-pull, 0px), 0);
+}
+
+html[data-ptr-status="pulling"] .ptr-shift,
+html[data-ptr-status="armed"] .ptr-shift {
+  transition: none;
+}
+
+html[data-ptr-status="idle"] .ptr-shift,
+html[data-ptr-status="refreshing"] .ptr-shift,
+html[data-ptr-status="error"] .ptr-shift {
+  transition: transform 220ms var(--ease-standard, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+html.ptr-active .ptr-shift {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr-shift {
+    transition: none !important;
+  }
+}

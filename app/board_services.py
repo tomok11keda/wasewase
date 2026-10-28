@@ -5,7 +5,7 @@ from .comment_thread_services import timeline_comments_prefetch
 from .constants import FACULTY_CHOICES
 from .models import TimelineLike, TimelinePost
 from .notification_services import create_notification
-from .services import get_following_user_ids
+from .services import get_following_user_ids, timeline_post_search_q
 from .ugc_services import filter_visible_timeline_posts, get_blocked_user_ids
 
 TIMELINE_INITIAL_SIZE = 25
@@ -69,11 +69,7 @@ def build_timeline_posts_queryset(request):
     if active_tag:
         timeline_posts = timeline_posts.filter(course_name=active_tag)
     if query:
-        timeline_posts = timeline_posts.filter(
-            Q(body__icontains=query)
-            | Q(course_name__icontains=query)
-            | Q(professor_name__icontains=query)
-        )
+        timeline_posts = timeline_posts.filter(timeline_post_search_q(query))
     if feed_scope == "following":
         if request.user.is_authenticated:
             following_ids = get_following_user_ids(request.user)
