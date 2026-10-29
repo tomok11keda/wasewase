@@ -8,7 +8,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { clearInboxCache } from "../features/dm/inboxCache";
+import {
+  nextDmUnreadTotal,
+  shouldCommitUnreadFetch,
+} from "../features/dm/acknowledgeRoomRead";
+import type { InboxItem } from "../features/dm/api";
+import { clearInboxCache, clearInboxRoomUnread } from "../features/dm/inboxCache";
 import { clearNotificationsCache } from "../features/notifications/notificationsCache";
 import { clearFollowListCache } from "../features/profile/followListCache";
 import { clearOwnProfileCache } from "../features/profile/ownProfileCache";
@@ -19,12 +24,19 @@ import {
   type MeResponse,
 } from "./api";
 
+export const UNREAD_POLL_MS = 60_000;
+
 type SessionState = {
   loading: boolean;
   me: MeResponse | null;
   error: string | null;
   refresh: () => Promise<void>;
   setMeFromAuth: (me: MeResponse) => void;
+  refreshUnreadCounts: () => Promise<void>;
+  acknowledgeInboxRoomRead: (args: {
+    kind: InboxItem["kind"];
+    roomId: number;
+  }) => void;
 };
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -45,6 +57,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const prevUserIdRef = useRef<number | null>(null);
+  const sessionUserIdRef = useRef<number | null>(null);
+  const unreadGen = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -71,17 +85,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const sessionUserId =
     me?.authenticated && me.user?.id != null ? me.user.id : null;
+  sessionUserIdRef.current = sessionUserId;
   const prevUnreadRef = useRef<number | null>(null);
 
   useEffect(() => {
     const previousUserId = prevUserIdRef.current;
     if (previousUserId != null && previousUserId !== sessionUserId) {
+      unreadGen.current += 1;
       clearNotificationsCache(previousUserId);
       clearOwnProfileCache(previousUserId);
       clearInboxCache(previousUserId);
       clearFollowListCache();
     }
     if (previousUserId != null && sessionUserId == null) {
+      unreadGen.current += 1;
       clearNotificationsCache();
       clearOwnProfileCache();
       clearInboxCache();
@@ -101,30 +118,83 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     prevUnreadRef.current = unread;
   }, [sessionUserId, me?.unread_notifications]);
 
+  const refreshUnreadCounts = useCallback(async () => {
+    if (sessionUserIdRef.current == null) return;
+    const gen = ++unreadGen.current;
+    const startedUserId = sessionUserIdRef.current;
+    try {
+      const [n, d] = await Promise.all([
+        fetchNotificationUnread(),
+        fetchDmUnreadTotal(),
+      ]);
+      if (
+        !shouldCommitUnreadFetch({
+          fetchGen: gen,
+          currentGen: unreadGen.current,
+          startedUserId,
+          currentUserId: sessionUserIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setMe((prev) =>
+        prev
+          ? { ...prev, unread_notifications: n, dm_unread_total: d }
+          : prev
+      );
+    } catch {
+      /* keep the current in-app badges */
+    }
+  }, []);
+
+  const acknowledgeInboxRoomRead = useCallback(
+    (args: { kind: InboxItem["kind"]; roomId: number }) => {
+      const userId = sessionUserIdRef.current;
+      if (userId == null) return;
+      const roomUnread = clearInboxRoomUnread(userId, args.kind, args.roomId);
+      unreadGen.current += 1;
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              dm_unread_total: nextDmUnreadTotal(
+                prev.dm_unread_total || 0,
+                roomUnread
+              ),
+            }
+          : prev
+      );
+    },
+    []
+  );
+
   useEffect(() => {
     if (!me?.authenticated) return;
-    const tick = async () => {
-      try {
-        const [n, d] = await Promise.all([
-          fetchNotificationUnread(),
-          fetchDmUnreadTotal(),
-        ]);
-        setMe((prev) =>
-          prev
-            ? { ...prev, unread_notifications: n, dm_unread_total: d }
-            : prev
-        );
-      } catch {
-        /* ignore badge errors */
-      }
-    };
-    const id = window.setInterval(tick, 60000);
+    const id = window.setInterval(() => {
+      void refreshUnreadCounts();
+    }, UNREAD_POLL_MS);
     return () => window.clearInterval(id);
-  }, [me?.authenticated]);
+  }, [me?.authenticated, refreshUnreadCounts]);
 
   const value = useMemo(
-    () => ({ loading, me, error, refresh, setMeFromAuth }),
-    [loading, me, error, refresh, setMeFromAuth]
+    () => ({
+      loading,
+      me,
+      error,
+      refresh,
+      setMeFromAuth,
+      refreshUnreadCounts,
+      acknowledgeInboxRoomRead,
+    }),
+    [
+      loading,
+      me,
+      error,
+      refresh,
+      setMeFromAuth,
+      refreshUnreadCounts,
+      acknowledgeInboxRoomRead,
+    ]
   );
 
   return (

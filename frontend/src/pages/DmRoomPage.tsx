@@ -55,7 +55,12 @@ export function DmRoomPage() {
   const { roomPk } = useParams();
   const roomId = Number(roomPk);
   const navigate = useNavigate();
-  const { me, loading: sessionLoading } = useSession();
+  const {
+    me,
+    loading: sessionLoading,
+    acknowledgeInboxRoomRead,
+    refreshUnreadCounts,
+  } = useSession();
   const sessionUserId =
     me?.authenticated && me.user?.id != null ? me.user.id : null;
   const userIdRef = useRef(sessionUserId);
@@ -162,11 +167,12 @@ export function DmRoomPage() {
         setMessages([]);
         setError(err instanceof Error ? err.message : "load_failed");
         setHydrated(true);
+        void refreshUnreadCounts();
       } finally {
         if (isLatestRequest(fetchGen, gen)) setLoading(false);
       }
     },
-    [roomId]
+    [roomId, refreshUnreadCounts]
   );
 
   useEffect(() => {
@@ -179,6 +185,21 @@ export function DmRoomPage() {
     void load(ac.signal);
     return () => ac.abort();
   }, [me?.authenticated, sessionLoading, roomId, roomPk, navigate, load, sessionUserId]);
+
+  useEffect(() => {
+    if (!hydrated || sessionUserId == null) return;
+    if (!Number.isFinite(roomId) || roomId <= 0) return;
+    if (room?.id !== roomId) return;
+    acknowledgeInboxRoomRead({ kind: "dm", roomId });
+    void refreshUnreadCounts();
+  }, [
+    hydrated,
+    room?.id,
+    roomId,
+    sessionUserId,
+    acknowledgeInboxRoomRead,
+    refreshUnreadCounts,
+  ]);
 
   const fetchOlder = useCallback(
     (beforeId: number) => fetchOlderDmMessages(roomIdRef.current, beforeId),
@@ -211,6 +232,9 @@ export function DmRoomPage() {
       }
       if (Array.isArray(data.read_message_ids)) {
         applyReadIds(data.read_message_ids);
+      }
+      if ((data.messages || []).some((message) => !message.is_mine)) {
+        void refreshUnreadCounts();
       }
       setRoom((prev) =>
         prev

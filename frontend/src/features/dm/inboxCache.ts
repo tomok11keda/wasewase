@@ -14,6 +14,11 @@ export const INBOX_CACHE_FRESH_MS = 20_000;
 
 const store = new Map<string, InboxCacheEntry>();
 const inflight = new Map<string, Promise<InboxCacheEntry>>();
+let writeGeneration = 0;
+
+function bumpWriteGeneration(): void {
+  writeGeneration += 1;
+}
 
 function cacheKey(userId: number, tab: string): string {
   return `${userId}:${tab || "all"}`;
@@ -59,7 +64,60 @@ export function writeInboxCache(entry: InboxCacheEntry): void {
   store.set(cacheKey(entry.userId, entry.tab), entry);
 }
 
+export function chooseInboxCacheEntry(args: {
+  startedGeneration: number;
+  currentGeneration: number;
+  patched: InboxCacheEntry | null;
+  fetched: InboxCacheEntry;
+}): InboxCacheEntry {
+  if (args.startedGeneration !== args.currentGeneration && args.patched) {
+    return args.patched;
+  }
+  return args.fetched;
+}
+
+function itemMatchesRoom(
+  item: InboxItem,
+  kind: InboxItem["kind"],
+  roomId: number
+): boolean {
+  return item.kind === kind && item.room_id === roomId;
+}
+
+/**
+ * Zero this user's unread for one inbox room across cached tabs.
+ * Returns the unread count that was cleared (0 if already read / missing).
+ */
+export function clearInboxRoomUnread(
+  userId: number,
+  kind: InboxItem["kind"],
+  roomId: number
+): number {
+  if (!isValidUserId(userId) || !Number.isFinite(roomId) || roomId <= 0) {
+    return 0;
+  }
+  let captured = 0;
+  for (const [key, entry] of store) {
+    if (entry.userId !== userId) continue;
+    let entryChanged = false;
+    const items = entry.items.map((item) => {
+      if (!itemMatchesRoom(item, kind, roomId)) return item;
+      const unread = Math.max(0, Math.trunc(Number(item.unread_count) || 0));
+      captured = Math.max(captured, unread);
+      if (unread === 0) return item;
+      entryChanged = true;
+      return { ...item, unread_count: 0 };
+    });
+    if (entryChanged) {
+      store.set(key, { ...entry, items });
+    }
+  }
+  bumpWriteGeneration();
+  return captured;
+}
+
 export function clearInboxCache(userId?: number): void {
+  bumpWriteGeneration();
   if (userId == null) {
     store.clear();
     inflight.clear();
@@ -88,9 +146,10 @@ export async function loadDmInbox(
   const key = cacheKey(userId, tab);
   const pending = inflight.get(key);
   if (pending) return pending;
+  const startedGeneration = writeGeneration;
   const request = import("./api").then(({ fetchDmInbox }) => fetchDmInbox(tab))
     .then((data) => {
-      const entry: InboxCacheEntry = {
+      const fetched: InboxCacheEntry = {
         userId,
         tab,
         items: data.conversations || [],
@@ -98,8 +157,14 @@ export async function loadDmInbox(
         requestCount: Number(data.message_request_count || 0),
         fetchedAt: Date.now(),
       };
-      writeInboxCache(entry);
-      return entry;
+      const chosen = chooseInboxCacheEntry({
+        startedGeneration,
+        currentGeneration: writeGeneration,
+        patched: readInboxCache(userId, tab),
+        fetched,
+      });
+      if (chosen === fetched) writeInboxCache(fetched);
+      return chosen;
     })
     .finally(() => {
       inflight.delete(key);

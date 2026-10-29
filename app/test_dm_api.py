@@ -6,7 +6,8 @@ import json
 
 from django.test import Client, TestCase, override_settings
 
-from .models import Follow, User, UserBlock, UserProfile
+from .dm_services import get_or_create_dm_room
+from .models import Follow, User, UserBlock, UserDirectMessage, UserProfile
 
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False)
@@ -90,6 +91,69 @@ class DmApiTests(TestCase):
         detail = self.client.get(f"/api/v1/dm/groups/{room_id}/")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()["room"]["name"], "履修相談")
+
+    def test_opening_one_dm_room_clears_only_that_room_unread(self):
+        room_a, _ = get_or_create_dm_room(self.a, self.b)
+        user_c = User.objects.create_user(
+            email="dm-c@waseda.jp", password="test-pass-12345", username="dmc"
+        )
+        UserProfile.objects.update_or_create(user=user_c, defaults={"name": "C"})
+        room_b, _ = get_or_create_dm_room(self.a, user_c)
+        for index in range(3):
+            UserDirectMessage.objects.create(
+                room=room_a, sender=self.b, body=f"a-{index}"
+            )
+        for index in range(2):
+            UserDirectMessage.objects.create(
+                room=room_b, sender=user_c, body=f"b-{index}"
+            )
+        self.client.force_login(self.a)
+        before = self.client.get("/api/dm/unread-summary/").json()
+        self.assertEqual(before["total_unread"], 5)
+        opened = self.client.get(f"/api/v1/dm/rooms/{room_a.pk}/")
+        self.assertEqual(opened.status_code, 200)
+        after = self.client.get("/api/dm/unread-summary/").json()
+        self.assertEqual(after["total_unread"], 2)
+        unread_by_room = {
+            row["room_pk"]: row["unread_count"] for row in after["rooms"]
+        }
+        self.assertNotIn(room_a.pk, unread_by_room)
+        self.assertEqual(unread_by_room[room_b.pk], 2)
+        inbox = self.client.get("/api/v1/dm/inbox/?tab=dm").json()
+        inbox_unread = {
+            row["room_id"]: row["unread_count"] for row in inbox["conversations"]
+        }
+        self.assertEqual(inbox_unread[room_a.pk], 0)
+        self.assertEqual(inbox_unread[room_b.pk], 2)
+
+    def test_message_after_opening_stays_unread_until_next_fetch(self):
+        room, _ = get_or_create_dm_room(self.a, self.b)
+        first = UserDirectMessage.objects.create(
+            room=room, sender=self.b, body="already-open"
+        )
+        self.client.force_login(self.a)
+        opened = self.client.get(f"/api/v1/dm/rooms/{room.pk}/")
+        self.assertEqual(opened.status_code, 200)
+        self.assertEqual(
+            self.client.get("/api/dm/unread-summary/").json()["total_unread"],
+            0,
+        )
+        newer = UserDirectMessage.objects.create(
+            room=room, sender=self.b, body="arrived-later"
+        )
+        self.assertEqual(
+            self.client.get("/api/dm/unread-summary/").json()["total_unread"],
+            1,
+        )
+        poll = self.client.get(
+            f"/api/v1/dm/rooms/{room.pk}/messages/?after={first.pk}"
+        )
+        self.assertEqual(poll.status_code, 200)
+        self.assertEqual(poll.json()["messages"][0]["id"], newer.pk)
+        self.assertEqual(
+            self.client.get("/api/dm/unread-summary/").json()["total_unread"],
+            0,
+        )
 
 
 @override_settings(WASE_REACT_SPA=False, BROWSE_MODE_GATE_ENABLED=False)

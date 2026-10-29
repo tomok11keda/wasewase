@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   clearInboxCache,
+  clearInboxRoomUnread,
   findInboxItemForUser,
   INBOX_CACHE_FRESH_MS,
   isInboxCacheFresh,
@@ -71,6 +72,25 @@ test("inbox cache rejects invalid user ids", () => {
   assert.equal(readInboxCache(0, "all"), null);
   assert.equal(readInboxCache(-4, "all"), null);
   assert.equal(readInboxCache(1, "all"), null);
+});
+
+test("clearing one room unread does not touch other rooms or users", () => {
+  clearInboxCache();
+  const user11 = entry(11);
+  user11.items = [
+    { ...user11.items[0]!, room_id: 1, unread_count: 3, spa_path: "/dm/1" },
+    { ...user11.items[0]!, room_id: 2, unread_count: 2, spa_path: "/dm/2" },
+  ];
+  writeInboxCache(user11);
+  const user22 = entry(22);
+  user22.items = [{ ...user22.items[0]!, unread_count: 8 }];
+  writeInboxCache(user22);
+  assert.equal(clearInboxRoomUnread(11, "dm", 1), 3);
+  assert.equal(readInboxCache(11, "all")?.items[0]?.unread_count, 0);
+  assert.equal(readInboxCache(11, "all")?.items[1]?.unread_count, 2);
+  assert.equal(readInboxCache(22, "all")?.items[0]?.unread_count, 8);
+  assert.equal(clearInboxRoomUnread(11, "dm", 1), 0);
+  clearInboxCache();
 });
 
 test("fresh window is short so the cache is not long-lived", () => {

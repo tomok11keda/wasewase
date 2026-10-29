@@ -72,7 +72,7 @@ export async function fetchNotificationUnread(): Promise<number> {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
-  if (!res.ok) return 0;
+  if (!res.ok) throw new Error(`notify_unread_failed_${res.status}`);
   const data = await res.json();
   return Number(data.unread_count || 0);
 }
@@ -82,7 +82,7 @@ export async function fetchDmUnreadTotal(): Promise<number> {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
-  if (!res.ok) return 0;
+  if (!res.ok) throw new Error(`dm_unread_failed_${res.status}`);
   const data = await res.json();
   return Number(data.total_unread || 0);
 }
