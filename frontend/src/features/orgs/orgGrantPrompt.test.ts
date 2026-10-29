@@ -85,6 +85,54 @@ test("unseen grant picker skips already prompted ids and non-grant rows", () => 
   assert.deepEqual(picked, { id: 6, slug: "new" });
 });
 
+test("あとで persists across restart and does not switch a revoked org", () => {
+  const items = [
+    {
+      id: 5,
+      spa_path: "/orgs/wase-circle?org_grant=1",
+      link: "/orgs/wase-circle?org_grant=1",
+    },
+  ];
+  const memory = new Map<string, string>();
+  const fake = {
+    getItem: (key: string) => memory.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memory.set(key, value);
+    },
+    removeItem: (key: string) => {
+      memory.delete(key);
+    },
+  };
+  const previous = globalThis.localStorage;
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: fake,
+  });
+  try {
+    markOrgGrantPromptSeen(11, 5);
+    const seenAfterRestart = readSeenOrgGrantNotificationIds(11);
+    assert.deepEqual(seenAfterRestart, [5]);
+    assert.deepEqual(
+      pickUnseenOrgGrantNotification(items, seenAfterRestart),
+      null
+    );
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: previous,
+    });
+  }
+  assert.equal(
+    managedOrganizationForGrantSlug(
+      [{ slug: "wase-circle", can_manage: false }],
+      "wase-circle"
+    ),
+    null
+  );
+  assert.equal(managedOrganizationForGrantSlug([], "wase-circle"), null);
+  assert.equal(orgGrantGuidanceMessage(false), ORG_GRANT_MISSING_GUIDANCE);
+});
+
 test("prompt stays off until a managed org matches and the user is in-app", () => {
   const unseen = { id: 9, slug: "wase-circle" };
   const base = {

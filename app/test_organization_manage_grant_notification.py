@@ -119,6 +119,32 @@ class OrganizationManageGrantNotificationTests(TestCase):
         set_organization_member_role(member, OrganizationMember.Role.OWNER)
         self.assertEqual(Notification.objects.filter(recipient=self.member).count(), 1)
 
+    def test_revoke_keeps_old_notification_but_drops_switchable_org(self):
+        add_organization_member(
+            self.org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        extra = add_organization_member(
+            self.org, self.admin, role=OrganizationMember.Role.ADMIN
+        )
+        self.org.status = Organization.Status.ACTIVE
+        self.org.is_listed = True
+        self.org.save(update_fields=["status", "is_listed"])
+        self.client.force_login(self.admin)
+        before = self.client.get("/api/v1/me/organizations/")
+        self.assertEqual(before.status_code, 200)
+        self.assertTrue(
+            any(row["slug"] == "wase-circle" for row in before.json()["organizations"])
+        )
+        remove_organization_member(extra)
+        after = self.client.get("/api/v1/me/organizations/")
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.json()["organizations"], [])
+        notes = _grant_notes(self.admin)
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].link, "/orgs/wase-circle?org_grant=1")
+        inbox = self.client.get("/api/v1/notifications/?mark_read=0")
+        self.assertEqual(inbox.json()["notifications"][0]["spa_path"], notes[0].link)
+
     def test_revoke_and_regrant_creates_a_new_notification(self):
         owner = add_organization_member(
             self.org, self.owner, role=OrganizationMember.Role.OWNER
