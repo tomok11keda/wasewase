@@ -576,7 +576,7 @@ class OrganizationManagedListApiTests(TestCase):
         self.assertEqual(res.json()["organizations"], [])
 
     def test_multiple_managed_organizations(self):
-        second = _make_org(name="もう一つの団体", slug="second-org", is_listed=False)
+        second = _make_org(name="もう一つの団体", slug="second-org", is_listed=True)
         add_organization_member(
             second, self.owner, role=OrganizationMember.Role.ADMIN
         )
@@ -586,6 +586,31 @@ class OrganizationManagedListApiTests(TestCase):
         ids = self._ids(res.json())
         self.assertEqual(set(ids), {self.org.pk, second.pk})
         self.assertNotIn(self.other.pk, ids)
+
+    def test_active_unlisted_is_not_in_student_picker(self):
+        hidden = _make_org(
+            name="非掲載の旧団体",
+            slug="hidden-org",
+            status=Organization.Status.ACTIVE,
+            is_listed=False,
+        )
+        add_organization_member(
+            hidden, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        listed = _make_org(
+            name="非掲載の旧団体",
+            slug="listed-org",
+            status=Organization.Status.ACTIVE,
+            is_listed=True,
+        )
+        add_organization_member(
+            listed, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        self.client.force_login(self.owner)
+        ids = self._ids(self.client.get(self._url()).json())
+        self.assertIn(self.org.pk, ids)
+        self.assertIn(listed.pk, ids)
+        self.assertNotIn(hidden.pk, ids)
 
     def test_unauthenticated_is_401(self):
         res = self.client.get(self._url())

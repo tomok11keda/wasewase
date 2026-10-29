@@ -42,6 +42,7 @@ from .organization_services import (
     assert_users_can_be_deleted_without_orphaning_organizations,
     can_list_organization,
     can_manage_organization,
+    can_select_managed_organization,
     can_view_organization_profile,
     complete_operator_organization_grant,
     get_organization_membership_role,
@@ -475,6 +476,7 @@ class OrganizationVisibilityPolicyTests(TestCase):
         self.assertFalse(can_view_organization_profile(self.outsider, self.org))
         self.assertFalse(can_view_organization_profile(AnonymousUser(), self.org))
         self.assertFalse(can_list_organization(self.org))
+        self.assertTrue(can_select_managed_organization(self.org))
 
     def test_active_unlisted_is_viewable_but_not_listed(self):
         self.org.status = Organization.Status.ACTIVE
@@ -483,6 +485,14 @@ class OrganizationVisibilityPolicyTests(TestCase):
         self.assertTrue(can_view_organization_profile(AnonymousUser(), self.org))
         self.assertTrue(can_view_organization_profile(self.outsider, self.org))
         self.assertFalse(can_list_organization(self.org))
+        self.assertFalse(can_select_managed_organization(self.org))
+
+    def test_draft_stays_selectable_while_unlisted(self):
+        self.org.status = Organization.Status.DRAFT
+        self.org.is_listed = False
+        self.org.save(update_fields=["status", "is_listed"])
+        self.assertFalse(can_list_organization(self.org))
+        self.assertTrue(can_select_managed_organization(self.org))
 
     def test_active_listed_is_public(self):
         self.org.status = Organization.Status.ACTIVE
@@ -490,6 +500,7 @@ class OrganizationVisibilityPolicyTests(TestCase):
         self.org.save(update_fields=["status", "is_listed"])
         self.assertTrue(can_view_organization_profile(AnonymousUser(), self.org))
         self.assertTrue(can_list_organization(self.org))
+        self.assertTrue(can_select_managed_organization(self.org))
 
     def test_suspended_is_hidden_from_general_users(self):
         self.org.status = Organization.Status.SUSPENDED
@@ -500,6 +511,7 @@ class OrganizationVisibilityPolicyTests(TestCase):
         self.assertFalse(can_view_organization_profile(self.outsider, self.org))
         self.assertFalse(can_view_organization_profile(AnonymousUser(), self.org))
         self.assertFalse(can_list_organization(self.org))
+        self.assertFalse(can_select_managed_organization(self.org))
 
 
 class OrganizationOwnerProtectionTests(TestCase):

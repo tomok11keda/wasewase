@@ -178,6 +178,17 @@ def can_list_organization(
     )
 
 
+def can_select_managed_organization(
+    organization: Organization | None,
+) -> bool:
+    """学生アプリの団体選択。公開掲載中に加え、作成途中の draft は残す。"""
+    if organization is None or not getattr(organization, "pk", None):
+        return False
+    if organization.status == Organization.Status.DRAFT:
+        return True
+    return can_list_organization(organization)
+
+
 def search_organizations(query: str) -> QuerySet[Organization]:
     """掲載中の学生団体を名前・slug で部分一致検索。
 

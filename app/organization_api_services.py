@@ -18,6 +18,7 @@ from .media_services import validate_timeline_image_file
 from .models import Organization, OrganizationMember
 from .organization_services import (
     can_manage_organization,
+    can_select_managed_organization,
     can_view_organization_profile,
     get_organization_membership_role,
 )
@@ -149,6 +150,8 @@ def list_managed_organizations_payload(viewer: AbstractBaseUser | None) -> dict[
     organizations = []
     for organization in queryset:
         if not can_manage_organization(viewer, organization):
+            continue
+        if not can_select_managed_organization(organization):
             continue
         item = serialize_managed_organization(organization, viewer)
         organizations.append({key: item[key] for key in _MANAGED_LIST_FIELDS})
