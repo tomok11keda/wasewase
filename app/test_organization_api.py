@@ -155,6 +155,18 @@ class OrganizationProfileApiTests(TestCase):
         self.assertEqual(res.status_code, 404)
         self.assertEqual(res.json()["error"], "not_found")
 
+    def test_students_cannot_create_organizations_via_api(self):
+        self.client.force_login(self.outsider)
+        created = self.client.post(
+            "/api/v1/organizations/",
+            data=json.dumps({"name": "勝手に作る", "slug": "student-created"}),
+            content_type="application/json",
+        )
+        self.assertIn(created.status_code, (404, 405))
+        self.assertFalse(
+            Organization.objects.filter(slug="student-created").exists()
+        )
+
     def test_suspended_owner_can_get_but_cannot_manage(self):
         self.org.status = Organization.Status.SUSPENDED
         self.org.save(update_fields=["status"])

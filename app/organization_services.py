@@ -353,6 +353,70 @@ def apply_organization_visibility_guard(organization: Organization) -> bool:
     return True
 
 
+def activate_and_list_granted_organization(organization: Organization) -> bool:
+    """運営付与済み団体を公開フィード掲載可能にする。停止中は触らない。"""
+    if organization.pk is None:
+        return False
+    if organization.status == Organization.Status.SUSPENDED:
+        return False
+    if not organization_has_owner(organization):
+        return False
+    update_fields: list[str] = []
+    if organization.status != Organization.Status.ACTIVE:
+        organization.status = Organization.Status.ACTIVE
+        update_fields.append("status")
+    if not organization.is_listed:
+        organization.is_listed = True
+        update_fields.append("is_listed")
+    if not update_fields:
+        return False
+    update_fields.append("updated_at")
+    organization.save(update_fields=update_fields)
+    return True
+
+
+def complete_operator_organization_grant(
+    organization: Organization,
+    *,
+    completing_grant: bool,
+) -> bool:
+    """運営の団体アカウント付与が完了したときだけ active / listed にする。
+
+    後からの意図的な非掲載・停止は維持する。owner がいない付与は公開しない。
+    """
+    if not completing_grant:
+        return False
+    return activate_and_list_granted_organization(organization)
+
+
+def provision_operator_granted_organization(
+    *,
+    owner: AbstractBaseUser,
+    name: str,
+    slug: str,
+    **kwargs,
+) -> Organization:
+    """運営が団体アカウントを付与する。owner・active・listed を同一トランザクションで揃える。"""
+    if not getattr(owner, "pk", None):
+        raise OrganizationMembershipError("invalid_user")
+    kwargs.pop("status", None)
+    kwargs.pop("is_listed", None)
+    with transaction.atomic():
+        organization = Organization.objects.create(
+            name=name,
+            slug=slug,
+            status=Organization.Status.DRAFT,
+            is_listed=False,
+            **kwargs,
+        )
+        add_organization_member(
+            organization, owner, role=OrganizationMember.Role.OWNER
+        )
+        activate_and_list_granted_organization(organization)
+        organization.refresh_from_db()
+        return organization
+
+
 def assert_can_remove_organization_member(member: OrganizationMember) -> None:
     if member.role != OrganizationMember.Role.OWNER:
         return

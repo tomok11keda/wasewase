@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.admin.sites import site
@@ -15,6 +16,7 @@ from django.db import IntegrityError, transaction
 from django.forms.models import inlineformset_factory
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .account_deletion_services import delete_user_account
 from .admin import (
@@ -26,6 +28,7 @@ from .admin import (
 from .models import (
     Community,
     Organization,
+    OrganizationEvent,
     OrganizationMember,
     ProfileLink,
     User,
@@ -40,12 +43,14 @@ from .organization_services import (
     can_list_organization,
     can_manage_organization,
     can_view_organization_profile,
+    complete_operator_organization_grant,
     get_organization_membership_role,
     is_organization_admin,
     is_organization_owner,
     is_site_operator,
     organization_has_owner,
     organizations_left_without_owner_if_users_deleted,
+    provision_operator_granted_organization,
     remove_organization_member,
     save_organization_member_formset,
     set_organization_member_role,
@@ -1012,7 +1017,9 @@ class OrganizationAdminFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         org = Organization.objects.get(slug="team-wasewase")
         self.assertTrue(is_organization_owner(self.owner, org))
-        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+        self.assertTrue(can_list_organization(org))
 
     def test_cannot_keep_active_without_owner(self):
         response = self.client.post(
@@ -1254,4 +1261,200 @@ class OrganizationAdminFlowTests(TestCase):
         self.assertIn(response.status_code, (302, 403))
         if response.status_code == 302:
             self.assertIn("/admin/login", response.url)
+
+    def test_adding_first_owner_publishes_existing_draft(self):
+        org = _make_org(slug="complete-grant")
+        admin = add_organization_member(
+            org, self.owner, role=OrganizationMember.Role.ADMIN
+        )
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            _org_admin_payload(
+                org,
+                **{
+                    "memberships-TOTAL_FORMS": "2",
+                    "memberships-INITIAL_FORMS": "1",
+                    "memberships-0-id": str(admin.pk),
+                    "memberships-0-organization": str(org.pk),
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                    "memberships-1-organization": str(org.pk),
+                    "memberships-1-user": str(
+                        _make_user("grant-admin@waseda.jp").pk
+                    ),
+                    "memberships-1-role": OrganizationMember.Role.ADMIN,
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        org.refresh_from_db()
+        self.assertTrue(is_organization_owner(self.owner, org))
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+
+    def test_intentional_unlist_is_kept_after_grant(self):
+        org = provision_operator_granted_organization(
+            owner=self.owner,
+            name="掲載解除する団体",
+            slug="unlist-after-grant",
+        )
+        member = OrganizationMember.objects.get(
+            organization=org, user=self.owner
+        )
+        payload = _org_admin_payload(
+            org,
+            status=Organization.Status.ACTIVE,
+            **{
+                "memberships-TOTAL_FORMS": "1",
+                "memberships-INITIAL_FORMS": "1",
+                "memberships-0-id": str(member.pk),
+                "memberships-0-organization": str(org.pk),
+                "memberships-0-user": str(self.owner.pk),
+                "memberships-0-role": OrganizationMember.Role.OWNER,
+            },
+        )
+        payload.pop("is_listed", None)
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            payload,
+        )
+        self.assertEqual(response.status_code, 302)
+        org.refresh_from_db()
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertFalse(org.is_listed)
+        self.assertFalse(can_list_organization(org))
+
+    def test_create_suspended_with_owner_stays_suspended(self):
+        response = self.client.post(
+            reverse("admin:app_organization_add"),
+            _org_admin_payload(
+                status=Organization.Status.SUSPENDED,
+                **{
+                    "memberships-TOTAL_FORMS": "1",
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        org = Organization.objects.get(slug="team-wasewase")
+        self.assertTrue(is_organization_owner(self.owner, org))
+        self.assertEqual(org.status, Organization.Status.SUSPENDED)
+        self.assertFalse(org.is_listed)
+
+
+@override_settings(BROWSE_MODE_GATE_ENABLED=False)
+class OperatorGrantedOrganizationTests(TestCase):
+    def setUp(self):
+        self.owner = _make_user("grant-owner@waseda.jp", username="grantowner")
+        self.student = _make_user("grant-student@waseda.jp", username="grantstudent")
+        self.client = Client()
+
+    def test_provision_sets_owner_active_and_listed(self):
+        org = provision_operator_granted_organization(
+            owner=self.owner,
+            name="付与した団体",
+            slug="granted-circle",
+        )
+        self.assertEqual(org.status, Organization.Status.ACTIVE)
+        self.assertTrue(org.is_listed)
+        self.assertTrue(is_organization_owner(self.owner, org))
+        self.assertTrue(can_list_organization(org))
+
+    def test_provision_rolls_back_when_owner_is_missing(self):
+        with self.assertRaises(OrganizationMembershipError):
+            provision_operator_granted_organization(
+                owner=User(),
+                name="失敗する団体",
+                slug="grant-rollback",
+            )
+        self.assertFalse(
+            Organization.objects.filter(slug="grant-rollback").exists()
+        )
+
+    def test_raw_create_without_owner_stays_unpublished(self):
+        org = Organization.objects.create(name="下書きのまま", slug="still-draft")
+        self.assertEqual(org.status, Organization.Status.DRAFT)
+        self.assertFalse(org.is_listed)
+        self.assertFalse(can_list_organization(org))
+
+    def test_complete_grant_helper_skips_later_saves(self):
+        org = provision_operator_granted_organization(
+            owner=self.owner,
+            name="後から非掲載",
+            slug="later-unlist",
+        )
+        org.is_listed = False
+        org.save(update_fields=["is_listed"])
+        self.assertFalse(
+            complete_operator_organization_grant(org, completing_grant=False)
+        )
+        org.refresh_from_db()
+        self.assertFalse(org.is_listed)
+
+    def test_granted_event_share_appears_on_public_feed(self):
+        org = provision_operator_granted_organization(
+            owner=self.owner,
+            name="公開シェア団体",
+            slug="granted-share",
+        )
+        now = timezone.now()
+        event = OrganizationEvent.objects.create(
+            organization=org,
+            title="付与後の公開イベント",
+            starts_at=now + timedelta(days=2),
+            ends_at=now + timedelta(days=2, hours=2),
+            venue_name="大隈講堂",
+            status=OrganizationEvent.Status.PUBLISHED,
+            created_by=self.owner,
+        )
+        self.client.force_login(self.owner)
+        shared = self.client.post(
+            f"/api/v1/organizations/{org.slug}/events/{event.pk}/timeline-share/",
+            data=json.dumps({"body": "付与後シェア本文"}),
+            content_type="application/json",
+        )
+        self.assertEqual(shared.status_code, 201, shared.content)
+        post_id = shared.json()["post_id"]
+
+        self.client.force_login(self.student)
+        detail = self.client.get(f"/api/v1/timeline/{post_id}/")
+        self.assertEqual(detail.status_code, 200)
+        feed = self.client.get("/api/v1/timeline/", {"sort": "latest"})
+        self.assertIn(post_id, [row["id"] for row in feed.json()["posts"]])
+        search = self.client.get(
+            "/api/v1/search/", {"q": "付与後の公開イベント", "tab": "latest"}
+        )
+        self.assertEqual(search.status_code, 200)
+        search_ids = {row["id"] for row in search.json().get("posts") or []}
+        for row in search.json().get("results") or []:
+            if row.get("kind") == "post" and row.get("post"):
+                search_ids.add(row["post"]["id"])
+        self.assertIn(post_id, search_ids)
+
+        draft = OrganizationEvent.objects.create(
+            organization=org,
+            title="秘密の下書きイベントZZZ",
+            starts_at=now + timedelta(days=3),
+            ends_at=now + timedelta(days=3, hours=2),
+            venue_name="非公開会場",
+            status=OrganizationEvent.Status.DRAFT,
+            created_by=self.owner,
+        )
+        self.client.force_login(self.owner)
+        hidden = self.client.post(
+            f"/api/v1/organizations/{org.slug}/events/{draft.pk}/timeline-share/",
+            data=json.dumps({"body": "下書きはシェアしない"}),
+            content_type="application/json",
+        )
+        self.assertEqual(hidden.status_code, 409)
+        self.client.force_login(self.student)
+        leaked = self.client.get(
+            "/api/v1/search/", {"q": "秘密の下書きイベントZZZ", "tab": "latest"}
+        )
+        self.assertEqual(leaked.status_code, 200)
+        leaked_ids = {row["id"] for row in leaked.json().get("posts") or []}
+        self.assertNotIn(post_id, leaked_ids)
 

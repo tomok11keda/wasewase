@@ -75,6 +75,8 @@ from .organization_services import (
     apply_organization_visibility_guard,
     assert_formset_preserves_last_owner,
     assert_queryset_delete_keeps_owner,
+    complete_operator_organization_grant,
+    organization_has_owner,
     organizations_left_without_owner_if_users_deleted,
     save_organization_member_formset,
 )
@@ -403,7 +405,7 @@ class OrganizationMemberInline(admin.TabularInline):
     fields = ("user", "role", "created_at")
     readonly_fields = ("created_at",)
     verbose_name = "管理者"
-    verbose_name_plural = "管理者（公開前に代表管理者を1人以上）"
+    verbose_name_plural = "管理者（代表管理者を入れると公開されます）"
 
     def get_extra(self, request, obj=None, **kwargs):
         return 1 if obj is None else 0
@@ -471,7 +473,9 @@ class OrganizationAdmin(admin.ModelAdmin):
             {
                 "fields": ("status", "is_listed"),
                 "description": (
-                    "status は利用可否、is_listed は検索・一覧への表示です。"
+                    "運営が代表管理者（owner）を付けて団体アカウントを付与すると、"
+                    "status=active / is_listed=true になります。"
+                    "公開申請は不要です。意図的な非掲載・停止はこの画面から行えます。"
                     "代表管理者がいない団体は active / 一覧表示にできません。"
                 ),
             },
@@ -521,17 +525,34 @@ class OrganizationAdmin(admin.ModelAdmin):
                 )
             except (AttributeError, TypeError, ValueError):
                 initial_forms = 0
-        super().save_related(request, form, formsets, change)
         organization = form.instance
+        had_owner = bool(organization.pk and organization_has_owner(organization))
+        requested_suspended = (
+            organization.status == Organization.Status.SUSPENDED
+        )
+        super().save_related(request, form, formsets, change)
+        organization.refresh_from_db()
         if initial_forms == 0:
             copy_legacy_profile_urls_for_organization(organization)
         sync_organization_legacy_columns(organization)
-        if apply_organization_visibility_guard(form.instance):
+        if apply_organization_visibility_guard(organization):
             self.message_user(
                 request,
                 "代表管理者がいないため、公開状態を落としました。"
                 "公開するには代表管理者（owner）を1人以上追加してください。",
                 level=messages.ERROR,
+            )
+            return
+        completing_grant = ((not change) or (not had_owner)) and (
+            not requested_suspended
+        )
+        if complete_operator_organization_grant(
+            organization, completing_grant=completing_grant
+        ):
+            self.message_user(
+                request,
+                "代表管理者を設定したため、団体を公開（active / 一覧表示）しました。",
+                level=messages.SUCCESS,
             )
 
     def save_formset(self, request, form, formset, change):
