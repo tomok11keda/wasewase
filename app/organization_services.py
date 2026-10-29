@@ -15,10 +15,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
 from django.db.models import Case, IntegerField, Q, QuerySet, Value, When
-from django.db.models.signals import post_delete, pre_delete
+from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
-from .models import Organization, OrganizationMember
+from .models import Notification, Organization, OrganizationMember
 
 _MANAGING_ROLES = (
     OrganizationMember.Role.OWNER,
@@ -560,6 +560,50 @@ def set_organization_member_role(
     return member
 
 
+ORG_MANAGE_GRANT_QUERY = "org_grant=1"
+_GRANT_PREVIOUS_ROLE_ATTR = "_grant_previous_role"
+_GRANT_PREVIOUS_USER_ID_ATTR = "_grant_previous_user_id"
+
+
+def organization_manage_grant_link(organization: Organization) -> str:
+    slug = (getattr(organization, "slug", None) or "").strip()
+    return f"/orgs/{slug}?{ORG_MANAGE_GRANT_QUERY}"
+
+
+def organization_manage_grant_message(organization: Organization) -> str:
+    name = (getattr(organization, "name", None) or "").strip() or "団体"
+    return f"{name}の管理権限が付与されました"
+
+
+def notify_organization_manage_granted(
+    *,
+    organization: Organization,
+    user: AbstractBaseUser,
+    new_role: str,
+    previous_role: str | None = None,
+    previous_user_id: int | None = None,
+) -> Notification | None:
+    """Create one inbox row when owner/admin is newly granted. No backfill."""
+    if not getattr(user, "pk", None):
+        return None
+    if new_role not in _MANAGING_ROLES:
+        return None
+    same_user = previous_user_id in (None, user.pk)
+    if same_user and previous_role in _MANAGING_ROLES:
+        return None
+    from .notification_services import (
+        PUSH_KIND_ORG_MANAGE_GRANTED,
+        create_notification,
+    )
+
+    return create_notification(
+        recipient=user,
+        message=organization_manage_grant_message(organization),
+        link=organization_manage_grant_link(organization),
+        push_kind=PUSH_KIND_ORG_MANAGE_GRANTED,
+    )
+
+
 def _bound_member_forms(formset):
     for form in formset.forms:
         cleaned = getattr(form, "cleaned_data", None)
@@ -663,6 +707,63 @@ def _origin_is_organization(origin) -> bool:
     if isinstance(origin, QuerySet):
         return origin.model is Organization
     return isinstance(origin, Organization)
+
+
+@receiver(
+    pre_save,
+    sender=OrganizationMember,
+    dispatch_uid="wase_organization_member_pre_save_grant",
+)
+def organization_member_pre_save_grant(sender, instance, **kwargs):
+    """Remember prior role/user so duplicate admin saves do not re-notify."""
+    if not instance.pk:
+        setattr(instance, _GRANT_PREVIOUS_ROLE_ATTR, None)
+        setattr(instance, _GRANT_PREVIOUS_USER_ID_ATTR, None)
+        return
+    previous = (
+        OrganizationMember.objects.filter(pk=instance.pk)
+        .values("role", "user_id")
+        .first()
+    )
+    setattr(
+        instance,
+        _GRANT_PREVIOUS_ROLE_ATTR,
+        None if previous is None else previous["role"],
+    )
+    setattr(
+        instance,
+        _GRANT_PREVIOUS_USER_ID_ATTR,
+        None if previous is None else previous["user_id"],
+    )
+
+
+@receiver(
+    post_save,
+    sender=OrganizationMember,
+    dispatch_uid="wase_organization_member_post_save_grant",
+)
+def organization_member_post_save_grant(
+    sender, instance, created, raw=False, **kwargs
+):
+    if raw:
+        return
+    user = getattr(instance, "user", None)
+    organization = getattr(instance, "organization", None)
+    if user is None or organization is None:
+        return
+    previous_role = None if created else getattr(
+        instance, _GRANT_PREVIOUS_ROLE_ATTR, None
+    )
+    previous_user_id = None if created else getattr(
+        instance, _GRANT_PREVIOUS_USER_ID_ATTR, None
+    )
+    notify_organization_manage_granted(
+        organization=organization,
+        user=user,
+        new_role=instance.role,
+        previous_role=previous_role,
+        previous_user_id=previous_user_id,
+    )
 
 
 @receiver(

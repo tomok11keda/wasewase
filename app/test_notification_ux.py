@@ -127,6 +127,20 @@ class NotificationSpaPathAnchorTests(TestCase):
             "/communities/foo/threads/9#reply-4",
         )
 
+    def test_organization_grant_link_maps_to_org_profile(self):
+        self.assertEqual(
+            notification_spa_path("/orgs/wase-circle?org_grant=1"),
+            "/orgs/wase-circle?org_grant=1",
+        )
+        self.assertEqual(
+            notification_spa_path("/organizations/wase-circle?org_grant=1"),
+            "/orgs/wase-circle?org_grant=1",
+        )
+        self.assertEqual(
+            notification_spa_path("/app/orgs/wase-circle?org_grant=1"),
+            "/orgs/wase-circle?org_grant=1",
+        )
+
 
 @override_settings(BROWSE_MODE_GATE_ENABLED=False, WASE_REACT_SPA=True)
 class OtherNotificationTypeUxTests(TestCase):

@@ -12,6 +12,7 @@ import { NativeSpaBridge } from "./components/NativeSpaBridge";
 import { NativePushSessionSync } from "./components/NativePushSessionSync";
 import { NativePushOpenRouter } from "./components/NativePushOpenRouter";
 import { NativePushPermissionPrompt } from "./components/NativePushPermissionPrompt";
+import { OrganizationGrantOnboarding } from "./components/OrganizationGrantOnboarding";
 import { UnauthorizedRedirect } from "./components/UnauthorizedRedirect";
 import { CommunityThreadPage } from "./pages/CommunityThreadPage";
 import { DmComposePage } from "./pages/DmComposePage";
@@ -117,6 +118,7 @@ function SpaRuntimeHooks() {
       <NativePushSessionSync />
       <NativePushOpenRouter />
       <NativePushPermissionPrompt />
+      <OrganizationGrantOnboarding />
       <UnauthorizedRedirect />
       <NativeSpaBridge />
       <IosConversationAccessoryBarSync />

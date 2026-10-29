@@ -67,6 +67,7 @@ _ORG_EVENT_LOTTERY_RE = re.compile(
 _ORG_EVENT_RE = re.compile(
     r"^/(?:organizations|orgs)/([^/]+)/events/(\d+)/?$"
 )
+_ORG_PROFILE_RE = re.compile(r"^/(?:organizations|orgs)/([^/]+)/?$")
 
 
 def _with_query_fragment(spa: str, query: str, fragment: str) -> str:
@@ -190,6 +191,9 @@ def notification_spa_path(link: str) -> str:
     m = _RECRUITING_CHAT_ROOM_RE.match(path)
     if m:
         return _with_query_fragment(f"/dm/recruiting/{m.group(1)}", query, fragment)
+    m = _ORG_PROFILE_RE.match(path)
+    if m:
+        return _with_query_fragment(f"/orgs/{m.group(1)}", query, fragment)
 
     if path in ("/", ""):
         return _with_query_fragment("/", query, fragment)

@@ -29,7 +29,7 @@ type AccountState = {
   error: string | null;
   selectPersonal: () => void;
   selectOrganization: (id: number) => ManagedOrganization | null;
-  refreshOrganizations: () => Promise<void>;
+  refreshOrganizations: () => Promise<ManagedOrganization[]>;
 };
 
 const AccountContext = createContext<AccountState | null>(null);
@@ -42,11 +42,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [organizations, setOrganizations] = useState<ManagedOrganization[]>(
     []
   );
+  const organizationsRef = useRef<ManagedOrganization[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const applyList = useCallback(
     (userPk: number, list: ManagedOrganization[], listLoaded: boolean) => {
+      organizationsRef.current = list;
       setOrganizations(list);
       const stored = listLoaded ? readStoredOrganizationId(userPk) : null;
       const match = resolveActiveOrganization(list, stored, listLoaded);
@@ -65,20 +67,24 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const refreshOrganizations = useCallback(async () => {
     const userPk = userIdRef.current;
     if (userPk == null) {
+      organizationsRef.current = [];
       setOrganizations([]);
       setActor({ type: "personal" });
       setLoading(false);
-      return;
+      return [];
     }
     setLoading(true);
     try {
       const list = await fetchManagedOrganizations();
       setError(null);
       applyList(userPk, list, true);
+      return list;
     } catch {
       setError("load_failed");
+      organizationsRef.current = [];
       setOrganizations([]);
       setActor({ type: "personal" });
+      return [];
     } finally {
       setLoading(false);
     }
@@ -92,6 +98,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         clearStoredOrganizationId(previous);
       }
       userIdRef.current = null;
+      organizationsRef.current = [];
       setOrganizations([]);
       setActor({ type: "personal" });
       setError(null);
@@ -101,6 +108,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (previous != null && previous !== userId) {
       clearStoredOrganizationId(previous);
       setActor({ type: "personal" });
+      organizationsRef.current = [];
       setOrganizations([]);
     }
     userIdRef.current = userId;
@@ -115,14 +123,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const selectOrganization = useCallback((id: number) => {
     const userPk = userIdRef.current;
-    const match = organizations.find(
+    const match = organizationsRef.current.find(
       (item) => item.id === id && item.can_manage
     );
     if (!match || userPk == null) return null;
     setActor({ type: "organization", organization: match });
     writeStoredOrganizationId(userPk, match.id);
     return match;
-  }, [organizations]);
+  }, []);
 
   const value = useMemo(
     () => ({

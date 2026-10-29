@@ -24,6 +24,7 @@ PUSH_KIND_FOLLOW_REQUEST = "follow_request"
 PUSH_KIND_COMMUNITY_REPLY = "community_reply"
 PUSH_KIND_GROUP_INVITE = "group_invite"
 PUSH_KIND_RECRUITING_INVITE = "recruiting_invite"
+PUSH_KIND_ORG_MANAGE_GRANTED = "org_manage_granted"
 PUSH_KIND_ORG_EVENT_REGISTERED = "org_event_registered"
 PUSH_KIND_ORG_EVENT_CANCELLED = "org_event_cancelled"
 PUSH_KIND_ORG_EVENT_UPDATED = "org_event_updated"
@@ -65,6 +66,7 @@ def build_privacy_safe_push_body(
         PUSH_KIND_COMMUNITY_REPLY: "コミュニティの投稿に返信がありました",
         PUSH_KIND_GROUP_INVITE: f"「{name}さんからグループ招待が届きました」",
         PUSH_KIND_RECRUITING_INVITE: "「団体チャットへの招待が届きました」",
+        PUSH_KIND_ORG_MANAGE_GRANTED: "団体の管理権限が付与されました",
         PUSH_KIND_ORG_EVENT_REGISTERED: "イベントに申し込みました",
         PUSH_KIND_ORG_EVENT_CANCELLED: "申し込み中のイベントが中止になりました",
         PUSH_KIND_ORG_EVENT_UPDATED: "申し込み中のイベントの内容が更新されました",

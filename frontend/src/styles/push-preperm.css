@@ -9,6 +9,10 @@
   justify-content: center;
 }
 
+.org-grant-prompt {
+  z-index: 510;
+}
+
 .push-preperm__backdrop {
   position: absolute;
   inset: 0;
