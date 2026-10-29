@@ -31,7 +31,7 @@ test("event share card links to the event detail path", () => {
 test("home latest fetch does not re-apply leftover faculty or q filters", () => {
   assert.equal(home.includes("faculty: faculty || undefined"), false);
   assert.equal(home.includes("q: qParam || undefined"), false);
-  assert.equal(home.includes('next.delete("faculty")'), true);
-  assert.equal(home.includes('next.delete("q")'), true);
+  assert.equal(home.includes("stripHomeTimelineLeftoverParams"), true);
+  assert.equal(home.includes("location.pathname"), true);
   assert.equal(home.includes("sort: HOME_TIMELINE_SORT"), true);
 });

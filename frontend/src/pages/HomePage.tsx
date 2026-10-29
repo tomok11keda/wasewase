@@ -15,6 +15,7 @@ import {
   type TimelineFeedResponse,
   type TimelinePost,
 } from "../features/timeline/api";
+import { stripHomeTimelineLeftoverParams } from "../features/timeline/homeFeed";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
@@ -70,22 +71,15 @@ export function HomePage() {
   const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
   // Home is unfiltered latest. Leftover faculty=/q= hid organization posts.
+  // Keep-alive HomePage stays mounted on /search — only strip on the home path.
   useEffect(() => {
-    if (
-      !searchParams.has("feed") &&
-      !searchParams.has("sort") &&
-      !searchParams.has("faculty") &&
-      !searchParams.has("q")
-    ) {
-      return;
-    }
-    const next = new URLSearchParams(searchParams);
-    next.delete("feed");
-    next.delete("sort");
-    next.delete("faculty");
-    next.delete("q");
+    const next = stripHomeTimelineLeftoverParams(
+      location.pathname,
+      searchParams
+    );
+    if (!next) return;
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [location.pathname, searchParams, setSearchParams]);
 
   useEffect(() => {
     analytics.timelineViewed();

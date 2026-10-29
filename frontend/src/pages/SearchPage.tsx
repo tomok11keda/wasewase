@@ -36,6 +36,11 @@ import {
   organizationSearchHref,
 } from "../features/search/searchAccounts";
 import {
+  buildSearchSubmitParams,
+  globalSearchEmptyMessage,
+  globalSearchErrorMessage,
+} from "../features/search/searchSubmit";
+import {
   DiscoverPostCard,
   DiscoverThreadCard,
 } from "../features/search/DiscoverCompactCards";
@@ -595,7 +600,9 @@ export function SearchPage() {
         if (!isLatestRequest(requestIdRef, requestId)) return;
         if (!isSameUserScope(startedUserId, userIdRef.current)) return;
         if (mode === "soft") return;
-        setError(err instanceof Error ? err.message : "search_failed");
+        setError(
+          globalSearchErrorMessage(err, Boolean(qParam.trim()))
+        );
       } finally {
         if (isLatestRequest(requestIdRef, requestId)) {
           setLoading(false);
@@ -632,12 +639,20 @@ export function SearchPage() {
     setQInput(qParam);
   }, [qParam]);
 
-  const onSearch = (e: FormEvent) => {
+  const onSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const next = new URLSearchParams();
-    if (qInput.trim()) next.set("q", qInput.trim());
-    next.set("tab", activeTab === "all" ? "all" : activeTab);
+    const next = buildSearchSubmitParams(qInput, activeTab);
+    const nextQ = next.get("q") || "";
+    const nextTab = (next.get("tab") as SearchTab) || activeTab;
+    const sameQuery =
+      nextQ === qParam.trim() &&
+      nextTab === (searchParams.get("tab") || activeTab);
+    const input = e.currentTarget.querySelector("input");
+    if (input instanceof HTMLInputElement) input.blur();
     setSearchParams(next);
+    if (sameQuery) {
+      void load("initial");
+    }
   };
 
   const setTab = (nextTab: SearchTab) => {
@@ -680,14 +695,7 @@ export function SearchPage() {
       ),
   };
 
-  const emptyMessage =
-    activeTab === "users"
-      ? "一致するアカウントはいません。"
-      : activeTab === "products"
-        ? "一致する商品はありません。"
-        : activeTab === "courses"
-          ? "該当する授業が見つかりません。"
-          : "一致する結果はありません。";
+  const emptyMessage = globalSearchEmptyMessage(!showDiscover);
 
   const hasDiscoverContent = Boolean(
     discover &&
@@ -725,12 +733,22 @@ export function SearchPage() {
         </p>
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
+            type="search"
+            name="q"
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
             placeholder="ゼミ、教科書、先生などを検索"
             aria-label="わせわせ全体検索"
+            enterKeyHint="search"
+            autoComplete="off"
           />
-          <button type="submit">検索</button>
+          <button
+            type="submit"
+            aria-busy={searchPhase === "skeleton"}
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            検索
+          </button>
         </form>
 
         {!showDiscover ? (
@@ -764,9 +782,8 @@ export function SearchPage() {
           <SearchContentSkeleton variant={skeletonVariant} />
         ) : searchPhase === "error" ? (
           <p className="search-empty">
-            {showDiscover
-              ? `読み込みに失敗しました（${error}）`
-              : `検索に失敗しました（${error}）`}
+            {error ||
+              globalSearchErrorMessage(null, !showDiscover)}
           </p>
         ) : searchPhase === "empty" ? (
           <p className="search-empty">
