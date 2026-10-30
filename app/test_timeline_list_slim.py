@@ -195,6 +195,12 @@ class TimelineListSlimTests(TestCase):
         )
         self.assertEqual(matched["comments"], [])
         self.assertEqual(matched["comment_count"], 1)
+        detail = self.client.get(f"/api/v1/timeline/{self.post.pk}/")
+        self.assertEqual(detail.json()["post"]["comment_count"], 1)
+        quoted = self.client.get(f"/api/v1/timeline/{self.post.pk}/quote/")
+        self.assertEqual(quoted.status_code, 200)
+        self.assertEqual(quoted.json()["quoted_post"]["comments"], [])
+        self.assertEqual(quoted.json()["quoted_post"]["comment_count"], 1)
 
     def test_org_draft_and_unlisted_org_excluded(self):
         owner = _user("slim-org-owner@waseda.jp", username="slimorgowner")

@@ -36,8 +36,11 @@ class HomeTimelineChromeTests(SimpleTestCase):
         self.assertIn("sort: HOME_TIMELINE_SORT", home)
         self.assertNotIn("faculty: faculty || undefined", home)
         self.assertNotIn("q: qParam || undefined", home)
-        self.assertIn('next.delete("faculty")', home)
-        self.assertIn('next.delete("q")', home)
+        self.assertIn("stripHomeTimelineLeftoverParams", home)
+        helper = _read("frontend/src/features/timeline/homeFeed.ts")
+        self.assertIn('"faculty"', helper)
+        self.assertIn('"q"', helper)
+        self.assertIn("next.delete(key)", helper)
 
     def test_other_hubs_keep_faculty_filter(self):
         flea = _read("frontend/src/pages/FleaPage.tsx")

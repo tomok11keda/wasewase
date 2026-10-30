@@ -242,21 +242,20 @@ def _list_comment_count(
     post: TimelinePost,
     viewer: AbstractBaseUser | None,
 ) -> int:
+    """Same visibility as detail serializer: not removed, not tombstone, not blocked."""
     annotated = getattr(post, "list_comment_count", None)
-    if annotated is None:
-        annotated = getattr(post, "feed_comment_count", None)
     if annotated is not None:
         return int(annotated or 0)
     prefetched = getattr(post, "_prefetched_objects_cache", None) or {}
+    viewer_id = (
+        viewer.pk
+        if viewer is not None and getattr(viewer, "is_authenticated", False)
+        else None
+    )
+    blocked_ids = get_either_blocked_user_ids(
+        viewer if viewer_id is not None else None
+    )
     if "comments" in prefetched:
-        viewer_id = (
-            viewer.pk
-            if viewer is not None and getattr(viewer, "is_authenticated", False)
-            else None
-        )
-        blocked_ids = get_either_blocked_user_ids(
-            viewer if viewer_id is not None else None
-        )
         return sum(
             1
             for comment in post.comments.all()
@@ -264,9 +263,16 @@ def _list_comment_count(
             and not comment.is_author_deleted
             and (not blocked_ids or comment.author_id not in blocked_ids)
         )
-    from .comment_thread_services import visible_timeline_comment_count
+    from .models import Comment
 
-    return int(visible_timeline_comment_count(post.pk))
+    qs = Comment.objects.filter(
+        timeline_post_id=post.pk,
+        is_removed=False,
+        is_author_deleted=False,
+    )
+    if blocked_ids:
+        qs = qs.exclude(author_id__in=blocked_ids)
+    return int(qs.count())
 
 
 def serialize_timeline_post(
