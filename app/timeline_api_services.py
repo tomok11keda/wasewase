@@ -16,6 +16,7 @@ from .ads_services import (
 from .board_services import (
     TIMELINE_INITIAL_SIZE,
     TIMELINE_LOAD_MORE_SIZE,
+    annotate_timeline_comment_count,
     annotate_timeline_quote_count,
     build_timeline_posts_queryset,
     prepare_timeline_post_for_save,
@@ -237,6 +238,37 @@ def serialize_comment(
     }
 
 
+def _list_comment_count(
+    post: TimelinePost,
+    viewer: AbstractBaseUser | None,
+) -> int:
+    annotated = getattr(post, "list_comment_count", None)
+    if annotated is None:
+        annotated = getattr(post, "feed_comment_count", None)
+    if annotated is not None:
+        return int(annotated or 0)
+    prefetched = getattr(post, "_prefetched_objects_cache", None) or {}
+    if "comments" in prefetched:
+        viewer_id = (
+            viewer.pk
+            if viewer is not None and getattr(viewer, "is_authenticated", False)
+            else None
+        )
+        blocked_ids = get_either_blocked_user_ids(
+            viewer if viewer_id is not None else None
+        )
+        return sum(
+            1
+            for comment in post.comments.all()
+            if not comment.is_removed
+            and not comment.is_author_deleted
+            and (not blocked_ids or comment.author_id not in blocked_ids)
+        )
+    from .comment_thread_services import visible_timeline_comment_count
+
+    return int(visible_timeline_comment_count(post.pk))
+
+
 def serialize_timeline_post(
     post: TimelinePost,
     viewer: AbstractBaseUser | None,
@@ -264,20 +296,20 @@ def serialize_timeline_post(
     can_delete = user_can_delete_timeline_post(viewer, post)
 
     comments_payload: list[dict[str, Any]] = []
-    blocked_ids = get_either_blocked_user_ids(
-        viewer if viewer_id is not None else None
-    )
-    visible_comments = [
-        comment
-        for comment in post.comments.all()
-        if not comment.is_removed
-        and (not blocked_ids or comment.author_id not in blocked_ids)
-    ]
-    ordered_comments = order_comments_for_thread(list(visible_comments))
-    comment_count = sum(
-        1 for comment in ordered_comments if not comment.is_author_deleted
-    )
     if include_comments:
+        blocked_ids = get_either_blocked_user_ids(
+            viewer if viewer_id is not None else None
+        )
+        visible_comments = [
+            comment
+            for comment in post.comments.all()
+            if not comment.is_removed
+            and (not blocked_ids or comment.author_id not in blocked_ids)
+        ]
+        ordered_comments = order_comments_for_thread(list(visible_comments))
+        comment_count = sum(
+            1 for comment in ordered_comments if not comment.is_author_deleted
+        )
         visible_ids = {comment.pk for comment in ordered_comments}
         reply_counts: dict[int, int] = {}
         for comment in ordered_comments:
@@ -295,6 +327,8 @@ def serialize_timeline_post(
             )
             for comment in ordered_comments
         ]
+    else:
+        comment_count = _list_comment_count(post, viewer)
 
     quote_count = getattr(post, "quote_count", None)
     if quote_count is None:
@@ -463,7 +497,9 @@ def list_timeline_page(
     )
 
     sort = parse_timeline_sort(request.GET.get("sort"))
-    timeline_qs = build_timeline_posts_queryset(request)
+    viewer = request.user if request.user.is_authenticated else None
+    timeline_qs = build_timeline_posts_queryset(request, prefetch_comments=False)
+    timeline_qs = annotate_timeline_comment_count(timeline_qs, viewer)
     if offset is None:
         start = 0
         page_size = TIMELINE_INITIAL_SIZE
@@ -485,9 +521,10 @@ def list_timeline_page(
 
     posts = prepare_timeline_posts(page_posts, request.user)
     next_offset = start + len(posts)
-    viewer = request.user if request.user.is_authenticated else None
     return {
-        "posts": [serialize_timeline_post(p, viewer) for p in posts],
+        "posts": [
+            serialize_timeline_post(p, viewer, include_comments=False) for p in posts
+        ],
         "has_more": next_offset < total_count,
         "next_offset": next_offset,
         "total_count": total_count,

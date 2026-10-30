@@ -167,7 +167,14 @@ export async function fetchTimeline(
     headers: { Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`timeline_${res.status}`);
-  return res.json();
+  const data = (await res.json()) as TimelineFeedResponse;
+  return {
+    ...data,
+    posts: (data.posts || []).map((post) => ({
+      ...post,
+      comments: post.comments || [],
+    })),
+  };
 }
 
 export async function fetchTimelinePost(postId: number): Promise<TimelinePost> {

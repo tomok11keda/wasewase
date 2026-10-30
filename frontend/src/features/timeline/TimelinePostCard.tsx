@@ -309,11 +309,12 @@ export function TimelinePostCard({
   const postRef = useRef(post);
   postRef.current = post;
   const bodyHtml = useMemo(() => linkifyMentions(post.body), [post.body]);
+  const comments = post.comments ?? [];
   const showComments = variant === "detail";
-  const hasThreadLine = showComments && post.comments.length > 0;
+  const hasThreadLine = showComments && comments.length > 0;
   const commentGroups = useMemo(
-    () => groupTimelineComments(post.comments),
-    [post.comments]
+    () => groupTimelineComments(comments),
+    [comments]
   );
   const orgDisplay = organizationPostDisplay(post);
   const quotedOrgDisplay = organizationPostDisplay(post.quoted_post);
@@ -357,10 +358,10 @@ export function TimelinePostCard({
       onChange({
         ...post,
         comments: comment
-          ? post.comments.map((item) =>
+          ? comments.map((item) =>
               item.id === comment.id ? comment : item
             )
-          : post.comments.filter((item) => item.id !== row.id),
+          : comments.filter((item) => item.id !== row.id),
         comment_count,
       });
       if (replyTarget?.id === row.id) {
@@ -958,7 +959,7 @@ export function TimelinePostCard({
             <div className="tweet-comments">
               {commentsPending ? (
                 <ListRowSkeleton rows={3} />
-              ) : post.comments.length === 0 ? (
+              ) : comments.length === 0 ? (
                 <p className="tweet-comments__empty">まだ返信はありません</p>
               ) : (
                 <ul className="tweet-comment-list">
@@ -1023,7 +1024,7 @@ export function TimelinePostCard({
                       analytics.commentCreated();
                       onChange({
                         ...post,
-                        comments: insertThreadedComment(post.comments, comment),
+                        comments: insertThreadedComment(comments, comment),
                         comment_count,
                       });
                       setCommentBody("");

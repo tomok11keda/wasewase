@@ -92,7 +92,10 @@ class TimelineApiTests(TestCase):
         matched = next(
             p for p in listed.json()["posts"] if p["id"] == created
         )
-        listed_comment = matched["comments"][0]
+        self.assertEqual(matched["comments"], [])
+        self.assertEqual(matched["comment_count"], 1)
+        detail = self.client.get(f"/api/v1/timeline/{created}/")
+        listed_comment = detail.json()["post"]["comments"][0]
         self.assertIn("avatar_url", listed_comment["author"])
         self.assertIn("initial", listed_comment["author"])
 
@@ -117,7 +120,10 @@ class TimelineApiTests(TestCase):
         post = data["post"]
         self.assertEqual(post["id"], self.post.pk)
         self.assertEqual(post["body"], "hello timeline api")
-        self.assertEqual(post["comments"], listed_post["comments"])
+        self.assertEqual(listed_post["comments"], [])
+        self.assertEqual(listed_post["comment_count"], post["comment_count"])
+        self.assertEqual(post["id"], listed_post["id"])
+        self.assertEqual(post["body"], listed_post["body"])
         self.assertIn("user_has_liked", post)
         self.assertIn("user_has_bookmarked", post)
         self.assertFalse(post["user_has_liked"])

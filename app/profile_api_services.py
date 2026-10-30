@@ -10,9 +10,12 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.http import HttpRequest
 from django.utils import timezone
 
-from .board_services import get_profile_timeline_posts
+from .board_services import (
+    annotate_timeline_comment_count,
+    annotate_timeline_quote_count,
+    get_profile_timeline_posts,
+)
 from .bookmark_services import get_bookmarked_timeline_posts, prepare_timeline_posts
-from .comment_thread_services import timeline_comments_prefetch
 from .dm_services import find_dm_room
 from .flea_api_services import serialize_product_card
 from .follow_services import (
@@ -196,7 +199,9 @@ def list_profile_posts(
     posts = get_profile_timeline_posts(profile_user, viewer)
     return {
         "ok": True,
-        "posts": [serialize_timeline_post(p, viewer) for p in posts],
+        "posts": [
+            serialize_timeline_post(p, viewer, include_comments=False) for p in posts
+        ],
         "can_view_content": True,
     }
 
@@ -326,7 +331,9 @@ def list_profile_bookmarks(
     posts, meta = get_bookmarked_timeline_posts(profile_user, viewer)
     return {
         "ok": True,
-        "posts": [serialize_timeline_post(p, viewer) for p in posts],
+        "posts": [
+            serialize_timeline_post(p, viewer, include_comments=False) for p in posts
+        ],
         "meta": meta or {},
     }
 
@@ -375,7 +382,7 @@ def _discover_timeline_candidates(
         "shared_product",
         "shared_organization_event",
         "shared_organization_event__organization",
-    ).prefetch_related(timeline_comments_prefetch())
+    )
     qs = filter_visible_timeline_posts(qs, viewer)
     if faculty:
         from .organization_post_services import filter_timeline_posts_by_faculty
@@ -388,6 +395,8 @@ def _discover_timeline_candidates(
             distinct=True,
         )
     )
+    # Ranking keeps feed_comment_count; list cards use blocked-aware list_comment_count.
+    qs = annotate_timeline_comment_count(qs, viewer)
     if viewer is not None and getattr(viewer, "is_authenticated", False):
         qs = qs.annotate(
             user_has_liked=Exists(
@@ -423,8 +432,11 @@ def _discover_row_variety_key(row: dict[str, Any]) -> str:
     """Visual variety key: photo posts count separately from text posts."""
     kind = row.get("kind") or ""
     if kind == "post":
-        post = row.get("post") or {}
-        if post.get("image_url"):
+        payload = row.get("post") or {}
+        if isinstance(payload, dict) and payload.get("image_url"):
+            return "post_photo"
+        source = row.get("_source")
+        if source is not None and getattr(source, "image", None):
             return "post_photo"
         return "post"
     return str(kind)
@@ -519,13 +531,13 @@ def _discover_mixed_rows(
             viewer_grade=viewer_grade,
             seen_ids=set(),
         )
-        payload = serialize_timeline_post(post, viewer)
+        created = post.created_at.isoformat() if post.created_at else ""
         rows.append(
             {
                 "kind": "post",
-                "created_at": payload.get("created_at") or "",
+                "created_at": created,
                 "score": int(score),
-                "post": payload,
+                "_source": post,
             }
         )
     for thread in threads:
@@ -534,13 +546,13 @@ def _discover_mixed_rows(
             now=now,
             viewer_faculty=viewer_dept,
         )
-        payload = serialize_thread_summary(thread, viewer)
+        created = thread.created_at.isoformat() if thread.created_at else ""
         rows.append(
             {
                 "kind": "thread",
-                "created_at": payload.get("created_at") or "",
+                "created_at": created,
                 "score": int(score),
-                "thread": payload,
+                "_source": thread,
             }
         )
     for product in products or []:
@@ -548,14 +560,14 @@ def _discover_mixed_rows(
         score = _product_discover_score(
             product, like_count=like_count, now=now
         )
-        payload = serialize_product_card(product)
-        payload["like_count"] = like_count
+        created = product.created_at.isoformat() if product.created_at else ""
         rows.append(
             {
                 "kind": "product",
-                "created_at": payload.get("created_at") or "",
+                "created_at": created,
                 "score": int(score),
-                "product": payload,
+                "_source": product,
+                "_like_count": like_count,
             }
         )
     rows.sort(
@@ -565,9 +577,26 @@ def _discover_mixed_rows(
         ),
         reverse=True,
     )
-    if diversify:
-        return _diversify_discover_rows(rows, limit=limit)
-    return rows[:limit]
+    selected = (
+        _diversify_discover_rows(rows, limit=limit) if diversify else rows[:limit]
+    )
+    serialized: list[dict[str, Any]] = []
+    for row in selected:
+        source = row.pop("_source", None)
+        like_count = row.pop("_like_count", None)
+        kind = row.get("kind")
+        if kind == "post":
+            row["post"] = serialize_timeline_post(
+                source, viewer, include_comments=False
+            )
+        elif kind == "thread":
+            row["thread"] = serialize_thread_summary(source, viewer)
+        elif kind == "product":
+            payload = serialize_product_card(source)
+            payload["like_count"] = int(like_count or 0)
+            row["product"] = payload
+        serialized.append(row)
+    return serialized
 
 
 def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
@@ -718,21 +747,19 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
 
     def _load_posts() -> None:
         nonlocal posts_payload
-        timeline_qs = (
-            search_timeline_posts(query, viewer=viewer, sort="latest")
-            .select_related(
-                "author",
-                "author__profile",
-                "organization",
-                "quoted_post",
-                "quoted_post__author",
-                "quoted_post__organization",
-                "shared_product",
-        "shared_organization_event",
-        "shared_organization_event__organization",
-            )
-            .prefetch_related(timeline_comments_prefetch())
+        timeline_qs = search_timeline_posts(query, viewer=viewer, sort="latest").select_related(
+            "author",
+            "author__profile",
+            "organization",
+            "quoted_post",
+            "quoted_post__author",
+            "quoted_post__organization",
+            "shared_product",
+            "shared_organization_event",
+            "shared_organization_event__organization",
         )
+        timeline_qs = annotate_timeline_quote_count(timeline_qs)
+        timeline_qs = annotate_timeline_comment_count(timeline_qs, viewer)
         if viewer is not None and getattr(viewer, "is_authenticated", False):
             timeline_qs = timeline_qs.annotate(
                 user_has_liked=Exists(
@@ -746,7 +773,9 @@ def build_search_page_payload(request: HttpRequest) -> dict[str, Any]:
             list(timeline_qs[:SEARCH_RESULT_LIMIT]),
             viewer,
         )
-        posts_payload = [serialize_timeline_post(p, viewer) for p in posts]
+        posts_payload = [
+            serialize_timeline_post(p, viewer, include_comments=False) for p in posts
+        ]
 
     def _load_threads() -> None:
         nonlocal threads_payload

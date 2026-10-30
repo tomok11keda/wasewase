@@ -6,7 +6,11 @@ from .constants import FACULTY_CHOICES
 from .models import TimelineLike, TimelinePost
 from .notification_services import create_notification
 from .services import get_following_user_ids, timeline_post_search_q
-from .ugc_services import filter_visible_timeline_posts, get_blocked_user_ids
+from .ugc_services import (
+    filter_visible_timeline_posts,
+    get_blocked_user_ids,
+    get_either_blocked_user_ids,
+)
 
 TIMELINE_INITIAL_SIZE = 25
 TIMELINE_LOAD_MORE_SIZE = 15
@@ -23,6 +27,25 @@ def annotate_timeline_quote_count(queryset):
     )
 
 
+def annotate_timeline_comment_count(queryset, viewer=None):
+    """一覧カード用。本文は載せず件数だけ付与。"""
+    comment_filter = Q(
+        comments__is_removed=False,
+        comments__is_author_deleted=False,
+    )
+    if viewer is not None and getattr(viewer, "is_authenticated", False):
+        blocked_ids = get_either_blocked_user_ids(viewer)
+        if blocked_ids:
+            comment_filter &= ~Q(comments__author_id__in=blocked_ids)
+    return queryset.annotate(
+        list_comment_count=Count(
+            "comments",
+            filter=comment_filter,
+            distinct=True,
+        )
+    )
+
+
 def prepare_timeline_post_for_save(post: TimelinePost) -> TimelinePost:
     """保存前にカウンタ系フィールドへデフォルト値を明示的にセットする。"""
     if post.like_count is None:
@@ -32,7 +55,7 @@ def prepare_timeline_post_for_save(post: TimelinePost) -> TimelinePost:
     return post
 
 
-def build_timeline_posts_queryset(request):
+def build_timeline_posts_queryset(request, *, prefetch_comments: bool = True):
     """タイムライン一覧用の QuerySet（フィルタ・いいね状態付き）。"""
     faculty_values = {value for value, _ in FACULTY_CHOICES}
     active_faculty = request.GET.get("faculty", "").strip()
@@ -44,21 +67,20 @@ def build_timeline_posts_queryset(request):
     if feed_scope not in ("all", "following"):
         feed_scope = "all"
 
-    timeline_posts = (
-        TimelinePost.objects.select_related(
-            "author",
-            "author__profile",
-            "organization",
-            "quoted_post",
-            "quoted_post__author",
-            "quoted_post__author__profile",
-            "quoted_post__organization",
-            "shared_product",
-            "shared_organization_event",
-            "shared_organization_event__organization",
-        )
-        .prefetch_related(timeline_comments_prefetch())
+    timeline_posts = TimelinePost.objects.select_related(
+        "author",
+        "author__profile",
+        "organization",
+        "quoted_post",
+        "quoted_post__author",
+        "quoted_post__author__profile",
+        "quoted_post__organization",
+        "shared_product",
+        "shared_organization_event",
+        "shared_organization_event__organization",
     )
+    if prefetch_comments:
+        timeline_posts = timeline_posts.prefetch_related(timeline_comments_prefetch())
     if active_faculty:
         from .organization_post_services import filter_timeline_posts_by_faculty
 

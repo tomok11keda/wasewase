@@ -158,6 +158,5 @@ class TimelineCommentThreadTests(TestCase):
         matched = next(
             post for post in listed.json()["posts"] if post["id"] == self.post.pk
         )
-        self.assertEqual(matched["comments"][0]["body"], "compat")
-        self.assertIn("parent_comment_id", matched["comments"][0])
+        self.assertEqual(matched["comments"], [])
         self.assertEqual(matched["comment_count"], 1)

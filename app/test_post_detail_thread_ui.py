@@ -95,7 +95,7 @@ class PostDetailThreadUiTests(SimpleTestCase):
         self.assertIn("addComment(", card)
         self.assertIn("replyTarget?.id ?? null", card)
         self.assertIn("id: row.id", card)
-        self.assertIn("insertThreadedComment(post.comments, comment)", card)
+        self.assertIn("insertThreadedComment(comments, comment)", card)
         self.assertIn("parent_comment_id?: number", api)
 
     def test_indent_stays_one_level_and_rail_is_group_scoped(self):

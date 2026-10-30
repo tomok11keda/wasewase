@@ -330,8 +330,8 @@ def build_organization_posts_payload(
             "scope": ORG_POST_SCOPE_PUBLIC,
         }
 
+    from .board_services import annotate_timeline_comment_count, annotate_timeline_quote_count
     from .bookmark_services import prepare_timeline_posts
-    from .comment_thread_services import timeline_comments_prefetch
     from .timeline_api_services import serialize_timeline_post
 
     queryset = (
@@ -347,7 +347,6 @@ def build_organization_posts_payload(
             "shared_organization_event",
             "shared_organization_event__organization",
         )
-        .prefetch_related(timeline_comments_prefetch())
         .filter(organization=organization, is_removed=False)
         .order_by("-created_at")
     )
@@ -374,7 +373,11 @@ def build_organization_posts_payload(
             organization_visibility=ORG_POST_VISIBILITY_PUBLIC
         ).exclude(hidden_organization_event_share_q())
     total = queryset.count()
-    page = list(queryset[start : start + page_size])
+    page_qs = annotate_timeline_comment_count(
+        annotate_timeline_quote_count(queryset),
+        viewer,
+    )
+    page = list(page_qs[start : start + page_size])
     prepared = prepare_timeline_posts(page, viewer)
     posts = [
         serialize_timeline_post(post, viewer, include_comments=False)

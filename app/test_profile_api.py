@@ -142,6 +142,16 @@ class ProfileSearchApiTests(TestCase):
         self.assertTrue(
             all(row.get("kind") == "thread" for row in discover["communities"])
         )
+        post_rows = [row for row in discover["trending"] if row.get("kind") == "post"]
+        self.assertTrue(post_rows)
+        for row in post_rows:
+            post = row["post"]
+            self.assertEqual(post.get("comments"), [])
+            self.assertIn("comment_count", post)
+            self.assertIn("like_count", post)
+            self.assertIn("quote_count", post)
+            self.assertIn("body", post)
+            self.assertTrue(post.get("id"))
 
     def test_bookmarks_own_only(self):
         denied = self.client.get(f"/api/v1/profile/{self.other.pk}/bookmarks/")
