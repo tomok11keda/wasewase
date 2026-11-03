@@ -3,11 +3,16 @@ import test from "node:test";
 import {
   HOME_TIMELINE_SORT,
   isHomeTimelinePath,
+  parseHomeTimelineSort,
   stripHomeTimelineLeftoverParams,
 } from "./homeFeed.ts";
 
-test("home timeline is latest-only", () => {
+test("home timeline defaults to latest", () => {
   assert.equal(HOME_TIMELINE_SORT, "latest");
+  assert.equal(parseHomeTimelineSort(null), "latest");
+  assert.equal(parseHomeTimelineSort(""), "latest");
+  assert.equal(parseHomeTimelineSort("latest"), "latest");
+  assert.equal(parseHomeTimelineSort("recommended"), "recommended");
 });
 
 test("only the home timeline path is treated as home", () => {
@@ -26,4 +31,15 @@ test("keep-alive home does not strip q from the search tab URL", () => {
   assert.ok(home);
   assert.equal(home.get("q"), null);
   assert.equal(home.get("tab"), "all");
+});
+
+test("home leftover strip keeps sort so recommended can be selected", () => {
+  const params = new URLSearchParams(
+    "sort=recommended&faculty=政治経済学部&q=x"
+  );
+  const next = stripHomeTimelineLeftoverParams("/", params);
+  assert.ok(next);
+  assert.equal(next.get("sort"), "recommended");
+  assert.equal(next.get("faculty"), null);
+  assert.equal(next.get("q"), null);
 });

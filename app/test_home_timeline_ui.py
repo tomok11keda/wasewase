@@ -25,21 +25,33 @@ class HomeTimelineChromeTests(SimpleTestCase):
 
     def test_home_keeps_sort_compose_and_feed_plumbing(self):
         home = _read("frontend/src/pages/HomePage.tsx")
-        self.assertNotIn("home-sort-tabs", home)
-        self.assertNotIn("おすすめ", home)
-        self.assertIn("HOME_TIMELINE_SORT", home)
+        self.assertIn("home-sort-tabs", home)
+        self.assertIn("おすすめ", home)
+        self.assertIn("parseHomeTimelineSort", home)
         self.assertIn("home-compose", home)
         self.assertIn("home-feed", home)
         self.assertIn("いまどうしてる？", home)
         self.assertIn("compose-fab", home)
         self.assertIn("fetchTimeline", home)
-        self.assertIn("sort: HOME_TIMELINE_SORT", home)
+        self.assertIn("getImpressedPostIds", home)
+        self.assertIn('sort === "recommended"', home)
+        self.assertEqual(
+            home.count(
+                'seen: sort === "recommended" ? getImpressedPostIds() : undefined'
+            ),
+            2,
+        )
+        self.assertNotIn('fetchTimeline({\n          sort: "recommended"', home)
+        self.assertIn('parseHomeTimelineSort(searchParams.get("sort"))', home)
+        self.assertIn('patchParams({ sort: "recommended" })', home)
+        self.assertIn('patchParams({ sort: "" })', home)
         self.assertNotIn("faculty: faculty || undefined", home)
         self.assertNotIn("q: qParam || undefined", home)
         self.assertIn("stripHomeTimelineLeftoverParams", home)
         helper = _read("frontend/src/features/timeline/homeFeed.ts")
         self.assertIn('"faculty"', helper)
         self.assertIn('"q"', helper)
+        self.assertNotIn('"sort"', helper)
         self.assertIn("next.delete(key)", helper)
 
     def test_other_hubs_keep_faculty_filter(self):
@@ -111,15 +123,19 @@ class HomeMotionPilotTests(SimpleTestCase):
         self.assertIn("MOTION_FAST_MS = 120", motion)
         self.assertIn("MOTION_SHEET_MS = 240", motion)
 
-    def test_home_has_no_recommended_latest_sort_tabs(self):
+    def test_home_has_recommended_latest_sort_tabs(self):
         home = _read("frontend/src/pages/HomePage.tsx")
         boot = _read("frontend/src/components/BootSkeleton.tsx")
-        self.assertNotIn("home-sort-tabs", home)
-        self.assertNotIn("home-sort-indicator", home)
-        self.assertNotIn("home-sort-tabs", boot)
-        self.assertNotIn("おすすめ", boot)
-        self.assertNotIn("最新", boot)
-        self.assertIn('sort: HOME_TIMELINE_SORT', home)
+        helper = _read("frontend/src/features/timeline/homeFeed.ts")
+        self.assertIn("home-sort-tabs", home)
+        self.assertIn("home-sort-indicator", home)
+        self.assertIn("home-sort-tabs", boot)
+        self.assertIn("おすすめ", boot)
+        self.assertIn("最新", boot)
+        self.assertIn('data-sort="latest"', boot)
+        self.assertIn("parseHomeTimelineSort", home)
+        self.assertIn('raw === "recommended"', helper)
+        self.assertIn('HOME_TIMELINE_SORT = "latest"', helper)
 
     def test_general_post_ui_hides_view_count(self):
         card = _read("frontend/src/features/timeline/TimelinePostCard.tsx")

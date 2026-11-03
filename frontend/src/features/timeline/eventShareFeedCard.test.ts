@@ -33,5 +33,17 @@ test("home latest fetch does not re-apply leftover faculty or q filters", () => 
   assert.equal(home.includes("q: qParam || undefined"), false);
   assert.equal(home.includes("stripHomeTimelineLeftoverParams"), true);
   assert.equal(home.includes("location.pathname"), true);
-  assert.equal(home.includes("sort: HOME_TIMELINE_SORT"), true);
+  assert.equal(home.includes("parseHomeTimelineSort"), true);
+  assert.equal(home.includes("sort === \"recommended\""), true);
+  assert.equal(
+    home.split(
+      'seen: sort === "recommended" ? getImpressedPostIds() : undefined'
+    ).length - 1,
+    2
+  );
+  assert.equal(home.includes("fetchTimeline({\n          sort: \"recommended\""), false);
+  assert.equal(
+    home.includes('parseHomeTimelineSort(searchParams.get("sort"))'),
+    true
+  );
 });

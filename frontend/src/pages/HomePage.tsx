@@ -7,7 +7,6 @@ import { spaLoginPath } from "../features/auth/api";
 import { BrowsePreviewNotice } from "../components/BrowsePreviewNotice";
 import { PostCardSkeleton } from "../components/skeleton";
 import {
-  HOME_TIMELINE_SORT,
   createTimelinePost,
   fetchQuotable,
   fetchTimeline,
@@ -15,7 +14,10 @@ import {
   type TimelineFeedResponse,
   type TimelinePost,
 } from "../features/timeline/api";
-import { stripHomeTimelineLeftoverParams } from "../features/timeline/homeFeed";
+import {
+  parseHomeTimelineSort,
+  stripHomeTimelineLeftoverParams,
+} from "../features/timeline/homeFeed";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
@@ -51,7 +53,9 @@ import {
   scrollToTimelinePost,
 } from "../features/timeline/postAnchor";
 import { subscribeTimelineFeedInvalidation } from "../features/timeline/feedInvalidation";
+import { getImpressedPostIds } from "../features/timeline/impressions";
 import { analytics } from "../lib/analytics/events";
+import { MOTION_TAB_MS } from "../lib/motion";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 import {
   HOME_POST_SEARCH_HREF,
@@ -70,8 +74,14 @@ export function HomePage() {
   const location = useLocation();
   const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Home is unfiltered latest. Leftover faculty=/q= hid organization posts.
-  // Keep-alive HomePage stays mounted on /search — only strip on the home path.
+  const sort = parseHomeTimelineSort(searchParams.get("sort"));
+  const sortRef = useRef(sort);
+  sortRef.current = sort;
+  const [feedEnter, setFeedEnter] = useState(false);
+  const skipFirstSortMotionRef = useRef(true);
+  // Home is unfiltered latest unless the user picks おすすめ.
+  // Leftover faculty=/q= hid organization posts. Keep-alive HomePage stays
+  // mounted on /search — only strip on the home path. Keep `sort`.
   useEffect(() => {
     const next = stripHomeTimelineLeftoverParams(
       location.pathname,
@@ -80,6 +90,29 @@ export function HomePage() {
     if (!next) return;
     setSearchParams(next, { replace: true });
   }, [location.pathname, searchParams, setSearchParams]);
+
+  const patchParams = useCallback(
+    (patch: Record<string, string>) => {
+      const next = new URLSearchParams(searchParams);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      next.delete("feed");
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams]
+  );
+
+  useEffect(() => {
+    if (skipFirstSortMotionRef.current) {
+      skipFirstSortMotionRef.current = false;
+      return;
+    }
+    setFeedEnter(true);
+    const timer = window.setTimeout(() => setFeedEnter(false), MOTION_TAB_MS);
+    return () => window.clearTimeout(timer);
+  }, [sort]);
 
   useEffect(() => {
     analytics.timelineViewed();
@@ -287,8 +320,10 @@ export function HomePage() {
       if (mode !== "soft") setError(null);
       try {
         const data = await fetchTimeline({
-          sort: HOME_TIMELINE_SORT,
+          sort,
+          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         });
+        if (sort !== sortRef.current) return true;
         setPosts(data.posts);
         setHasMore(data.has_more);
         setNextOffset(data.next_offset);
@@ -296,15 +331,28 @@ export function HomePage() {
         setError(null);
         return true;
       } catch (err) {
+        if (sort !== sortRef.current) return true;
         if (mode === "soft") return false;
         setError(err instanceof Error ? err.message : "load_failed");
         return false;
       } finally {
-        if (mode !== "soft") setLoading(false);
+        if (sort === sortRef.current && mode !== "soft") setLoading(false);
       }
     },
-    [browsePreview]
+    [browsePreview, sort]
   );
+
+  const prevSortRef = useRef(sort);
+  useEffect(() => {
+    if (prevSortRef.current === sort) return;
+    prevSortRef.current = sort;
+    hasDataRef.current = false;
+    setPosts([]);
+    setHasMore(false);
+    setNextOffset(0);
+    setError(null);
+    setLoading(true);
+  }, [sort]);
 
   useEffect(() => {
     if (prevUserIdRef.current === sessionUserId) return;
@@ -450,10 +498,12 @@ export function HomePage() {
         if (!entries[0]?.isIntersecting) return;
         setLoadingMore(true);
         void fetchTimeline({
-          sort: HOME_TIMELINE_SORT,
+          sort,
           offset: nextOffset,
+          seen: sort === "recommended" ? getImpressedPostIds() : undefined,
         })
           .then((data: TimelineFeedResponse) => {
+            if (sort !== sortRef.current) return;
             setPosts((prev) => {
               const seen = new Set(prev.map((p) => p.id));
               const appended = data.posts.filter((p) => !seen.has(p.id));
@@ -471,7 +521,7 @@ export function HomePage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [browsePreview, hasMore, loading, loadingMore, nextOffset]);
+  }, [browsePreview, sort, hasMore, loading, loadingMore, nextOffset]);
 
   const requireLogin = () => {
     navigate(spaLoginPath("/app/"));
@@ -677,6 +727,27 @@ export function HomePage() {
           }
         }}
       />
+      <nav
+        className="home-sort-tabs"
+        aria-label="タイムライン並び順"
+        data-sort={sort}
+      >
+        <button
+          type="button"
+          className={`home-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+          onClick={() => patchParams({ sort: "recommended" })}
+        >
+          おすすめ
+        </button>
+        <button
+          type="button"
+          className={`home-sort-tab${sort === "latest" ? " is-active" : ""}`}
+          onClick={() => patchParams({ sort: "" })}
+        >
+          最新
+        </button>
+        <span className="home-sort-indicator" aria-hidden="true" />
+      </nav>
       {sessionLoading ? null : authenticated ? (
         <div className="home-compose">
           <button
@@ -790,7 +861,10 @@ export function HomePage() {
       ) : feedPhase === "empty" ? (
         <p className="empty-message">まだ投稿がありません。</p>
       ) : (
-        <div className="timeline-list home-feed" id="timeline-list">
+        <div
+          className={`timeline-list home-feed${feedEnter ? " is-enter" : ""}`}
+          id="timeline-list"
+        >
           {postUnavailable ? (
             <p className="empty-message">この投稿は表示できません</p>
           ) : null}

@@ -5,6 +5,7 @@ import { applyChromeModeClass, matchChromeMode } from "../lib/chrome";
 import {
   bootHeaderTitle,
   bootShowsBottomNav,
+  bootShowsHomeSortTabs,
   bootSkeletonKind,
 } from "../lib/bootSkeleton";
 import { matchMainTab, normalizeSpaPath, TAB_ROUTES } from "../lib/tabs";
@@ -95,6 +96,16 @@ function BootBottomNav({ pathname }: { pathname: string }) {
   );
 }
 
+function BootHomeSortTabs() {
+  return (
+    <div className="home-sort-tabs" data-sort="latest" aria-hidden="true">
+      <span className="home-sort-tab">おすすめ</span>
+      <span className="home-sort-tab is-active">最新</span>
+      <span className="home-sort-indicator" />
+    </div>
+  );
+}
+
 function BootSidebar({ pathname }: { pathname: string }) {
   const active = matchMainTab(pathname);
   return (
@@ -159,6 +170,7 @@ export function BootSkeleton({ pathname }: { pathname: string }) {
           <div
             className={`main-inner${isHome ? " timeline-home" : ""}`}
           >
+            {bootShowsHomeSortTabs(path) ? <BootHomeSortTabs /> : null}
             <BootSkeletonFeed kind={kind} />
           </div>
         </div>
