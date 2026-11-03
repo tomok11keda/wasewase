@@ -17,10 +17,13 @@ from django.utils.datastructures import MultiValueDict
 from .media_services import validate_timeline_image_file
 from .models import Organization, OrganizationMember
 from .organization_services import (
+    ORGANIZATION_NAME_TAKEN_MESSAGE,
     can_manage_organization,
     can_select_managed_organization,
     can_view_organization_profile,
     get_organization_membership_role,
+    organization_display_name_taken,
+    record_organization_name_change,
 )
 
 _MANAGED_LIST_STATUSES = (
@@ -255,6 +258,15 @@ def update_organization_profile(
             raise OrganizationApiError("forbidden", status=403)
         previous_instagram = locked.instagram_url or ""
         previous_website = locked.website_url or ""
+        previous_name = locked.name
+        if "name" in validated and validated["name"] != previous_name:
+            if organization_display_name_taken(
+                validated["name"], exclude_pk=locked.pk
+            ):
+                raise OrganizationApiError(
+                    "validation",
+                    errors={"name": [ORGANIZATION_NAME_TAKEN_MESSAGE]},
+                )
         if validated:
             for key, value in validated.items():
                 setattr(locked, key, value)
@@ -276,6 +288,13 @@ def update_organization_profile(
             raise OrganizationApiError(
                 exc.error, status=exc.status, **exc.extra
             ) from exc
+        if "name" in validated and locked.name != previous_name:
+            record_organization_name_change(
+                actor=actor,
+                organization=locked,
+                previous_name=previous_name,
+                new_name=locked.name,
+            )
 
     locked.refresh_from_db()
     return serialize_organization_profile(locked, actor)

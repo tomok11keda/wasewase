@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import json
 
+from django.contrib.admin.models import LogEntry
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 
 from .models import Organization, OrganizationMember, User, UserProfile
 from .organization_api_services import DESCRIPTION_MAX_LENGTH
-from .organization_services import add_organization_member, can_manage_organization
+from .organization_services import (
+    ORGANIZATION_NAME_TAKEN_MESSAGE,
+    add_organization_member,
+    can_manage_organization,
+)
 
 _MINIMAL_GIF = (
     b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04"
@@ -218,6 +223,49 @@ class OrganizationProfileApiTests(TestCase):
         self.org.refresh_from_db()
         self.assertEqual(self.org.name, "新しい団体名")
         self.assertEqual(self.org.instagram_url, "https://instagram.com/wasewase")
+
+    def test_name_change_keeps_slug_and_writes_admin_history(self):
+        self.client.force_login(self.owner)
+        original_slug = self.org.slug
+        res = self._patch_json(name="改名後の団体")
+        self.assertEqual(res.status_code, 200)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.name, "改名後の団体")
+        self.assertEqual(self.org.slug, original_slug)
+        entry = LogEntry.objects.get(object_id=str(self.org.pk))
+        self.assertEqual(entry.user_id, self.owner.pk)
+        message = entry.get_change_message()
+        self.assertIn("チームわせわせ", message)
+        self.assertIn("改名後の団体", message)
+
+    def test_description_update_does_not_write_name_history(self):
+        self.client.force_login(self.owner)
+        res = self._patch_json(description="説明だけ更新")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(LogEntry.objects.filter(object_id=str(self.org.pk)).exists())
+
+    def test_rename_cannot_take_another_organizations_name(self):
+        self.other.name = "Wase Club"
+        self.other.save(update_fields=["name"])
+        self.client.force_login(self.owner)
+        res = self._patch_json(name="Ｗａｓｅ Ｃｌｕｂ")
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["errors"]["name"], [ORGANIZATION_NAME_TAKEN_MESSAGE])
+        spaced = self._patch_json(name="  wase club  ")
+        self.assertEqual(spaced.status_code, 400)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.name, "チームわせわせ")
+        self.assertFalse(LogEntry.objects.filter(object_id=str(self.org.pk)).exists())
+
+    def test_rename_allows_fullwidth_variant_of_own_name(self):
+        self.org.name = "Wase Club"
+        self.org.save(update_fields=["name"])
+        self.client.force_login(self.owner)
+        res = self._patch_json(name="Ｗａｓｅ Ｃｌｕｂ")
+        self.assertEqual(res.status_code, 200)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.name, "Ｗａｓｅ Ｃｌｕｂ")
+        self.assertEqual(self.org.slug, "team-wasewase")
 
     def test_admin_can_update_profile(self):
         self.client.force_login(self.admin)

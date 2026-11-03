@@ -9,6 +9,7 @@ add / remove / set_role は権限を検査しないプリミティブ。
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable
 
 from django.contrib.auth import get_user_model
@@ -384,6 +385,63 @@ def activate_and_list_granted_organization(organization: Organization) -> bool:
     update_fields.append("updated_at")
     organization.save(update_fields=update_fields)
     return True
+
+
+def organization_name_key(name: str) -> str:
+    """比較用。表示文字列そのものは変えない。"""
+    return unicodedata.normalize("NFKC", (name or "").strip()).casefold()
+
+
+def organization_display_name_taken(
+    name: str,
+    *,
+    exclude_pk: int | None = None,
+) -> bool:
+    """別団体の現在の表示名と衝突するか。空文字は対象外。"""
+    key = organization_name_key(name)
+    if not key:
+        return False
+    names = Organization.objects.values_list("pk", "name")
+    if exclude_pk is not None:
+        names = names.exclude(pk=exclude_pk)
+    for _pk, other in names.iterator():
+        if organization_name_key(other) == key:
+            return True
+    return False
+
+
+def organization_name_change_message(previous_name: str, new_name: str) -> str:
+    return f"団体名を「{previous_name}」から「{new_name}」に変更"
+
+
+def record_organization_name_change(
+    *,
+    actor: AbstractBaseUser,
+    organization: Organization,
+    previous_name: str,
+    new_name: str,
+) -> None:
+    """Django Admin の履歴（django_admin_log）に団体名の変更を残す。"""
+    if organization_name_key(previous_name) == organization_name_key(new_name) and (
+        previous_name == new_name
+    ):
+        return
+    if not getattr(actor, "pk", None) or organization.pk is None:
+        return
+    from django.contrib.admin.models import CHANGE, LogEntry
+
+    LogEntry.objects.log_actions(
+        user_id=actor.pk,
+        queryset=[organization],
+        action_flag=CHANGE,
+        change_message=organization_name_change_message(previous_name, new_name),
+        single_object=True,
+    )
+
+
+ORGANIZATION_NAME_TAKEN_MESSAGE = (
+    "この団体名は別の団体が使っています。別の名前にしてください。"
+)
 
 
 def complete_operator_organization_grant(

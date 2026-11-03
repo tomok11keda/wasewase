@@ -77,6 +77,7 @@ from .organization_services import (
     assert_queryset_delete_keeps_owner,
     complete_operator_organization_grant,
     organization_has_owner,
+    organization_name_change_message,
     organizations_left_without_owner_if_users_deleted,
     save_organization_member_formset,
 )
@@ -443,6 +444,23 @@ class OrganizationAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     inlines = [OrganizationMemberInline, OrganizationProfileLinkInline]
     readonly_fields = ("created_at", "updated_at", "instagram_url", "website_url")
+    add_fieldsets = (
+        (
+            None,
+            {
+                "fields": ("name", "slug", "status"),
+                "description": (
+                    "仮の団体名と、URLに使う識別子だけ入力してください。"
+                    "識別子は作成後に変えられません。"
+                    "アイコン、紹介文、カテゴリ、外部リンクは、"
+                    "代表管理者がアプリの団体プロフィール編集から設定します。"
+                    "下の管理者に代表管理者（owner）を1人付けると公開されます。"
+                    "最初から止めるときだけ状態を「利用停止」にしてください。"
+                    "一覧への掲載と運営確認は、作成後にこの画面から変更します。"
+                ),
+            },
+        ),
+    )
     fieldsets = (
         (
             None,
@@ -493,6 +511,35 @@ class OrganizationAdmin(admin.ModelAdmin):
         ),
         ("日時", {"fields": ("created_at", "updated_at")}),
     )
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        return super().get_fieldsets(request, obj)
+
+    def get_inline_instances(self, request, obj=None):
+        inlines = super().get_inline_instances(request, obj)
+        if obj is None:
+            return [
+                inline
+                for inline in inlines
+                if not isinstance(inline, OrganizationProfileLinkInline)
+            ]
+        return inlines
+
+    def save_model(self, request, obj, form, change):
+        if change and "name" in form.changed_data:
+            request._organization_name_change = (
+                form.initial.get("name") or "",
+                form.cleaned_data.get("name") or "",
+            )
+        super().save_model(request, obj, form, change)
+
+    def log_change(self, request, obj, message):
+        previous, new = getattr(request, "_organization_name_change", ("", ""))
+        if previous != new:
+            message = organization_name_change_message(previous, new)
+        return super().log_change(request, obj, message)
 
     def get_prepopulated_fields(self, request, obj=None):
         if obj is not None:

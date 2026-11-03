@@ -91,6 +91,10 @@ class OrganizationSpaSourceTests(SimpleTestCase):
         edit = _read("frontend/src/pages/OrganizationEditPage.tsx")
         self.assertIn("permissionLost", edit)
         self.assertIn("disabled={busy || permissionLost}", edit)
+        self.assertIn('htmlFor="org-name"', edit)
+        self.assertIn("公開URLの識別子は", edit)
+        self.assertIn("{org.slug}", edit)
+        self.assertIn("団体名を変えてもリンクは変わりません", edit)
 
     def test_org_mode_hides_timetable_nav_and_inbox_compose_keeps_existing_chats(self):
         tabs = _read("frontend/src/lib/tabs.ts")

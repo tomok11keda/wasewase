@@ -347,6 +347,9 @@ export function OrganizationEditPage() {
             {fieldError("name") ? (
               <p className="org-edit-field-error">{fieldError("name")}</p>
             ) : null}
+            <p className="org-edit-hint">
+              公開URLの識別子は {org.slug} のままです。団体名を変えてもリンクは変わりません。
+            </p>
           </div>
 
           <div className="form-group">

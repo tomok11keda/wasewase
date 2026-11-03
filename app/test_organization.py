@@ -6,6 +6,7 @@ import json
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.contrib.admin.models import LogEntry
 from django.contrib.admin.sites import site
 from django.contrib.auth.models import AnonymousUser, Permission
 from django.contrib.contenttypes.models import ContentType
@@ -23,6 +24,7 @@ from .admin import (
     OrganizationAdmin,
     OrganizationMemberAdmin,
     OrganizationMemberInline,
+    OrganizationProfileLinkInline,
     UserAdmin,
 )
 from .models import (
@@ -455,6 +457,43 @@ class OrganizationAdminTests(TestCase):
         org_admin = OrganizationAdmin(Organization, site)
         self.assertNotIn("slug", org_admin.get_readonly_fields(request=None, obj=None))
         self.assertIn("slug", org_admin.get_readonly_fields(request=None, obj=org))
+
+    def test_add_form_asks_only_for_provisional_name_slug_and_owner(self):
+        org_admin = OrganizationAdmin(Organization, site)
+        request = RequestFactory().get("/admin/app/organization/add/")
+        request.user = _org_staff("add-fields@waseda.jp")
+        fields = [
+            field
+            for _title, options in org_admin.get_fieldsets(request, obj=None)
+            for field in options["fields"]
+        ]
+        self.assertEqual(fields, ["name", "slug", "status"])
+        inlines = org_admin.get_inline_instances(request, obj=None)
+        self.assertTrue(any(isinstance(inline, OrganizationMemberInline) for inline in inlines))
+        self.assertFalse(
+            any(isinstance(inline, OrganizationProfileLinkInline) for inline in inlines)
+        )
+        description = org_admin.get_fieldsets(request, obj=None)[0][1]["description"]
+        self.assertIn("仮の団体名", description)
+        self.assertIn("識別子は作成後に変えられません", description)
+        self.assertIn("利用停止", description)
+
+    def test_change_form_keeps_operator_visibility_controls(self):
+        org = _make_org(slug="operator-fields")
+        org_admin = OrganizationAdmin(Organization, site)
+        request = RequestFactory().get("/admin/app/organization/1/change/")
+        request.user = _org_staff("change-fields@waseda.jp")
+        fields = [
+            field
+            for _title, options in org_admin.get_fieldsets(request, obj=org)
+            for field in options["fields"]
+        ]
+        for required in ("name", "slug", "description", "status", "is_listed", "is_verified"):
+            self.assertIn(required, fields)
+        inlines = org_admin.get_inline_instances(request, obj=org)
+        self.assertTrue(
+            any(isinstance(inline, OrganizationProfileLinkInline) for inline in inlines)
+        )
 
 
 class OrganizationVisibilityPolicyTests(TestCase):
@@ -1014,6 +1053,35 @@ class OrganizationAdminFlowTests(TestCase):
         self.client = Client()
         self.client.force_login(self.staff)
         self.owner = _make_user("admin-flow-owner@waseda.jp")
+
+    def test_admin_name_change_keeps_slug_and_records_history(self):
+        org = _make_org(slug="rename-admin", name="旧団体名")
+        member = add_organization_member(
+            org, self.owner, role=OrganizationMember.Role.OWNER
+        )
+        response = self.client.post(
+            reverse("admin:app_organization_change", args=[org.pk]),
+            _org_admin_payload(
+                org,
+                name="運営が直した名前",
+                **{
+                    "memberships-TOTAL_FORMS": "1",
+                    "memberships-INITIAL_FORMS": "1",
+                    "memberships-0-id": str(member.pk),
+                    "memberships-0-organization": str(org.pk),
+                    "memberships-0-user": str(self.owner.pk),
+                    "memberships-0-role": OrganizationMember.Role.OWNER,
+                },
+            ),
+        )
+        self.assertEqual(response.status_code, 302, response.content)
+        org.refresh_from_db()
+        self.assertEqual(org.name, "運営が直した名前")
+        self.assertEqual(org.slug, "rename-admin")
+        entry = LogEntry.objects.get(object_id=str(org.pk))
+        self.assertEqual(entry.user_id, self.staff.pk)
+        self.assertIn("旧団体名", entry.get_change_message())
+        self.assertIn("運営が直した名前", entry.get_change_message())
 
     def test_create_organization_with_owner(self):
         response = self.client.post(
