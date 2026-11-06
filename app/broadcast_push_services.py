@@ -17,6 +17,7 @@ from .models import (
     DevicePushToken,
     PushCampaign,
     PushCampaignRecipient,
+    TimelinePost,
 )
 from .notification_services import push_payload_link
 from .push_services import (
@@ -24,12 +25,14 @@ from .push_services import (
     deliver_push_to_user,
     is_likely_apns_device_token,
 )
+from .spa_canonical import app_absolute
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
 PUSH_KIND_COMMUNITY_THREAD_BROADCAST = "community_thread_broadcast"
+PUSH_KIND_TIMELINE_POST_BROADCAST = "timeline_post_broadcast"
 
 CAMPAIGN_KEY_RE = re.compile(r"^[a-zA-Z0-9_.:-]{3,80}$")
 TEST_EMAIL_LOCAL_RE = re.compile(
@@ -59,6 +62,17 @@ class BroadcastPushError(ValueError):
 def community_thread_push_link(thread: CommunityThread) -> str:
     slug = thread.community.slug
     return push_payload_link(f"/app/communities/{slug}/threads/{thread.pk}")
+
+
+def timeline_post_push_link(post_id: int) -> str:
+    """FCM data.link. The app opens React route /posts/<id>."""
+    return app_absolute(f"/posts/{int(post_id)}")
+
+
+def campaign_push_notification_type(campaign: PushCampaign) -> str:
+    if campaign.timeline_post_id_snapshot:
+        return PUSH_KIND_TIMELINE_POST_BROADCAST
+    return PUSH_KIND_COMMUNITY_THREAD_BROADCAST
 
 
 def is_waseda_student_email(email: str) -> bool:
@@ -392,7 +406,7 @@ def send_frozen_campaign(campaign: PushCampaign) -> dict[str, int]:
             body=campaign.body,
             link=campaign.link,
             notification_id="",
-            notification_type=PUSH_KIND_COMMUNITY_THREAD_BROADCAST,
+            notification_type=campaign_push_notification_type(campaign),
         )
         status = _finalize_recipient(recipient, result)
         if status == PushCampaignRecipient.Status.SENT:
@@ -431,6 +445,119 @@ def execute_community_thread_push(
         campaign, created = get_or_create_campaign(
             campaign_key=campaign_key,
             thread=thread,
+            title=title,
+            body=body,
+            actor=actor,
+            test_user=test_user,
+        )
+        if not campaign.recipients.exists():
+            freeze_campaign_recipients(campaign, test_user=test_user)
+    send_counts = send_frozen_campaign(campaign)
+    campaign.refresh_from_db()
+    status_counts = {
+        row["status"]: row["n"]
+        for row in campaign.recipients.values("status").annotate(n=Count("id"))
+    }
+    return {
+        "created": created,
+        "campaign_key": campaign.campaign_key,
+        "mode": campaign.mode,
+        "status": campaign.status,
+        "link": campaign.link,
+        "eligible_users": campaign.eligible_user_count,
+        "ios_tokens": campaign.token_count,
+        "recipient_status": status_counts,
+        "send": send_counts,
+        "in_app_notifications_created": 0,
+    }
+
+
+def load_broadcastable_timeline_post(post_id: int) -> TimelinePost:
+    """Post exists, is not removed, and is visible to a general student."""
+    from .ugc_services import filter_visible_timeline_posts
+
+    post = (
+        TimelinePost.objects.select_related(
+            "organization",
+            "shared_organization_event",
+        )
+        .filter(pk=post_id)
+        .first()
+    )
+    if post is None:
+        raise BroadcastPushError(f"投稿 {post_id} が見つかりません。")
+    if post.is_removed:
+        raise BroadcastPushError("削除された投稿は配信できません。")
+    visible = filter_visible_timeline_posts(
+        TimelinePost.objects.filter(pk=post.pk),
+        None,
+    )
+    if not visible.exists():
+        raise BroadcastPushError(
+            "この投稿は一般の早稲田生から見えないため配信できません。"
+        )
+    return post
+
+
+def get_or_create_timeline_post_campaign(
+    *,
+    campaign_key: str,
+    post: TimelinePost,
+    title: str,
+    body: str,
+    actor,
+    test_user=None,
+) -> tuple[PushCampaign, bool]:
+    mode = (
+        PushCampaign.Mode.TEST
+        if test_user is not None
+        else PushCampaign.Mode.BROADCAST
+    )
+    link = timeline_post_push_link(post.pk)
+    campaign, created = PushCampaign.objects.get_or_create(
+        campaign_key=campaign_key,
+        defaults={
+            "thread": None,
+            "thread_id_snapshot": None,
+            "community_slug": "",
+            "timeline_post": post,
+            "timeline_post_id_snapshot": post.pk,
+            "title": title,
+            "body": body,
+            "link": link,
+            "mode": mode,
+            "created_by": actor,
+        },
+    )
+    if not created:
+        if campaign.mode != mode:
+            raise BroadcastPushError(
+                "同じ campaign_key が別モード（test/broadcast）で既に存在します。"
+            )
+        if campaign.timeline_post_id_snapshot != post.pk or campaign.thread_id_snapshot:
+            raise BroadcastPushError(
+                "同じ campaign_key が別の投稿またはスレッドで既に使われています。"
+            )
+    return campaign, created
+
+
+def execute_timeline_post_push(
+    *,
+    post: TimelinePost,
+    title: str,
+    body: str,
+    campaign_key: str,
+    actor,
+    test_user=None,
+) -> dict[str, Any]:
+    require_staff_actor(actor)
+    post = load_broadcastable_timeline_post(post.pk)
+    title, body = validate_copy(title=title, body=body)
+    campaign_key = validate_campaign_key(campaign_key)
+    with transaction.atomic():
+        campaign, created = get_or_create_timeline_post_campaign(
+            campaign_key=campaign_key,
+            post=post,
             title=title,
             body=body,
             actor=actor,

@@ -1091,7 +1091,10 @@ class DevicePushToken(models.Model):
 
 
 class PushCampaign(models.Model):
-    """運営による注目コミュニティスレッドの一斉プッシュ。in-app Notification は作らない。"""
+    """運営による一度きりの一斉プッシュ。in-app Notification は作らない。
+
+    コミュニティスレッドか通常タイムライン投稿のどちらか一方を対象にする。
+    """
 
     class Mode(models.TextChoices):
         TEST = "test", "テスト端末"
@@ -1110,8 +1113,29 @@ class PushCampaign(models.Model):
         blank=True,
         related_name="push_campaigns",
     )
-    thread_id_snapshot = models.PositiveIntegerField("スレッドID")
-    community_slug = models.SlugField("コミュニティslug", max_length=80)
+    thread_id_snapshot = models.PositiveIntegerField(
+        "スレッドID",
+        null=True,
+        blank=True,
+    )
+    community_slug = models.SlugField(
+        "コミュニティslug",
+        max_length=80,
+        blank=True,
+        default="",
+    )
+    timeline_post = models.ForeignKey(
+        "TimelinePost",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="push_campaigns",
+    )
+    timeline_post_id_snapshot = models.PositiveIntegerField(
+        "タイムライン投稿ID",
+        null=True,
+        blank=True,
+    )
     title = models.CharField("通知タイトル", max_length=80)
     body = models.CharField("通知本文", max_length=200)
     link = models.CharField("ディープリンク", max_length=255)
