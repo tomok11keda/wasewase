@@ -18,19 +18,24 @@
   padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
 }
 
+/* Fill the viewport when short, but grow + document-scroll when keyboard /
+   avatar picker / errors need more space (avoid locked 100dvh + overflow:hidden). */
 .auth-page .onboarding-page:has(.onboarding-card.is-wizard) {
-  height: 100dvh;
+  min-height: 100dvh;
+  height: auto;
 }
 
 .auth-page:has(.onboarding-page) {
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .auth-page .onboarding-card.is-wizard {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -40,13 +45,15 @@
   min-width: 0;
   max-width: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .auth-page .onboarding-page:has(.onboarding-card.is-welcome) {
-  height: 100dvh;
+  min-height: 100dvh;
+  height: auto;
   justify-content: center;
-  padding-bottom: calc(12vh + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
 }
 
 .auth-page .onboarding-card.is-welcome {
@@ -57,13 +64,14 @@
 }
 
 .onboarding-wizard {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .onboarding-wizard-bar {
@@ -116,8 +124,8 @@
 .onboarding-slides {
   position: relative;
   overflow-x: hidden;
-  overflow-y: hidden;
-  flex: 1;
+  overflow-y: visible;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -130,7 +138,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 0;
   width: 100%;
   max-width: 100%;
@@ -171,27 +179,37 @@
 .onboarding-pane form {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 0;
   width: 100%;
 }
 
 .onboarding-pane-body {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 0;
   overflow-x: hidden;
-  overflow-y: auto;
-  padding-top: clamp(8px, 4vh, 36px);
-  padding-bottom: clamp(28px, 14vh, 120px);
+  overflow-y: visible;
+  padding-top: clamp(8px, 3vh, 24px);
+  padding-bottom: clamp(12px, 4vh, 32px);
 }
 
 .onboarding-pane-footer {
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: auto;
   padding-top: 8px;
-  padding-bottom: 4px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(
+    to top,
+    #f5f5f5 70%,
+    rgba(245, 245, 245, 0.92) 85%,
+    rgba(245, 245, 245, 0)
+  );
 }
 
 .auth-page .onboarding-question {
@@ -397,5 +415,32 @@
 
   .auth-page .onboarding-question {
     font-size: 24px;
+  }
+}
+
+/* Short viewports / keyboard-open visual height: keep CTA reachable. */
+@media (max-height: 700px) {
+  .onboarding-pane-body {
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+
+  .auth-page .onboarding-question {
+    margin-bottom: 16px;
+    font-size: 22px;
+  }
+
+  .onboarding-avatar-btn {
+    width: 112px;
+    height: 112px;
+    margin-bottom: 10px;
+  }
+
+  .onboarding-photo-add {
+    margin-bottom: 10px;
+  }
+
+  .onboarding-legal {
+    margin-top: 12px;
   }
 }

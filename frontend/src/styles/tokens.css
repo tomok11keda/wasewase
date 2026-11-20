@@ -60,6 +60,13 @@ body.shell-desktop.shell-hide-bottom-nav {
   padding-bottom: 0;
 }
 
+/* Signup / verify / onboarding (AuthLayout): no BottomNav, so drop its reserve.
+   Do not set overflow:hidden here — unlike chat, auth pages must document-scroll. */
+body.shell-desktop.shell-auth,
+body.shell-desktop:has(.auth-page) {
+  padding-bottom: 0;
+}
+
 @media (max-width: 1023px) {
   /* Prevent iOS document scroll from fighting the in-pane flex chat layout */
   body.shell-desktop.shell-hide-bottom-nav {
@@ -97,7 +104,10 @@ body.shell-hide-bottom-nav .shell-hide-on-desktop:has(.bottom-nav) {
   }
 
   body.shell-hide-bottom-nav #root,
-  html.shell-hide-bottom-nav #root {
+  html.shell-hide-bottom-nav #root,
+  body.shell-auth #root,
+  html.shell-auth #root,
+  body.shell-desktop:has(.auth-page) #root {
     min-height: 100vh;
     min-height: 100dvh;
   }
