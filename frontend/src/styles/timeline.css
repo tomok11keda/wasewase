@@ -295,10 +295,15 @@
   object-fit: cover;
   pointer-events: none;
 }
+/*
+ * Above mobile site-header (z-index:1000 !important) and bottom-nav (200).
+ * Below account-drawer (2400) / account-switch-toast (2500) so those rare
+ * overlays still win if both were somehow open.
+ */
 .image-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 600;
+  z-index: 2300;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -308,6 +313,10 @@
     calc(12px + env(safe-area-inset-bottom, 0px))
     calc(12px + env(safe-area-inset-left, 0px));
   background: #000;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .image-lightbox__backdrop {
   position: absolute;
@@ -316,6 +325,7 @@
   padding: 0;
   background: transparent;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .image-lightbox__stage {
   position: relative;
@@ -337,27 +347,57 @@
   height: auto;
   object-fit: contain;
   pointer-events: auto;
+  cursor: pointer;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  will-change: transform;
+}
+.image-lightbox.is-dragging .image-lightbox__img {
+  cursor: grabbing;
 }
 .image-lightbox__close {
   position: absolute;
   top: calc(8px + env(safe-area-inset-top, 0px));
   right: calc(8px + env(safe-area-inset-right, 0px));
-  z-index: 2;
-  width: 40px;
-  height: 40px;
-  border: none;
+  z-index: 3;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(15, 20, 25, 0.55);
   color: #fff;
-  font-size: 26px;
+  font-size: 28px;
   line-height: 1;
   cursor: pointer;
   font-family: inherit;
   pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .image-lightbox__close:hover,
 .image-lightbox__close:focus-visible {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(15, 20, 25, 0.78);
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+}
+
+/* While open: keep shell chrome from stealing taps (do not change their z-index). */
+body.image-lightbox-open .site-header,
+body.image-lightbox-open .bottom-nav,
+body.image-lightbox-open .shell-hide-on-desktop:has(.bottom-nav) {
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-lightbox__img {
+    transition: none !important;
+  }
 }
 .tweet-actionbar {
   display: flex;
