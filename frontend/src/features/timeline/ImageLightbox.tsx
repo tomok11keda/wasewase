@@ -12,11 +12,13 @@ import {
 import { createPortal } from "react-dom";
 import {
   backdropOpacityForOffset,
-  isEdgeBackGestureStart,
+  isLeftEdgeGestureStart,
   prefersReducedMotion,
   resolveSwipeAxis,
   scaleForOffset,
+  shouldDismissEdgeBackSwipe,
   shouldDismissSwipe,
+  swipeDragOffsetX,
   swipeDragOffsetY,
   SWIPE_CLICK_SUPPRESS_MS,
   type SwipeAxis,
@@ -45,9 +47,12 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
     startTime: number;
     axis: SwipeAxis;
     offsetY: number;
+    offsetX: number;
+    fromLeftEdge: boolean;
     active: boolean;
   } | null>(null);
   const [dragY, setDragY] = useState(0);
+  const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
 
   const requestClose = useCallback(() => {
@@ -60,6 +65,7 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
     if (!open) {
       closedRef.current = false;
       setDragY(0);
+      setDragX(0);
       setDragging(false);
       dragRef.current = null;
       return;
@@ -139,17 +145,24 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
       if (!drag?.active) {
         setDragging(false);
         setDragY(0);
+        setDragX(0);
         return;
       }
 
       const elapsed = Math.max(1, performance.now() - drag.startTime);
       const dismiss =
         !opts.cancel &&
-        shouldDismissSwipe({
+        (shouldDismissSwipe({
           offsetY: drag.offsetY,
           elapsedMs: elapsed,
           axis: drag.axis,
-        });
+        }) ||
+          shouldDismissEdgeBackSwipe({
+            fromLeftEdge: drag.fromLeftEdge,
+            offsetX: drag.offsetX,
+            elapsedMs: elapsed,
+            axis: drag.axis,
+          }));
 
       // Any resolved pan (vertical or horizontal) should not synthesize a click-close.
       if (drag.axis !== "undecided") {
@@ -160,18 +173,19 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
 
       if (dismiss) {
         setDragY(drag.offsetY);
+        setDragX(drag.offsetX);
         requestClose();
         return;
       }
 
       setDragY(0);
+      setDragX(0);
     },
     [requestClose]
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0 && event.pointerType === "mouse") return;
-    if (isEdgeBackGestureStart(event.clientX, window.innerWidth)) return;
     // Close button handles its own clicks.
     if (
       event.target instanceof Element &&
@@ -180,6 +194,8 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
       return;
     }
 
+    // Capture left-edge starts so the lightbox owns edge-back dismiss
+    // (native WKWebView history swipe must not steal the gesture while open).
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -187,6 +203,8 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
       startTime: performance.now(),
       axis: "undecided",
       offsetY: 0,
+      offsetX: 0,
+      fromLeftEdge: isLeftEdgeGestureStart(event.clientX),
       active: true,
     };
     setDragging(true);
@@ -210,10 +228,22 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
     );
     drag.axis = axis;
     const offsetY = swipeDragOffsetY(drag.startY, event.clientY, axis);
+    const offsetX = swipeDragOffsetX(
+      drag.startX,
+      event.clientX,
+      axis,
+      drag.fromLeftEdge
+    );
     drag.offsetY = offsetY;
+    drag.offsetX = offsetX;
     if (axis === "vertical") {
       event.preventDefault();
       setDragY(offsetY);
+      setDragX(0);
+    } else if (axis === "horizontal" && drag.fromLeftEdge) {
+      event.preventDefault();
+      setDragX(offsetX);
+      setDragY(0);
     }
   };
 
@@ -253,10 +283,15 @@ export function ImageLightbox({ src, alt = "", open, onClose }: Props) {
   if (!open) return null;
 
   const reduced = prefersReducedMotion();
-  const opacity = backdropOpacityForOffset(dragY);
-  const scale = scaleForOffset(dragY);
+  const dragOffset = Math.max(dragY, dragX);
+  const opacity = backdropOpacityForOffset(dragOffset);
+  const scale = scaleForOffset(dragOffset);
   const imgTransform =
-    dragY > 0 ? `translate3d(0, ${dragY}px, 0) scale(${scale})` : undefined;
+    dragY > 0
+      ? `translate3d(0, ${dragY}px, 0) scale(${scale})`
+      : dragX > 0
+        ? `translate3d(${dragX}px, 0, 0) scale(${scale})`
+        : undefined;
 
   return createPortal(
     <div

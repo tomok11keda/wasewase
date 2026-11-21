@@ -2,21 +2,32 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   backdropOpacityForOffset,
+  EDGE_SWIPE_DISMISS_DISTANCE_PX,
   isEdgeBackGestureStart,
+  isLeftEdgeGestureStart,
   prefersReducedMotion,
   resolveSwipeAxis,
   scaleForOffset,
+  shouldDismissEdgeBackSwipe,
   shouldDismissSwipe,
+  swipeDragOffsetX,
   swipeDragOffsetY,
   SWIPE_DISMISS_DISTANCE_PX,
   SWIPE_EDGE_GUARD_PX,
 } from "./imageLightboxGesture.ts";
 
-test("edge back gesture starts are ignored near left/right screen edges", () => {
+test("edge back gesture starts are detected near left/right screen edges", () => {
   assert.equal(isEdgeBackGestureStart(0, 390), true);
   assert.equal(isEdgeBackGestureStart(SWIPE_EDGE_GUARD_PX - 1, 390), true);
   assert.equal(isEdgeBackGestureStart(200, 390), false);
   assert.equal(isEdgeBackGestureStart(390 - SWIPE_EDGE_GUARD_PX + 1, 390), true);
+});
+
+test("left-edge dismiss eligibility is left-only", () => {
+  assert.equal(isLeftEdgeGestureStart(0), true);
+  assert.equal(isLeftEdgeGestureStart(SWIPE_EDGE_GUARD_PX), true);
+  assert.equal(isLeftEdgeGestureStart(SWIPE_EDGE_GUARD_PX + 1), false);
+  assert.equal(isLeftEdgeGestureStart(380), false);
 });
 
 test("axis lock prefers vertical only when clearly dominant", () => {
@@ -32,6 +43,14 @@ test("drag offset only follows downward vertical swipes", () => {
   assert.equal(swipeDragOffsetY(100, 40, "vertical"), 0);
   assert.equal(swipeDragOffsetY(100, 180, "horizontal"), 0);
   assert.equal(swipeDragOffsetY(100, 180, "undecided"), 0);
+});
+
+test("horizontal drag offset only tracks rightward left-edge starts", () => {
+  assert.equal(swipeDragOffsetX(10, 90, "horizontal", true), 80);
+  assert.equal(swipeDragOffsetX(10, 0, "horizontal", true), 0);
+  assert.equal(swipeDragOffsetX(10, 90, "horizontal", false), 0);
+  assert.equal(swipeDragOffsetX(10, 90, "vertical", true), 0);
+  assert.equal(swipeDragOffsetX(10, 90, "undecided", true), 0);
 });
 
 test("dismiss requires distance or fast downward flick", () => {
@@ -66,6 +85,54 @@ test("dismiss requires distance or fast downward flick", () => {
       axis: "horizontal",
     }),
     false
+  );
+});
+
+test("edge-back dismiss requires left-edge start + rightward horizontal travel", () => {
+  assert.equal(
+    shouldDismissEdgeBackSwipe({
+      fromLeftEdge: true,
+      offsetX: EDGE_SWIPE_DISMISS_DISTANCE_PX,
+      elapsedMs: 300,
+      axis: "horizontal",
+    }),
+    true
+  );
+  assert.equal(
+    shouldDismissEdgeBackSwipe({
+      fromLeftEdge: true,
+      offsetX: 30,
+      elapsedMs: 300,
+      axis: "horizontal",
+    }),
+    false
+  );
+  assert.equal(
+    shouldDismissEdgeBackSwipe({
+      fromLeftEdge: false,
+      offsetX: 200,
+      elapsedMs: 100,
+      axis: "horizontal",
+    }),
+    false
+  );
+  assert.equal(
+    shouldDismissEdgeBackSwipe({
+      fromLeftEdge: true,
+      offsetX: 200,
+      elapsedMs: 100,
+      axis: "vertical",
+    }),
+    false
+  );
+  assert.equal(
+    shouldDismissEdgeBackSwipe({
+      fromLeftEdge: true,
+      offsetX: 50,
+      elapsedMs: 60,
+      axis: "horizontal",
+    }),
+    true
   );
 });
 

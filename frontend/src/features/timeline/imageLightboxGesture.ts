@@ -3,6 +3,8 @@
 export const SWIPE_EDGE_GUARD_PX = 24;
 export const SWIPE_AXIS_LOCK_PX = 10;
 export const SWIPE_DISMISS_DISTANCE_PX = 110;
+/** Rightward edge-back dismiss (slightly shorter than vertical — iOS habit). */
+export const EDGE_SWIPE_DISMISS_DISTANCE_PX = 72;
 export const SWIPE_DISMISS_VELOCITY = 0.65; // px/ms
 export const SWIPE_CLICK_SUPPRESS_MS = 450;
 
@@ -16,9 +18,15 @@ export type SwipeSample = {
   axis: SwipeAxis;
 };
 
+/** True near either screen edge — historically used to yield to native back. */
 export function isEdgeBackGestureStart(clientX: number, viewportWidth: number): boolean {
   if (viewportWidth <= 0) return clientX < SWIPE_EDGE_GUARD_PX;
   return clientX < SWIPE_EDGE_GUARD_PX || clientX > viewportWidth - SWIPE_EDGE_GUARD_PX;
+}
+
+/** Left-edge only: eligible for in-lightbox edge-back dismiss (iOS back habit). */
+export function isLeftEdgeGestureStart(clientX: number): boolean {
+  return clientX <= SWIPE_EDGE_GUARD_PX;
 }
 
 export function resolveSwipeAxis(
@@ -45,6 +53,17 @@ export function swipeDragOffsetY(startY: number, y: number, axis: SwipeAxis): nu
   return Math.max(0, y - startY);
 }
 
+/** Rightward-only offset for left-edge back dismiss; ignores mid-screen pans. */
+export function swipeDragOffsetX(
+  startX: number,
+  x: number,
+  axis: SwipeAxis,
+  fromLeftEdge: boolean
+): number {
+  if (!fromLeftEdge || axis !== "horizontal") return 0;
+  return Math.max(0, x - startX);
+}
+
 export function shouldDismissSwipe(opts: {
   offsetY: number;
   elapsedMs: number;
@@ -57,6 +76,26 @@ export function shouldDismissSwipe(opts: {
   if (opts.elapsedMs <= 0) return false;
   const velocity = opts.offsetY / opts.elapsedMs;
   return opts.offsetY >= distance * 0.55 && velocity >= SWIPE_DISMISS_VELOCITY;
+}
+
+/**
+ * Close the lightbox on a deliberate left-edge → right swipe.
+ * Mid-screen horizontal pans never dismiss (future multi-image / zoom safety).
+ */
+export function shouldDismissEdgeBackSwipe(opts: {
+  fromLeftEdge: boolean;
+  offsetX: number;
+  elapsedMs: number;
+  axis: SwipeAxis;
+  dismissDistance?: number;
+}): boolean {
+  if (!opts.fromLeftEdge || opts.axis !== "horizontal") return false;
+  if (opts.offsetX <= 0) return false;
+  const distance = opts.dismissDistance ?? EDGE_SWIPE_DISMISS_DISTANCE_PX;
+  if (opts.offsetX >= distance) return true;
+  if (opts.elapsedMs <= 0) return false;
+  const velocity = opts.offsetX / opts.elapsedMs;
+  return opts.offsetX >= distance * 0.55 && velocity >= SWIPE_DISMISS_VELOCITY;
 }
 
 export function backdropOpacityForOffset(offsetY: number, maxFade = 220): number {

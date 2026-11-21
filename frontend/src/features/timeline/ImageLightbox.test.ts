@@ -30,11 +30,18 @@ test("all intended dismiss paths are wired", () => {
   assert.match(source, /Escape/);
   assert.match(source, /onPointerCancel/);
   assert.match(source, /shouldDismissSwipe/);
+  assert.match(source, /shouldDismissEdgeBackSwipe/);
+  assert.match(source, /isLeftEdgeGestureStart/);
   assert.match(source, /suppressClickUntilRef/);
   assert.match(source, /image-lightbox-open/);
   assert.match(source, /restore\.focus/);
   // Image and backdrop both dismiss on click.
   assert.equal((source.match(/onClick=\{onDismissClick\}/g) || []).length >= 2, true);
+});
+
+test("lightbox owns left-edge gestures instead of yielding to native back", () => {
+  assert.equal(source.includes("isEdgeBackGestureStart"), false);
+  assert.match(source, /fromLeftEdge:\s*isLeftEdgeGestureStart/);
 });
 
 test("does not reintroduce stopPropagation that blocked image tap-close", () => {

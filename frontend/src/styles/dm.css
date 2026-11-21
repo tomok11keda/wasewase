@@ -1470,6 +1470,7 @@ html.chrome-detail .dm-group-header {
   color: var(--dm-accent, #891e2b);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   padding: 0;
 }
 

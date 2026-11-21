@@ -5,9 +5,14 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { SfIcon } from "./SfIcon";
 import { isNativeCapacitorApp } from "../lib/nativeApp";
+import {
+  shouldPreventSendPointerDefault,
+  shouldRefocusComposeAfterSend,
+} from "../lib/chatComposeSendGesture";
 
 type Props = {
   value: string;
@@ -44,6 +49,9 @@ export function ChatComposeBar({
 }: Props) {
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const libraryRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const mountedRef = useRef(true);
+  const sendGuardRef = useRef(false);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [imageNote, setImageNote] = useState<string | null>(null);
 
@@ -53,6 +61,13 @@ export function ChatComposeBar({
     () => (pendingImage ? URL.createObjectURL(pendingImage) : null),
     [pendingImage]
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -67,9 +82,29 @@ export function ChatComposeBar({
     e.target.value = "";
   };
 
+  const refocusCompose = () => {
+    if (
+      !shouldRefocusComposeAfterSend({
+        disabled,
+        stillMounted: mountedRef.current,
+      })
+    ) {
+      return;
+    }
+    // Defer past React commit so the cleared value is painted with focus kept.
+    queueMicrotask(() => {
+      if (!mountedRef.current) return;
+      try {
+        inputRef.current?.focus({ preventScroll: true });
+      } catch {
+        /* ignore */
+      }
+    });
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (disabled || busy) return;
+    if (disabled || busy || sendGuardRef.current) return;
     if (allowMedia && !hasText && pendingImage) {
       setImageNote(
         "画像送信は現在準備中です。テキストを入力して送信するか、プレビューを削除してください。"
@@ -77,9 +112,31 @@ export function ChatComposeBar({
       return;
     }
     if (!hasText) return;
+    sendGuardRef.current = true;
     setPendingImage(null);
     setImageNote(null);
-    await onSend(e);
+    try {
+      await onSend(e);
+    } finally {
+      sendGuardRef.current = false;
+      refocusCompose();
+    }
+  };
+
+  const onSendPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (
+      !shouldPreventSendPointerDefault({
+        disabled,
+        busy,
+        pointerType: event.pointerType,
+        button: event.button,
+      })
+    ) {
+      return;
+    }
+    // Keep the input focused so iOS does not dismiss the keyboard / shift the
+    // compose bar via :focus-within before the click/submit can fire.
+    event.preventDefault();
   };
 
   return (
@@ -191,6 +248,7 @@ export function ChatComposeBar({
         ) : null}
 
         <input
+          ref={inputRef}
           className="chat-compose-bar__input"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -209,6 +267,7 @@ export function ChatComposeBar({
             disabled={disabled || busy}
             aria-label="送信"
             title="送信"
+            onPointerDown={onSendPointerDown}
           >
             <SfIcon name="paperplane" size={22} />
           </button>
