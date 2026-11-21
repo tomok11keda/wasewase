@@ -1,0 +1,54 @@
+{
+  "source_url": "https://www.waseda.jp/fcom/soc/assets/uploads/2026/03/37fe7a0857b0756ac077c82a50f29bcc.pdf",
+  "source_listing_page": "https://www.waseda.jp/fcom/soc/students/registration",
+  "academic_year": 2026,
+  "school": "商学部",
+  "raw_extract_sha256": "50212c09df33500681dfdb1ce55d03db32fb41a980407b9deec53544b07d18ed",
+  "rows_parsed_before_dedupe": 187,
+  "rows_after_exact_dedupe": 161,
+  "exact_duplicate_dropped": 26,
+  "soft_duplicate_key_groups": 0,
+  "pilot_rows_written": 74,
+  "cancelled_in_pilot": 15,
+  "active_in_pilot": 59,
+  "title_success": {
+    "ok": 74,
+    "total": 74,
+    "rate": 1.0
+  },
+  "instructor_success_active": {
+    "ok": 71,
+    "total": 74,
+    "rate": 0.9595
+  },
+  "semester_success": {
+    "ok": 72,
+    "total": 74,
+    "rate": 0.973
+  },
+  "schedule_success_active": {
+    "ok": 72,
+    "total": 74,
+    "rate": 0.973
+  },
+  "schedule_present_active": {
+    "ok": 72,
+    "total": 74,
+    "rate": 0.973
+  },
+  "official_subject_key_count": 0,
+  "official_syllabus_class_code_count": 0,
+  "haibun_class_no_present": 72,
+  "needs_human_review_count": 8,
+  "sections": {
+    "専門基礎科目(必修)": 36,
+    "専門基礎科目(選択)": 19,
+    "専門教育科目:経営トラック": 19
+  },
+  "notes": [
+    "subject_key / syllabus_class_code / course_code intentionally blank (no syllabus scrape).",
+    "haibun_class_no comes from the published 配当表 class column.",
+    "Other-track schedule-less rows are flagged schedule_absent_in_source_row.",
+    "Pilot capped at 150 rows after prioritizing non-cancelled + scheduled classes."
+  ]
+}
