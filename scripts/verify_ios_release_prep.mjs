@@ -89,6 +89,11 @@ check("native bridge exposes openSystemSettings", () => {
   assert.match(nativeJs, /openSystemSettings\s*:/);
 });
 
+check("native bridge refreshes push permission on foreground", () => {
+  assert.match(nativeJs, /refreshPushPermissionOnForeground/);
+  assert.match(nativeJs, /visibilitychange/);
+});
+
 check("FirebaseMessaging dependency present", () => {
   assert.ok(pkg.dependencies?.["@capacitor-firebase/messaging"]);
   assert.match(podlock, /CapacitorFirebaseMessaging/);

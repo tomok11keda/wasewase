@@ -59,10 +59,30 @@ export function SettingsPushNotifications() {
 
   useEffect(() => {
     refresh();
+    const onVisible = () => {
+      if (document.visibilityState && document.visibilityState !== "visible") {
+        return;
+      }
+      // Ask the native bridge to re-check OS permission / FCM after Settings.
+      const bridge = window.WaseCapacitor;
+      if (typeof bridge?.refreshPushPermissionOnForeground === "function") {
+        void Promise.resolve(bridge.refreshPushPermissionOnForeground()).finally(
+          () => refresh()
+        );
+        return;
+      }
+      refresh();
+    };
     window.addEventListener("wase:push-permission-ready", refresh);
+    window.addEventListener("pageshow", onVisible);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
     const retry = window.setTimeout(refresh, 800);
     return () => {
       window.removeEventListener("wase:push-permission-ready", refresh);
+      window.removeEventListener("pageshow", onVisible);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(retry);
     };
   }, [refresh]);

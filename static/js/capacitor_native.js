@@ -1343,6 +1343,40 @@
     logNative("Push permission not determined; waiting for user CTA");
   }
 
+  var pushResumeInFlight = false;
+
+  /**
+   * Re-read OS notification permission after returning from iOS Settings.
+   * If newly granted, acquire FCM and register with the backend (via adoptFcmToken).
+   */
+  async function refreshPushPermissionOnForeground() {
+    if (!isNativeApp() || pushResumeInFlight) {
+      return readPushStatus().permission || "";
+    }
+    var FirebaseMessaging = getPlugin("FirebaseMessaging");
+    if (!FirebaseMessaging) {
+      return "";
+    }
+    pushResumeInFlight = true;
+    try {
+      var receive = await readReceivePermission(FirebaseMessaging);
+      setPushStatus({ permission: receive });
+      logPushDiag("Push permission (foreground)", receive);
+      emitPushPermissionReady(receive);
+      if (receive === "granted") {
+        await acquireFcmTokenAfterGrant(FirebaseMessaging);
+      } else if (receive === "denied") {
+        setPushStatus({ error: "permission_denied" });
+      }
+      return receive || "";
+    } catch (error) {
+      logNative("Push foreground refresh failed", error);
+      return readPushStatus().permission || "";
+    } finally {
+      pushResumeInFlight = false;
+    }
+  }
+
   /** User-initiated only. Never call from bootstrap. */
   async function requestPushPermissionFromUser() {
     if (pushPermissionRequestInFlight) {
@@ -2110,6 +2144,7 @@
     registerPushToken: registerTokenWithBackend,
     unregisterPushToken: unregisterTokenWithBackend,
     requestPushPermissionFromUser: requestPushPermissionFromUser,
+    refreshPushPermissionOnForeground: refreshPushPermissionOnForeground,
     /** Open iOS Settings for this app (re-enable notifications after deny). */
     openSystemSettings: function () {
       try {
@@ -2142,6 +2177,9 @@
     trackPageView("pageshow").catch(function (error) {
       logNativeError("Analytics pageshow failed", error);
     });
+    refreshPushPermissionOnForeground().catch(function (error) {
+      logNative("pageshow push refresh failed", error);
+    });
     if (bannerTrackingReady) {
       scheduleBannerReposition();
       return;
@@ -2151,6 +2189,15 @@
         logNative("pageshow banner refresh failed", error);
       });
     }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (!isNativeApp() || document.visibilityState !== "visible") {
+      return;
+    }
+    refreshPushPermissionOnForeground().catch(function (error) {
+      logNative("visibilitychange push refresh failed", error);
+    });
   });
 
   startWhenReady();
