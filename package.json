@@ -11,7 +11,8 @@
     "cap:copy": "npx cap copy",
     "cap:copy:www-ads": "node -e \"const fs=require('fs');fs.copyFileSync('static/js/admob_config.js','www/js/admob_config.js');fs.copyFileSync('static/js/capacitor_native.js','www/js/capacitor_native.js');\"",
     "cap:patch:ios": "node scripts/apply-admob-att-patch.js",
-    "cap:firebase:plist": "node scripts/copy-google-service-info.js"
+    "cap:firebase:plist": "node scripts/copy-google-service-info.js",
+    "verify:ios-release-prep": "node scripts/verify_ios_release_prep.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",

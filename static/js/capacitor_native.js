@@ -2110,6 +2110,16 @@
     registerPushToken: registerTokenWithBackend,
     unregisterPushToken: unregisterTokenWithBackend,
     requestPushPermissionFromUser: requestPushPermissionFromUser,
+    /** Open iOS Settings for this app (re-enable notifications after deny). */
+    openSystemSettings: function () {
+      try {
+        window.location.href = "app-settings:";
+        return true;
+      } catch (error) {
+        logNative("openSystemSettings failed", error);
+        return false;
+      }
+    },
   };
 
   function startWhenReady() {

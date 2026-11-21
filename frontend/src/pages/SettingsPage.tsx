@@ -15,6 +15,7 @@ import {
 } from "../features/profile/api";
 import { invalidateOwnProfileCacheAfterEdit } from "../features/profile/ownProfileCache";
 import { SettingsSkeleton } from "../components/skeleton";
+import { SettingsPushNotifications } from "../components/SettingsPushNotifications";
 import {
   isLatestRequest,
   isSameUserScope,
@@ -220,6 +221,8 @@ export function SettingsPage() {
             </fieldset>
           </section>
         )}
+
+        <SettingsPushNotifications />
 
         <section className="settings-card">
           <h2>その他の設定</h2>

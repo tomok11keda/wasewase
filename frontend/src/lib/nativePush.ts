@@ -16,6 +16,7 @@ type WaseCapacitorPushBridge = {
   unregisterPushToken?: (token?: string | null) => Promise<boolean | void>;
   requestPushPermissionFromUser?: () => Promise<{ receive?: string } | void>;
   consumePendingPushOpenLink?: () => string | null;
+  openSystemSettings?: () => boolean | void;
 };
 
 declare global {

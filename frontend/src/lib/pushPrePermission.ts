@@ -1,6 +1,9 @@
 /** Session-only dismiss for the iOS push pre-permission sheet. */
 export const PUSH_PREPERM_SESSION_KEY = "wase_push_preperm_later";
 
+/** Opens the iOS Settings page for this app (notification re-enable after deny). */
+export const IOS_APP_SETTINGS_URL = "app-settings:";
+
 const AUTH_OR_DIAG_PREFIXES = [
   "/login",
   "/signup",
@@ -9,6 +12,8 @@ const AUTH_OR_DIAG_PREFIXES = [
   "/password-reset",
   "/internal/push-diag",
 ];
+
+export type PushPermissionUx = "prompt" | "granted" | "denied" | "unknown";
 
 export type PushPrePermissionInput = {
   pluginAvailable: boolean;
@@ -81,4 +86,39 @@ export function markPrePermissionDismissed(): void {
   } catch {
     /* ignore quota / private mode */
   }
+}
+
+/** Normalize Capacitor / bridge permission strings for Settings UX. */
+export function normalizePushPermissionUx(permission: string): PushPermissionUx {
+  const value = (permission || "").trim().toLowerCase();
+  if (value === "granted" || value === "authorized") return "granted";
+  if (value === "denied" || value === "blocked") return "denied";
+  if (
+    value === "prompt" ||
+    value === "prompt-with-rationale" ||
+    value === "notdetermined"
+  ) {
+    return "prompt";
+  }
+  return "unknown";
+}
+
+/** Settings → 通知 controls only on native binaries that ship FirebaseMessaging. */
+export function shouldShowSettingsPushControls(input: {
+  isNativeApp: boolean;
+  pluginAvailable: boolean;
+}): boolean {
+  return input.isNativeApp && input.pluginAvailable;
+}
+
+/**
+ * After OS deny, requestPermissions cannot show the system sheet again.
+ * Guide the user to iOS Settings instead.
+ */
+export function shouldOpenSystemSettingsForPush(permission: string): boolean {
+  return normalizePushPermissionUx(permission) === "denied";
+}
+
+export function shouldOfferPushEnableCta(permission: string): boolean {
+  return normalizePushPermissionUx(permission) === "prompt";
 }
