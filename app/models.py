@@ -352,6 +352,7 @@ class CourseOffering(models.Model):
     class Source(models.TextChoices):
         USER = "user", "ユーザー"
         ADMIN = "admin", "管理者"
+        OFFICIAL = "official", "公式マスター"
 
     class Status(models.TextChoices):
         ACTIVE = "active", "有効"
@@ -519,6 +520,177 @@ class CourseMeeting(models.Model):
             "od" if self.period_kind == CourseOffering.PeriodKind.OD else "p"
         )
         return f"{prefix}{self.period}-d{self.day_of_week}"
+
+
+class OfficialClass(models.Model):
+    """公式／公開配当表由来の開講クラス（Option B）。
+
+    CourseOffering とは分離。subject_key 等は取得できたときだけ埋める。
+    未取得時は provisional_identity（配当表フィールド由来）で一意化する。
+    """
+
+    class PublicationStatus(models.TextChoices):
+        RESEARCH_ONLY = "research_only", "研究検証のみ"
+        INTERNAL = "internal", "内部"
+        PUBLIC = "public", "公開可"
+
+    academic_year = models.PositiveIntegerField("年度", db_index=True)
+    school = models.CharField("学部", max_length=50, db_index=True)
+    section = models.CharField("区分", max_length=120, blank=True)
+    title = models.CharField("科目名", max_length=200)
+    title_normalized = models.CharField(
+        "正規化科目名", max_length=200, blank=True, db_index=True
+    )
+    haibun_class_no = models.CharField(
+        "配当表クラス番号",
+        max_length=16,
+        blank=True,
+        help_text="公開配当表のクラス列。シラバスクラスコードの代替ではない。",
+    )
+    instructor = models.CharField("担当教員", max_length=200, blank=True)
+    instructor_normalized = models.CharField(
+        "正規化教員名", max_length=200, blank=True, db_index=True
+    )
+    semester_code = models.CharField("学期コード", max_length=32, blank=True)
+    semester_label = models.CharField("学期表示", max_length=32, blank=True)
+    credits = models.CharField("単位", max_length=20, blank=True)
+    modality_raw = models.CharField("授業実施方法", max_length=40, blank=True)
+    is_cancelled = models.BooleanField("本年度休講", default=False)
+    subject_key = models.CharField(
+        "科目キー",
+        max_length=32,
+        blank=True,
+        help_text="公式シラバスの科目キー。未取得なら空。推測生成禁止。",
+    )
+    syllabus_class_code = models.CharField(
+        "シラバスクラスコード",
+        max_length=16,
+        blank=True,
+        help_text="公式シラバスのクラスコード。未取得なら空。",
+    )
+    course_code = models.CharField("コースコード", max_length=32, blank=True)
+    provisional_identity = models.CharField(
+        "暫定識別子",
+        max_length=64,
+        unique=True,
+        help_text="配当表フィールドから決定的に導出。公式キーの代替ではない。",
+    )
+    source_url = models.URLField("出典URL", blank=True)
+    source_listing_page = models.URLField("掲載ページ", blank=True)
+    source_extract_line = models.PositiveIntegerField("抽出行", default=0)
+    source_raw_line = models.TextField("元行", blank=True)
+    parse_flags = models.CharField("抽出フラグ", max_length=200, blank=True)
+    needs_human_review = models.BooleanField(default=False)
+    publication_status = models.CharField(
+        "公開状態",
+        max_length=32,
+        choices=PublicationStatus.choices,
+        default=PublicationStatus.RESEARCH_ONLY,
+        db_index=True,
+    )
+    canonical_offering = models.ForeignKey(
+        CourseOffering,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="official_canonical_for",
+        verbose_name="正規CourseOffering",
+        help_text="新規履修・共通トークの受け皿。他Offeringの自動統合はしない。",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "公式開講クラス"
+        verbose_name_plural = "公式開講クラス"
+        ordering = ["academic_year", "school", "title", "haibun_class_no", "pk"]
+        indexes = [
+            models.Index(fields=["academic_year", "school", "title_normalized"]),
+            models.Index(fields=["subject_key", "syllabus_class_code"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["academic_year", "subject_key", "syllabus_class_code"],
+                condition=models.Q(subject_key__gt="")
+                & models.Q(syllabus_class_code__gt=""),
+                name="uniq_official_class_syllabus_identity",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.academic_year} {self.school} {self.title} #{self.haibun_class_no}"
+
+
+class OfficialMeeting(models.Model):
+    """OfficialClass の曜日・時限。"""
+
+    official_class = models.ForeignKey(
+        OfficialClass,
+        on_delete=models.CASCADE,
+        related_name="meetings",
+        verbose_name="公式開講クラス",
+    )
+    day_of_week = models.PositiveSmallIntegerField(
+        "曜日", null=True, blank=True, help_text="0=月 … 6=日。ODはnull可。"
+    )
+    period = models.PositiveSmallIntegerField("時限", null=True, blank=True)
+    period_kind = models.CharField(
+        "時限種別",
+        max_length=16,
+        choices=CourseOffering.PeriodKind.choices,
+        default=CourseOffering.PeriodKind.PERIOD,
+    )
+    raw = models.CharField("元表記", max_length=32, blank=True)
+    fingerprint = models.CharField("指紋", max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "公式ミーティング"
+        verbose_name_plural = "公式ミーティング"
+        ordering = ["id"]
+
+
+class OfferingOfficialLink(models.Model):
+    """既存 CourseOffering と OfficialClass の対応（1 Offering = 最大1公式）。"""
+
+    class MatchMethod(models.TextChoices):
+        MANUAL = "manual", "人手"
+        SUGGESTED = "suggested", "候補"
+        CREATED_FROM_OFFICIAL = "created_from_official", "公式から作成"
+        EXACT_PROVISIONAL = "exact_provisional", "暫定キー一致"
+
+    offering = models.OneToOneField(
+        CourseOffering,
+        on_delete=models.CASCADE,
+        related_name="official_link",
+        verbose_name="開講授業",
+    )
+    official_class = models.ForeignKey(
+        OfficialClass,
+        on_delete=models.CASCADE,
+        related_name="offering_links",
+        verbose_name="公式開講クラス",
+    )
+    match_method = models.CharField(
+        "対応方法",
+        max_length=32,
+        choices=MatchMethod.choices,
+        default=MatchMethod.MANUAL,
+    )
+    confidence = models.FloatField("信頼度", default=1.0)
+    reviewed_at = models.DateTimeField("確認日時", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "開講公式リンク"
+        verbose_name_plural = "開講公式リンク"
+        indexes = [
+            models.Index(fields=["official_class", "match_method"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"offering={self.offering_id} → official={self.official_class_id}"
 
 
 class CourseEnrollment(models.Model):

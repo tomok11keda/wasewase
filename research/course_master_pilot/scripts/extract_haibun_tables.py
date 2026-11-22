@@ -165,6 +165,20 @@ def looks_like_title(cell: str) -> bool:
         return False
     if TERM_RE.fullmatch(cell):
         return False
+    # PDF 演習表の崩れで「火4」「金2」が科目名になるのを除外
+    if SLOT_RE.fullmatch(cell.replace(" ", "")):
+        return False
+    if cell in {"無", "なし", "---", "科目名", "クラス", "担当者"}:
+        return False
+    if cell.startswith("曜日時限"):
+        return False
+    # English title fragments from broken multi-line PDF rows
+    if cell in {"Researchers"}:
+        return False
+    if cell.startswith("Working on Empirical Data for Management") and "Researchers" not in cell:
+        # incomplete fragment without the trailing "Researchers" line joined
+        if len(cell) < 60:
+            return False
     return True
 
 

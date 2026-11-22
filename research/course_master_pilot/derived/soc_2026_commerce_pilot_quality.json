@@ -4,51 +4,53 @@
   "academic_year": 2026,
   "school": "商学部",
   "raw_extract_sha256": "50212c09df33500681dfdb1ce55d03db32fb41a980407b9deec53544b07d18ed",
-  "rows_parsed_before_dedupe": 187,
-  "rows_after_exact_dedupe": 161,
-  "exact_duplicate_dropped": 26,
+  "rows_parsed_before_dedupe": 132,
+  "rows_after_exact_dedupe": 132,
+  "exact_duplicate_dropped": 0,
   "soft_duplicate_key_groups": 0,
-  "pilot_rows_written": 74,
+  "pilot_rows_written": 72,
   "cancelled_in_pilot": 15,
-  "active_in_pilot": 59,
+  "active_in_pilot": 57,
   "title_success": {
-    "ok": 74,
-    "total": 74,
+    "ok": 72,
+    "total": 72,
     "rate": 1.0
   },
   "instructor_success_active": {
     "ok": 71,
-    "total": 74,
-    "rate": 0.9595
+    "total": 72,
+    "rate": 0.9861
   },
   "semester_success": {
     "ok": 72,
-    "total": 74,
-    "rate": 0.973
+    "total": 72,
+    "rate": 1.0
   },
   "schedule_success_active": {
     "ok": 72,
-    "total": 74,
-    "rate": 0.973
+    "total": 72,
+    "rate": 1.0
   },
   "schedule_present_active": {
     "ok": 72,
-    "total": 74,
-    "rate": 0.973
+    "total": 72,
+    "rate": 1.0
   },
   "official_subject_key_count": 0,
   "official_syllabus_class_code_count": 0,
   "haibun_class_no_present": 72,
-  "needs_human_review_count": 8,
+  "needs_human_review_count": 6,
   "sections": {
     "専門基礎科目(必修)": 36,
     "専門基礎科目(選択)": 19,
-    "専門教育科目:経営トラック": 19
+    "専門教育科目:経営トラック": 17
   },
   "notes": [
     "subject_key / syllabus_class_code / course_code intentionally blank (no syllabus scrape).",
     "haibun_class_no comes from the published 配当表 class column.",
     "Pilot limited to 専門基礎 + 経営トラック (excludes 他分野指定 / 演習 for schedule quality).",
-    "Target band 50–150; this core slice produced 50–150 rows without inventing IDs."
+    "Target band 50–150; this core slice produced 50–150 rows without inventing IDs.",
+    "Title guards reject slot-as-title / header / English fragments; PR#4's 26 exact-dups were mostly those garbage rows.",
+    "needs_human_review: 6 remaining (ビジネス法入門 instructor gap + cancelled instructor_missing)."
   ]
 }

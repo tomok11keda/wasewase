@@ -6,7 +6,7 @@ Generated as a **research artifact**. Not loaded into production DB.
 
 **Yes.**  
 File: `derived/soc_2026_commerce_pilot_classes.csv`  
-**74** structured class rows from the public 2026 商学部学科目配当表 (2024-entrant edition), limited to:
+**72** structured class rows (cleaned; previously 74 before rejecting 2 PDF fragments) from the public 2026 商学部学科目配当表 (2024-entrant edition), limited to:
 
 - 専門基礎科目（必修）
 - 専門基礎科目（選択）
@@ -27,52 +27,39 @@ File: `derived/soc_2026_commerce_pilot_classes.csv`
 
 ## 2. Extraction quality
 
-From `derived/soc_2026_commerce_pilot_quality.json`:
+From `derived/soc_2026_commerce_pilot_quality.json` (after title-guard cleanup):
 
 | Metric | Result |
 |--------|--------|
-| Pilot class rows | **74** (in 50–150 target) |
-| Active (not cancelled) | 59 |
+| Pilot class rows | **72** (in 50–150 target) |
+| Active (not cancelled) | 57 |
 | Cancelled (kept, flagged) | 15 |
-| Title extraction success | **100%** (74/74) |
-| Instructor success (active or cancelled-ok) | **95.9%** (71/74) |
-| Semester success | **97.3%** (72/74) |
-| Schedule present (incl. OD `無`) | **97.3%** (72/74) among pilot metrics; 57 active rows have concrete weekday slots or OD |
+| Title extraction success | **100%** |
+| Instructor success (active or cancelled-ok) | **98.6%** (71/72) |
+| Semester success | **100%** |
+| Schedule present | **100%** |
 | Official `subject_key` | **0** (intentionally blank) |
-| Official syllabus class code | **0** (intentionally blank) |
-| Haibun class number present | 72/74 |
-| Exact duplicate rows dropped pre-pilot | 26 |
-| Soft duplicate groups (title+semester+class) | 0 |
-| Needs human review | **8** |
-| AI invented fields | **None** — ambiguous rows flagged, not filled |
+| Exact duplicate rows dropped | **0** (was 26 garbage slot-titles; now rejected pre-parse) |
+| Needs human review | **6** (was 8; 2 garbage fragments removed) |
 
-Typical review reasons: missing instructor on a multi-line PDF cell, semester cell noise, cancelled rows, or rare unparsed class numbers.
+See `VALIDATION_REVIEW.md` for the PR#4 8/26 audit.
 
 ## 3. Option A vs B
 
-See `DESIGN_COMPARISON.md`.
+See `DESIGN_COMPARISON.md`. Implementation follows **Option B**.
 
 ## 4. Recommended DB design
 
-**OfficialClass (+ OfficialMeeting) with `OfferingOfficialLink` (Option B).**  
-Keep existing `CourseOffering` / course talk untouched until a reviewed link or explicit merge.
+**OfficialClass (+ OfficialMeeting) with `OfferingOfficialLink`.**  
+Details: `OPTION_B_DESIGN.md`. Code: `app/models.py`, `app/official_course_services.py`, migration `0081_official_course_master`.
 
-## 5. Work to reach production (no steps executed here)
+## 5. Student UI (minimal)
 
-1. Legal/data permission for catalog reuse or university CSV/API.
-2. Apply Option B migrations on a branch; never mutate prod offerings on import.
-3. Admin importer for haibun/CSV → `OfficialClass`.
-4. Optional later: consented, rate-limited syllabus enrichment for `subject_key` only where permitted.
-5. UI: “公式から選ぶ” search over `OfficialClass`.
-6. Opt-in link / enroll flow; no auto talk merge.
-7. Expand beyond 経営トラック after quality bar is met.
+See `STUDENT_UI_MINI_SPEC.md`.
 
-## 6. Next features to implement
+## 6. Remaining work to safe prod
 
-1. Read-only admin preview of official CSV → dry-run insert counts.
-2. Student search against `OfficialClass` (Commerce pilot flag).
-3. “Link my free-text offering” review queue (no auto-merge).
-4. Screenshot OCR → candidate `OfficialClass` matches (confirm UI).
+See `REMAINING_PROD_WORK.md`.
 
 ## Files
 
@@ -82,3 +69,7 @@ Keep existing `CourseOffering` / course talk untouched until a reviewed link or 
 - `derived/soc_2026_commerce_pilot_classes.csv` — pilot dataset
 - `derived/soc_2026_commerce_pilot_needs_review.csv` — review subset
 - `derived/soc_2026_commerce_pilot_quality.json` — metrics
+- `docs/VALIDATION_REVIEW.md` — 8/26 audit
+- `docs/OPTION_B_DESIGN.md` — linking / migration design
+- `docs/STUDENT_UI_MINI_SPEC.md` — UI mini-spec
+- `docs/REMAINING_PROD_WORK.md` — prod checklist
