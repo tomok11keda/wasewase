@@ -480,6 +480,22 @@ WASE_ORG_TIMELINE_POSTS_PUBLIC = env.bool(
     default=False,
 )
 
+# OfficialClass student search/enroll UI + API (Option B).
+# Default OFF — enable explicitly after public rows exist and legal clearance.
+# research_only rows are never returned by the student API regardless of this flag.
+WASE_OFFICIAL_CLASS_STUDENT_UI = env.bool(
+    "WASE_OFFICIAL_CLASS_STUDENT_UI",
+    default=False,
+)
+# Comma-separated school names; empty = all schools (still public-only).
+_OFFICIAL_PILOT_SCHOOLS_RAW = env.str(
+    "WASE_OFFICIAL_CLASS_PILOT_SCHOOLS",
+    default="商学部",
+)
+WASE_OFFICIAL_CLASS_PILOT_SCHOOLS = [
+    s.strip() for s in _OFFICIAL_PILOT_SCHOOLS_RAW.split(",") if s.strip()
+]
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True

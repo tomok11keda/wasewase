@@ -607,6 +607,10 @@ class OfficialClass(models.Model):
         indexes = [
             models.Index(fields=["academic_year", "school", "title_normalized"]),
             models.Index(fields=["subject_key", "syllabus_class_code"]),
+            models.Index(
+                fields=["publication_status", "academic_year", "school"],
+                name="app_officia_pub_ys_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -648,6 +652,12 @@ class OfficialMeeting(models.Model):
         verbose_name = "公式ミーティング"
         verbose_name_plural = "公式ミーティング"
         ordering = ["id"]
+        indexes = [
+            models.Index(
+                fields=["day_of_week", "period", "period_kind"],
+                name="app_offmeet_slot_idx",
+            ),
+        ]
 
 
 class OfferingOfficialLink(models.Model):

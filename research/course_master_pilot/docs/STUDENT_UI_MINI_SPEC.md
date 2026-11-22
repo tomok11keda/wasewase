@@ -32,16 +32,19 @@
 - OCR / スクショ登録（次フェーズ）
 - 口コミの横断表示変更
 
-## API 草案（未実装可）
+## API（実装済み）
 
 ```
-GET  /api/v1/courses/official/?q=&semester=&school=商学部
+GET  /api/v1/courses/official/?q=&semester=&year=&day=&period=&school=&limit=&offset=
 POST /api/v1/courses/official/<id>/enroll/
 ```
 
-レスポンスは既存 Offering 履修レスポンスと同形（`offering` + `slot`）。
+- 検索は `publication_status=public` のみ（`research_only` は絶対に返さない）
+- 履修は canonical Offering 必須。未設定は `409 pending_canonical`
+- レスポンスは `offering` + `slot`（既存履修と同形）+ `official_class`
 
 ## フラグ
 
-`OFFICIAL_CLASS_PILOT_SCHOOLS = ["商学部"]`  
-他学部は自由入力のみ。
+- `WASE_OFFICIAL_CLASS_STUDENT_UI`（既定 `False`）— OFF ならタブ非表示・API 404
+- `WASE_OFFICIAL_CLASS_PILOT_SCHOOLS`（既定 `商学部`）
+- meta: `official_class_search_enabled` / `official_class_pilot_schools`

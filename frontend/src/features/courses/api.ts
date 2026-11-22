@@ -70,6 +70,39 @@ export type CourseMeta = {
   semesters: Array<{ value: string; label: string }>;
   faculties: Array<{ value: string; label: string }>;
   campuses: Array<{ value: string; label: string }>;
+  official_class_search_enabled?: boolean;
+  official_class_pilot_schools?: string[];
+};
+
+export type OfficialClassMeeting = {
+  id: number;
+  day_of_week: number | null;
+  day_label: string;
+  period: number | null;
+  period_kind: string;
+  period_label: string;
+  slot_key: string;
+  raw?: string;
+};
+
+export type OfficialClass = {
+  id: number;
+  title: string;
+  instructor: string;
+  academic_year: number;
+  school: string;
+  section: string;
+  haibun_class_no: string;
+  semester_code: string;
+  semester_label: string;
+  credits: string;
+  modality_raw: string;
+  meetings: OfficialClassMeeting[];
+  schedule_label: string;
+  enrollment_status: string;
+  enrollable: boolean;
+  canonical_offering_id: number | null;
+  viewer_enrollment?: string | null;
 };
 
 export type ReviewSummary = {
@@ -129,6 +162,102 @@ export async function searchCourses(params: {
   );
   if (!ok) throw new Error(error || "search_failed");
   return ((data.results as CourseOffering[]) || []) as CourseOffering[];
+}
+
+export async function searchOfficialClasses(params: {
+  q: string;
+  day?: number | null;
+  period?: number | null;
+  period_kind?: string | null;
+  semester?: string | null;
+  year?: number | null;
+  school?: string | null;
+  offset?: number;
+  limit?: number;
+}): Promise<{
+  results: OfficialClass[];
+  total: number;
+  has_more: boolean;
+}> {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.day != null) qs.set("day", String(params.day));
+  if (params.period != null) qs.set("period", String(params.period));
+  if (params.period_kind) qs.set("period_kind", params.period_kind);
+  if (params.semester) qs.set("semester", params.semester);
+  if (params.year != null) qs.set("year", String(params.year));
+  if (params.school) qs.set("school", params.school);
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  const { ok, data, error, status } = await apiGetJson(
+    `/api/v1/courses/official/?${qs.toString()}`
+  );
+  if (!ok) {
+    const err = new Error(error || "official_search_failed") as Error & {
+      status?: number;
+    };
+    err.status = status;
+    throw err;
+  }
+  return {
+    results: ((data.results as OfficialClass[]) || []) as OfficialClass[],
+    total: Number(data.total || 0),
+    has_more: Boolean(data.has_more),
+  };
+}
+
+export async function enrollOfficialClass(
+  officialPk: number,
+  slotKey?: string | null,
+  options?: { addMeeting?: boolean }
+): Promise<{
+  official_class: OfficialClass;
+  offering: CourseOffering;
+  slot: SlotPayload;
+}> {
+  await ensureAuthCsrf();
+  const body: Record<string, unknown> = {};
+  if (slotKey) body.slot_key = slotKey;
+  if (options?.addMeeting) body.add_meeting = true;
+  const { ok, data, error, status } = await apiPostJson(
+    `/api/v1/courses/official/${officialPk}/enroll/`,
+    body
+  );
+  if (!ok) {
+    const err = new Error(error || "official_enroll_failed") as Error & {
+      status?: number;
+      message?: string;
+    };
+    err.status = status;
+    if (typeof data.message === "string") err.message = data.message;
+    // Prefer API error code as Error.message for switch handling
+    if (error) err.message = error;
+    throw err;
+  }
+  return data as unknown as {
+    official_class: OfficialClass;
+    offering: CourseOffering;
+    slot: SlotPayload;
+  };
+}
+
+export function officialScheduleText(o: OfficialClass): string {
+  if (o.schedule_label) return o.schedule_label;
+  if (o.meetings?.length) {
+    return o.meetings
+      .map((m) => `${m.day_label}${m.period_label}` || m.raw || "")
+      .filter(Boolean)
+      .join("・");
+  }
+  return "";
+}
+
+export function officialCoversSlot(
+  official: OfficialClass,
+  slotKey?: string | null
+): boolean {
+  if (!slotKey) return true;
+  return Boolean(official.meetings?.some((m) => m.slot_key === slotKey));
 }
 
 export type CourseDiscoverCard = {

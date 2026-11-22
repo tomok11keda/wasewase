@@ -925,3 +925,204 @@ def count_enrollment_by_offering(offering_ids: list[int]) -> dict[int, int]:
         .annotate(c=Count("id"))
     )
     return {row["offering_id"]: row["c"] for row in rows}
+
+
+# ---------------------------------------------------------------------------
+# Student-facing search / enroll (public OfficialClass only)
+# ---------------------------------------------------------------------------
+
+MAX_OFFICIAL_QUERY_LEN = 80
+MAX_OFFICIAL_SEARCH_LIMIT = 50
+DEFAULT_OFFICIAL_SEARCH_LIMIT = 30
+
+
+def official_student_ui_enabled() -> bool:
+    from django.conf import settings
+
+    return bool(getattr(settings, "WASE_OFFICIAL_CLASS_STUDENT_UI", False))
+
+
+def official_pilot_schools() -> list[str]:
+    from django.conf import settings
+
+    raw = getattr(settings, "WASE_OFFICIAL_CLASS_PILOT_SCHOOLS", None) or []
+    return [str(s).strip() for s in raw if str(s).strip()]
+
+
+def student_visible_official_classes():
+    """Base queryset for student API — never includes research_only/internal."""
+    from django.db.models import Prefetch
+
+    qs = OfficialClass.objects.filter(
+        publication_status=OfficialClass.PublicationStatus.PUBLIC,
+        is_cancelled=False,
+        needs_human_review=False,
+    ).prefetch_related(
+        Prefetch("meetings", queryset=OfficialMeeting.objects.order_by("id"))
+    )
+    schools = official_pilot_schools()
+    if schools:
+        qs = qs.filter(school__in=schools)
+    return qs
+
+
+def search_official_classes(
+    *,
+    q: str = "",
+    academic_year: int | None = None,
+    semester_code: str | None = None,
+    school: str | None = None,
+    day_of_week: int | None = None,
+    period: int | None = None,
+    period_kind: str | None = None,
+    limit: int = DEFAULT_OFFICIAL_SEARCH_LIMIT,
+    offset: int = 0,
+) -> tuple[list[OfficialClass], int]:
+    """Partial match on title/instructor + optional filters. Public only."""
+    from django.db.models import Q
+
+    limit = max(1, min(int(limit or DEFAULT_OFFICIAL_SEARCH_LIMIT), MAX_OFFICIAL_SEARCH_LIMIT))
+    offset = max(0, int(offset or 0))
+    qs = student_visible_official_classes()
+
+    if academic_year is not None:
+        qs = qs.filter(academic_year=academic_year)
+    if semester_code:
+        # Accept CourseOffering semester aliases (spring/fall) as well.
+        code = normalize_official_text(semester_code)
+        qs = qs.filter(semester_code__iexact=code)
+    if school:
+        qs = qs.filter(school=school)
+
+    query = sanitize_plain_text_local(q, max_len=MAX_OFFICIAL_QUERY_LEN)
+    if query:
+        needle = normalize_official_text(query)
+        qs = qs.filter(
+            Q(title_normalized__contains=needle)
+            | Q(instructor_normalized__contains=needle)
+            | Q(title__icontains=query)
+            | Q(instructor__icontains=query)
+        )
+
+    if day_of_week is not None or period is not None or period_kind:
+        meeting_filter: dict[str, Any] = {}
+        if day_of_week is not None:
+            meeting_filter["meetings__day_of_week"] = day_of_week
+        if period is not None:
+            meeting_filter["meetings__period"] = period
+        if period_kind:
+            meeting_filter["meetings__period_kind"] = period_kind
+        qs = qs.filter(**meeting_filter).distinct()
+
+    qs = qs.order_by("title", "haibun_class_no", "pk")
+    total = qs.count()
+    return list(qs[offset : offset + limit]), total
+
+
+def sanitize_plain_text_local(value: str | None, *, max_len: int) -> str:
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", (value or "")).strip()
+    text = re.sub(r"\s+", " ", text)
+    return text[:max_len]
+
+
+def serialize_official_meeting(meeting: OfficialMeeting) -> dict[str, Any]:
+    from .course_services import day_label, period_label
+
+    day = meeting.day_of_week
+    period = meeting.period
+    kind = meeting.period_kind or CourseOffering.PeriodKind.PERIOD
+    slot_key = meeting.fingerprint or ""
+    if not slot_key and day is not None and period is not None:
+        prefix = "od" if kind == CourseOffering.PeriodKind.OD else "p"
+        slot_key = f"{prefix}{period}-d{day}"
+    return {
+        "id": meeting.pk,
+        "day_of_week": day,
+        "day_label": day_label(day) if day is not None else "",
+        "period": period,
+        "period_kind": kind,
+        "period_label": period_label(kind, period or 0) if period is not None else (
+            "OD" if kind == CourseOffering.PeriodKind.OD else ""
+        ),
+        "slot_key": slot_key,
+        "raw": meeting.raw,
+    }
+
+
+def serialize_official_class(
+    official: OfficialClass,
+    *,
+    viewer: AbstractBaseUser | None = None,
+) -> dict[str, Any]:
+    from .course_services import viewer_states_for
+
+    meetings = [serialize_official_meeting(m) for m in official.meetings.all()]
+    readiness = enrollment_readiness(official)
+    schedule = "・".join(
+        f"{m['day_label']}{m['period_label']}".strip()
+        or m.get("raw")
+        or ""
+        for m in meetings
+        if m
+    )
+    payload: dict[str, Any] = {
+        "id": official.pk,
+        "title": official.title,
+        "instructor": official.instructor,
+        "academic_year": official.academic_year,
+        "school": official.school,
+        "section": official.section,
+        "haibun_class_no": official.haibun_class_no,
+        "semester_code": official.semester_code,
+        "semester_label": official.semester_label,
+        "credits": official.credits,
+        "modality_raw": official.modality_raw,
+        "meetings": meetings,
+        "schedule_label": schedule,
+        "enrollment_status": readiness["status"],
+        "enrollable": bool(readiness["ready"]),
+        "canonical_offering_id": readiness.get("canonical_offering_id"),
+        "viewer_enrollment": None,
+    }
+    canonical_id = readiness.get("canonical_offering_id")
+    if viewer and getattr(viewer, "pk", None) and canonical_id:
+        enroll_map, _ = viewer_states_for(viewer, [int(canonical_id)])
+        payload["viewer_enrollment"] = enroll_map.get(int(canonical_id))
+    return payload
+
+
+@transaction.atomic
+def enroll_user_from_official(
+    user: AbstractBaseUser,
+    official: OfficialClass,
+    *,
+    slot_key: str | None = None,
+    add_meeting_if_missing: bool = False,
+) -> tuple[CourseEnrollment, Any, CourseOffering]:
+    """Enroll into canonical CourseOffering for a public OfficialClass.
+
+    Never creates or merges offerings. Raises CanonicalOfferingRequired /
+    MultipleOfferingsForOfficial when not ready.
+    """
+    from .course_services import enroll_user_in_offering
+
+    # Re-check visibility (defense in depth).
+    if official.publication_status != OfficialClass.PublicationStatus.PUBLIC:
+        raise ValueError("official_not_public")
+    if official.is_cancelled:
+        raise CanonicalOfferingRequired(official, reason="cancelled")
+    if official.needs_human_review:
+        raise CanonicalOfferingRequired(official, reason="pending_review")
+
+    schools = official_pilot_schools()
+    if schools and official.school not in schools:
+        raise ValueError("official_school_not_enabled")
+
+    offering = resolve_enrollment_offering(official, create_if_missing=False)
+    enrollment, slot = enroll_user_in_offering(
+        user,
+        offering,
+        slot_key=slot_key,
+        add_meeting_if_missing=add_meeting_if_missing,
+    )
+    return enrollment, slot, offering

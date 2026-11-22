@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import {
   createOffering,
   enrollOffering,
+  enrollOfficialClass,
   fetchCourseMeta,
+  officialCoversSlot,
+  officialScheduleText,
   offeringCoversSlot,
   offeringScheduleText,
   searchCourses,
+  searchOfficialClasses,
   type CourseMeta,
   type CourseOffering,
+  type OfficialClass,
   type SlotPayload,
 } from "./api";
 import {
@@ -45,6 +50,7 @@ type Props = {
 };
 
 type Mode = "search" | "create" | "duplicates" | "confirm_meeting";
+type SearchSource = "community" | "official";
 
 function meetingIdentity(m: MeetingDraft): string {
   return `${m.period_kind}:${m.period}:d${m.day_of_week}`;
@@ -88,9 +94,11 @@ export function CourseAddSheet({
   onFreeText,
 }: Props) {
   const [mode, setMode] = useState<Mode>("search");
+  const [searchSource, setSearchSource] = useState<SearchSource>("community");
   const [query, setQuery] = useState("");
   const debouncedQ = useDebounced(query, 220);
   const [results, setResults] = useState<CourseOffering[]>([]);
+  const [officialResults, setOfficialResults] = useState<OfficialClass[]>([]);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -103,7 +111,11 @@ export function CourseAddSheet({
   const [pendingOffering, setPendingOffering] = useState<CourseOffering | null>(
     null
   );
+  const [pendingOfficial, setPendingOfficial] = useState<OfficialClass | null>(
+    null
+  );
   const inputRef = useRef<HTMLInputElement>(null);
+  const officialEnabled = Boolean(meta?.official_class_search_enabled);
 
   const [form, setForm] = useState(() => {
     const now = new Date();
@@ -128,11 +140,14 @@ export function CourseAddSheet({
   useEffect(() => {
     if (!open) return;
     setMode("search");
+    setSearchSource("community");
     setQuery("");
     setResults([]);
+    setOfficialResults([]);
     setDuplicates([]);
     setPendingCreate(null);
     setPendingOffering(null);
+    setPendingOfficial(null);
     setToast(null);
     setMeetings([defaultMeeting(context)]);
     setForm((f) => ({
@@ -155,6 +170,9 @@ export function CourseAddSheet({
           semester: m.semester,
           academic_year: m.academic_year,
         }));
+        if (!m.official_class_search_enabled) {
+          setSearchSource("community");
+        }
       })
       .catch(() => {
         /* meta 失敗でもセル由来の曜時限は meetings にセット済み */
@@ -167,43 +185,77 @@ export function CourseAddSheet({
     if (!open || mode !== "search") return;
     let cancelled = false;
     setSearching(true);
-    void searchCourses({
-      q: debouncedQ,
-      day: context.dayOfWeek,
-      period: context.period,
-      period_kind: context.periodKind,
-      semester: meta?.semester,
-      year: meta?.academic_year,
-    })
-      .then((rows) => {
-        if (!cancelled) {
-          setResults(rows);
-          if (debouncedQ.trim()) {
-            analytics.courseSearchPerformed({
-              query_len: debouncedQ.trim().length,
-              result_count: rows.length,
-            });
+    if (searchSource === "official" && officialEnabled) {
+      void searchOfficialClasses({
+        q: debouncedQ,
+        day: context.dayOfWeek,
+        period: context.period,
+        period_kind: context.periodKind,
+        semester: meta?.semester,
+        year: meta?.academic_year,
+        school: meta?.official_class_pilot_schools?.[0] || null,
+      })
+        .then((payload) => {
+          if (!cancelled) {
+            setOfficialResults(payload.results);
+            setResults([]);
+            if (debouncedQ.trim()) {
+              analytics.courseSearchPerformed({
+                query_len: debouncedQ.trim().length,
+                result_count: payload.results.length,
+              });
+            }
           }
-        }
+        })
+        .catch(() => {
+          if (!cancelled) setOfficialResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    } else {
+      void searchCourses({
+        q: debouncedQ,
+        day: context.dayOfWeek,
+        period: context.period,
+        period_kind: context.periodKind,
+        semester: meta?.semester,
+        year: meta?.academic_year,
       })
-      .catch(() => {
-        if (!cancelled) setResults([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSearching(false);
-      });
+        .then((rows) => {
+          if (!cancelled) {
+            setResults(rows);
+            setOfficialResults([]);
+            if (debouncedQ.trim()) {
+              analytics.courseSearchPerformed({
+                query_len: debouncedQ.trim().length,
+                result_count: rows.length,
+              });
+            }
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }
     return () => {
       cancelled = true;
     };
   }, [
     open,
     mode,
+    searchSource,
+    officialEnabled,
     debouncedQ,
     context.dayOfWeek,
     context.period,
     context.periodKind,
     meta?.semester,
     meta?.academic_year,
+    meta?.official_class_pilot_schools,
   ]);
 
   useEffect(() => {
@@ -242,6 +294,7 @@ export function CourseAddSheet({
       onAdded(data.slot, data.offering);
       showToast("授業を追加しました");
       setPendingOffering(null);
+      setPendingOfficial(null);
       if (context.continuous) {
         setQuery("");
         setMode("search");
@@ -256,16 +309,89 @@ export function CourseAddSheet({
     }
   };
 
+  const officialEnrollErrorMessage = (code: string | undefined) => {
+    switch (code) {
+      case "pending_canonical":
+      case "pending_review":
+        return "この公式授業はまだ共通時間割の準備中です。しばらくしてから再度お試しください。";
+      case "cancelled":
+        return "この授業は休講のため追加できません。";
+      case "conflict":
+        return "この公式授業には複数の登録先があり、管理者の確認が必要です。";
+      case "slot_conflict":
+        return "選択した曜日・時限に、すでに別の授業が入っています。";
+      case "feature_disabled":
+        return "公式授業からの追加は現在利用できません。";
+      case "not_found":
+        return "この公式授業は見つかりませんでした。";
+      default:
+        return "時間割への追加に失敗しました。もう一度お試しください。";
+    }
+  };
+
+  const handleEnrollOfficial = async (
+    official: OfficialClass,
+    options?: { addMeeting?: boolean }
+  ) => {
+    if (!official.enrollable) {
+      window.alert(officialEnrollErrorMessage(official.enrollment_status));
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await enrollOfficialClass(official.id, context.slotKey, {
+        addMeeting: options?.addMeeting,
+      });
+      analytics.existingCourseAdded({
+        from_slot: Boolean(context.slotKey),
+      });
+      onAdded(data.slot, data.offering);
+      showToast("公式授業を追加しました");
+      setPendingOfficial(null);
+      setPendingOffering(null);
+      if (context.continuous) {
+        setQuery("");
+        setMode("search");
+        inputRef.current?.focus();
+      } else {
+        window.setTimeout(() => onClose(), 350);
+      }
+    } catch (err) {
+      const code = err instanceof Error ? err.message : undefined;
+      window.alert(officialEnrollErrorMessage(code));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSelectOffering = (offering: CourseOffering) => {
     if (
       context.slotKey &&
       !offeringCoversSlot(offering, context.slotKey)
     ) {
       setPendingOffering(offering);
+      setPendingOfficial(null);
       setMode("confirm_meeting");
       return;
     }
     void handleEnroll(offering);
+  };
+
+  const handleSelectOfficial = (official: OfficialClass) => {
+    if (!official.enrollable) {
+      window.alert(officialEnrollErrorMessage(official.enrollment_status));
+      return;
+    }
+    if (
+      context.slotKey &&
+      !officialCoversSlot(official, context.slotKey)
+    ) {
+      setPendingOfficial(official);
+      setPendingOffering(null);
+      setMode("confirm_meeting");
+      return;
+    }
+    void handleEnrollOfficial(official);
   };
 
   const createErrorMessage = (code: string | undefined, status?: number) => {
@@ -532,12 +658,50 @@ export function CourseAddSheet({
 
         {mode === "search" ? (
           <>
+            {officialEnabled ? (
+              <div
+                className="course-sheet__tabs"
+                role="tablist"
+                aria-label="授業の探し方"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={searchSource === "community"}
+                  className={
+                    searchSource === "community"
+                      ? "course-sheet__tab is-active"
+                      : "course-sheet__tab"
+                  }
+                  onClick={() => setSearchSource("community")}
+                >
+                  みんなの授業
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={searchSource === "official"}
+                  className={
+                    searchSource === "official"
+                      ? "course-sheet__tab is-active"
+                      : "course-sheet__tab"
+                  }
+                  onClick={() => setSearchSource("official")}
+                >
+                  公式から選ぶ
+                </button>
+              </div>
+            ) : null}
             <div className="course-sheet__search">
               <input
                 ref={inputRef}
                 type="search"
                 enterKeyHint="search"
-                placeholder="授業名・担当教員で検索"
+                placeholder={
+                  searchSource === "official"
+                    ? "公式の科目名・教員で検索"
+                    : "授業名・担当教員で検索"
+                }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoComplete="off"
@@ -548,6 +712,54 @@ export function CourseAddSheet({
             <div className="course-sheet__results">
               {searching ? (
                 <p className="course-sheet__empty">検索中…</p>
+              ) : searchSource === "official" && officialEnabled ? (
+                officialResults.length === 0 ? (
+                  <p className="course-sheet__empty">
+                    {query.trim()
+                      ? "該当する公式授業がありません"
+                      : contextHint
+                        ? `${contextHint}の公式候補を表示しています`
+                        : "キーワードを入力して公式授業を検索"}
+                  </p>
+                ) : (
+                  <ul className="course-sheet__list">
+                    {officialResults.map((o) => (
+                      <li key={`official-${o.id}`}>
+                        <button
+                          type="button"
+                          className="course-sheet__item"
+                          disabled={busy}
+                          onClick={() => handleSelectOfficial(o)}
+                        >
+                          <span className="course-sheet__item-title">
+                            {o.title}
+                            {o.haibun_class_no
+                              ? `（クラス ${o.haibun_class_no}）`
+                              : ""}
+                          </span>
+                          <span className="course-sheet__item-meta">
+                            {o.instructor || "教員未設定"}
+                            {" · "}
+                            {officialScheduleText(o) || o.semester_label}
+                            {o.school ? ` · ${o.school}` : ""}
+                          </span>
+                          {!o.enrollable ? (
+                            <span className="course-sheet__item-cta">
+                              {o.enrollment_status === "conflict"
+                                ? "準備中（確認待ち）"
+                                : "準備中"}
+                            </span>
+                          ) : context.slotKey &&
+                            !officialCoversSlot(o, context.slotKey) ? (
+                            <span className="course-sheet__item-cta">
+                              別の曜時限 · 追加できます
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
               ) : results.length === 0 ? (
                 <p className="course-sheet__empty">
                   {query.trim()
@@ -590,19 +802,21 @@ export function CourseAddSheet({
               )}
 
               <div className="course-sheet__footer-actions">
-                <button
-                  type="button"
-                  className="course-sheet__secondary"
-                  onClick={() => {
-                    setForm((f) => ({
-                      ...f,
-                      title: query.trim() || f.title,
-                    }));
-                    setMode("create");
-                  }}
-                >
-                  ＋ 新しい授業を追加
-                </button>
+                {searchSource !== "official" ? (
+                  <button
+                    type="button"
+                    className="course-sheet__secondary"
+                    onClick={() => {
+                      setForm((f) => ({
+                        ...f,
+                        title: query.trim() || f.title,
+                      }));
+                      setMode("create");
+                    }}
+                  >
+                    ＋ 新しい授業を追加
+                  </button>
+                ) : null}
                 {context.slotKey ? (
                   <button
                     type="button"
@@ -916,13 +1130,14 @@ export function CourseAddSheet({
           </div>
         ) : null}
 
-        {mode === "confirm_meeting" && pendingOffering ? (
+        {mode === "confirm_meeting" && (pendingOffering || pendingOfficial) ? (
           <div className="course-sheet__form">
             <button
               type="button"
               className="course-sheet__back"
               onClick={() => {
                 setPendingOffering(null);
+                setPendingOfficial(null);
                 setMode("search");
               }}
             >
@@ -934,15 +1149,24 @@ export function CourseAddSheet({
                 : "この曜日・時限にも追加しますか？"}
             </h3>
             <p className="course-sheet__confirm-body">
-              <strong>{pendingOffering.title}</strong>
+              <strong>
+                {pendingOfficial?.title || pendingOffering?.title}
+              </strong>
               <br />
-              {pendingOffering.instructor}
+              {pendingOfficial?.instructor || pendingOffering?.instructor}
               <br />
-              現在の開講: {offeringScheduleText(pendingOffering)}
+              現在の開講:{" "}
+              {pendingOfficial
+                ? officialScheduleText(pendingOfficial)
+                : offeringScheduleText(pendingOffering!)}
               {contextHint ? (
                 <>
                   <br />
-                  追加後: {offeringScheduleText(pendingOffering)} ＋ {contextHint}
+                  追加後:{" "}
+                  {pendingOfficial
+                    ? officialScheduleText(pendingOfficial)
+                    : offeringScheduleText(pendingOffering!)}{" "}
+                  ＋ {contextHint}
                 </>
               ) : null}
             </p>
@@ -953,9 +1177,15 @@ export function CourseAddSheet({
               type="button"
               className="course-sheet__primary"
               disabled={busy}
-              onClick={() =>
-                void handleEnroll(pendingOffering, { addMeeting: true })
-              }
+              onClick={() => {
+                if (pendingOfficial) {
+                  void handleEnrollOfficial(pendingOfficial, {
+                    addMeeting: true,
+                  });
+                } else if (pendingOffering) {
+                  void handleEnroll(pendingOffering, { addMeeting: true });
+                }
+              }}
             >
               {contextHint
                 ? `${contextHint}に追加して履修する`
@@ -966,6 +1196,7 @@ export function CourseAddSheet({
               className="course-sheet__linkish"
               onClick={() => {
                 setPendingOffering(null);
+                setPendingOfficial(null);
                 setMode("search");
               }}
             >

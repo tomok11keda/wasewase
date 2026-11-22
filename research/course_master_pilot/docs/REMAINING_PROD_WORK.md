@@ -28,9 +28,10 @@
 
 1. Admin UI から CSV アップロード（現状は management command）
 2. 候補リンクの一括 suggested 生成ジョブ（自動確定なし）
-3. `GET/POST` 公式検索・履修 API（`STUDENT_UI_MINI_SPEC.md`）
-4. 学生UIタブ「公式から選ぶ」＋ feature flag（商学部のみ）
-5. Staging での運用手順書（dry-run → レビュー → commit → canonical 設定）
+3. [x] `GET/POST` 公式検索・履修 API（flag OFF 既定）
+4. [x] 学生UIタブ「公式から選ぶ」＋ `WASE_OFFICIAL_CLASS_STUDENT_UI`
+5. Staging での運用手順書（dry-run → レビュー → commit → canonical 設定 → flag ON）
+6. 許諾後に対象 OfficialClass を `public` へ人手切替（CSV一括 public 禁止のまま）
 
 ### C. 移行オペレーション
 

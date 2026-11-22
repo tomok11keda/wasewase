@@ -17,6 +17,7 @@ from app import calendar_course_exception_api_views
 from app import course_api_views
 from app import course_attendance_api_views
 from app import course_chat_api_views
+from app import official_course_api_views
 from app import chat_moderation_api_views
 from app import notification_api_views
 from app import account_identity_api_views
@@ -639,6 +640,16 @@ urlpatterns = [
         "api/v1/courses/search/",
         course_api_views.api_v1_courses_search,
         name="api_v1_courses_search",
+    ),
+    path(
+        "api/v1/courses/official/",
+        official_course_api_views.api_v1_courses_official_search,
+        name="api_v1_courses_official_search",
+    ),
+    path(
+        "api/v1/courses/official/<int:official_pk>/enroll/",
+        official_course_api_views.api_v1_courses_official_enroll,
+        name="api_v1_courses_official_enroll",
     ),
     path(
         "api/v1/courses/duplicates/",
