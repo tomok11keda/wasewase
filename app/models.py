@@ -693,6 +693,99 @@ class OfferingOfficialLink(models.Model):
         return f"offering={self.offering_id} → official={self.official_class_id}"
 
 
+class OfficialClassImportBatch(models.Model):
+    """公式CSVインポートの実行履歴（dry-run含む）。"""
+
+    class Status(models.TextChoices):
+        DRY_RUN = "dry_run", "ドライラン"
+        COMMITTED = "committed", "コミット済"
+        FAILED = "failed", "失敗"
+
+    source_path = models.CharField("CSVパス", max_length=500)
+    source_sha256 = models.CharField("CSV SHA256", max_length=64, blank=True)
+    dry_run = models.BooleanField("ドライラン", default=True)
+    publication_status = models.CharField(
+        "適用公開状態",
+        max_length=32,
+        default=OfficialClass.PublicationStatus.RESEARCH_ONLY,
+    )
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DRY_RUN,
+        db_index=True,
+    )
+    total_rows = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    skipped_duplicate_count = models.PositiveIntegerField(default=0)
+    rejected_count = models.PositiveIntegerField(default=0)
+    summary_json = models.TextField("サマリJSON", blank=True)
+    error_message = models.TextField("エラー", blank=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="official_class_import_batches",
+        verbose_name="実行者",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "公式CSVインポート履歴"
+        verbose_name_plural = "公式CSVインポート履歴"
+        ordering = ["-started_at"]
+
+    def __str__(self) -> str:
+        mode = "dry-run" if self.dry_run else "commit"
+        return f"#{self.pk} {mode} {self.source_path} ({self.status})"
+
+
+class OfficialClassImportRow(models.Model):
+    """インポート1行分の結果。"""
+
+    class Action(models.TextChoices):
+        CREATE = "create", "作成"
+        UPDATE = "update", "更新"
+        SKIP_DUPLICATE = "skip_duplicate_in_file", "ファイル内重複スキップ"
+        REJECT = "reject", "却下"
+        UNCHANGED = "unchanged", "変更なし"
+
+    batch = models.ForeignKey(
+        OfficialClassImportBatch,
+        on_delete=models.CASCADE,
+        related_name="rows",
+        verbose_name="バッチ",
+    )
+    line_no = models.PositiveIntegerField("行番号")
+    action = models.CharField("アクション", max_length=32, choices=Action.choices)
+    provisional_identity = models.CharField("暫定識別子", max_length=64, blank=True)
+    title = models.CharField("科目名", max_length=200, blank=True)
+    reasons = models.CharField("理由", max_length=500, blank=True)
+    official_class = models.ForeignKey(
+        OfficialClass,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="import_rows",
+        verbose_name="公式クラス",
+    )
+
+    class Meta:
+        verbose_name = "公式CSVインポート行"
+        verbose_name_plural = "公式CSVインポート行"
+        ordering = ["batch_id", "line_no"]
+        indexes = [
+            models.Index(fields=["batch", "action"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"batch={self.batch_id} L{self.line_no} {self.action}"
+
+
 class CourseEnrollment(models.Model):
     """ユーザーの履修（時間割登録）状態。"""
 

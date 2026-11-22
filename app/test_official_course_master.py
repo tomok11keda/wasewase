@@ -13,21 +13,27 @@ from app.course_services import create_offering, enroll_user_in_offering
 from app.models import (
     CourseEnrollment,
     CourseOffering,
+    CourseReview,
     OfficialClass,
+    OfficialClassImportBatch,
     OfficialMeeting,
     OfferingOfficialLink,
+    TimetableSlot,
 )
 from app.official_course_services import (
+    CanonicalOfferingRequired,
     MultipleOfferingsForOfficial,
     build_provisional_identity,
     classify_pilot_csv_row,
     create_offering_from_official,
     dry_run_import_official_classes,
+    enrollment_readiness,
     import_official_classes_from_csv,
     link_offering_to_official,
     meeting_fingerprint,
     official_link_conflict_summary,
     resolve_enrollment_offering,
+    set_canonical_offering,
 )
 
 User = get_user_model()
@@ -161,6 +167,49 @@ class ClassifyRowTests(TestCase):
             classify_pilot_csv_row(_row(title="Researchers")),
         )
 
+    def test_rejects_missing_required_and_bad_semester(self):
+        reasons = classify_pilot_csv_row(
+            _row(title="", school="", semester_code="winter", academic_year="")
+        )
+        self.assertIn("missing_title", reasons)
+        self.assertIn("missing_school", reasons)
+        self.assertIn("missing_academic_year", reasons)
+        self.assertIn("invalid_semester_code", reasons)
+
+    def test_rejects_invalid_day_period(self):
+        reasons = classify_pilot_csv_row(
+            _row(
+                meeting_1_day="9",
+                meeting_1_period="3",
+                meeting_1_period_kind="period",
+            )
+        )
+        self.assertIn("invalid_day_of_week_1", reasons)
+
+    def test_rejects_missing_meetings_for_active(self):
+        reasons = classify_pilot_csv_row(
+            _row(
+                meeting_1_raw="",
+                meeting_1_day="",
+                meeting_1_period="",
+                meeting_1_period_kind="",
+                is_cancelled="False",
+            )
+        )
+        self.assertIn("missing_meetings", reasons)
+
+    def test_allows_cancelled_without_meetings(self):
+        reasons = classify_pilot_csv_row(
+            _row(
+                meeting_1_raw="",
+                meeting_1_day="",
+                meeting_1_period="",
+                meeting_1_period_kind="",
+                is_cancelled="True",
+            )
+        )
+        self.assertEqual(reasons, [])
+
 
 class DryRunImportTests(TestCase):
     def test_dry_run_does_not_write(self):
@@ -205,14 +254,48 @@ class DryRunImportTests(TestCase):
             self.assertEqual(report.would_create, 1)
             self.assertEqual(report.would_skip_duplicate, 1)
 
-    def test_second_import_is_update(self):
+    def test_second_import_is_unchanged_when_identical(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pilot.csv"
             _write_csv(path, [_row()])
-            import_official_classes_from_csv(path, dry_run=False)
+            import_official_classes_from_csv(path, dry_run=False, record_history=False)
             report = dry_run_import_official_classes(path)
-            self.assertEqual(report.would_update, 1)
+            self.assertEqual(report.would_unchanged, 1)
             self.assertEqual(report.would_create, 0)
+            self.assertEqual(OfficialClass.objects.count(), 1)
+
+    def test_reimport_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot.csv"
+            _write_csv(path, [_row()])
+            import_official_classes_from_csv(path, dry_run=False, record_history=False)
+            import_official_classes_from_csv(path, dry_run=False, record_history=False)
+            self.assertEqual(OfficialClass.objects.count(), 1)
+            self.assertEqual(OfficialMeeting.objects.count(), 1)
+
+    def test_dry_run_records_history_without_official_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot.csv"
+            _write_csv(path, [_row()])
+            report = import_official_classes_from_csv(path, dry_run=True)
+            self.assertEqual(OfficialClass.objects.count(), 0)
+            self.assertIsNotNone(report.batch_id)
+            batch = OfficialClassImportBatch.objects.get(pk=report.batch_id)
+            self.assertTrue(batch.dry_run)
+            self.assertEqual(batch.status, OfficialClassImportBatch.Status.DRY_RUN)
+            self.assertEqual(batch.rows.count(), 1)
+
+    def test_commit_refuses_public_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot.csv"
+            _write_csv(path, [_row()])
+            with self.assertRaises(ValueError):
+                import_official_classes_from_csv(
+                    path,
+                    dry_run=False,
+                    publication_status=OfficialClass.PublicationStatus.PUBLIC,
+                    record_history=False,
+                )
 
 
 class OfficialLinkResolveTests(TransactionTestCase):
@@ -274,6 +357,13 @@ class OfficialLinkResolveTests(TransactionTestCase):
         )
         return offering
 
+    def test_pending_canonical_without_explicit_set(self):
+        readiness = enrollment_readiness(self.official)
+        self.assertEqual(readiness["status"], "pending_canonical")
+        self.assertFalse(readiness["ready"])
+        with self.assertRaises(CanonicalOfferingRequired):
+            resolve_enrollment_offering(self.official, create_if_missing=False)
+
     def test_multiple_links_without_canonical_raises(self):
         a = self._user_offering(instructor="佐藤")
         b = self._user_offering(instructor="佐藤 一郎")
@@ -283,8 +373,22 @@ class OfficialLinkResolveTests(TransactionTestCase):
         self.assertEqual(summary["active_linked_count"], 2)
         self.assertTrue(summary["needs_manual_canonical"])
         self.assertFalse(summary["auto_merge_allowed"])
+        self.assertEqual(enrollment_readiness(self.official)["status"], "conflict")
         with self.assertRaises(MultipleOfferingsForOfficial):
             resolve_enrollment_offering(self.official, create_if_missing=False)
+
+    def test_set_canonical_is_explicit_and_does_not_create_extra(self):
+        offering = self._user_offering(instructor="佐藤")
+        before = CourseOffering.objects.count()
+        set_canonical_offering(self.official, offering)
+        self.official.refresh_from_db()
+        self.assertEqual(self.official.canonical_offering_id, offering.pk)
+        self.assertEqual(CourseOffering.objects.count(), before)
+        self.assertTrue(
+            OfferingOfficialLink.objects.filter(
+                offering=offering, official_class=self.official
+            ).exists()
+        )
 
     def test_setting_canonical_does_not_merge_offerings(self):
         a = self._user_offering(instructor="佐藤")
@@ -331,6 +435,108 @@ class PilotCsvSmokeTests(TestCase):
         self.assertEqual(report.would_reject, 0)
         self.assertEqual(OfficialClass.objects.count(), 0)
         self.assertEqual(
-            report.would_create + report.would_update + report.would_skip_duplicate,
+            report.would_create
+            + report.would_update
+            + report.would_unchanged
+            + report.would_skip_duplicate,
             report.total_rows,
         )
+
+
+class ExistingUserDataIsolationTests(TransactionTestCase):
+    """CSV import / official linking must not mutate existing user course data."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="existing-course@ex.com", password="pass12345"
+        )
+        self.offering, _ = create_offering(
+            user=self.user,
+            title="既存マーケティング論",
+            instructor="山田",
+            academic_year=2026,
+            semester="spring",
+            day_of_week=1,
+            period=3,
+            force_create=True,
+        )
+        enroll_user_in_offering(self.user, self.offering)
+        CourseReview.objects.create(
+            user=self.user,
+            offering=self.offering,
+            overall_rating=4,
+            difficulty_rating=3,
+            workload_rating=3,
+            attendance_rating=2,
+            exam_rating=3,
+            comment="既存口コミ",
+        )
+        self.offering.refresh_from_db()
+        self.snapshot = {
+            "offering_id": self.offering.pk,
+            "offering_status": self.offering.status,
+            "offering_title": self.offering.title,
+            "chat_room_id": self.offering.chat_room_id,
+            "enrollment_ids": list(
+                CourseEnrollment.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "role"
+                )
+            ),
+            "slot_ids": list(
+                TimetableSlot.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "slot_key"
+                )
+            ),
+            "review_ids": list(
+                CourseReview.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "comment"
+                )
+            ),
+            "offering_count": CourseOffering.objects.count(),
+        }
+
+    def test_import_does_not_touch_existing_timetable_talk_or_reviews(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot.csv"
+            _write_csv(path, [_row(title="公式だけ数学")])
+            # dry-run then commit
+            import_official_classes_from_csv(path, dry_run=True)
+            import_official_classes_from_csv(path, dry_run=False)
+            # re-import idempotent
+            import_official_classes_from_csv(path, dry_run=False)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.pk, self.snapshot["offering_id"])
+        self.assertEqual(self.offering.status, self.snapshot["offering_status"])
+        self.assertEqual(self.offering.title, self.snapshot["offering_title"])
+        self.assertEqual(self.offering.chat_room_id, self.snapshot["chat_room_id"])
+        self.assertEqual(
+            list(
+                CourseEnrollment.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "role"
+                )
+            ),
+            self.snapshot["enrollment_ids"],
+        )
+        self.assertEqual(
+            list(
+                TimetableSlot.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "slot_key"
+                )
+            ),
+            self.snapshot["slot_ids"],
+        )
+        self.assertEqual(
+            list(
+                CourseReview.objects.filter(user=self.user).values_list(
+                    "id", "offering_id", "comment"
+                )
+            ),
+            self.snapshot["review_ids"],
+        )
+        # OfficialClass created, but no new/merged CourseOffering from import.
+        self.assertEqual(
+            CourseOffering.objects.count(), self.snapshot["offering_count"]
+        )
+        self.assertEqual(OfficialClass.objects.count(), 1)
+        self.assertIsNone(OfficialClass.objects.get().canonical_offering_id)

@@ -9,7 +9,11 @@
 - [x] Option B モデル: `OfficialClass` / `OfficialMeeting` / `OfferingOfficialLink`
 - [x] `provisional_identity`（公式キー推測なし）
 - [x] CSV dry-run / import、複数リンク時の非マージ解決
-- [x] migration `0081_official_course_master`（ローカル検証用）
+- [x] migration `0081_official_course_master` / `0082_official_class_import_history`
+- [x] Django Admin（公式クラス・ミーティング・リンク・インポート履歴）
+- [x] management command `import_official_classes_csv`（デフォルト dry-run、履歴保存）
+- [x] 代表 `canonical_offering` の人手設定 / 未設定時は `pending_canonical`
+- [x] 既存時間割・トーク・口コミ非改変テスト
 - [x] 単体テスト・UI最小仕様・設計ドキュメント
 
 ## 残り作業（優先順）
@@ -22,11 +26,11 @@
 
 ### B. アプリ実装（非本番）
 
-1. Admin: CSV dry-run プレビュー → 明示 import（デフォルト dry-run）
-2. 候補リンクキュー（suggested → 人手確定）。自動確定なし
+1. Admin UI から CSV アップロード（現状は management command）
+2. 候補リンクの一括 suggested 生成ジョブ（自動確定なし）
 3. `GET/POST` 公式検索・履修 API（`STUDENT_UI_MINI_SPEC.md`）
 4. 学生UIタブ「公式から選ぶ」＋ feature flag（商学部のみ）
-5. 複数リンク衝突時の管理画面（canonical 人手選択）
+5. Staging での運用手順書（dry-run → レビュー → commit → canonical 設定）
 
 ### C. 移行オペレーション
 

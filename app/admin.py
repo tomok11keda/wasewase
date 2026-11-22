@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from .admin_growth import install_growth_dashboard
+from . import admin_official_course  # noqa: F401  — registers OfficialClass admins
 
 from .models import (
     AccountIdentity,
