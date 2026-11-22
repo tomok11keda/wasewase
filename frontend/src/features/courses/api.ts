@@ -226,12 +226,16 @@ export async function enrollOfficialClass(
   if (!ok) {
     const err = new Error(error || "official_enroll_failed") as Error & {
       status?: number;
-      message?: string;
+      code?: string;
     };
     err.status = status;
-    if (typeof data.message === "string") err.message = data.message;
-    // Prefer API error code as Error.message for switch handling
-    if (error) err.message = error;
+    err.code = error || undefined;
+    // Prefer Japanese API message for alerts; keep code separately.
+    if (typeof data.message === "string" && data.message.trim()) {
+      err.message = data.message;
+    } else {
+      err.message = error || "official_enroll_failed";
+    }
     throw err;
   }
   return data as unknown as {

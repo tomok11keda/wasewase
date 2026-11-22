@@ -357,8 +357,19 @@ export function CourseAddSheet({
         window.setTimeout(() => onClose(), 350);
       }
     } catch (err) {
-      const code = err instanceof Error ? err.message : undefined;
-      window.alert(officialEnrollErrorMessage(code));
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: string }).code || "")
+          : err instanceof Error
+            ? err.message
+            : undefined;
+      const friendly =
+        err instanceof Error &&
+        err.message &&
+        !/^[a-z0-9_]+$/i.test(err.message)
+          ? err.message
+          : officialEnrollErrorMessage(code);
+      window.alert(friendly);
     } finally {
       setBusy(false);
     }

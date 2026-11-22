@@ -190,9 +190,22 @@ def api_v1_courses_official_enroll(
             offering_ids=exc.offering_ids,
         )
     except ValueError as exc:
-        code = str(exc) or "enroll_failed"
-        status = 409 if code in {"slot_conflict", "slot_mismatch"} else 400
-        return _json_error(code, status=status)
+        raw = str(exc) or "enroll_failed"
+        code = raw.split(":", 1)[0]
+        friendly = {
+            "slot_conflict": "選択した曜日・時限に、すでに別の授業が入っています。",
+            "slot_mismatch": "選択した曜日・時限と公式授業の開講時間が一致しません。",
+            "meeting_locked": "この授業の時間割は他の履修者がいるため変更できません。",
+            "meetings_required": "この授業には登録可能な開講時間がありません。",
+            "official_not_public": "この公式授業はまだ公開されていません。",
+            "official_school_not_enabled": "この学部の公式授業は現在対象外です。",
+        }.get(code)
+        status = 409 if code in {
+            "slot_conflict",
+            "slot_mismatch",
+            "meeting_locked",
+        } else 400
+        return _json_error(code, status=status, message=friendly or raw)
     except Exception:
         logger.exception(
             "official enroll failed user=%s official=%s",
