@@ -74,6 +74,28 @@ body.course-sheet-open {
   font-weight: 700;
 }
 
+.course-sheet__tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 1rem 0.5rem;
+}
+
+.course-sheet__tab {
+  flex: 1;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  color: inherit;
+}
+
+.course-sheet__tab.is-active {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
 .course-sheet__search {
   padding: 0 16px 8px;
 }

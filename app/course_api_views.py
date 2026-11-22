@@ -82,6 +82,11 @@ def _get_visible_offering(offering_pk: int) -> CourseOffering:
 
 @require_GET
 def api_v1_courses_meta(_request: HttpRequest) -> JsonResponse:
+    from .official_course_services import (
+        official_pilot_schools,
+        official_student_ui_enabled,
+    )
+
     year = current_academic_year()
     return JsonResponse(
         {
@@ -99,6 +104,8 @@ def api_v1_courses_meta(_request: HttpRequest) -> JsonResponse:
             "campuses": [
                 {"value": v, "label": label} for v, label in COURSE_CAMPUS_CHOICES
             ],
+            "official_class_search_enabled": official_student_ui_enabled(),
+            "official_class_pilot_schools": official_pilot_schools(),
         }
     )
 
