@@ -415,12 +415,6 @@
   background: #f7f9f9;
 }
 
-.discover-gate--soon {
-  opacity: 0.72;
-  cursor: default;
-  grid-column: 1 / -1;
-}
-
 .discover-gate__label {
   font-size: 13px;
   font-weight: 800;

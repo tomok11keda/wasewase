@@ -303,7 +303,7 @@ export function CourseDetailPage() {
 
   if (browsePreview) {
     return (
-      <div className="course-detail-page" data-spa-page="時間割">
+      <div className="course-detail-page" data-spa-page="授業">
         <div className="main-inner">
           <BrowsePreviewNotice nextPath={`/app/courses/${offeringPk || ""}`}>
             授業の詳細はログイン後に表示されます。
@@ -324,7 +324,7 @@ export function CourseDetailPage() {
 
   if (phase === "skeleton" || (loading && !liveOffering && !error)) {
     return (
-      <div className="course-detail-page" data-spa-page="時間割">
+      <div className="course-detail-page" data-spa-page="授業">
         <div className="main-inner">
           <CourseDetailSkeleton />
         </div>
@@ -334,7 +334,7 @@ export function CourseDetailPage() {
 
   if (error || !liveOffering) {
     return (
-      <div className="course-detail-page" data-spa-page="時間割">
+      <div className="course-detail-page" data-spa-page="授業">
         <div className="main-inner">
           <p>授業が見つかりませんでした。</p>
           <button
@@ -357,7 +357,7 @@ export function CourseDetailPage() {
     offering.viewer_enrollment === "past";
 
   return (
-    <div className="course-detail-page" data-spa-page="時間割">
+    <div className="course-detail-page" data-spa-page="授業">
       <div className="main-inner course-detail">
         <h1 className="course-detail__title">{offering.title}</h1>
         <p className="course-detail__instructor">{offering.instructor}</p>

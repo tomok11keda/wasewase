@@ -461,13 +461,6 @@ function SearchDiscoverView({
           <span className="discover-gate__label">フリマ</span>
           <span className="discover-gate__hint">教科書・生活用品</span>
         </Link>
-        <div
-          className="discover-gate discover-gate--soon"
-          aria-disabled="true"
-        >
-          <span className="discover-gate__label">イベント・飲食・求人</span>
-          <span className="discover-gate__hint">近日公開（Phase B）</span>
-        </div>
       </nav>
 
       {showTrending ? (

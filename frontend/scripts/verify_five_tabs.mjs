@@ -93,6 +93,12 @@ await page.screenshot({
 await page.locator("nav.bottom-nav a.nav-item", { hasText: "見つける" }).click();
 await page.waitForSelector('[data-spa-page="見つける"]', { timeout: 10000 });
 await page.waitForSelector(".discover-gates, .search-form", { timeout: 10000 });
+if ((await page.locator(".discover-gate--soon").count()) > 0) {
+  fail("Phase B soon gate must not be student-visible");
+}
+if ((await page.locator("text=Phase B").count()) > 0) {
+  fail("Phase B label must not be student-visible");
+}
 await page.waitForTimeout(400);
 await page.screenshot({
   path: join(shotDir, "02-find-tab-iphone.png"),

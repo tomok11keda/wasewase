@@ -42,12 +42,16 @@ test("matchMainTab is exact for keep-alive tabs; nested routes stay off-tab", ()
   assert.equal(matchMainTab("/timetable"), "timetable");
   assert.equal(matchMainTab("/courses"), "courses");
   assert.equal(matchMainTab("/flea"), "flea");
+  // /courses keep-alive must not swallow /courses/:id or talk rooms
   assert.equal(matchMainTab("/courses/12"), null);
   assert.equal(matchMainTab("/courses/12/talk"), null);
+  assert.equal(matchMainTab("/courses/"), "courses");
   assert.equal(matchMainTab("/communities"), null);
   assert.equal(matchMainTab("/communities/foo/threads/1"), null);
   assert.equal(matchMainTab("/flea/products/3"), null);
   assert.equal(matchMainTab("/dm"), null);
+  assert.equal(matchMainTab("/notifications"), null);
+  assert.equal(isConversationPath("/courses/12/talk"), true);
 });
 
 test("compose pickers keep the bottom nav so they are not treated as rooms", () => {
