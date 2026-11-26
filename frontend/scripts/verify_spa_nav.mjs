@@ -44,10 +44,11 @@ await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 15
 let loadsAfterFirst = loadCount;
 
 const tabs = [
-  { label: "コミュニティ", heading: "コミュニティ" },
-  { label: "フリマ", heading: "フリマ" },
+  { label: "見つける", heading: "見つける" },
   { label: "時間割", heading: "時間割" },
-  { label: "タイムライン", heading: "タイムライン" },
+  { label: "授業", heading: "授業" },
+  { label: "フリマ", heading: "フリマ" },
+  { label: "ホーム", heading: "タイムライン" },
 ];
 
 for (const tab of tabs) {
@@ -77,7 +78,7 @@ if ((await productLink.count()) > 0) {
   console.log("skip flea detail: no products in list");
 }
 
-await page.locator("nav.bottom-nav a.nav-item", { hasText: "タイムライン" }).click();
+await page.locator("nav.bottom-nav a.nav-item", { hasText: "ホーム" }).click();
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 const authorLink = page.locator("a.tweet-author").first();
 if ((await authorLink.count()) > 0) {
@@ -100,10 +101,10 @@ if ((await authorLink.count()) > 0) {
 
 // Desktop sidebar search NavLink (no full reload)
 await page.setViewportSize({ width: 1200, height: 800 });
-await page.locator('a.sidebar-nav__item', { hasText: "検索" }).click();
-await page.waitForSelector('[data-spa-page="検索"]', { timeout: 10000 });
+await page.locator('a.sidebar-nav__item', { hasText: "見つける" }).click();
+await page.waitForSelector('[data-spa-page="見つける"]', { timeout: 10000 });
 console.log(`search -> ${page.url()}`);
-await page.locator('a.sidebar-nav__item', { hasText: "タイムライン" }).click();
+await page.locator('a.sidebar-nav__item', { hasText: "ホーム" }).click();
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 10000 });
 console.log(`search back home -> ${page.url()}`);
 
@@ -125,8 +126,8 @@ if ((await composeCtl.count()) > 0) {
     // Returning to /app via goto counts as an expected load; reset baseline.
     loadsAfterFirst = loadCount;
   } else {
-    await page.locator('a.sidebar-nav__item', { hasText: "検索" }).click();
-    await page.waitForSelector('[data-spa-page="検索"]', { timeout: 10000 });
+    await page.locator('a.sidebar-nav__item', { hasText: "見つける" }).click();
+    await page.waitForSelector('[data-spa-page="見つける"]', { timeout: 10000 });
     console.log(`compose hop search -> ${page.url()}`);
   }
 }

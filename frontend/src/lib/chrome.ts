@@ -67,6 +67,12 @@ export function matchDetailChrome(
       back: { kind: "from-wasewase-or-fallback", to: "/" },
     };
   }
+  if (p === "/communities") {
+    return {
+      title: "コミュニティ",
+      back: { kind: "fallback", to: "/search" },
+    };
+  }
   if (/^\/communities\/[^/]+\/threads\/\d+$/.test(p)) {
     return {
       title: "コミュニティ",
@@ -89,7 +95,7 @@ export function matchDetailChrome(
   if (/^\/courses\/\d+$/.test(p)) {
     return {
       title: "授業",
-      back: { kind: "history-or-fallback", to: "/timetable" },
+      back: { kind: "history-or-fallback", to: "/courses" },
     };
   }
   if (/^\/users\/(\d+)\/(followers|following|mutuals)$/.test(p)) {

@@ -861,6 +861,17 @@
   color: var(--muted, #536471);
 }
 
+.communities-hub-hint a {
+  color: var(--accent, #1d9bf0);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.communities-hub-hint a:hover,
+.communities-hub-hint a:focus-visible {
+  text-decoration: underline;
+}
+
 @media (min-width: 1024px) {
   .communities-header {
     padding: 6px 16px 0;

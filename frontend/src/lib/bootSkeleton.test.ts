@@ -11,10 +11,16 @@ test("home and main tabs use a timeline-shaped boot skeleton", () => {
   assert.equal(bootSkeletonKind("/"), "timeline");
   assert.equal(bootSkeletonKind("/app"), "timeline");
   assert.equal(bootSkeletonKind("/app/"), "timeline");
-  assert.equal(bootSkeletonKind("/communities"), "timeline");
   assert.equal(bootSkeletonKind("/search"), "timeline");
+  assert.equal(bootSkeletonKind("/courses"), "timeline");
   assert.equal(bootSkeletonKind("/flea"), "timeline");
   assert.equal(bootSkeletonKind("/timetable"), "timeline");
+});
+
+test("communities list is detail chrome (not a main tab)", () => {
+  assert.equal(bootSkeletonKind("/communities"), "neutral");
+  assert.equal(bootHeaderTitle("/communities"), "コミュニティ");
+  assert.equal(bootShowsHomeSortTabs("/communities"), false);
 });
 
 test("deep links use a neutral skeleton and never encode personal data", () => {
@@ -24,11 +30,13 @@ test("deep links use a neutral skeleton and never encode personal data", () => {
   assert.equal(bootSkeletonKind("/posts/12"), "neutral");
   assert.equal(bootSkeletonKind("/users/42/posts"), "neutral");
   assert.equal(bootSkeletonKind("/orgs/secret-club"), "neutral");
+  assert.equal(bootSkeletonKind("/courses/12"), "neutral");
   assert.equal(bootHeaderTitle("/users/42/posts"), "プロフィール");
   assert.equal(bootHeaderTitle("/orgs/secret-club"), "団体");
   assert.equal(bootHeaderTitle("/notifications"), "通知");
   assert.equal(bootHeaderTitle("/posts/12"), "投稿");
   assert.equal(bootHeaderTitle("/dm"), "メッセージ");
+  assert.equal(bootHeaderTitle("/courses/12"), "授業");
 });
 
 test("conversation deep links hide the decorative bottom nav", () => {
@@ -41,8 +49,8 @@ test("conversation deep links hide the decorative bottom nav", () => {
 
 test("main tabs hide the center title like the live shell", () => {
   assert.equal(bootHeaderTitle("/"), null);
-  assert.equal(bootHeaderTitle("/communities"), null);
   assert.equal(bootHeaderTitle("/search"), null);
+  assert.equal(bootHeaderTitle("/courses"), null);
 });
 
 test("decorative sort tabs appear only on the home timeline boot", () => {
@@ -50,7 +58,7 @@ test("decorative sort tabs appear only on the home timeline boot", () => {
   assert.equal(bootShowsHomeSortTabs("/app/"), true);
   assert.equal(bootShowsHomeSortTabs("/search"), false);
   assert.equal(bootShowsHomeSortTabs("/flea"), false);
-  assert.equal(bootShowsHomeSortTabs("/communities"), false);
+  assert.equal(bootShowsHomeSortTabs("/courses"), false);
   assert.equal(bootShowsHomeSortTabs("/notifications"), false);
   assert.equal(bootShowsHomeSortTabs("/posts/12"), false);
 });

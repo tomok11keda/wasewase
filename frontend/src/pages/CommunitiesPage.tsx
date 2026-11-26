@@ -23,29 +23,20 @@ import {
   officialBoardClass,
 } from "../features/community/OfficialBadge";
 import { communityThreadDetailState } from "../features/community/threadNav";
-import {
-  fetchCourseDiscover,
-  type CourseDiscoverCard,
-} from "../features/courses/api";
-import { CourseDiscoveryPanel } from "../features/courses/CourseDiscoveryPanel";
-import {
-  useActiveMainTab,
-  useSoftTabRefetch,
-} from "../layouts/TabKeepAliveLayout";
 import { analytics } from "../lib/analytics/events";
 import { PullToRefresh } from "../lib/usePullToRefresh";
 
-type Hub = "community" | "courses";
-
+/**
+ * Anonymous community boards (not a bottom-nav tab).
+ * Entry from 見つける Discover. Course discovery moved to /courses tab.
+ * Legacy ?hub=courses redirects to /courses.
+ */
 export function CommunitiesPage() {
   const { me, loading: sessionLoading } = useSession();
   const browsePreview = isBrowsePreview(me);
   const navigate = useNavigate();
   const location = useLocation();
-  const activeTab = useActiveMainTab();
   const [searchParams, setSearchParams] = useSearchParams();
-  const hub: Hub =
-    searchParams.get("hub") === "courses" ? "courses" : "community";
   const tag = searchParams.get("tag") || "";
   const qParam = searchParams.get("q") || "";
   const sort = (
@@ -74,13 +65,14 @@ export function CommunitiesPage() {
   ]);
   const composeFormRef = useRef<HTMLFormElement | null>(null);
 
-  const [enrolled, setEnrolled] = useState<CourseDiscoverCard[]>([]);
-  const [active, setActive] = useState<CourseDiscoverCard[]>([]);
-  const [popular, setPopular] = useState<CourseDiscoverCard[]>([]);
-  const [courseLoading, setCourseLoading] = useState(false);
-  const [courseError, setCourseError] = useState<string | null>(null);
-  const hasCourseDataRef = useRef(false);
-  const courseRequestIdRef = useRef(0);
+  // Legacy hub=courses → dedicated 授業 tab (keep URL compatibility).
+  useEffect(() => {
+    if (searchParams.get("hub") !== "courses") return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("hub");
+    const qs = next.toString();
+    navigate(`/courses${qs ? `?${qs}` : ""}`, { replace: true });
+  }, [navigate, searchParams]);
 
   const patchParams = useCallback(
     (patch: Record<string, string>) => {
@@ -93,13 +85,6 @@ export function CommunitiesPage() {
     },
     [searchParams, setSearchParams]
   );
-
-  const setHub = (next: Hub) => {
-    patchParams({ hub: next === "courses" ? "courses" : "" });
-    if (next === "courses") {
-      analytics.communityCourseTabOpened();
-    }
-  };
 
   const load = useCallback(
     async (mode: "initial" | "soft" = "initial") => {
@@ -148,101 +133,30 @@ export function CommunitiesPage() {
     [tag, qParam, sort, browsePreview, listKey]
   );
 
-  const loadCourses = useCallback(
-    async (mode: "initial" | "soft" = "initial") => {
-      const requestId = nextRequestId(courseRequestIdRef);
-      const startedUserId = userIdRef.current;
-      if (browsePreview) {
-        setEnrolled([]);
-        setActive([]);
-        setPopular([]);
-        setCourseError(null);
-        setCourseLoading(false);
-        return;
-      }
-      if (mode === "initial" && !hasCourseDataRef.current) {
-        setCourseLoading(true);
-      }
-      if (mode !== "soft") setCourseError(null);
-      try {
-        const data = await fetchCourseDiscover();
-        if (!isLatestRequest(courseRequestIdRef, requestId)) return false;
-        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
-        setEnrolled(data.enrolled);
-        setActive(data.active);
-        setPopular(data.popular);
-        hasCourseDataRef.current = true;
-        setCourseError(null);
-        return true;
-      } catch (err) {
-        if (!isLatestRequest(courseRequestIdRef, requestId)) return false;
-        if (!isSameUserScope(startedUserId, userIdRef.current)) return false;
-        if (mode === "soft") return false;
-        setCourseError(err instanceof Error ? err.message : "load_failed");
-        return false;
-      } finally {
-        if (isLatestRequest(courseRequestIdRef, requestId)) {
-          setCourseLoading(false);
-        }
-      }
-    },
-    [browsePreview]
-  );
-
   useEffect(() => {
     if (prevUserIdRef.current === sessionUserId) return;
     prevUserIdRef.current = sessionUserId;
     nextRequestId(requestIdRef);
-    nextRequestId(courseRequestIdRef);
     hasDataRef.current = false;
-    hasCourseDataRef.current = false;
     appliedKeyRef.current = "";
     setThreads([]);
-    setEnrolled([]);
-    setActive([]);
-    setPopular([]);
     setError(null);
-    setCourseError(null);
   }, [sessionUserId]);
 
   useEffect(() => {
     if (sessionLoading) return;
-    if (hub === "community") {
-      const soft = hasDataRef.current && appliedKeyRef.current === listKey;
-      void load(soft ? "soft" : "initial");
-    }
-  }, [sessionLoading, hub, load, listKey]);
-
-  useEffect(() => {
-    if (sessionLoading) return;
-    if (hub === "courses") {
-      void loadCourses(hasCourseDataRef.current ? "soft" : "initial");
-    }
-  }, [sessionLoading, hub, loadCourses]);
+    if (searchParams.get("hub") === "courses") return;
+    const soft = hasDataRef.current && appliedKeyRef.current === listKey;
+    void load(soft ? "soft" : "initial");
+  }, [sessionLoading, load, listKey, searchParams]);
 
   useEffect(() => {
     analytics.communityViewed();
   }, []);
 
-  useSoftTabRefetch("communities", () => {
-    if (hub === "courses") {
-      void loadCourses("soft");
-      return;
-    }
-    void load("soft");
-  });
-
-  useEffect(() => {
-    if (hub === "community") return;
-    setComposeOpen(false);
-  }, [hub]);
-
   const normalizedPath = location.pathname.replace(/\/$/, "") || "/";
-  const onCommunityList =
-    activeTab === "communities" ||
-    (activeTab === null && normalizedPath === "/communities");
-  const showComposeFab =
-    hub === "community" && !composeOpen && onCommunityList;
+  const onCommunityList = normalizedPath === "/communities";
+  const showComposeFab = !composeOpen && onCommunityList;
   const communityPhase = listContentPhase({
     browsePreview,
     loading: sessionLoading || loading,
@@ -289,6 +203,14 @@ export function CommunitiesPage() {
     }
   };
 
+  if (searchParams.get("hub") === "courses") {
+    return (
+      <div className="communities-page" data-spa-page="コミュニティ">
+        <p className="empty-message">授業タブへ移動しています…</p>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`communities-page ptr-shift${composeOpen ? " is-composing" : ""}`}
@@ -297,204 +219,158 @@ export function CommunitiesPage() {
       <PullToRefresh
         enabled={onCommunityList && !composeOpen && !browsePreview}
         onRefresh={async () => {
-          const ok =
-            hub === "courses" ? await loadCourses("soft") : await load("soft");
+          const ok = await load("soft");
           if (!ok) throw new Error("refresh_failed");
         }}
       />
       <div className="communities-header">
         <div className="communities-header-top">
           <h2>コミュニティ</h2>
-          {hub === "community" ? (
-            me?.authenticated ? (
-              <button
-                type="button"
-                className="btn-new-thread btn-new-thread--desktop"
-                aria-expanded={composeOpen}
-                onClick={() => setComposeOpen((v) => !v)}
-              >
-                ＋ 新規スレッド
-              </button>
-            ) : (
-              <Link
-                className="btn-new-thread btn-new-thread--desktop"
-                to={spaLoginPath("/app/communities")}
-              >
-                ＋ 新規スレッド
-              </Link>
-            )
-          ) : null}
+          {me?.authenticated ? (
+            <button
+              type="button"
+              className="btn-new-thread btn-new-thread--desktop"
+              aria-expanded={composeOpen}
+              onClick={() => setComposeOpen((v) => !v)}
+            >
+              ＋ 新規スレッド
+            </button>
+          ) : (
+            <Link
+              className="btn-new-thread btn-new-thread--desktop"
+              to={spaLoginPath("/app/communities")}
+            >
+              ＋ 新規スレッド
+            </Link>
+          )}
         </div>
-        {hub === "community" ? (
-          <p className="community-anon-hint community-anon-hint--compact">
-            Communityでは匿名で投稿できます
-          </p>
-        ) : null}
+        <p className="community-anon-hint community-anon-hint--compact">
+          匿名ボードです。学生団体の公式ページとは別の場所です。
+        </p>
+        <p className="communities-hub-hint">
+          <Link to="/search">見つける</Link>
+          から戻る · 授業の発見は
+          <Link to="/courses">授業タブ</Link>
+        </p>
 
-        <nav className="community-hub-tabs" aria-label="コミュニティと授業">
+        <div
+          className="community-sort-tabs"
+          role="group"
+          aria-label="コミュニティ並び順"
+        >
           <button
             type="button"
-            className={`community-hub-tab${hub === "community" ? " is-active" : ""}`}
-            aria-pressed={hub === "community"}
-            onClick={() => setHub("community")}
+            className={`community-sort-tab${sort === "recommended" ? " is-active" : ""}`}
+            aria-pressed={sort === "recommended"}
+            onClick={() => patchParams({ sort: "" })}
           >
-            コミュニティ
+            おすすめ
           </button>
           <button
             type="button"
-            className={`community-hub-tab${hub === "courses" ? " is-active" : ""}`}
-            aria-pressed={hub === "courses"}
-            onClick={() => setHub("courses")}
+            className={`community-sort-tab${sort === "latest" ? " is-active" : ""}`}
+            aria-pressed={sort === "latest"}
+            onClick={() => patchParams({ sort: "latest" })}
           >
-            授業
+            最新
           </button>
-        </nav>
-
-        {hub === "community" ? (
-          <div
-            className="community-sort-tabs"
-            role="group"
-            aria-label="コミュニティ並び順"
-          >
-            <button
-              type="button"
-              className={`community-sort-tab${sort === "recommended" ? " is-active" : ""}`}
-              aria-pressed={sort === "recommended"}
-              onClick={() => patchParams({ sort: "" })}
-            >
-              おすすめ
-            </button>
-            <button
-              type="button"
-              className={`community-sort-tab${sort === "latest" ? " is-active" : ""}`}
-              aria-pressed={sort === "latest"}
-              onClick={() => patchParams({ sort: "latest" })}
-            >
-              最新
-            </button>
-          </div>
-        ) : (
-          <p className="communities-hub-hint">
-            履修中・活発・人気の授業を見つけられます
-          </p>
-        )}
+        </div>
       </div>
 
-      {hub === "courses" ? (
-        browsePreview ? (
-          <BrowsePreviewNotice nextPath="/app/communities?hub=courses">
-            授業の発見はログイン後に利用できます。
-          </BrowsePreviewNotice>
-        ) : (
-        <CourseDiscoveryPanel
-          enrolled={enrolled}
-          active={active}
-          popular={popular}
-          loading={courseLoading && !hasCourseDataRef.current}
-          error={courseError}
-          authenticated={Boolean(me?.authenticated)}
-        />
-        )
-      ) : (
-        <>
-          {composeOpen ? (
-            <form
-              ref={composeFormRef}
-              className="community-compose"
-              onSubmit={onCreate}
+      {composeOpen ? (
+        <form
+          ref={composeFormRef}
+          className="community-compose"
+          onSubmit={onCreate}
+        >
+          <p className="community-anon-hint community-compose__anon">
+            匿名で投稿されます
+          </p>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={120}
+            placeholder="スレッドタイトル"
+            required
+          />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            maxLength={2000}
+            rows={5}
+            placeholder="相談内容や共有したいことを書いてください"
+            required
+          />
+          <div className="community-compose__actions">
+            <button
+              type="button"
+              className="community-compose__cancel"
+              onClick={() => setComposeOpen(false)}
             >
-              <p className="community-anon-hint community-compose__anon">
-                匿名で投稿されます
-              </p>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={120}
-                placeholder="スレッドタイトル"
-                required
-              />
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                maxLength={2000}
-                rows={5}
-                placeholder="相談内容や共有したいことを書いてください"
-                required
-              />
-              <div className="community-compose__actions">
-                <button
-                  type="button"
-                  className="community-compose__cancel"
-                  onClick={() => setComposeOpen(false)}
-                >
-                  キャンセル
-                </button>
-                <button type="submit" disabled={busy}>
-                  作成する
-                </button>
-              </div>
-            </form>
-          ) : null}
+              キャンセル
+            </button>
+            <button type="submit" disabled={busy}>
+              作成する
+            </button>
+          </div>
+        </form>
+      ) : null}
 
-          {communityPhase === "browse" ? (
-            <BrowsePreviewNotice nextPath="/app/communities">
-              コミュニティの投稿はログイン後に表示されます。
-            </BrowsePreviewNotice>
-          ) : communityPhase === "skeleton" ? (
-            <ThreadListSkeleton />
-          ) : communityPhase === "error" ? (
-            <p className="empty-message">読み込みに失敗しました（{error}）</p>
-          ) : communityPhase === "empty" ? (
-            <p className="empty-message">
-              {qParam
-                ? "一致するスレッドはありません。"
-                : "スレッドがありません。"}
-            </p>
-          ) : (
-            <ul className="thread-list">
-              {threads.map((thread) => (
-                <li key={thread.id} className="thread-card-row">
-                  <Link
-                    className="thread-card"
-                    to={`/communities/${thread.community.slug}/threads/${thread.id}`}
-                    state={communityThreadDetailState(thread)}
+      {communityPhase === "browse" ? (
+        <BrowsePreviewNotice nextPath="/app/communities">
+          コミュニティの投稿はログイン後に表示されます。
+        </BrowsePreviewNotice>
+      ) : communityPhase === "skeleton" ? (
+        <ThreadListSkeleton />
+      ) : communityPhase === "error" ? (
+        <p className="empty-message">読み込みに失敗しました（{error}）</p>
+      ) : communityPhase === "empty" ? (
+        <p className="empty-message">
+          {qParam
+            ? "一致するスレッドはありません。"
+            : "スレッドがありません。"}
+        </p>
+      ) : (
+        <ul className="thread-list">
+          {threads.map((thread) => (
+            <li key={thread.id} className="thread-card-row">
+              <Link
+                className="thread-card"
+                to={`/communities/${thread.community.slug}/threads/${thread.id}`}
+                state={communityThreadDetailState(thread)}
+              >
+                <h3 className="thread-card__title">{thread.title}</h3>
+                <p className="thread-card__meta">
+                  <span>{participantLabel(thread.anonymous_label)}</span>
+                  <span aria-hidden="true"> · </span>
+                  <span
+                    className={`thread-card__replies${
+                      thread.replies_count === 0 ? " is-zero" : ""
+                    }`}
                   >
-                    <h3 className="thread-card__title">{thread.title}</h3>
-                    <p className="thread-card__meta">
-                      <span>{participantLabel(thread.anonymous_label)}</span>
-                      <span aria-hidden="true"> · </span>
-                      <span
-                        className={`thread-card__replies${
-                          thread.replies_count === 0 ? " is-zero" : ""
-                        }`}
-                      >
-                        返信 {thread.replies_count}
-                      </span>
-                    </p>
-                    <p className="thread-card__preview">
-                      {thread.body_preview}
-                    </p>
-                    <span
-                      className={officialBoardClass(
-                        "thread-card__board",
-                        thread.community.is_official
-                      )}
-                    >
-                      {thread.community.name}
-                      <OfficialBadge official={thread.community.is_official} />
-                    </span>
-                  </Link>
-                  <CommunityReportMenu
-                    targetType="community_thread"
-                    targetId={thread.id}
-                    canReport={Boolean(thread.can_report)}
-                    ariaLabel="この投稿を通報"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+                    返信 {thread.replies_count}
+                  </span>
+                </p>
+                <p className="thread-card__preview">{thread.body_preview}</p>
+                <span
+                  className={officialBoardClass(
+                    "thread-card__board",
+                    thread.community.is_official
+                  )}
+                >
+                  {thread.community.name}
+                  <OfficialBadge official={thread.community.is_official} />
+                </span>
+              </Link>
+              <CommunityReportMenu
+                targetType="community_thread"
+                targetId={thread.id}
+                canReport={Boolean(thread.can_report)}
+                ariaLabel="この投稿を通報"
+              />
+            </li>
+          ))}
+        </ul>
       )}
 
       {showComposeFab
