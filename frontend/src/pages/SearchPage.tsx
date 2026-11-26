@@ -37,10 +37,12 @@ import {
   organizationSearchHref,
 } from "../features/search/searchAccounts";
 import {
+  SEARCH_DISCOVER_HREF,
   buildSearchSubmitParams,
   globalSearchEmptyMessage,
   globalSearchErrorMessage,
   isSearchDiscoverMode,
+  searchCategoryPlaceholder,
 } from "../features/search/searchSubmit";
 import {
   DiscoverPostCard,
@@ -569,7 +571,8 @@ export function SearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") || "";
-  const tab = (searchParams.get("tab") as SearchTab) || "all";
+  const tabParam = searchParams.get("tab");
+  const tab = (tabParam as SearchTab) || "all";
   const activeTab: SearchTab =
     tab === "latest" ||
     tab === "courses" ||
@@ -593,13 +596,13 @@ export function SearchPage() {
   const requestIdRef = useRef(0);
   const hasDataRef = useRef(false);
   const appliedKeyRef = useRef("");
-  const showDiscover = isSearchDiscoverMode(qParam, activeTab);
-  const accountsEntry = !qParam.trim() && activeTab === "users";
+  const showDiscover = isSearchDiscoverMode(qParam, tabParam);
+  const categoryEmptyEntry = !showDiscover && !qParam.trim();
   const listKey = listQueryKey([
     sessionUserId ?? "guest",
     showDiscover ? "discover" : activeTab,
     qParam,
-    accountsEntry ? "accounts-entry" : "",
+    categoryEmptyEntry ? "category-empty" : "",
   ]);
 
   const load = useCallback(
@@ -617,8 +620,8 @@ export function SearchPage() {
         appliedKeyRef.current = startedKey;
         return;
       }
-      // アカウント入口（tab=users, クエリなし）は Discover を出さず入力待ちにする
-      if (!qParam.trim() && activeTab === "users") {
+      // Category search with empty query: keep tab chrome, wait for input.
+      if (!qParam.trim() && tabParam != null && tabParam !== "") {
         setResults([]);
         setUsers([]);
         setDiscover(null);
@@ -626,7 +629,7 @@ export function SearchPage() {
         setLoading(false);
         hasDataRef.current = true;
         appliedKeyRef.current = startedKey;
-        return true;
+        return;
       }
       const sameQuery = appliedKeyRef.current === startedKey && hasDataRef.current;
       if (mode === "initial" && !sameQuery) {
@@ -676,7 +679,7 @@ export function SearchPage() {
         }
       }
     },
-    [qParam, activeTab, browsePreview, listKey]
+    [qParam, activeTab, browsePreview, listKey, tabParam]
   );
 
   useEffect(() => {
@@ -707,16 +710,22 @@ export function SearchPage() {
   }, [qParam]);
 
   useEffect(() => {
-    if (!accountsEntry || browsePreview) return;
+    if (!categoryEmptyEntry || browsePreview) return;
     const input = searchInputRef.current;
     if (!input) return;
     input.focus({ preventScroll: true });
-  }, [accountsEntry, browsePreview]);
+  }, [categoryEmptyEntry, browsePreview, activeTab]);
 
   const onSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const next = buildSearchSubmitParams(qInput, activeTab);
     const nextQ = next.get("q") || "";
+    // From Discover with an empty query, stay on Discover (do not invent ?tab=).
+    if (showDiscover && !nextQ) {
+      const input = e.currentTarget.querySelector("input");
+      if (input instanceof HTMLInputElement) input.blur();
+      return;
+    }
     const nextTab = (next.get("tab") as SearchTab) || activeTab;
     const sameQuery =
       nextQ === qParam.trim() &&
@@ -729,11 +738,16 @@ export function SearchPage() {
     }
   };
 
+  /** Existing behavior: keep q when switching categories (filter same query). */
   const setTab = (nextTab: SearchTab) => {
     const next = new URLSearchParams();
     if (qParam) next.set("q", qParam);
     next.set("tab", nextTab);
     setSearchParams(next);
+  };
+
+  const backToDiscover = () => {
+    setSearchParams(new URLSearchParams());
   };
 
   const updatePostInResults = (nextPost: TimelinePost) => {
@@ -780,7 +794,7 @@ export function SearchPage() {
     ? hasDiscoverContent
       ? 1
       : 0
-    : accountsEntry
+    : categoryEmptyEntry
       ? 0
       : activeTab === "users"
         ? Math.max(results.length, users.length)
@@ -802,9 +816,29 @@ export function SearchPage() {
     <div className="search-page" data-spa-page="見つける">
       <div className="main-inner">
         <h1 className="search-title">見つける</h1>
-        <p className="search-lead">
-          匿名コミュニティ・学生団体・授業・フリマを横断して探せます。キーワード検索もそのまま使えます。
-        </p>
+        {showDiscover ? (
+          <p className="search-lead">
+            匿名コミュニティ・学生団体・授業・フリマを横断して探せます。キーワード検索もそのまま使えます。
+          </p>
+        ) : (
+          <div className="search-category-bar">
+            <p className="search-lead search-lead--compact">
+              {tabLabel(activeTab)}
+              で検索しています。
+            </p>
+            <Link
+              className="search-discover-back"
+              to={SEARCH_DISCOVER_HREF}
+              onClick={(e) => {
+                e.preventDefault();
+                backToDiscover();
+              }}
+              data-search-discover-back="1"
+            >
+              話題トップへ戻る
+            </Link>
+          </div>
+        )}
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
             ref={searchInputRef}
@@ -813,9 +847,9 @@ export function SearchPage() {
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
             placeholder={
-              accountsEntry
-                ? "団体名・ユーザー名を検索"
-                : "ゼミ、教科書、先生、団体名などを検索"
+              showDiscover
+                ? "ゼミ、教科書、先生、団体名などを検索"
+                : searchCategoryPlaceholder(activeTab)
             }
             aria-label="わせわせ全体検索"
             enterKeyHint="search"
@@ -831,7 +865,7 @@ export function SearchPage() {
         </form>
 
         {!showDiscover ? (
-          <nav className="search-tabs" aria-label="検索結果の切り替え">
+          <nav className="search-tabs" aria-label="検索カテゴリー">
             <div className="search-tabs__scroller">
               {TABS.map((t) => (
                 <button
@@ -839,6 +873,7 @@ export function SearchPage() {
                   type="button"
                   className={`search-tab${activeTab === t.key ? " is-active" : ""}`}
                   onClick={() => setTab(t.key)}
+                  data-search-category={t.key}
                 >
                   {t.label}
                 </button>
