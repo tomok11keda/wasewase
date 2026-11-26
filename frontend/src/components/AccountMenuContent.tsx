@@ -338,7 +338,7 @@ export function AccountMenuContent({
               replace={overlayReplace()}
               onClick={() => onNavigate?.()}
             >
-              検索
+              見つける
             </Link>
           </li>
         ) : null}

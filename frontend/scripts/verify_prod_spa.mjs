@@ -153,10 +153,11 @@ async function expectNoReload(label, fn) {
 
 // Mobile bottom nav hops
 const tabs = [
-  ["コミュニティ", "コミュニティ"],
-  ["フリマ", "フリマ"],
+  ["見つける", "見つける"],
   ["時間割", "時間割"],
-  ["タイムライン", "タイムライン"],
+  ["授業", "授業"],
+  ["フリマ", "フリマ"],
+  ["ホーム", "タイムライン"],
 ];
 for (const [label, heading] of tabs) {
   await expectNoReload(`bottomnav:${label}`, async () => {
@@ -185,8 +186,8 @@ if ((await product.count()) > 0) {
   console.log("skip flea detail (empty)");
 }
 
-// Community thread if available
-await page.locator("nav.bottom-nav a.nav-item", { hasText: "コミュニティ" }).click();
+// Community thread via Find → communities (no longer a bottom tab)
+await page.goto(`${baseUrl}/app/communities`, { waitUntil: "domcontentloaded" });
 await page.waitForSelector('[data-spa-page="コミュニティ"]', { timeout: 20000 });
 const thread = page.locator("a.community-thread-link, a.thread-card, .community-list a").first();
 if ((await thread.count()) > 0) {
@@ -207,7 +208,7 @@ if ((await thread.count()) > 0) {
 }
 
 // Timeline → Profile
-await page.locator("nav.bottom-nav a.nav-item", { hasText: "タイムライン" }).click();
+await page.locator("nav.bottom-nav a.nav-item", { hasText: "ホーム" }).click();
 await page.waitForSelector('[data-spa-page="タイムライン"]', { timeout: 20000 });
 const author = page.locator("a.tweet-author").first();
 if ((await author.count()) > 0) {
@@ -231,8 +232,8 @@ if ((await author.count()) > 0) {
 // Desktop sidebar hops
 await page.setViewportSize({ width: 1200, height: 800 });
 await expectNoReload("sidebar:search", async () => {
-  await page.locator('a.sidebar-nav__item', { hasText: "検索" }).click();
-  await page.waitForSelector('[data-spa-page="検索"]', { timeout: 20000 });
+  await page.locator('a.sidebar-nav__item', { hasText: "見つける" }).click();
+  await page.waitForSelector('[data-spa-page="見つける"]', { timeout: 20000 });
 });
 await expectNoReload("sidebar:notifications-or-login", async () => {
   await page.locator('a.sidebar-nav__item', { hasText: "通知" }).click();

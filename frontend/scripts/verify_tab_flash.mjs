@@ -65,10 +65,11 @@ if (await page.locator('[data-spa-page="ログイン"]').count()) {
 const loadsAfterBoot = loadCount;
 
 const tabs = [
-  ["コミュニティ", "コミュニティ"],
-  ["フリマ", "フリマ"],
+  ["見つける", "見つける"],
   ["時間割", "時間割"],
-  ["タイムライン", "タイムライン"],
+  ["授業", "授業"],
+  ["フリマ", "フリマ"],
+  ["ホーム", "タイムライン"],
 ];
 
 console.log("warm-up…");

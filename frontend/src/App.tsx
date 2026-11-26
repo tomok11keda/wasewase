@@ -60,6 +60,7 @@ import { CourseTalkPage } from "./pages/CourseTalkPage";
 import { TradeChatPage } from "./pages/TradeChatPage";
 import { VerifyOtpPage } from "./pages/VerifyOtpPage";
 import { CommunitiesPage } from "./pages/CommunitiesPage";
+import { CoursesPage } from "./pages/CoursesPage";
 import { FleaPage } from "./pages/FleaPage";
 import { HomePage } from "./pages/HomePage";
 import { TimelinePostDetailPage } from "./pages/TimelinePostDetailPage";
@@ -298,10 +299,11 @@ function AppRoutes() {
         <Route element={<OnboardingGate />}>
           <Route element={<AppShellLayout />}>
             <Route index element={<HomePage />} />
-            <Route path="communities" element={<CommunitiesPage />} />
             <Route path="search" element={<SearchPage />} />
-            <Route path="flea" element={<FleaPage />} />
             <Route path="timetable" element={<TimetablePage />} />
+            <Route path="courses" element={<CoursesPage />} />
+            <Route path="flea" element={<FleaPage />} />
+            <Route path="communities" element={<CommunitiesPage />} />
             <Route path="more" element={<MorePage />} />
             {NestedAppRoutes()}
           </Route>
@@ -311,10 +313,11 @@ function AppRoutes() {
           <Route element={<AppShellLayout />}>
             <Route element={<TabKeepAliveLayout />}>
               <Route index element={<MainTabRoute />} />
-              <Route path="communities" element={<MainTabRoute />} />
               <Route path="search" element={<MainTabRoute />} />
-              <Route path="flea" element={<MainTabRoute />} />
               <Route path="timetable" element={<MainTabRoute />} />
+              <Route path="courses" element={<MainTabRoute />} />
+              <Route path="flea" element={<MainTabRoute />} />
+              <Route path="communities" element={<CommunitiesPage />} />
               <Route path="more" element={<MorePage />} />
               {NestedAppRoutes()}
             </Route>

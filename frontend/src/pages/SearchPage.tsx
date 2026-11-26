@@ -438,9 +438,34 @@ function SearchDiscoverView({
 
   return (
     <div className="search-discover">
+      <nav className="discover-gates" aria-label="見つけるカテゴリ">
+        <Link className="discover-gate" to="/communities">
+          <span className="discover-gate__label">匿名コミュニティ</span>
+          <span className="discover-gate__hint">
+            相談・口コミボード（学生団体とは別）
+          </span>
+        </Link>
+        <Link className="discover-gate" to="/search?tab=users&q=">
+          <span className="discover-gate__label">学生団体・アカウント</span>
+          <span className="discover-gate__hint">
+            団体名・ユーザーを検索
+          </span>
+        </Link>
+        <Link className="discover-gate" to="/courses">
+          <span className="discover-gate__label">授業</span>
+          <span className="discover-gate__hint">
+            履修中・トーク・口コミ
+          </span>
+        </Link>
+        <Link className="discover-gate" to="/flea">
+          <span className="discover-gate__label">フリマ</span>
+          <span className="discover-gate__hint">教科書・生活用品</span>
+        </Link>
+      </nav>
+
       {showTrending ? (
         <DiscoverSection
-          title="🔥 今わせわせで話題"
+          title="今わせわせで話題"
           visibleCount={mosaicVisibleCount}
           totalCount={mosaicTotalCount}
           expanded={trendingExpanded}
@@ -455,13 +480,13 @@ function SearchDiscoverView({
 
       {discover.faculty && facultyResults.length > 0 ? (
         <DiscoverSection
-          title={`🏫 ${discover.faculty.title}`}
+          title={discover.faculty.title}
           visibleCount={facultyVisible.length}
           totalCount={facultyResults.length}
           expanded={facultyExpanded}
           onExpand={() => setFacultyExpanded(true)}
           moreTo={`/communities${facultyParam}`}
-          moreLabel="コミュニティをもっと見る"
+          moreLabel="匿名コミュニティをもっと見る"
         >
           <div className="discover-compact-list">
             {facultyVisible.map((row) => renderDiscoverRow(row))}
@@ -471,23 +496,37 @@ function SearchDiscoverView({
 
       {communities.length > 0 ? (
         <DiscoverSection
-          title="💬 コミュニティで話題"
+          title="匿名コミュニティで話題"
           visibleCount={communitiesVisible.length}
           totalCount={communities.length}
           expanded={communitiesExpanded}
           onExpand={() => setCommunitiesExpanded(true)}
           moreTo="/communities"
-          moreLabel="コミュニティをもっと見る"
+          moreLabel="コミュニティ一覧を開く"
         >
           <div className="discover-compact-list">
             {communitiesVisible.map((row) => renderDiscoverRow(row))}
           </div>
         </DiscoverSection>
-      ) : null}
+      ) : (
+        <DiscoverSection
+          title="匿名コミュニティ"
+          visibleCount={0}
+          totalCount={0}
+          expanded
+          onExpand={() => undefined}
+          moreTo="/communities"
+          moreLabel="コミュニティ一覧を開く"
+        >
+          <p className="discover-gate-empty">
+            匿名で相談できるボードです。学生団体の公式ページとは別です。
+          </p>
+        </DiscoverSection>
+      )}
 
       {discover.products.length > 0 ? (
         <DiscoverSection
-          title="🛍 フリマで注目"
+          title="フリマで注目"
           visibleCount={productsVisible.length}
           totalCount={discover.products.length}
           expanded={productsExpanded}
@@ -697,13 +736,8 @@ export function SearchPage() {
 
   const emptyMessage = globalSearchEmptyMessage(!showDiscover);
 
-  const hasDiscoverContent = Boolean(
-    discover &&
-      (discover.trending.length > 0 ||
-        (discover.faculty && discover.faculty.results.length > 0) ||
-        (discover.communities && discover.communities.length > 0) ||
-        discover.products.length > 0)
-  );
+  // Discover always has gate entries once the payload loads (Phase A Find hub).
+  const hasDiscoverContent = Boolean(discover);
   const resultCount = showDiscover
     ? hasDiscoverContent
       ? 1
@@ -725,11 +759,11 @@ export function SearchPage() {
       : "results";
 
   return (
-    <div className="search-page" data-spa-page="検索">
+    <div className="search-page" data-spa-page="見つける">
       <div className="main-inner">
-        <h1 className="search-title">検索</h1>
+        <h1 className="search-title">見つける</h1>
         <p className="search-lead">
-          わせわせ全体から探したり、話題の投稿や商品を見つけられます。
+          匿名コミュニティ・学生団体・授業・フリマを横断して探せます。キーワード検索もそのまま使えます。
         </p>
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
@@ -737,7 +771,7 @@ export function SearchPage() {
             name="q"
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="ゼミ、教科書、先生などを検索"
+            placeholder="ゼミ、教科書、先生、団体名などを検索"
             aria-label="わせわせ全体検索"
             enterKeyHint="search"
             autoComplete="off"

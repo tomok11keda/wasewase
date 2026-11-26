@@ -202,6 +202,17 @@ test("follow list chrome keeps profile back and titles per tab", () => {
   );
 });
 
+test("Phase A: communities is detail from Find; course detail falls back to courses tab", () => {
+  assert.equal(matchChromeMode("/communities"), "detail");
+  assert.equal(matchDetailChrome("/communities")?.title, "コミュニティ");
+  assert.equal(matchDetailChrome("/communities")?.back.to, "/search");
+  assert.equal(matchChromeMode("/courses"), "main");
+  assert.equal(matchDetailChrome("/courses"), null);
+  assert.equal(matchDetailChrome("/courses/42")?.title, "授業");
+  assert.equal(matchDetailChrome("/courses/42")?.back.to, "/courses");
+  assert.equal(matchDetailChrome("/courses/42")?.back.kind, "history-or-fallback");
+});
+
 test("settings header back prefers history so the account menu can reopen", () => {
   assert.equal(matchDetailChrome("/settings")?.back.kind, "history-or-fallback");
   assert.equal(matchDetailChrome("/settings")?.back.to, "/");

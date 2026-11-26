@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { CommunitiesPage } from "../pages/CommunitiesPage";
+import { CoursesPage } from "../pages/CoursesPage";
 import { FleaPage } from "../pages/FleaPage";
 import { HomePage } from "../pages/HomePage";
 import { SearchPage } from "../pages/SearchPage";
@@ -231,16 +231,6 @@ export function TabKeepAliveLayout() {
             <HomePage />
           </TabPane>
         ) : null}
-        {mounted.communities ? (
-          <TabPane
-            tabId="communities"
-            active={active === "communities"}
-            leaving={leaving === "communities"}
-            underlay={underlayTab === "communities"}
-          >
-            <CommunitiesPage />
-          </TabPane>
-        ) : null}
         {mounted.search ? (
           <TabPane
             tabId="search"
@@ -251,16 +241,6 @@ export function TabKeepAliveLayout() {
             <SearchPage />
           </TabPane>
         ) : null}
-        {mounted.flea ? (
-          <TabPane
-            tabId="flea"
-            active={active === "flea"}
-            leaving={leaving === "flea"}
-            underlay={underlayTab === "flea"}
-          >
-            <FleaPage />
-          </TabPane>
-        ) : null}
         {mounted.timetable ? (
           <TabPane
             tabId="timetable"
@@ -269,6 +249,26 @@ export function TabKeepAliveLayout() {
             underlay={underlayTab === "timetable"}
           >
             <TimetablePage ignoreRouteUserPk />
+          </TabPane>
+        ) : null}
+        {mounted.courses ? (
+          <TabPane
+            tabId="courses"
+            active={active === "courses"}
+            leaving={leaving === "courses"}
+            underlay={underlayTab === "courses"}
+          >
+            <CoursesPage />
+          </TabPane>
+        ) : null}
+        {mounted.flea ? (
+          <TabPane
+            tabId="flea"
+            active={active === "flea"}
+            leaving={leaving === "flea"}
+            underlay={underlayTab === "flea"}
+          >
+            <FleaPage />
           </TabPane>
         ) : null}
       </div>
