@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ACCOUNTS_DISCOVERY_HREF,
   SEARCH_USERS_TAB_LABEL,
   isHandledSearchResultKind,
   organizationSearchHref,
@@ -8,6 +9,11 @@ import {
 
 test("users tab stays internally users but is labeled アカウント", () => {
   assert.equal(SEARCH_USERS_TAB_LABEL, "アカウント");
+});
+
+test("Find hub accounts gate opens the existing users search tab", () => {
+  assert.equal(ACCOUNTS_DISCOVERY_HREF, "/search?tab=users");
+  assert.equal(ACCOUNTS_DISCOVERY_HREF.includes("q="), false);
 });
 
 test("organization search cards go to the org profile path", () => {

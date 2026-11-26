@@ -35,8 +35,25 @@ export function searchFetchQuery(
   };
 }
 
-export function globalSearchEmptyMessage(hasQuery: boolean): string {
+/**
+ * Discover hub (gates + trending) only when there is no query and the user
+ * has not entered a category search mode such as アカウント (tab=users).
+ */
+export function isSearchDiscoverMode(
+  qParam: string,
+  activeTab: GlobalSearchTab
+): boolean {
+  return !(qParam || "").trim() && activeTab !== "users";
+}
+
+export function globalSearchEmptyMessage(
+  hasQuery: boolean,
+  activeTab: GlobalSearchTab = "all"
+): string {
   if (!hasQuery) {
+    if (activeTab === "users") {
+      return "団体名・ユーザー名を入力して検索してください。";
+    }
     return "キーワードを入力すると、わせわせ全体を横断検索できます。";
   }
   return SEARCH_NO_RESULTS_MESSAGE;

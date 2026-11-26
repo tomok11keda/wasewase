@@ -1,5 +1,8 @@
 export const SEARCH_USERS_TAB_LABEL = "アカウント";
 
+/** Find-hub gate → existing アカウント search tab (users + orgs). */
+export const ACCOUNTS_DISCOVERY_HREF = "/search?tab=users";
+
 export const SEARCH_RESULT_KINDS = [
   "post",
   "thread",
