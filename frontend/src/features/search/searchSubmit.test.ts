@@ -11,6 +11,7 @@ import {
   createSearchTabHarness,
   globalSearchEmptyMessage,
   globalSearchErrorMessage,
+  isSearchDiscoverMode,
   searchFetchQuery,
   submitSearchForm,
 } from "./searchSubmit.ts";
@@ -26,6 +27,8 @@ test("search button and keyboard submit share one form onSubmit path", () => {
   assert.equal(searchPage.includes("disabled={"), false);
   assert.match(searchPage, /buildSearchSubmitParams/);
   assert.equal(searchPage.includes("stripHomeTimelineLeftoverParams"), false);
+  assert.match(searchPage, /ACCOUNTS_DISCOVERY_HREF/);
+  assert.equal(searchPage.includes("tab=users&q="), false);
 });
 
 test("typing then tapping 検索 sets q and requests the search API", async () => {
@@ -102,6 +105,16 @@ test("empty submit stays on discover and does not send a q", () => {
   assert.equal(submitted.q, "");
   assert.deepEqual(submitted.fetch, { q: undefined, tab: undefined });
   assert.match(globalSearchEmptyMessage(false), /キーワードを入力/);
+});
+
+test("accounts entry (tab=users, no q) leaves discover and prompts for names", () => {
+  assert.equal(isSearchDiscoverMode("", "all"), true);
+  assert.equal(isSearchDiscoverMode("", "users"), false);
+  assert.equal(isSearchDiscoverMode("サークル", "users"), false);
+  assert.match(
+    globalSearchEmptyMessage(false, "users"),
+    /団体名・ユーザー名/
+  );
 });
 
 test("zero results and failures use Japanese copy, not raw API codes", () => {

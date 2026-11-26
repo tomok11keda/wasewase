@@ -31,6 +31,7 @@ import {
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
 import { organizationInitial } from "../features/orgs/orgProfile";
 import {
+  ACCOUNTS_DISCOVERY_HREF,
   SEARCH_USERS_TAB_LABEL,
   isHandledSearchResultKind,
   organizationSearchHref,
@@ -39,6 +40,7 @@ import {
   buildSearchSubmitParams,
   globalSearchEmptyMessage,
   globalSearchErrorMessage,
+  isSearchDiscoverMode,
 } from "../features/search/searchSubmit";
 import {
   DiscoverPostCard,
@@ -439,25 +441,37 @@ function SearchDiscoverView({
   return (
     <div className="search-discover">
       <nav className="discover-gates" aria-label="見つけるカテゴリ">
-        <Link className="discover-gate" to="/communities">
+        <Link
+          className="discover-gate"
+          to="/communities"
+          data-discover-gate="communities"
+        >
           <span className="discover-gate__label">匿名コミュニティ</span>
           <span className="discover-gate__hint">
             相談・口コミボード（学生団体とは別）
           </span>
         </Link>
-        <Link className="discover-gate" to="/search?tab=users&q=">
+        <Link
+          className="discover-gate"
+          to={ACCOUNTS_DISCOVERY_HREF}
+          data-discover-gate="accounts"
+        >
           <span className="discover-gate__label">学生団体・アカウント</span>
           <span className="discover-gate__hint">
             団体名・ユーザーを検索
           </span>
         </Link>
-        <Link className="discover-gate" to="/courses">
+        <Link
+          className="discover-gate"
+          to="/courses"
+          data-discover-gate="courses"
+        >
           <span className="discover-gate__label">授業</span>
           <span className="discover-gate__hint">
             履修中・トーク・口コミ
           </span>
         </Link>
-        <Link className="discover-gate" to="/flea">
+        <Link className="discover-gate" to="/flea" data-discover-gate="flea">
           <span className="discover-gate__label">フリマ</span>
           <span className="discover-gate__hint">教科書・生活用品</span>
         </Link>
@@ -570,6 +584,7 @@ export function SearchPage() {
   const [discover, setDiscover] = useState<SearchDiscoverPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const sessionUserId =
     me?.authenticated && me.user?.id != null ? me.user.id : null;
   const userIdRef = useRef(sessionUserId);
@@ -578,11 +593,13 @@ export function SearchPage() {
   const requestIdRef = useRef(0);
   const hasDataRef = useRef(false);
   const appliedKeyRef = useRef("");
-  const showDiscover = !qParam.trim();
+  const showDiscover = isSearchDiscoverMode(qParam, activeTab);
+  const accountsEntry = !qParam.trim() && activeTab === "users";
   const listKey = listQueryKey([
     sessionUserId ?? "guest",
     showDiscover ? "discover" : activeTab,
     qParam,
+    accountsEntry ? "accounts-entry" : "",
   ]);
 
   const load = useCallback(
@@ -599,6 +616,17 @@ export function SearchPage() {
         hasDataRef.current = false;
         appliedKeyRef.current = startedKey;
         return;
+      }
+      // アカウント入口（tab=users, クエリなし）は Discover を出さず入力待ちにする
+      if (!qParam.trim() && activeTab === "users") {
+        setResults([]);
+        setUsers([]);
+        setDiscover(null);
+        setError(null);
+        setLoading(false);
+        hasDataRef.current = true;
+        appliedKeyRef.current = startedKey;
+        return true;
       }
       const sameQuery = appliedKeyRef.current === startedKey && hasDataRef.current;
       if (mode === "initial" && !sameQuery) {
@@ -678,6 +706,13 @@ export function SearchPage() {
     setQInput(qParam);
   }, [qParam]);
 
+  useEffect(() => {
+    if (!accountsEntry || browsePreview) return;
+    const input = searchInputRef.current;
+    if (!input) return;
+    input.focus({ preventScroll: true });
+  }, [accountsEntry, browsePreview]);
+
   const onSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const next = buildSearchSubmitParams(qInput, activeTab);
@@ -734,7 +769,10 @@ export function SearchPage() {
       ),
   };
 
-  const emptyMessage = globalSearchEmptyMessage(!showDiscover);
+  const emptyMessage = globalSearchEmptyMessage(
+    Boolean(qParam.trim()),
+    activeTab
+  );
 
   // Discover always has gate entries once the payload loads (Phase A Find hub).
   const hasDiscoverContent = Boolean(discover);
@@ -742,9 +780,11 @@ export function SearchPage() {
     ? hasDiscoverContent
       ? 1
       : 0
-    : activeTab === "users"
-      ? Math.max(results.length, users.length)
-      : results.length;
+    : accountsEntry
+      ? 0
+      : activeTab === "users"
+        ? Math.max(results.length, users.length)
+        : results.length;
   const searchPhase = listContentPhase({
     browsePreview,
     loading: sessionLoading || loading,
@@ -767,11 +807,16 @@ export function SearchPage() {
         </p>
         <form className="search-form" onSubmit={onSearch} role="search">
           <input
+            ref={searchInputRef}
             type="search"
             name="q"
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="ゼミ、教科書、先生、団体名などを検索"
+            placeholder={
+              accountsEntry
+                ? "団体名・ユーザー名を検索"
+                : "ゼミ、教科書、先生、団体名などを検索"
+            }
             aria-label="わせわせ全体検索"
             enterKeyHint="search"
             autoComplete="off"
@@ -820,11 +865,7 @@ export function SearchPage() {
               globalSearchErrorMessage(null, !showDiscover)}
           </p>
         ) : searchPhase === "empty" ? (
-          <p className="search-empty">
-            {showDiscover
-              ? "キーワードを入力すると、わせわせ全体を横断検索できます。"
-              : emptyMessage}
-          </p>
+          <p className="search-empty">{emptyMessage}</p>
         ) : showDiscover && discover ? (
           <SearchDiscoverView discover={discover} />
         ) : activeTab === "users" && results.length === 0 ? (
