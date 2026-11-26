@@ -384,6 +384,31 @@
   color: var(--muted, #536471);
 }
 
+.search-lead--compact {
+  margin: 0;
+}
+
+.search-category-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.search-discover-back {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent, #1d9bf0);
+  text-decoration: none;
+}
+
+.search-discover-back:hover,
+.search-discover-back:focus-visible {
+  text-decoration: underline;
+}
+
 .search-discover {
   display: flex;
   flex-direction: column;

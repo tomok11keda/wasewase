@@ -107,14 +107,20 @@ test("empty submit stays on discover and does not send a q", () => {
   assert.match(globalSearchEmptyMessage(false), /キーワードを入力/);
 });
 
-test("accounts entry (tab=users, no q) leaves discover and prompts for names", () => {
-  assert.equal(isSearchDiscoverMode("", "all"), true);
+test("category mode stays when tab is explicit, even with empty query", () => {
+  assert.equal(isSearchDiscoverMode("", null), true);
+  assert.equal(isSearchDiscoverMode("", ""), true);
   assert.equal(isSearchDiscoverMode("", "users"), false);
+  assert.equal(isSearchDiscoverMode("", "all"), false);
+  assert.equal(isSearchDiscoverMode("", "courses"), false);
   assert.equal(isSearchDiscoverMode("サークル", "users"), false);
+  assert.equal(isSearchDiscoverMode("サークル", null), false);
   assert.match(
     globalSearchEmptyMessage(false, "users"),
     /団体名・ユーザー名/
   );
+  assert.match(globalSearchEmptyMessage(false, "courses"), /授業名/);
+  assert.match(globalSearchEmptyMessage(false, "products"), /商品名/);
 });
 
 test("zero results and failures use Japanese copy, not raw API codes", () => {

@@ -13,6 +13,9 @@ export const SEARCH_FAILED_MESSAGE =
 export const SEARCH_DISCOVER_FAILED_MESSAGE =
   "話題の読み込みに失敗しました。通信環境を確認して、もう一度お試しください。";
 
+/** Plain Discover hub (no category mode). */
+export const SEARCH_DISCOVER_HREF = "/search";
+
 export function buildSearchSubmitParams(
   qInput: string,
   activeTab: GlobalSearchTab
@@ -36,14 +39,32 @@ export function searchFetchQuery(
 }
 
 /**
- * Discover hub (gates + trending) only when there is no query and the user
- * has not entered a category search mode such as アカウント (tab=users).
+ * Discover hub only when there is no query and no explicit `tab` in the URL.
+ * Once category search is entered (`?tab=`), switching tabs keeps category mode
+ * even with an empty query — return to Discover only via an explicit link.
  */
 export function isSearchDiscoverMode(
   qParam: string,
-  activeTab: GlobalSearchTab
+  tabParam: string | null
 ): boolean {
-  return !(qParam || "").trim() && activeTab !== "users";
+  return !(qParam || "").trim() && (tabParam == null || tabParam === "");
+}
+
+export function searchCategoryPlaceholder(
+  activeTab: GlobalSearchTab
+): string {
+  switch (activeTab) {
+    case "users":
+      return "団体名・ユーザー名を検索";
+    case "courses":
+      return "授業名・先生名を検索";
+    case "products":
+      return "商品名・教科書名を検索";
+    case "latest":
+      return "キーワードで最新の投稿を検索";
+    default:
+      return "ゼミ、教科書、先生、団体名などを検索";
+  }
 }
 
 export function globalSearchEmptyMessage(
@@ -51,10 +72,18 @@ export function globalSearchEmptyMessage(
   activeTab: GlobalSearchTab = "all"
 ): string {
   if (!hasQuery) {
-    if (activeTab === "users") {
-      return "団体名・ユーザー名を入力して検索してください。";
+    switch (activeTab) {
+      case "users":
+        return "団体名・ユーザー名を入力して検索してください。";
+      case "courses":
+        return "授業名・先生名を入力して検索してください。";
+      case "products":
+        return "商品名・教科書名を入力して検索してください。";
+      case "latest":
+        return "キーワードを入力すると、最新の投稿から探せます。";
+      default:
+        return "キーワードを入力すると、わせわせ全体を横断検索できます。";
     }
-    return "キーワードを入力すると、わせわせ全体を横断検索できます。";
   }
   return SEARCH_NO_RESULTS_MESSAGE;
 }
