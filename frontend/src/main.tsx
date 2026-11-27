@@ -8,6 +8,7 @@ import "./styles/timeline.css";
 import "./styles/timeline-feed.css";
 import "./styles/post-detail.css";
 import "./styles/home.css";
+import "./styles/sponsor-ads.css";
 import "./styles/image-pick.css";
 import "./styles/faculty-filter.css";
 import "./styles/local-search.css";

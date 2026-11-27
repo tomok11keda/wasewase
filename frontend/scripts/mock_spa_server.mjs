@@ -43,6 +43,66 @@ const meAuthed = {
   can_add_linked_profile: false,
 };
 
+const fictionalHomeAd = {
+  id: 101,
+  kind: "sponsored",
+  badge_label: "スポンサー",
+  sponsor_name: "架空カフェ合同会社",
+  title: "【検証用】キャンパス近くの勉強カフェ",
+  description: "ローカル検証専用の架空スポンサーです。",
+  image_url: null,
+  cta_url: "https://example.com/fictional-cafe",
+  cta_label: "詳しく見る",
+  placement: "home_feed",
+};
+
+const fictionalDiscoverAds = [
+  { ...fictionalHomeAd, placement: "discover_featured" },
+  {
+    id: 102,
+    kind: "internal_promotion",
+    badge_label: "公式からのお知らせ",
+    sponsor_name: "わせわせ運営",
+    title: "【検証用】公式からのお知らせサンプル",
+    description: "ローカル検証用の公式プロモーション枠です。",
+    image_url: null,
+    cta_url: "https://example.com/fictional-official",
+    cta_label: "詳しく見る",
+    placement: "discover_featured",
+  },
+];
+
+function mockPosts() {
+  return [1, 2, 3, 4].map((id) => ({
+    id,
+    body: `検証用投稿 ${id}`,
+    created_at: new Date().toISOString(),
+    like_count: 0,
+    comment_count: 0,
+    view_count: 0,
+    comments: [],
+    author: {
+      id: 1,
+      username: "demo",
+      display_name: "デモ学生",
+      avatar_url: "",
+      initial: "デ",
+    },
+    image_url: null,
+    course_name: "",
+    is_liked: false,
+    is_bookmarked: false,
+    quoted_post: null,
+    shared_product: null,
+  }));
+}
+
+function sponsorEnabled(req, url) {
+  if (url.searchParams.get("sponsor") === "0") return false;
+  if (req.headers.cookie?.includes("mock_sponsor_off=1")) return false;
+  return true;
+}
+
 const spaHtml = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -98,6 +158,7 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 200, browse ? meBrowse : meAuthed);
   }
   if (path.startsWith("/api/v1/search")) {
+    const withSponsor = sponsorEnabled(req, url);
     return sendJson(res, 200, {
       ok: true,
       q: "",
@@ -114,6 +175,7 @@ const server = http.createServer((req, res) => {
         faculty: null,
         communities: [],
         products: [],
+        sponsor_ads: withSponsor ? fictionalDiscoverAds : [],
       },
     });
   }
@@ -155,7 +217,36 @@ const server = http.createServer((req, res) => {
     });
   }
   if (path.startsWith("/api/v1/timeline") || path.startsWith("/api/timeline")) {
-    return sendJson(res, 200, { ok: true, posts: [], next_cursor: null });
+    if (path.includes("/impressions")) {
+      return sendJson(res, 200, { ok: true, counts: {} });
+    }
+    const withSponsor = sponsorEnabled(req, url);
+    const offset = url.searchParams.get("offset");
+    const firstPage = offset == null || offset === "" || offset === "0";
+    return sendJson(res, 200, {
+      posts: mockPosts(),
+      has_more: false,
+      next_offset: 4,
+      total_count: 4,
+      feed: "all",
+      sort: "recommended",
+      q: "",
+      faculty: "",
+      tag: "",
+      ads: {
+        show_infeed: false,
+        interval: 3,
+        disabled: true,
+        sponsor: {
+          enabled: withSponsor && firstPage,
+          insert_after: 2,
+          items: withSponsor && firstPage ? [fictionalHomeAd] : [],
+        },
+      },
+    });
+  }
+  if (path.startsWith("/api/v1/sponsor-ads/")) {
+    return sendJson(res, 200, { ok: true });
   }
   if (path.startsWith("/api/")) {
     return sendJson(res, 200, { ok: true });

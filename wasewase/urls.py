@@ -27,6 +27,7 @@ from app import organization_api_views
 from app import organization_event_api_views
 from app import organization_chat_event_api_views
 from app import organization_recruiting_chat_api_views
+from app import sponsor_ads_api_views
 from app.spa_canonical import spa_get_redirect
 
 _HOME_REDIRECT = RedirectView.as_view(url="/", permanent=True)
@@ -189,6 +190,16 @@ urlpatterns = [
         "api/v1/timeline/impressions/",
         timeline_api_views.api_v1_timeline_impressions,
         name="api_v1_timeline_impressions",
+    ),
+    path(
+        "api/v1/sponsor-ads/<int:pk>/impression/",
+        sponsor_ads_api_views.api_v1_sponsor_ad_impression,
+        name="api_v1_sponsor_ad_impression",
+    ),
+    path(
+        "api/v1/sponsor-ads/<int:pk>/click/",
+        sponsor_ads_api_views.api_v1_sponsor_ad_click,
+        name="api_v1_sponsor_ad_click",
     ),
     path(
         "api/v1/timeline/<int:pk>/like/",

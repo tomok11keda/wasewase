@@ -227,6 +227,7 @@ export type SearchDiscoverPayload = {
   faculty: SearchDiscoverFaculty | null;
   communities: SearchResultRow[];
   products: SearchProductResult[];
+  sponsor_ads?: import("../sponsorAds/types").SponsorAd[];
 };
 
 export type ScopedSearchResult = {
@@ -473,6 +474,9 @@ export async function fetchSearchPage(query: {
             : [],
           products: Array.isArray(data.discover.products)
             ? data.discover.products
+            : [],
+          sponsor_ads: Array.isArray(data.discover.sponsor_ads)
+            ? data.discover.sponsor_ads
             : [],
         }
       : null,

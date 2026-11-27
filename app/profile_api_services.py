@@ -603,6 +603,7 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
     """Search-tab empty state: mixed discovery on top, category sections below."""
     from .community_services import list_community_threads
     from .services import get_user_faculty
+    from .sponsor_ads_services import discover_featured_sponsor_items
 
     viewer = request.user if request.user.is_authenticated else None
     faculty = get_user_faculty(viewer) if viewer is not None else ""
@@ -676,6 +677,8 @@ def build_search_discover_payload(request: HttpRequest) -> dict[str, Any]:
         "faculty": faculty_section,
         "communities": communities,
         "products": products_payload,
+        # 空配列ならフロントは「おすすめサービス」枠ごと非表示
+        "sponsor_ads": discover_featured_sponsor_items(request),
     }
 
 
