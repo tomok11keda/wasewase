@@ -114,6 +114,11 @@ export type TimelineFeedResponse = {
     show_infeed: boolean;
     interval: number;
     disabled: boolean;
+    sponsor?: {
+      enabled: boolean;
+      insert_after: number;
+      items: import("../sponsorAds/types").SponsorAd[];
+    };
   };
 };
 
@@ -168,12 +173,28 @@ export async function fetchTimeline(
   });
   if (!res.ok) throw new Error(`timeline_${res.status}`);
   const data = (await res.json()) as TimelineFeedResponse;
+  const sponsorRaw = data.ads?.sponsor;
   return {
     ...data,
     posts: (data.posts || []).map((post) => ({
       ...post,
       comments: post.comments || [],
     })),
+    ads: {
+      show_infeed: Boolean(data.ads?.show_infeed),
+      interval: Number(data.ads?.interval) || 3,
+      disabled: Boolean(data.ads?.disabled),
+      sponsor: sponsorRaw
+        ? {
+            enabled: Boolean(sponsorRaw.enabled),
+            insert_after:
+              typeof sponsorRaw.insert_after === "number"
+                ? sponsorRaw.insert_after
+                : 2,
+            items: Array.isArray(sponsorRaw.items) ? sponsorRaw.items : [],
+          }
+        : undefined,
+    },
   };
 }
 

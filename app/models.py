@@ -3226,3 +3226,171 @@ class OrganizationChatEventRsvp(models.Model):
     def __str__(self) -> str:
         return f"event={self.event_id} user={self.user_id} ({self.answer})"
 
+
+
+
+class SponsoredAd(models.Model):
+    """手動運用のスポンサー／公式プロモーション。通常投稿・商品とは別モデル。"""
+
+    class Kind(models.TextChoices):
+        INTERNAL_PROMOTION = "internal_promotion", "公式プロモーション"
+        SPONSORED = "sponsored", "外部スポンサー"
+
+    kind = models.CharField(
+        "種別",
+        max_length=32,
+        choices=Kind.choices,
+        default=Kind.SPONSORED,
+        db_index=True,
+    )
+    sponsor_name = models.CharField("スポンサー名", max_length=80)
+    title = models.CharField("タイトル", max_length=120)
+    description = models.TextField("説明", blank=True, default="")
+    image = models.ImageField(
+        "画像",
+        upload_to="sponsor_ads/",
+        blank=True,
+        null=True,
+        help_text="任意。カード用の横長画像を推奨。",
+    )
+    cta_url = models.URLField(
+        "CTAリンク",
+        max_length=500,
+        help_text="外部リンクは HTTPS 必須。",
+    )
+    cta_label = models.CharField(
+        "CTAラベル",
+        max_length=40,
+        default="詳しく見る",
+        blank=False,
+    )
+    is_active = models.BooleanField(
+        "公開中",
+        default=False,
+        db_index=True,
+        help_text="OFF のあいだはどの掲載場所にも出さない。",
+    )
+    starts_at = models.DateTimeField("掲載開始", db_index=True)
+    ends_at = models.DateTimeField("掲載終了", db_index=True)
+    priority = models.PositiveSmallIntegerField(
+        "優先度",
+        default=100,
+        help_text="小さいほど優先。同掲載場所で複数あるときの並び。",
+    )
+    admin_notes = models.TextField(
+        "内部メモ",
+        blank=True,
+        default="",
+        help_text="ユーザーには表示しない。",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "スポンサー広告"
+        verbose_name_plural = "スポンサー広告"
+        ordering = ["priority", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    kind__in=["internal_promotion", "sponsored"]
+                ),
+                name="app_sponsor_ad_kind_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ends_at__gt=models.F("starts_at")),
+                name="app_sponsor_ad_ends_after_starts",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["is_active", "starts_at", "ends_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sponsor_name}: {self.title}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        from urllib.parse import urlparse
+
+        super().clean()
+        raw = (self.cta_url or "").strip()
+        if not raw:
+            raise ValidationError({"cta_url": "CTAリンクは必須です。"})
+        parsed = urlparse(raw)
+        if parsed.scheme.lower() != "https":
+            raise ValidationError(
+                {"cta_url": "外部リンクは HTTPS（https://）である必要があります。"}
+            )
+        if not parsed.netloc:
+            raise ValidationError({"cta_url": "有効な URL を入力してください。"})
+        if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
+            raise ValidationError({"ends_at": "終了日時は開始日時より後にしてください。"})
+
+    @property
+    def badge_label(self) -> str:
+        if self.kind == self.Kind.INTERNAL_PROMOTION:
+            return "公式からのお知らせ"
+        return "スポンサー"
+
+
+class SponsoredAdPlacement(models.Model):
+    """広告×掲載場所。1広告を複数枠へ出せる。効果測定も枠単位。"""
+
+    class Placement(models.TextChoices):
+        HOME_FEED = "home_feed", "ホームフィード"
+        DISCOVER_FEATURED = "discover_featured", "見つける・おすすめサービス"
+        # 将来枠（今回 UI 未実装。識別子だけ予約）
+        FLEA_BANNER = "flea_banner", "フリマバナー（将来）"
+        COURSES_FEED = "courses_feed", "授業フィード（将来）"
+        TIMETABLE = "timetable", "時間割（将来）"
+
+    ad = models.ForeignKey(
+        SponsoredAd,
+        on_delete=models.CASCADE,
+        related_name="placements",
+        verbose_name="広告",
+    )
+    placement = models.CharField(
+        "掲載場所",
+        max_length=32,
+        choices=Placement.choices,
+        db_index=True,
+    )
+    is_enabled = models.BooleanField(
+        "この枠で有効",
+        default=True,
+        db_index=True,
+    )
+    impression_count = models.PositiveIntegerField("表示回数", default=0)
+    click_count = models.PositiveIntegerField("クリック数", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "スポンサー広告の掲載枠"
+        verbose_name_plural = "スポンサー広告の掲載枠"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ad", "placement"],
+                name="uniq_sponsor_ad_placement",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    placement__in=[
+                        "home_feed",
+                        "discover_featured",
+                        "flea_banner",
+                        "courses_feed",
+                        "timetable",
+                    ]
+                ),
+                name="app_sponsor_ad_placement_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["placement", "is_enabled"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ad_id}:{self.placement}"

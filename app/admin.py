@@ -57,6 +57,8 @@ from .models import (
     OrganizationRecruitingChatApplication,
     Product,
     Review,
+    SponsoredAd,
+    SponsoredAdPlacement,
     ThreadPost,
     ThreadTip,
     TimelinePost,
@@ -1619,6 +1621,104 @@ class UserDirectMessageAdmin(admin.ModelAdmin):
     )
     list_filter = ("message_kind", "is_read", "created_at")
     search_fields = ("body", "sender__username")
+
+
+class SponsoredAdPlacementInline(admin.TabularInline):
+    model = SponsoredAdPlacement
+    extra = 1
+    fields = (
+        "placement",
+        "is_enabled",
+        "impression_count",
+        "click_count",
+    )
+    readonly_fields = ("impression_count", "click_count")
+
+
+@admin.register(SponsoredAd)
+class SponsoredAdAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "sponsor_name",
+        "title",
+        "kind",
+        "is_active",
+        "starts_at",
+        "ends_at",
+        "priority",
+        "placement_summary",
+        "total_impressions",
+        "total_clicks",
+    )
+    list_filter = ("kind", "is_active", "starts_at", "ends_at")
+    search_fields = ("sponsor_name", "title", "description", "cta_url")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [SponsoredAdPlacementInline]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "kind",
+                    "sponsor_name",
+                    "title",
+                    "description",
+                    "image",
+                    "cta_url",
+                    "cta_label",
+                )
+            },
+        ),
+        (
+            "掲載",
+            {
+                "fields": (
+                    "is_active",
+                    "starts_at",
+                    "ends_at",
+                    "priority",
+                )
+            },
+        ),
+        ("内部", {"fields": ("admin_notes", "created_at", "updated_at")}),
+    )
+
+    @admin.display(description="掲載枠")
+    def placement_summary(self, obj: SponsoredAd) -> str:
+        keys = [
+            p.placement
+            for p in obj.placements.all()
+            if p.is_enabled
+        ]
+        return ", ".join(keys) if keys else "—"
+
+    @admin.display(description="表示合計")
+    def total_impressions(self, obj: SponsoredAd) -> int:
+        return sum(int(p.impression_count) for p in obj.placements.all())
+
+    @admin.display(description="クリック合計")
+    def total_clicks(self, obj: SponsoredAd) -> int:
+        return sum(int(p.click_count) for p in obj.placements.all())
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("placements")
+
+
+@admin.register(SponsoredAdPlacement)
+class SponsoredAdPlacementAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "ad",
+        "placement",
+        "is_enabled",
+        "impression_count",
+        "click_count",
+        "updated_at",
+    )
+    list_filter = ("placement", "is_enabled")
+    search_fields = ("ad__sponsor_name", "ad__title")
+    readonly_fields = ("impression_count", "click_count", "created_at", "updated_at")
+    raw_id_fields = ("ad",)
 
 
 install_growth_dashboard(admin.site)

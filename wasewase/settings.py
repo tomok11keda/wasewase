@@ -600,6 +600,12 @@ WASE_INFEED_AD_INTERVAL = env.int("WASE_INFEED_AD_INTERVAL", default=3)
 # True: インフィード HTML はアプリ（IS_APP）のみ。Web は将来用にフラグだけ用意。
 WASE_INFEED_ADS_APP_ONLY = env.bool("WASE_INFEED_ADS_APP_ONLY", default=True)
 
+# ---------------------------------------------------------------------------
+# スポンサー広告 / 公式プロモーション（AdMob とは別）
+# 本番は必ず False。True にしても is_active な在庫が無ければ枠は出ない。
+# ---------------------------------------------------------------------------
+WASE_SPONSOR_ADS_ENABLED = env.bool("WASE_SPONSOR_ADS_ENABLED", default=False)
+
 # 団体あたり同時に有効な団体チャット数。後から環境変数で上げられる。
 MAX_ACTIVE_ORGANIZATION_CHATS = env.int("MAX_ACTIVE_ORGANIZATION_CHATS", default=12)
 

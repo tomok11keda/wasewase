@@ -19,6 +19,12 @@ import {
   stripHomeTimelineLeftoverParams,
 } from "../features/timeline/homeFeed";
 import { TimelinePostCard } from "../features/timeline/TimelinePostCard";
+import { SponsorAdCard } from "../features/sponsorAds/SponsorAdCard";
+import { buildHomeFeedRows } from "../features/sponsorAds/feedInject";
+import {
+  parseHomeSponsorAds,
+  type HomeSponsorAdsPayload,
+} from "../features/sponsorAds/types";
 import { AccountDisplayName } from "../components/VerifiedAccountBadge";
 import { VerifiedOrganizationBadge } from "../components/VerifiedOrganizationBadge";
 import { organizationPostDisplay } from "../features/timeline/organizationActor";
@@ -119,6 +125,9 @@ export function HomePage() {
   }, []);
 
   const [posts, setPosts] = useState<TimelinePost[]>([]);
+  const [sponsorAds, setSponsorAds] = useState<HomeSponsorAdsPayload | null>(
+    null
+  );
   const [pinnedPost, setPinnedPost] = useState<TimelinePost | null>(null);
   const [postUnavailable, setPostUnavailable] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -308,6 +317,7 @@ export function HomePage() {
     async (mode: "initial" | "soft" = "initial") => {
       if (browsePreview) {
         setPosts([]);
+        setSponsorAds(null);
         setHasMore(false);
         setNextOffset(0);
         setError(null);
@@ -325,6 +335,7 @@ export function HomePage() {
         });
         if (sort !== sortRef.current) return true;
         setPosts(data.posts);
+        setSponsorAds(parseHomeSponsorAds(data.ads?.sponsor));
         setHasMore(data.has_more);
         setNextOffset(data.next_offset);
         hasDataRef.current = true;
@@ -348,6 +359,7 @@ export function HomePage() {
     prevSortRef.current = sort;
     hasDataRef.current = false;
     setPosts([]);
+    setSponsorAds(null);
     setHasMore(false);
     setNextOffset(0);
     setError(null);
@@ -359,6 +371,7 @@ export function HomePage() {
     prevUserIdRef.current = sessionUserId;
     hasDataRef.current = false;
     setPosts([]);
+    setSponsorAds(null);
     setPinnedPost(null);
     setHasMore(false);
     setNextOffset(0);
@@ -395,6 +408,15 @@ export function HomePage() {
     if (posts.some((p) => p.id === pinnedPost.id)) return posts;
     return [pinnedPost, ...posts];
   }, [posts, pinnedPost]);
+
+  const homeFeedRows = useMemo(
+    () =>
+      buildHomeFeedRows(
+        visiblePosts.map((p) => p.id),
+        sponsorAds
+      ),
+    [visiblePosts, sponsorAds]
+  );
 
   const waitingForTarget =
     Boolean(targetPostId) &&
@@ -868,29 +890,42 @@ export function HomePage() {
           {postUnavailable ? (
             <p className="empty-message">この投稿は表示できません</p>
           ) : null}
-          {visiblePosts.map((post) => (
-            <TimelinePostCard
-              key={post.id}
-              post={post}
-              authenticated={authenticated}
-              onChange={(next: TimelinePost) => {
-                setPosts((prev) =>
-                  prev.map((p) => (p.id === next.id ? next : p))
-                );
-                setPinnedPost((prev) =>
-                  prev && prev.id === next.id ? next : prev
-                );
-              }}
-              onRemove={(id: number) => {
-                setPosts((prev) => prev.filter((p) => p.id !== id));
-                setPinnedPost((prev) =>
-                  prev && prev.id === id ? null : prev
-                );
-              }}
-              onQuote={onQuote}
-              onRequireLogin={requireLogin}
-            />
-          ))}
+          {homeFeedRows.map((row) => {
+            if (row.kind === "sponsor") {
+              return (
+                <SponsorAdCard
+                  key={`sponsor-${row.ad.id}-${row.ad.placement}`}
+                  ad={row.ad}
+                  layout="feed"
+                />
+              );
+            }
+            const post = visiblePosts[row.index];
+            if (!post) return null;
+            return (
+              <TimelinePostCard
+                key={post.id}
+                post={post}
+                authenticated={authenticated}
+                onChange={(next: TimelinePost) => {
+                  setPosts((prev) =>
+                    prev.map((p) => (p.id === next.id ? next : p))
+                  );
+                  setPinnedPost((prev) =>
+                    prev && prev.id === next.id ? next : prev
+                  );
+                }}
+                onRemove={(id: number) => {
+                  setPosts((prev) => prev.filter((p) => p.id !== id));
+                  setPinnedPost((prev) =>
+                    prev && prev.id === id ? null : prev
+                  );
+                }}
+                onQuote={onQuote}
+                onRequireLogin={requireLogin}
+              />
+            );
+          })}
         </div>
       )}
 

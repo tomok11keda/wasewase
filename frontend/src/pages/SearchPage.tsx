@@ -44,6 +44,8 @@ import {
   isSearchDiscoverMode,
   searchCategoryPlaceholder,
 } from "../features/search/searchSubmit";
+import { SponsorAdCard } from "../features/sponsorAds/SponsorAdCard";
+import { parseDiscoverSponsorAds } from "../features/sponsorAds/types";
 import {
   DiscoverPostCard,
   DiscoverThreadCard,
@@ -439,6 +441,7 @@ function SearchDiscoverView({
 
   const showTrending =
     mosaic.posts.length > 0 || mosaic.products.length > 0;
+  const sponsorAds = parseDiscoverSponsorAds(discover.sponsor_ads);
 
   return (
     <div className="search-discover">
@@ -478,6 +481,26 @@ function SearchDiscoverView({
           <span className="discover-gate__hint">教科書・生活用品</span>
         </Link>
       </nav>
+
+      {sponsorAds.length > 0 ? (
+        <DiscoverSection
+          title="おすすめサービス"
+          visibleCount={sponsorAds.length}
+          totalCount={sponsorAds.length}
+          expanded
+          onExpand={() => undefined}
+        >
+          <div className="discover-sponsor-rail" data-discover-sponsor="1">
+            {sponsorAds.map((ad) => (
+              <SponsorAdCard
+                key={`discover-sponsor-${ad.id}`}
+                ad={ad}
+                layout="discover"
+              />
+            ))}
+          </div>
+        </DiscoverSection>
+      ) : null}
 
       {showTrending ? (
         <DiscoverSection

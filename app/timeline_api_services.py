@@ -476,12 +476,30 @@ def list_visible_timeline_post_likers(
     }
 
 
-def ads_meta_for_request(request: HttpRequest) -> dict[str, Any]:
-    return {
+def ads_meta_for_request(
+    request: HttpRequest,
+    *,
+    include_sponsor: bool = False,
+) -> dict[str, Any]:
+    """AdMob infeed meta + optional sponsor inventory (separate feature flag)."""
+    from .sponsor_ads_services import (
+        HOME_FEED_INSERT_AFTER,
+        home_feed_sponsor_payload,
+    )
+
+    meta: dict[str, Any] = {
         "show_infeed": bool(should_show_timeline_infeed_ads(request)),
         "interval": int(get_infeed_ad_interval()),
         "disabled": bool(is_ads_disabled()),
+        "sponsor": {
+            "enabled": False,
+            "insert_after": HOME_FEED_INSERT_AFTER,
+            "items": [],
+        },
     }
+    if include_sponsor:
+        meta["sponsor"] = home_feed_sponsor_payload(request)
+    return meta
 
 
 def list_timeline_page(
@@ -539,7 +557,8 @@ def list_timeline_page(
         "q": request.GET.get("q", "").strip(),
         "faculty": request.GET.get("faculty", "").strip(),
         "tag": request.GET.get("tag", "").strip(),
-        "ads": ads_meta_for_request(request),
+        # スポンサーは先頭ページのみ（投稿2件直後）。load-more では再掲しない。
+        "ads": ads_meta_for_request(request, include_sponsor=(start == 0)),
     }
 
 
